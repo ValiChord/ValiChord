@@ -8,196 +8,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: #0a0e1a;
-  color: #ccd;
-  font-family: 'Newsreader', Georgia, serif;
-  font-size: 17px;
-  line-height: 1.75;
-}
-.nav {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  padding: 16px 28px;
-  position: sticky;
-  top: 0;
-  background: rgba(10,14,26,0.95);
-  backdrop-filter: blur(8px);
-  z-index: 10;
-}
-.nav-inner {
-  max-width: 760px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-}
-.nav a {
-  color: #667;
-  text-decoration: none;
-  transition: color 0.2s;
-}
+body { background: #0a0e1a; color: #ccd; font-family: 'Newsreader', Georgia, serif; font-size: 17px; line-height: 1.75; }
+.nav { border-bottom: 1px solid rgba(255,255,255,0.06); padding: 16px 28px; position: sticky; top: 0; background: rgba(10,14,26,0.95); backdrop-filter: blur(8px); z-index: 10; }
+.nav-inner { max-width: 760px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+.nav a { color: #667; text-decoration: none; transition: color 0.2s; }
 .nav a:hover { color: #aab; }
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.nav-logo img {
-  width: 28px;
-  height: auto;
-  border-radius: 3px;
-}
-.nav-links {
-  display: flex;
-  gap: 20px;
-}
-.container {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 48px 28px 80px;
-}
-.doc-header {
-  margin-bottom: 48px;
-  padding-bottom: 32px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.doc-header h1 {
-  font-size: 32px;
-  font-weight: 400;
-  color: #e8e8e4;
-  margin-bottom: 4px;
-}
-.doc-header .subtitle {
-  font-size: 18px;
-  color: #889;
-  font-style: italic;
-  margin-bottom: 16px;
-}
-.doc-header .meta {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  color: #556;
-  line-height: 1.6;
-}
-.content h1 {
-  font-size: 28px;
-  font-weight: 400;
-  color: #e8e8e4;
-  margin: 48px 0 16px 0;
-  padding-top: 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-}
-.content h2 {
-  font-size: 23px;
-  font-weight: 400;
-  color: #dde;
-  margin: 40px 0 12px 0;
-}
-.content h3 {
-  font-size: 18px;
-  font-weight: 500;
-  color: #bbc;
-  margin: 32px 0 10px 0;
-  font-family: 'DM Sans', sans-serif;
-}
-.content h4 {
-  font-size: 16px;
-  font-weight: 500;
-  color: #aab;
-  margin: 24px 0 8px 0;
-  font-family: 'DM Sans', sans-serif;
-}
-.content p {
-  margin: 0 0 16px 0;
-  color: #9aa;
-}
-.content strong {
-  color: #bbc;
-  font-weight: 500;
-}
-.content em {
-  color: #aab;
-}
-.content ul, .content ol {
-  margin: 0 0 16px 24px;
-  color: #9aa;
-}
-.content li {
-  margin-bottom: 6px;
-}
-.content blockquote {
-  border-left: 2px solid #334;
-  padding-left: 20px;
-  margin: 16px 0;
-  color: #778;
-  font-style: italic;
-}
-.content code {
-  font-family: 'DM Mono', monospace;
-  font-size: 14px;
-  background: rgba(255,255,255,0.05);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: #aab;
-}
-.content pre {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 6px;
-  padding: 16px 20px;
-  overflow-x: auto;
-  margin: 16px 0;
-}
-.content pre code {
-  background: none;
-  padding: 0;
-}
-.content hr {
-  border: none;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  margin: 32px 0;
-}
-.content table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 16px 0;
-  font-size: 15px;
-}
-.content th {
-  text-align: left;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: #bbc;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
-  font-size: 13px;
-}
-.content td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: #9aa;
-}
-.footer {
-  margin-top: 64px;
-  padding-top: 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  color: #445;
-}
-.footer a {
-  color: #556;
-  text-decoration: none;
-  border-bottom: 1px solid #334;
-}
-@media (max-width: 600px) {
-  .container { padding: 32px 20px 60px; }
-  .content h1 { font-size: 24px; }
-  .content h2 { font-size: 20px; }
-  .nav-links { gap: 12px; font-size: 12px; }
-}
+.nav-logo { display: flex; align-items: center; gap: 10px; }
+.nav-logo img { width: 28px; height: auto; border-radius: 3px; }
+.nav-links { display: flex; gap: 20px; }
+.container { max-width: 760px; margin: 0 auto; padding: 48px 28px 80px; }
+.doc-header { margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.doc-header h1 { font-size: 32px; font-weight: 400; color: #e8e8e4; margin-bottom: 4px; }
+.doc-header .subtitle { font-size: 18px; color: #889; font-style: italic; margin-bottom: 16px; }
+.doc-header .meta { font-family: 'DM Sans', sans-serif; font-size: 13px; color: #556; line-height: 1.6; }
+.content h1 { font-size: 28px; font-weight: 400; color: #e8e8e4; margin: 48px 0 16px 0; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); }
+.content h2 { font-size: 23px; font-weight: 400; color: #dde; margin: 40px 0 12px 0; }
+.content h3 { font-size: 18px; font-weight: 500; color: #bbc; margin: 32px 0 10px 0; font-family: 'DM Sans', sans-serif; }
+.content h4 { font-size: 16px; font-weight: 500; color: #aab; margin: 24px 0 8px 0; font-family: 'DM Sans', sans-serif; }
+.content p { margin: 0 0 16px 0; color: #9aa; }
+.content strong { color: #bbc; font-weight: 500; }
+.content em { color: #aab; }
+.content ul, .content ol { margin: 0 0 16px 24px; color: #9aa; }
+.content li { margin-bottom: 6px; }
+.content blockquote { border-left: 2px solid #334; padding-left: 20px; margin: 16px 0; color: #778; font-style: italic; }
+.content code { font-family: 'DM Mono', monospace; font-size: 14px; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 3px; color: #aab; }
+.content pre { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; }
+.content pre code { background: none; padding: 0; }
+.content hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 32px 0; }
+.content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; }
+.content th { text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1); color: #bbc; font-family: 'DM Sans', sans-serif; font-weight: 500; font-size: 13px; }
+.content td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #9aa; }
+.footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); font-family: 'DM Sans', sans-serif; font-size: 13px; color: #445; }
+.footer a { color: #556; text-decoration: none; border-bottom: 1px solid #334; }
+@media (max-width: 600px) { .container { padding: 32px 20px 60px; } .content h1 { font-size: 24px; } .content h2 { font-size: 20px; } .nav-links { gap: 12px; font-size: 12px; } }
 </style>
 </head>
 <body>
@@ -213,20 +56,16 @@ body {
       <a href="phase0.html">Phase 0</a>
       <a href="vision.html">Vision</a>
       <a href="governance.html">Governance</a>
-    </div>
+</div>
   </div>
 </div>
 <div class="container">
   <div class="doc-header">
     <h1>Phase 0 Proposal</h1>
     <div class="subtitle">Measuring Computational Reproducibility Workload</div>
-    <div class="meta">
-      Author: Ceri John &middot; February 2026<br>
-      Shared publicly for review and discussion &middot; Seeking Principal Investigator
-    </div>
+    <div class="meta">Author: Ceri John &middot; February 2026<br>Shared publicly for review and discussion &middot; Seeking Principal Investigator</div>
   </div>
-  <div class="content">
-    <h1>ValiChord Phase 0: Validation Workload Discovery</h1>
+  <div class="content"><h1>ValiChord Phase 0: Validation Workload Discovery</h1>
 <h2>Scaled Design — 12 Months, £150K FEC</h2>
 <p><strong>How long does it take to check whether published computational research actually works?</strong></p>
 <p><strong>Nobody knows. This study finds out.</strong></p>
@@ -261,7 +100,7 @@ body {
 <p>Verification requires someone to actually do the work — download the data, run the code, compare the outputs. This is skilled, time-consuming labour. And there is no empirical data on what it involves.</p>
 <p>We don't know how long it takes. We don't know what makes it difficult. We don't know which types of studies are practical to verify and which aren't. We don't know what support validators need, what barriers they encounter, or at what point a study becomes effectively impossible to check.</p>
 <p>Every reproducibility initiative — journal mandates, funder requirements, proposed validation services — implicitly assumes this work is feasible at reasonable cost. That assumption has never been tested.</p>
-<p><strong>A note on existing efforts.</strong> Several initiatives have attempted computational reproduction — CODECHECK (25+ checks), cascad (economics verification), the Reproducibility Projects (Psychology and Cancer Biology). These measured <em>whether</em> studies reproduced. They did not systematically measure <em>what factors are associated with how long reproduction takes</em>. CODECHECK does not publish time-per-validation or examine which surface features track with effort. The Reproducibility Projects tracked total cost but not the specific breakdown of where time went or what made some studies harder than others. No existing dataset links observable study features (code quality, documentation, dependency count, data accessibility) to validation workload in a way that could inform the design of a difficulty-assessment system. Phase 0 is not measuring "can studies be reproduced" — that question has partial answers already. It is measuring "what makes reproduction easy or hard, and can you identify those factors from the outside?" That is the genuinely novel question, and the one any scalable infrastructure needs answered.</p>
+<p><strong>A note on existing efforts.</strong> Several initiatives have attempted computational reproduction — CODECHECK (25+ checks), cascad (economics verification), the Reproducibility Projects (Psychology and Cancer Biology). These measured <em>whether</em> studies reproduced. They did not systematically measure <em>what factors are associated with how long reproduction takes</em>. CODECHECK does not publish time-per-validation or examine which surface features track with effort. The Reproducibility Projects tracked total cost but not the specific breakdown of where time went or what made some studies harder than others. Where validation workload has been discussed, it confirms the problem is real: an NSF-sponsored workshop on practical reproducibility in HPC reported that artifact evaluation takes significantly more time than paper review, yet reviewers receive less time to do it (Keahey et al., 2025). Journal reproducibility editors have proposed harmonised multi-tier standards partly because the workload is unmanageable without them (Hornung et al., 2025). No existing dataset links observable study features (code quality, documentation, dependency count, data accessibility) to validation workload in a way that could inform the design of a difficulty-assessment system. Phase 0 is not measuring "can studies be reproduced" — that question has partial answers already. It is measuring "what makes reproduction easy or hard, and can you identify those factors from the outside?" That is the genuinely novel question, and the one any scalable infrastructure needs answered.</p>
 <h3>Why This Matters</h3>
 <p>Without workload data, you can't design infrastructure. You can't set compensation rates. You can't tell a funder what validation will cost per study. You can't tell a journal how long verification will take. You can't distinguish between studies that are worth checking and studies that will consume resources without result.</p>
 <p>This is the gap Phase 0 fills.</p>
@@ -280,7 +119,7 @@ body {
 <p>The study has standalone value. The workload data is useful to anyone working on reproducibility — not just ValiChord. Even findings that challenge current assumptions about validation feasibility would be a contribution, because they would reshape how the entire field thinks about reproducibility infrastructure.</p>
 <h3>Why Holochain (Brief Context)</h3>
 <p>The proposed infrastructure uses Holochain — an open-source framework for distributed applications — rather than blockchain. The key advantage is that Holochain's agent-centric architecture allows patient data to stay local and deletable (GDPR-compliant) while distributing only cryptographic validation proofs. This solves the fundamental conflict between data protection law and immutable verification records that killed previous blockchain-based reproducibility projects.</p>
-<p>This technical choice has been validated by Holochain Foundation engineers, but it is not relevant to Phase 0. Phase 0 uses standard tools (time tracking, surveys, institutional data storage). The technology question is addressed in later phases.</p>
+<p>This technical choice has been validated by Holochain Foundation engineers, but it is not relevant to Phase 0. Phase 0 uses standard tools (time tracking, surveys, institutional data storage). The technology question is addressed in later phases. The broader architectural direction — federated, layered, governance-aware — is consistent with emerging academic consensus: Beyvers et al. (2026, <em>PLOS Computational Biology</em>) independently propose layered, peer-to-peer architectures for research data ecosystems that preserve domain sovereignty while enabling cross-institutional collaboration.</p>
 <h3>Architecture Overview</h3>
 <p>ValiChord's full architecture spans eight layers, from data integrity through to institutional integration. These are documented in detail in companion technical documents. For Phase 0 purposes, the relevant point is that every layer depends on the same foundational question: what does validation actually cost? Without Phase 0 evidence, the entire architecture is designed on assumptions.</p>
 <hr />
@@ -811,11 +650,9 @@ body {
 <p>(Reproducibility literature, methodology papers, Holochain documentation)</p>
 <hr />
 <p><strong>END OF PROPOSAL</strong></p>
-<p><strong>Version:</strong> 3.0 — Scaled Phase 0 for UKRI Metascience Round 2<br />
-<strong>Date:</strong> February 2026<br />
-<strong>Contact:</strong> [PI details TBD]<br />
-<strong>Funding Target:</strong> UKRI Metascience Research Grants, Round 2</p>
-  </div>
+<p><strong>Version:</strong> 3.0 — Scaled Phase 0 for UKRI Metascience Round 2  </p>
+<p><strong>Contact:</strong> [PI details TBD]<br />
+<strong>Funding Target:</strong> UKRI Metascience Research Grants, Round 2</p></div>
   <div class="footer">
     <p>&copy; 2026 Ceri John. Shared publicly for review and discussion.</p>
     <p style="margin-top: 8px;">
