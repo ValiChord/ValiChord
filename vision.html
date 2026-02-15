@@ -8,196 +8,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: #0a0e1a;
-  color: #ccd;
-  font-family: 'Newsreader', Georgia, serif;
-  font-size: 17px;
-  line-height: 1.75;
-}
-.nav {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  padding: 16px 28px;
-  position: sticky;
-  top: 0;
-  background: rgba(10,14,26,0.95);
-  backdrop-filter: blur(8px);
-  z-index: 10;
-}
-.nav-inner {
-  max-width: 760px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-}
-.nav a {
-  color: #667;
-  text-decoration: none;
-  transition: color 0.2s;
-}
+body { background: #0a0e1a; color: #ccd; font-family: 'Newsreader', Georgia, serif; font-size: 17px; line-height: 1.75; }
+.nav { border-bottom: 1px solid rgba(255,255,255,0.06); padding: 16px 28px; position: sticky; top: 0; background: rgba(10,14,26,0.95); backdrop-filter: blur(8px); z-index: 10; }
+.nav-inner { max-width: 760px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+.nav a { color: #667; text-decoration: none; transition: color 0.2s; }
 .nav a:hover { color: #aab; }
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.nav-logo img {
-  width: 28px;
-  height: auto;
-  border-radius: 3px;
-}
-.nav-links {
-  display: flex;
-  gap: 20px;
-}
-.container {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 48px 28px 80px;
-}
-.doc-header {
-  margin-bottom: 48px;
-  padding-bottom: 32px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.doc-header h1 {
-  font-size: 32px;
-  font-weight: 400;
-  color: #e8e8e4;
-  margin-bottom: 4px;
-}
-.doc-header .subtitle {
-  font-size: 18px;
-  color: #889;
-  font-style: italic;
-  margin-bottom: 16px;
-}
-.doc-header .meta {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  color: #556;
-  line-height: 1.6;
-}
-.content h1 {
-  font-size: 28px;
-  font-weight: 400;
-  color: #e8e8e4;
-  margin: 48px 0 16px 0;
-  padding-top: 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-}
-.content h2 {
-  font-size: 23px;
-  font-weight: 400;
-  color: #dde;
-  margin: 40px 0 12px 0;
-}
-.content h3 {
-  font-size: 18px;
-  font-weight: 500;
-  color: #bbc;
-  margin: 32px 0 10px 0;
-  font-family: 'DM Sans', sans-serif;
-}
-.content h4 {
-  font-size: 16px;
-  font-weight: 500;
-  color: #aab;
-  margin: 24px 0 8px 0;
-  font-family: 'DM Sans', sans-serif;
-}
-.content p {
-  margin: 0 0 16px 0;
-  color: #9aa;
-}
-.content strong {
-  color: #bbc;
-  font-weight: 500;
-}
-.content em {
-  color: #aab;
-}
-.content ul, .content ol {
-  margin: 0 0 16px 24px;
-  color: #9aa;
-}
-.content li {
-  margin-bottom: 6px;
-}
-.content blockquote {
-  border-left: 2px solid #334;
-  padding-left: 20px;
-  margin: 16px 0;
-  color: #778;
-  font-style: italic;
-}
-.content code {
-  font-family: 'DM Mono', monospace;
-  font-size: 14px;
-  background: rgba(255,255,255,0.05);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: #aab;
-}
-.content pre {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 6px;
-  padding: 16px 20px;
-  overflow-x: auto;
-  margin: 16px 0;
-}
-.content pre code {
-  background: none;
-  padding: 0;
-}
-.content hr {
-  border: none;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  margin: 32px 0;
-}
-.content table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 16px 0;
-  font-size: 15px;
-}
-.content th {
-  text-align: left;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: #bbc;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
-  font-size: 13px;
-}
-.content td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  color: #9aa;
-}
-.footer {
-  margin-top: 64px;
-  padding-top: 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13px;
-  color: #445;
-}
-.footer a {
-  color: #556;
-  text-decoration: none;
-  border-bottom: 1px solid #334;
-}
-@media (max-width: 600px) {
-  .container { padding: 32px 20px 60px; }
-  .content h1 { font-size: 24px; }
-  .content h2 { font-size: 20px; }
-  .nav-links { gap: 12px; font-size: 12px; }
-}
+.nav-logo { display: flex; align-items: center; gap: 10px; }
+.nav-logo img { width: 28px; height: auto; border-radius: 3px; }
+.nav-links { display: flex; gap: 20px; }
+.container { max-width: 760px; margin: 0 auto; padding: 48px 28px 80px; }
+.doc-header { margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.doc-header h1 { font-size: 32px; font-weight: 400; color: #e8e8e4; margin-bottom: 4px; }
+.doc-header .subtitle { font-size: 18px; color: #889; font-style: italic; margin-bottom: 16px; }
+.doc-header .meta { font-family: 'DM Sans', sans-serif; font-size: 13px; color: #556; line-height: 1.6; }
+.content h1 { font-size: 28px; font-weight: 400; color: #e8e8e4; margin: 48px 0 16px 0; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); }
+.content h2 { font-size: 23px; font-weight: 400; color: #dde; margin: 40px 0 12px 0; }
+.content h3 { font-size: 18px; font-weight: 500; color: #bbc; margin: 32px 0 10px 0; font-family: 'DM Sans', sans-serif; }
+.content h4 { font-size: 16px; font-weight: 500; color: #aab; margin: 24px 0 8px 0; font-family: 'DM Sans', sans-serif; }
+.content p { margin: 0 0 16px 0; color: #9aa; }
+.content strong { color: #bbc; font-weight: 500; }
+.content em { color: #aab; }
+.content ul, .content ol { margin: 0 0 16px 24px; color: #9aa; }
+.content li { margin-bottom: 6px; }
+.content blockquote { border-left: 2px solid #334; padding-left: 20px; margin: 16px 0; color: #778; font-style: italic; }
+.content code { font-family: 'DM Mono', monospace; font-size: 14px; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 3px; color: #aab; }
+.content pre { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; }
+.content pre code { background: none; padding: 0; }
+.content hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 32px 0; }
+.content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; }
+.content th { text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.1); color: #bbc; font-family: 'DM Sans', sans-serif; font-weight: 500; font-size: 13px; }
+.content td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #9aa; }
+.footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); font-family: 'DM Sans', sans-serif; font-size: 13px; color: #445; }
+.footer a { color: #556; text-decoration: none; border-bottom: 1px solid #334; }
+@media (max-width: 600px) { .container { padding: 32px 20px 60px; } .content h1 { font-size: 24px; } .content h2 { font-size: 20px; } .nav-links { gap: 12px; font-size: 12px; } }
 </style>
 </head>
 <body>
@@ -213,20 +56,16 @@ body {
       <a href="phase0.html">Phase 0</a>
       <a href="vision.html">Vision</a>
       <a href="governance.html">Governance</a>
-    </div>
+</div>
   </div>
 </div>
 <div class="container">
   <div class="doc-header">
     <h1>Vision &amp; Architecture</h1>
     <div class="subtitle">End-to-End Scientific Reproducibility Infrastructure</div>
-    <div class="meta">
-      Author: Ceri John &middot; February 2026<br>
-      Shared publicly for review and discussion
-    </div>
+    <div class="meta">Author: Ceri John &middot; February 2026<br>Shared publicly for review and discussion</div>
   </div>
-  <div class="content">
-    <h1>ValiChord Complete</h1>
+  <div class="content"><h1>ValiChord Complete</h1>
 <h2>Vision &amp; Architecture for End-to-End Scientific Reproducibility Infrastructure</h2>
 <hr />
 <h2>What This Document Is</h2>
@@ -255,7 +94,7 @@ body {
 <p><strong>Perverse incentives.</strong> Academic careers reward novelty over reliability. "Publish or perish" means researchers need striking positive results, not careful replications. Negative results don't get published. Attempting to replicate someone else's work is widely seen as career-limiting. There is no formal credit for validation work.</p>
 <p><strong>Methodological flexibility.</strong> Researchers have enormous freedom in how they analyse data — which statistical tests to run, which outliers to exclude, when to stop collecting data, which results to report. This isn't necessarily fraud; it's human nature. But it means the published literature is systematically biased toward results that look significant, whether or not they're real. The technical terms for these practices — p-hacking, HARKing (Hypothesising After Results Known), selective reporting — describe a spectrum from unconscious bias to deliberate manipulation.</p>
 <p><strong>Data unavailability.</strong> Even when journals require data sharing, 70% of deposited data turns out to be unusable — missing documentation, broken links, incompatible formats, missing software dependencies. Sharing a dataset is not the same as making it reproducible.</p>
-<p><strong>No validation infrastructure.</strong> There is no systematic way to validate computational research. Peer review doesn't include reproduction attempts. Journals don't have the resources. Funders mandate data sharing but don't fund anyone to actually check the data. The infrastructure simply doesn't exist.</p>
+<p><strong>No validation infrastructure.</strong> There is no systematic way to validate computational research. Peer review doesn't include reproduction attempts. Journals don't have the resources. Funders mandate data sharing but don't fund anyone to actually check the data. The infrastructure simply doesn't exist. Where validation work does happen — in conference artifact evaluation or journal reproducibility checking — it is chronically under-resourced: artifact reviewers report that evaluating reproducibility takes significantly more time than reviewing papers, yet receive less time to do it (Keahey et al., 2025, NSF REPETO workshop report). Journal reproducibility editors cite the need to "keep the review workload manageable" as a reason for limiting what they check (Hornung et al., 2025). The labour is real, skilled, and unmeasured.</p>
 <p><strong>Social dynamics.</strong> Challenging the findings of a high-status researcher at a prestigious institution is career-limiting. Institutions protect their prestigious names. What one AI reviewer of this project called "coordinated legitimacy" — the tendency of scientific communities to maintain polite consensus rather than pursue uncomfortable truths — is often more powerful than any individual's commitment to rigour.</p>
 <p>ValiChord exists because no previous attempt has addressed all five of these causes together.</p>
 <hr />
@@ -324,6 +163,7 @@ body {
 <li><strong>Behavioural pattern analysis.</strong> Because each validator maintains a source chain of all their actions, the system can detect collusion patterns, rubber-stamping, and other gaming behaviours natively — by analysing the patterns in these chains over time.</li>
 </ul>
 <p>This is not a technology choice made for novelty. It's the specific architecture that solves the specific problems that killed every previous blockchain-based reproducibility attempt. Paul D'Aoust (Documentation and Developer Community Lead, Holochain Foundation) has reviewed ValiChord's proposed architecture and confirmed it is implementable with the current Holochain framework.</p>
+<p>ValiChord's architectural direction has independent academic support. Beyvers et al. (2026, <em>PLOS Computational Biology</em>) propose "FAIR and federated Data Ecosystems" (FFDEs) — layered architectures combining peer-to-peer networking, federated governance, and domain sovereignty for research data management. Their four-plane architecture (governance, data, service, application) maps directly onto ValiChord's eight-layer design: where they solve data <em>sharing</em> through federated infrastructure, ValiChord solves data <em>validation</em> through the same principles. They reach the same conclusion independently: "the technology already exists... the challenge isn't technical innovation but organizational coordination." Their work validates ValiChord's core thesis that decentralised, governance-aware architectures are the emerging consensus for research infrastructure — and that the missing piece is not better technology but better evidence about what validation actually involves.</p>
 <h3>An Important Scope Boundary</h3>
 <p>ValiChord validates computation, not data provenance. Validators re-run code on provided data and verify whether the claimed results reproduce. If the raw data itself is fabricated — but internally consistent — validators would successfully reproduce the results and the study could receive a high confidence rating for science built on false foundations. ValiChord's cryptographic audit trail proves that data wasn't changed after submission; it cannot prove the data was truthful in the first place.</p>
 <p>This is not a design flaw — it is a boundary. No computational validation system can verify that a researcher actually observed what they claim to have observed. ValiChord catches coding errors, analytical mistakes, undocumented dependencies, and post-hoc manipulation. It does not catch well-executed fraud at the data generation stage. The documents, the Harmony Records, and any public communications must be honest about this boundary.</p>
@@ -469,10 +309,15 @@ body {
 - <em>ValiChord Open Design Questions</em> — Precedents, likely approaches, and resolution phases
 - <em>ValiChord Phase 0 Proposal</em> — Workload Discovery Pilot (£69K, 6 months)
 - <em>ValiChord Researcher Support</em> — Feedback pipeline and pre-validation tools</p>
-<p><strong>Contact:</strong> Ceri John — <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ef9b809f8a9a9f87af88828e8683c18c8082">[email&#160;protected]</a></p>
-  </div>
+<p><strong>Contact:</strong> Ceri John — topeuph@gmail.com</p></div>
   <div class="footer">
     <p>&copy; 2026 Ceri John. Shared publicly for review and discussion.</p>
     <p style="margin-top: 8px;">
       <a href="index.html">ValiChord Home</a> &middot;
-      <a href="at-home.html">ValiChord at Home<
+      <a href="at-home.html">ValiChord at Home</a> &middot;
+      <a href="https://github.com/topeuph-ai/ValiChord">GitHub</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>
