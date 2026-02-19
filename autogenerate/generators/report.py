@@ -178,7 +178,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
     ]
 
     out = output_dir / 'CLEANING_REPORT.md'
-    out.write_text('\n'.join(lines), encoding='utf-8')
+    out.write_text('\n'.join(lines), encoding='utf-8-sig')
     print(f"  → CLEANING_REPORT.md")
 
 
@@ -291,5 +291,5 @@ def _write_assessment(repo_name, findings, output_dir):
     ]
 
     out = output_dir / 'ASSESSMENT.md'
-    out.write_text('\n'.join(lines), encoding='utf-8')
+    out.write_text('\n'.join(lines), encoding='utf-8-sig')
     print(f"  → ASSESSMENT.md")
