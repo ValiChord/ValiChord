@@ -53,6 +53,25 @@
   <div class="status running" id="statusRunning"><div class="spinner"></div>Running 64 detectors — this usually takes 15–30 seconds...<br><small style="color:#6a6460;margin-top:8px;display:block;">First request may take up to 60 seconds if the server is waking up.</small></div>
   <div class="status error" id="statusError"></div>
   <div class="status success" id="statusSuccess">✓ Analysis complete — your download should start automatically.</div>
+  <div style="background:#0f0f1a; border:1px solid #2a2a3a; border-radius:12px; padding:30px; margin-bottom:24px;">
+    <h3 style="font-family:Newsreader,serif; font-weight:300; font-size:1.3em; margin-bottom:16px; color:#e8e4dc;">What you will receive</h3>
+    <div style="color:#9a9490; font-size:0.9em; line-height:2;">
+      <div><span style="color:#d94a4a;">🔴</span> <strong style="color:#e8e4dc;">CLEANING_REPORT.md</strong> — Full findings list with CRITICAL, SIGNIFICANT, and LOW CONFIDENCE issues explained</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">ASSESSMENT.md</strong> — Summary assessment of overall reproducibility readiness</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">README_DRAFT.md</strong> — A suggested README built from what was found in the repository</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">QUICKSTART_DRAFT.md</strong> — A suggested quickstart guide for validators</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">INVENTORY_DRAFT.md</strong> — A full inventory of every file in the repository</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">requirements_DRAFT.txt</strong> — Dependencies detected in the code</div>
+      <div><span style="color:#4a90d9;">📋</span> <strong style="color:#e8e4dc;">LICENCE_DRAFT.txt</strong> — A suggested licence if none was found</div>
+      <div><span style="color:#4ad94a;">✏️</span> <strong style="color:#e8e4dc;">proposed_corrections/</strong> — Corrected versions of files where absolute paths were detected</div>
+    </div>
+    <p style="color:#6a6460; font-size:0.8em; margin-top:16px;">All files are drafts for the researcher to review and adopt. Nothing is automatically changed in the original repository.</p>
+  </div>
+
+  <div style="text-align:center; margin-bottom:24px;">
+    <span style="background:#1a2a1a; border:1px solid #2a5a2a; color:#4ad94a; padding:6px 16px; border-radius:20px; font-size:0.8em;">v1 Demo — 64 detectors — Python &amp; R repositories supported</span>
+  </div>
+
   <p class="notes">ValiChord is open source — <a href="https://github.com/topeuph-ai/ValiChord" target="_blank">view on GitHub</a><br>Files are analysed and immediately deleted. Nothing is stored.<br>Part of the <a href="https://topeuph-ai.github.io/ValiChord/" target="_blank">ValiChord distributed validation infrastructure</a>.</p>
 </div>
 <script>
