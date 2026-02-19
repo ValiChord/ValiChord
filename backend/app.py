@@ -80,9 +80,6 @@ def analyse():
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
         generate_cleaning_report(f.filename, repo_dir, all_files, findings, output_dir)
 
-        original_copy = output_dir / 'original_repository'
-        shutil.copytree(repo_dir, original_copy)
-
         stem = Path(f.filename).stem
         output_zip = work_dir / f'valichord_output_{stem}.zip'
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
