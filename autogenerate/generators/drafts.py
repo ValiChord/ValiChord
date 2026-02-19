@@ -425,6 +425,23 @@ def _generate_requirements_draft(repo_dir, all_files,
 
 # ── QUICKSTART_DRAFT.md ──────────────────────────────────────────────────────
 
+
+def _install_instructions(code_files):
+    """Return language-appropriate install instructions."""
+    suffixes = {f.suffix.lower() for f in code_files}
+    lines = []
+    if '.jl' in suffixes:
+        lines.append('3. Install dependencies: `julia --project=. -e "using Pkg; Pkg.instantiate()"`')
+    if '.r' in suffixes or '.rmd' in suffixes:
+        lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
+    if '.do' in suffixes or '.ado' in suffixes:
+        lines.append('3. Open Stata and run the master do-file listed above')
+    if '.m' in suffixes:
+        lines.append('3. Open MATLAB and run the master script listed above')
+    if '.py' in suffixes or not lines:
+        lines.append('3. Install dependencies: `pip install -r requirements.txt`')
+    return lines
+
 def _generate_quickstart_draft(repo_dir, all_files,
                                  findings, output_dir):
     """Generate QUICKSTART_DRAFT.md with inferred execution order."""
@@ -493,11 +510,9 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '1. Complete `README_DRAFT.md` and rename to `README.md`',
         '2. Add version numbers to `requirements_DRAFT.txt` '
         'and rename to `requirements.txt`',
-        '3. Install dependencies: `pip install -r requirements.txt`',
+        *_install_instructions(code_files),
         '4. Test on a **clean machine** — not just a new folder '
         'on your development machine',
-        '5. When testing: use `pip install --no-cache-dir` '
-        'to ensure no cached packages are used',
         '',
         '---',
         '',
