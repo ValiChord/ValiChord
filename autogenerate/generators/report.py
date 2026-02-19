@@ -79,7 +79,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         '',
         '**If your cleaned repository runs end-to-end but produces '
         'results that differ from your published paper, this is not '
-        'a ValiChord Repository Readiness Check error.**
+        'a ValiChord Repository Readiness Check error.** First check whether you adopted any proposed corrections — a correction may have introduced a change. If no corrections were adopted and results still differ, this is a scientific discrepancy only '
         'you can resolve.',
         '',
         '**This report does not constitute certification that this '
