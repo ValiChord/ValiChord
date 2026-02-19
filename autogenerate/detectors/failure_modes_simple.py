@@ -445,6 +445,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BJ_encrypted_files(repo_dir, all_files)
     all_findings += detect_BK_system_clock(repo_dir, all_files)
     all_findings += detect_BL_git_history_dependency(repo_dir, all_files)
+    print("  [G]  README adequacy check...")
+    all_findings += detect_G_inadequate_readme(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -650,6 +652,100 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             'Data files are present but no dedicated codebook or '
             'data dictionary file was found.',
             [f'Data files found: {len(data_files)}']
+        ))
+
+    return findings
+
+
+def detect_G_inadequate_readme(repo_dir, all_files):
+    """Failure Mode G: README exists but missing critical sections."""
+    findings = []
+
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+
+    if not readme_file:
+        return findings  # A detector handles missing README
+
+    try:
+        content = readme_file.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return findings
+
+    content_lower = content.lower()
+
+    # sections we expect in a reproducible research README
+    required_sections = {
+        'installation': [
+            'install', 'setup', 'getting started', 'requirements',
+            'dependencies', 'environment', 'pip install', 'conda'
+        ],
+        'execution': [
+            'how to run', 'usage', 'running', 'execute', 'run the',
+            'to reproduce', 'reproduc', 'quickstart', 'quick start',
+            'steps to', 'instructions'
+        ],
+        'expected outputs': [
+            'expected output', 'results', 'figures', 'tables',
+            'what to expect', 'output files', 'produces',
+            'generates', 'successful reproduction', 'success'
+        ],
+        'data': [
+            'data', 'dataset', 'download', 'source', 'input'
+        ],
+    }
+
+    missing = []
+    for section, keywords in required_sections.items():
+        if not any(kw in content_lower for kw in keywords):
+            missing.append(section)
+
+    if len(missing) >= 3:
+        findings.append(finding(
+            'G', 'SIGNIFICANT',
+            f'README is missing critical sections: {", ".join(missing)}',
+            'A README exists but is missing sections that validators '
+            'need to reproduce the work. Without installation '
+            'instructions, execution steps, and expected outputs, '
+            'validators cannot proceed systematically.',
+            [f'Missing sections: {", ".join(missing)}',
+             f'README length: {len(content)} characters']
+        ))
+    elif len(missing) >= 1:
+        findings.append(finding(
+            'G', 'LOW CONFIDENCE',
+            f'README may be missing sections: {", ".join(missing)}',
+            'The README appears to be missing some recommended '
+            'sections. This may be intentional if the information '
+            'is elsewhere, but validators may struggle to find it.',
+            [f'Possibly missing: {", ".join(missing)}']
+        ))
+
+    # check for definition of successful reproduction
+    success_indicators = [
+        'successful reproduction', 'reproduction is successful',
+        'expected result', 'should produce', 'should see',
+        'tolerance', 'within', 'match', 'identical'
+    ]
+    has_success_definition = any(
+        ind in content_lower for ind in success_indicators
+    )
+
+    if not has_success_definition and len(content) > 200:
+        findings.append(finding(
+            'G', 'SIGNIFICANT',
+            'README does not define what successful reproduction looks like',
+            'Without a definition of successful reproduction, '
+            'validators cannot determine whether their results '
+            'match the original. This is the single most important '
+            'missing element in most research READMEs. '
+            'What should a validator see when they have succeeded?',
+            ['Missing: definition of successful reproduction',
+             'Required: expected values, tolerance bands, or '
+             'explicit comparison criteria']
         ))
 
     return findings
