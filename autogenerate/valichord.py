@@ -70,6 +70,26 @@ def main():
               f"(limit 50MB). Data files will be inventoried "
               f"but not fully analysed.")
 
+    # ── recursively extract nested zips ────────────────────────────
+    def extract_nested_zips(directory, depth=0):
+        if depth > 3:
+            return
+        for nested in list(directory.rglob("*.zip")):
+            if nested.stat().st_size > 100 * 1024 * 1024:
+                continue  # skip anything over 100MB
+            try:
+                dest = nested.parent / nested.stem
+                dest.mkdir(exist_ok=True)
+                with zipfile.ZipFile(nested, "r") as zf:
+                    zf.extractall(dest)
+                nested.unlink()
+                print(f"  Extracted nested: {nested.name}")
+                extract_nested_zips(dest, depth + 1)
+            except Exception:
+                pass
+
+    extract_nested_zips(repo_dir)
+
     print(f"  Repository size: {total_size_mb:.1f}MB")
 
     # ── inventory all files ──────────────────────────────────────────
