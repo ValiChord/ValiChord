@@ -318,22 +318,29 @@ def _generate_requirements_draft(repo_dir, all_files,
 
     imports = set()
 
+    import ast as _ast
     for f in all_files:
         if f.suffix.lower() == '.py':
             try:
-                content = f.read_text(
-                    encoding='utf-8', errors='ignore'
-                )
-                for line in content.splitlines():
-                    line = line.strip()
-                    # top-level imports
-                    m = re.match(r'^import\s+([\w]+)', line)
-                    if m:
-                        imports.add(m.group(1))
-                    # from X import
-                    m = re.match(r'^from\s+([\w]+)', line)
-                    if m:
-                        imports.add(m.group(1))
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                try:
+                    tree = _ast.parse(src)
+                    for node in _ast.walk(tree):
+                        if isinstance(node, _ast.Import):
+                            for alias in node.names:
+                                imports.add(alias.name.split('.')[0])
+                        elif isinstance(node, _ast.ImportFrom):
+                            if node.module:
+                                imports.add(node.module.split('.')[0])
+                except SyntaxError:
+                    for line in src.splitlines():
+                        line = line.strip()
+                        m = re.match(r'^import\s+([\w]+)', line)
+                        if m:
+                            imports.add(m.group(1))
+                        m = re.match(r'^from\s+([\w]+)', line)
+                        if m:
+                            imports.add(m.group(1))
             except Exception:
                 pass
 

@@ -445,6 +445,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BJ_encrypted_files(repo_dir, all_files)
     all_findings += detect_BK_system_clock(repo_dir, all_files)
     all_findings += detect_BL_git_history_dependency(repo_dir, all_files)
+    print("  [E]  Data documentation check...")
+    all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
     all_findings += detect_U_environment_variables(repo_dir, all_files)
     return all_findings
@@ -576,6 +578,78 @@ def detect_U_environment_variables(repo_dir, all_files):
             'Validators cannot know what variables to set. '
             'A .env.example will be generated.',
             [f'Variables: {", ".join(sorted(list(found_config)[:10]))}']
+        ))
+
+    return findings
+
+
+def detect_E_missing_data_documentation(repo_dir, all_files):
+    """Failure Mode E: Data files present but no data documentation."""
+    findings = []
+
+    data_extensions = {
+        '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
+        '.rdata', '.dta', '.sav', '.mat', '.pkl', '.npy',
+        '.npz', '.hdf5', '.h5', '.feather', '.arrow', '.json',
+        '.xml', '.db', '.sqlite'
+    }
+
+    data_files = [
+        f for f in all_files
+        if f.suffix.lower() in data_extensions
+    ]
+
+    if not data_files:
+        return findings
+
+    doc_indicators = [
+        'codebook', 'data_dictionary', 'data-dictionary',
+        'metadata', 'data_readme', 'data-readme',
+        'variables', 'schema'
+    ]
+
+    all_names_lower = [f.name.lower() for f in all_files]
+    all_stems_lower = [f.stem.lower() for f in all_files]
+
+    has_data_doc = any(
+        any(ind in name for ind in doc_indicators)
+        for name in all_names_lower + all_stems_lower
+    )
+
+    readme_mentions_data = False
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                content = f.read_text(encoding='utf-8', errors='ignore')
+                content_lower = content.lower()
+                if any(phrase in content_lower for phrase in [
+                    'data source', 'dataset', 'data description',
+                    'variables', 'data dictionary', 'codebook',
+                    'data collection', 'data format'
+                ]):
+                    readme_mentions_data = True
+            except Exception:
+                pass
+
+    if not has_data_doc and not readme_mentions_data:
+        data_names = [f.name for f in data_files[:5]]
+        extra = f' (and {len(data_files)-5} more)' if len(data_files) > 5 else ''
+        findings.append(finding(
+            'E', 'SIGNIFICANT',
+            f'{len(data_files)} data file(s) present but no data documentation found',
+            'Data files are present but no codebook, data dictionary, '
+            'or data description was found. Validators cannot assess '
+            'whether the data matches what the paper describes.',
+            [f'Data files: {", ".join(data_names)}{extra}',
+             'Missing: codebook, data dictionary, or README data section']
+        ))
+    elif data_files and not has_data_doc:
+        findings.append(finding(
+            'E', 'LOW CONFIDENCE',
+            'No dedicated data documentation file found',
+            'Data files are present but no dedicated codebook or '
+            'data dictionary file was found.',
+            [f'Data files found: {len(data_files)}']
         ))
 
     return findings
