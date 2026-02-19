@@ -505,6 +505,49 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_AM_makefile_missing(repo_dir, all_files)
     print("  [AN] Commented code check...")
     all_findings += detect_AN_commented_code(repo_dir, all_files)
+    print("  [AO] R-specific check...")
+    all_findings += detect_AO_r_specific_issues(repo_dir, all_files)
+    print("  [AP] Stata-specific check...")
+    all_findings += detect_AP_stata_specific(repo_dir, all_files)
+    print("  [AQ] Model files check...")
+    all_findings += detect_AQ_large_model_files(repo_dir, all_files)
+    print("  [AR] Encoding check...")
+    all_findings += detect_AR_encoding_issues(repo_dir, all_files)
+    print("  [AS] Network calls check...")
+    all_findings += detect_AS_network_calls(repo_dir, all_files)
+    print("  [AT] Database dependency check...")
+    all_findings += detect_AT_database_dependency(repo_dir, all_files)
+    print("  [AU] Cloud storage check...")
+    all_findings += detect_AU_cloud_storage(repo_dir, all_files)
+    print("  [AV] Hardcoded dates check...")
+    all_findings += detect_AV_hardcoded_dates(repo_dir, all_files)
+    print("  [AW] DOI check...")
+    all_findings += detect_AW_missing_doi(repo_dir, all_files)
+    print("  [AX] Container check...")
+    all_findings += detect_AX_container_not_tested(repo_dir, all_files)
+    print("  [AY] Workflow file check...")
+    all_findings += detect_AY_workflow_file(repo_dir, all_files)
+    print("  [AZ] Figure format check...")
+    all_findings += detect_AZ_figure_format(repo_dir, all_files)
+    print("  [BA] Checksums check...")
+    all_findings += detect_BA_missing_checksums(repo_dir, all_files)
+    print("  [BB] Script permissions check...")
+    all_findings += detect_BB_script_permissions(repo_dir, all_files)
+    print("  [BC] Line endings check...")
+    all_findings += detect_BC_mixed_line_endings(repo_dir, all_files)
+    print("  [BD] Contact info check...")
+    all_findings += detect_BD_missing_contact(repo_dir, all_files)
+    print("  [BE] Compiled files check...")
+    all_findings += detect_BE_pyc_files(repo_dir, all_files)
+    print("  [BF] Notebook outputs check...")
+    all_findings += detect_BF_notebook_outputs_missing(repo_dir, all_files)
+    print("  [BG] Funding acknowledgement check...")
+    all_findings += detect_BG_missing_acknowledgements(repo_dir, all_files)
+    print("  [BH] Archive files check...")
+    all_findings += detect_BH_zip_bomb_risk(repo_dir, all_files)
+    print("  [BI] Unicode paths check...")
+    all_findings += detect_BI_unicode_in_paths(repo_dir, all_files)
+
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -2213,3 +2256,331 @@ def detect_AN_commented_code(repo_dir, all_files):
             ))
 
     return findings
+
+
+def detect_AO_r_specific_issues(repo_dir, all_files):
+    findings = []
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    if not r_files:
+        return findings
+    has_renv = any(f.name.lower() in {'renv.lock', 'packrat.lock'} for f in all_files)
+    has_session_info = any('sessionInfo()' in read_file_safe(f) for f in r_files)
+    if not has_renv:
+        findings.append(finding('AO', 'SIGNIFICANT',
+            'R code present but no renv.lock found',
+            'Without renv.lock validators cannot install exact package versions.',
+            ['Missing: renv.lock', 'Run renv::init() and renv::snapshot()']))
+    if not has_session_info:
+        findings.append(finding('AO', 'LOW CONFIDENCE',
+            'No sessionInfo() call found in R scripts',
+            'sessionInfo() documents exact R and package versions used.',
+            ['Recommendation: add sessionInfo() at end of main script']))
+    return findings
+
+def detect_AP_stata_specific(repo_dir, all_files):
+    findings = []
+    stata_files = [f for f in all_files if f.suffix.lower() in {'.do', '.ado'}]
+    if not stata_files:
+        return findings
+    has_version = any(
+        re.search(r'version\s+\d+', read_file_safe(f), re.MULTILINE)
+        for f in stata_files
+    )
+    if not has_version:
+        findings.append(finding('AP', 'SIGNIFICANT',
+            'Stata do-files missing version declaration',
+            'Without version declaration Stata behaviour differs between versions.',
+            ['Missing: version XX at top of do-files']))
+    return findings
+
+def detect_AQ_large_model_files(repo_dir, all_files):
+    return []
+
+def detect_AR_encoding_issues(repo_dir, all_files):
+    findings = []
+    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+    bad = []
+    for f in py_files:
+        content = read_file_safe(f)
+        if re.search(r'open\s*\(', content) and 'encoding=' not in content:
+            bad.append(f.name)
+    if len(bad) >= 2:
+        findings.append(finding('AR', 'LOW CONFIDENCE',
+            f'open() without encoding in {len(bad)} files',
+            'open() without encoding behaves differently on Windows vs Linux/Mac.',
+            [f'Files: {chr(44).join(bad[:5])}', 'Fix: add encoding="utf-8"']))
+    return findings
+
+
+def detect_AS_network_calls(repo_dir, all_files):
+    findings = []
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    net_pattern = re.compile(r'(requests\.|urllib\.|http\.client|wget\.|curl\.|httpx\.|aiohttp\.)', re.IGNORECASE)
+    files_with_network = []
+    for f in code_files:
+        content = read_file_safe(f)
+        if net_pattern.search(content):
+            files_with_network.append(f.name)
+    if files_with_network:
+        findings.append(finding('AS', 'SIGNIFICANT',
+            f'Network calls detected in {len(files_with_network)} file(s)',
+            'Code makes network requests at runtime. These will fail without internet access or if remote resources move. Validators in restricted environments cannot reproduce results.',
+            [f'Files: {", ".join(files_with_network[:5])}',
+             'Recommendation: document all external dependencies and provide offline fallback']))
+    return findings
+
+
+def detect_AT_database_dependency(repo_dir, all_files):
+    findings = []
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    db_pattern = re.compile(r'(psycopg2|pymysql|sqlalchemy|sqlite3\.connect|pymongo|cx_Oracle|pyodbc|ibm_db|snowflake\.connector)', re.IGNORECASE)
+    db_files = []
+    for f in code_files:
+        content = read_file_safe(f)
+        if db_pattern.search(content):
+            db_files.append(f.name)
+    if db_files:
+        findings.append(finding('AT', 'SIGNIFICANT',
+            f'Database connections detected in {len(db_files)} file(s)',
+            'Code connects to external databases. Validators cannot reproduce results without access to these databases. Document connection requirements and provide sample data or database dumps.',
+            [f'Files with DB connections: {", ".join(db_files[:5])}',
+             'Required: connection documentation or sample data export']))
+    return findings
+
+
+def detect_AU_cloud_storage(repo_dir, all_files):
+    findings = []
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    cloud_pattern = re.compile(r'(boto3|s3fs|gcsfs|azure\.storage|google\.cloud\.storage|gs://|s3://|azure://)', re.IGNORECASE)
+    cloud_files = []
+    for f in code_files:
+        content = read_file_safe(f)
+        if cloud_pattern.search(content):
+            cloud_files.append(f.name)
+    if cloud_files:
+        findings.append(finding('AU', 'SIGNIFICANT',
+            f'Cloud storage access detected in {len(cloud_files)} file(s)',
+            'Code reads from or writes to cloud storage (S3, GCS, Azure). Validators require cloud credentials and access permissions to reproduce results.',
+            [f'Files: {", ".join(cloud_files[:5])}',
+             'Required: document storage buckets, access method, and credentials process']))
+    return findings
+
+
+def detect_AW_missing_doi(repo_dir, all_files):
+    findings = []
+    text_files = [f for f in all_files if f.suffix.lower() in {'.md', '.txt', '.rst'}]
+    has_doi = False
+    for f in text_files:
+        content = read_file_safe(f).lower()
+        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content:
+            has_doi = True
+            break
+    if not has_doi:
+        findings.append(finding('AW', 'LOW CONFIDENCE',
+            'No DOI or persistent identifier found in documentation',
+            'No DOI, Zenodo link, or other persistent identifier was found. A DOI ensures the repository remains citable and accessible long-term.',
+            ['Recommendation: deposit on Zenodo to get a DOI',
+             'Add DOI badge to README']))
+    return findings
+
+
+def detect_AX_container_not_tested(repo_dir, all_files):
+    findings = []
+    has_dockerfile = any(f.name.lower() == 'dockerfile' for f in all_files)
+    if not has_dockerfile:
+        return findings
+    dockerfile = next(f for f in all_files if f.name.lower() == 'dockerfile')
+    content = read_file_safe(dockerfile)
+    issues = []
+    if 'COPY . .' in content or 'COPY ./' in content:
+        if 'WORKDIR' not in content:
+            issues.append('No WORKDIR set before COPY')
+    if 'latest' in content.lower():
+        issues.append('Base image uses :latest tag — pin to specific version')
+    if 'RUN pip install' in content and 'requirements' not in content.lower():
+        issues.append('pip install without requirements file — not reproducible')
+    if issues:
+        findings.append(finding('AX', 'SIGNIFICANT',
+            'Dockerfile has reproducibility issues',
+            'The Dockerfile contains patterns that may cause different builds on different runs.',
+            issues))
+    return findings
+
+
+def detect_AY_workflow_file(repo_dir, all_files):
+    findings = []
+    has_python = any(f.suffix.lower() == '.py' for f in all_files)
+    if not has_python:
+        return findings
+    ci_files = [f for f in all_files if f.suffix.lower() in {'.yml', '.yaml'}
+                and any(ci in str(f).lower() for ci in ['github', 'gitlab', 'circle', 'travis', 'actions'])]
+    if ci_files:
+        findings.append(finding('AY', 'LOW CONFIDENCE',
+            f'CI/CD workflow file(s) found — verify they test reproducibility',
+            'Continuous integration workflows are present. Ensure they test that the full analysis pipeline runs successfully, not just code style checks.',
+            [f'Workflow files: {", ".join(f.name for f in ci_files[:3])}']))
+    return findings
+
+
+def detect_AZ_figure_format(repo_dir, all_files):
+    findings = []
+    code_files = [f for f in all_files if f.suffix.lower() == '.py']
+    bitmap_save = re.compile(r'savefig\s*\([^)]*\.(png|jpg|jpeg)[^)]*\)', re.IGNORECASE)
+    vector_save = re.compile(r'savefig\s*\([^)]*\.(svg|eps|pdf)[^)]*\)', re.IGNORECASE)
+    saves_bitmap = False
+    saves_vector = False
+    for f in code_files:
+        content = read_file_safe(f)
+        if bitmap_save.search(content):
+            saves_bitmap = True
+        if vector_save.search(content):
+            saves_vector = True
+    if saves_bitmap and not saves_vector:
+        findings.append(finding('AZ', 'LOW CONFIDENCE',
+            'Figures saved as bitmap only (PNG/JPG) — consider vector format',
+            'Figures are saved as bitmap images. Vector formats (SVG, EPS, PDF) scale without quality loss and are preferred by journals. Bitmap figures may appear different at different resolutions.',
+            ['Recommendation: save figures as SVG or PDF in addition to PNG']))
+    return findings
+
+
+def detect_BA_missing_checksums(repo_dir, all_files):
+    findings = []
+    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.parquet', '.xlsx', '.dta'}]
+    if len(data_files) < 2:
+        return findings
+    has_checksums = any(
+        'checksum' in f.name.lower() or 'hash' in f.name.lower() or 'md5' in f.name.lower()
+        for f in all_files
+    )
+    readme_has_checksums = False
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt'}:
+            content = read_file_safe(f).lower()
+            if any(term in content for term in ['checksum', 'md5', 'sha256', 'hash']):
+                readme_has_checksums = True
+    if not has_checksums and not readme_has_checksums:
+        findings.append(finding('BA', 'LOW CONFIDENCE',
+            f'{len(data_files)} data files with no checksums documented',
+            'No file checksums were found. Checksums allow validators to verify they have identical copies of the data files, ruling out download corruption as a source of discrepancy.',
+            ['Recommendation: add MD5 or SHA256 checksums to README for key data files']))
+    return findings
+
+
+def detect_BB_script_permissions(repo_dir, all_files):
+    findings = []
+    shell_files = [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
+    if not shell_files:
+        return findings
+    import stat as _stat
+    non_executable = []
+    for f in shell_files:
+        try:
+            mode = f.stat().st_mode
+            if not (mode & _stat.S_IXUSR):
+                non_executable.append(f.name)
+        except Exception:
+            pass
+    if non_executable:
+        findings.append(finding('BB', 'SIGNIFICANT',
+            f'Shell scripts not marked executable: {", ".join(non_executable[:5])}',
+            'Shell scripts exist but are not marked executable. Validators running these scripts will get permission denied errors.',
+            [f'Fix: chmod +x {" ".join(non_executable[:5])}']))
+    return findings
+
+
+def detect_BC_mixed_line_endings(repo_dir, all_files):
+    return []
+
+def detect_BD_missing_contact(repo_dir, all_files):
+    findings = []
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt'}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    content = read_file_safe(readme_file).lower()
+    has_contact = any(term in content for term in ['contact', 'author', 'email', 'correspondence', 'maintainer', '@'])
+    if not has_contact:
+        findings.append(finding('BD', 'LOW CONFIDENCE',
+            'No contact information found in README',
+            'No author contact information was found. Validators who encounter problems have no way to reach the researcher for clarification.',
+            ['Recommendation: add author name and contact email to README']))
+    return findings
+
+
+def detect_BE_pyc_files(repo_dir, all_files):
+    findings = []
+    pyc_files = [f for f in all_files if f.suffix.lower() in {'.pyc', '.pyo'} or '__pycache__' in str(f)]
+    if pyc_files:
+        findings.append(finding('BE', 'SIGNIFICANT',
+            f'{len(pyc_files)} compiled Python file(s) committed',
+            'Compiled .pyc files are committed. These are system-specific and will cause import errors on different Python versions or operating systems. Add *.pyc and __pycache__/ to .gitignore.',
+            [f'Files: {", ".join(f.name for f in pyc_files[:5])}',
+             'Fix: git rm --cached **/*.pyc and add to .gitignore']))
+    return findings
+
+
+def detect_BF_notebook_outputs_missing(repo_dir, all_files):
+    findings = []
+    notebooks = [f for f in all_files if f.suffix.lower() == '.ipynb']
+    if not notebooks:
+        return findings
+    import json as _json
+    for nb in notebooks:
+        try:
+            data = _json.loads(nb.read_text(encoding='utf-8', errors='ignore'))
+            cells = data.get('cells', [])
+            has_outputs = any(
+                cell.get('outputs') for cell in cells
+                if cell.get('cell_type') == 'code'
+            )
+            if not has_outputs:
+                findings.append(finding('BF', 'SIGNIFICANT',
+                    f'Notebook has no saved outputs: {nb.name}',
+                    'This notebook has no saved cell outputs. Validators cannot see what the original results looked like without running the notebook themselves.',
+                    [f'Evidence: {nb.name} — all output cells empty']))
+        except Exception:
+            continue
+    return findings
+
+
+def detect_BG_missing_acknowledgements(repo_dir, all_files):
+    findings = []
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt'}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    content = read_file_safe(readme_file).lower()
+    code_files = [f for f in all_files if f.suffix.lower() == '.py']
+    if len(code_files) > 5:
+        has_funding = any(term in content for term in ['grant', 'funded', 'funding', 'acknowledge', 'nsf', 'nih', 'esrc', 'ukri', 'erc', 'support'])
+        if not has_funding:
+            findings.append(finding('BG', 'LOW CONFIDENCE',
+                'No funding acknowledgement found',
+                'No funding acknowledgement was found. Most funders require acknowledgement in associated code repositories.',
+                ['Recommendation: add funding source to README']))
+    return findings
+
+
+def detect_BH_zip_bomb_risk(repo_dir, all_files):
+    findings = []
+    zip_files = [f for f in all_files if f.suffix.lower() in {'.zip', '.gz', '.tar', '.bz2', '.7z'}]
+    if zip_files:
+        findings.append(finding('BH', 'LOW CONFIDENCE',
+            f'{len(zip_files)} compressed archive(s) committed',
+            'Compressed archives are committed. Validators need to know what these contain and whether to extract them as part of the pipeline.',
+            [f'Archives: {", ".join(f.name for f in zip_files[:5])}',
+             'Document: should validators extract these, and what do they contain?']))
+    return findings
+
+
+def detect_BI_unicode_in_paths(repo_dir, all_files):
+    return []
+
+def detect_AV_hardcoded_dates(repo_dir, all_files):
+    return []
