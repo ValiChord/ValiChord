@@ -473,6 +473,14 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_S_software_citations_missing(repo_dir, all_files)
     print("  [T]  Test coverage check...")
     all_findings += detect_T_test_coverage(repo_dir, all_files)
+    print("  [X]  Containerisation check...")
+    all_findings += detect_X_no_container(repo_dir, all_files)
+    print("  [Y]  Data source check...")
+    all_findings += detect_Y_data_source_missing(repo_dir, all_files)
+    print("  [AA] Figure reproducibility check...")
+    all_findings += detect_AA_figure_reproducibility(repo_dir, all_files)
+    print("  [AB] Parallel determinism check...")
+    all_findings += detect_AB_parallel_no_seed(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -1488,6 +1496,210 @@ def detect_T_test_coverage(repo_dir, all_files):
             'validator confidence.',
             [f'Python files without tests: {len(code_files)}',
              'Recommendation: add pytest tests for key functions']
+        ))
+
+    return findings
+
+
+def detect_X_no_container(repo_dir, all_files):
+    """Failure Mode X: No containerisation or environment isolation."""
+    findings = []
+
+    container_files = {
+        'dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
+        'singularity', 'singularity.def', 'apptainer.def',
+        '.devcontainer', 'devcontainer.json'
+    }
+
+    has_container = any(
+        f.name.lower() in container_files
+        for f in all_files
+    )
+
+    has_environment_yml = any(
+        f.name.lower() in {'environment.yml', 'environment.yaml'}
+        for f in all_files
+    )
+
+    has_python = any(f.suffix.lower() == '.py' for f in all_files)
+
+    if has_python and not has_container and not has_environment_yml:
+        findings.append(finding(
+            'X', 'LOW CONFIDENCE',
+            'No containerisation or conda environment found',
+            'No Dockerfile, Docker Compose, Singularity, or '
+            'conda environment file was found. Without environment '
+            'isolation, dependency conflicts between the validator\'s '
+            'system and the required packages may prevent reproduction. '
+            'A conda environment.yml or Dockerfile is the most '
+            'reliable way to ensure environment reproducibility.',
+            ['Recommendation: add environment.yml or Dockerfile',
+             'Minimum: ensure requirements.txt has pinned versions']
+        ))
+
+    return findings
+
+
+def detect_Y_data_source_missing(repo_dir, all_files):
+    """Failure Mode Y: Data files present but no source or provenance."""
+    findings = []
+
+    data_extensions = {
+        '.csv', '.tsv', '.xlsx', '.xls', '.parquet',
+        '.dta', '.sav', '.rds', '.rdata'
+    }
+
+    data_files = [
+        f for f in all_files
+        if f.suffix.lower() in data_extensions
+    ]
+
+    if not data_files:
+        return findings
+
+    # look for source/provenance documentation
+    source_indicators = [
+        'download', 'source', 'obtain', 'access',
+        'available at', 'retrieved from', 'collected from',
+        'provided by', 'doi:', 'url:', 'http', 'database',
+        'data availability', 'data access'
+    ]
+
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+
+    has_source = False
+    if readme_file:
+        try:
+            content = readme_file.read_text(
+                encoding='utf-8', errors='ignore'
+            ).lower()
+            has_source = any(ind in content for ind in source_indicators)
+        except Exception:
+            pass
+
+    if not has_source:
+        findings.append(finding(
+            'Y', 'SIGNIFICANT',
+            f'Data files present but no data source documented',
+            'Data files are present but no information about where '
+            'the data came from was found in the README. Validators '
+            'cannot verify data provenance, check for updates, or '
+            'understand data access restrictions without this '
+            'information.',
+            [f'Data files: '
+             f'{", ".join(f.name for f in data_files[:5])}',
+             'Required: data source, URL, DOI, or access instructions']
+        ))
+
+    return findings
+
+
+def detect_AA_figure_reproducibility(repo_dir, all_files):
+    """Failure Mode AA: Figures committed but no figure generation code."""
+    findings = []
+
+    figure_extensions = {'.png', '.jpg', '.jpeg', '.svg', '.eps', '.pdf'}
+    figure_files = [
+        f for f in all_files
+        if f.suffix.lower() in figure_extensions
+        and f.parent.name.lower() in {
+            'figures', 'figure', 'figs', 'fig',
+            'plots', 'plot', 'images', 'results'
+        }
+    ]
+
+    if not figure_files:
+        return findings
+
+    # look for figure generation code
+    plot_patterns = re.compile(
+        r'(plt\.|ggplot|plot\(|savefig|ggsave|matplotlib'
+        r'|seaborn|plotly|bokeh|altair)',
+        re.IGNORECASE
+    )
+
+    has_plot_code = False
+    for f in all_files:
+        if f.suffix.lower() in CODE_EXTENSIONS:
+            content = read_file_safe(f)
+            if plot_patterns.search(content):
+                has_plot_code = True
+                break
+
+    if figure_files and not has_plot_code:
+        findings.append(finding(
+            'AA', 'SIGNIFICANT',
+            f'{len(figure_files)} figure(s) committed but no figure generation code found',
+            'Figure files are committed but no code that generates '
+            'figures was detected. Validators cannot reproduce the '
+            'figures from scratch. If figures are generated by the '
+            'analysis scripts, ensure the plotting code is included.',
+            [f'Figures: {", ".join(f.name for f in figure_files[:5])}']
+        ))
+    elif figure_files and has_plot_code:
+        findings.append(finding(
+            'AA', 'LOW CONFIDENCE',
+            f'{len(figure_files)} figure(s) committed — verify generation code produces matching output',
+            'Figures are committed and plotting code exists. '
+            'Validators should verify that running the code '
+            'reproduces figures that match the committed versions '
+            'and the published paper.',
+            [f'Figures to verify: '
+             f'{", ".join(f.name for f in figure_files[:5])}']
+        ))
+
+    return findings
+
+
+def detect_AB_parallel_no_seed(repo_dir, all_files):
+    """Failure Mode AB: Parallelisation without determinism controls."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    parallel_patterns = re.compile(
+        r'(multiprocessing|concurrent\.futures|joblib|dask'
+        r'|ray\.|\bPool\b|ProcessPool|ThreadPool'
+        r'|n_jobs\s*=|parallel\s*=\s*True'
+        r'|mp\.Pool|futures\.ProcessPoolExecutor)',
+        re.IGNORECASE
+    )
+
+    determinism_patterns = re.compile(
+        r'(worker_init_fn|pl\.seed_everything'
+        r'|torch\.use_deterministic_algorithms'
+        r'|PYTHONHASHSEED|random_state\s*=\s*\d'
+        r'|initializer\s*=)',
+        re.IGNORECASE
+    )
+
+    uses_parallel = False
+    has_determinism = False
+
+    for f in code_files:
+        content = read_file_safe(f)
+        if parallel_patterns.search(content):
+            uses_parallel = True
+        if determinism_patterns.search(content):
+            has_determinism = True
+
+    if uses_parallel and not has_determinism:
+        findings.append(finding(
+            'AB', 'SIGNIFICANT',
+            'Parallelisation used without determinism controls',
+            'The code uses parallel processing but no determinism '
+            'controls were found. Parallel execution order is '
+            'non-deterministic by default. Results may vary between '
+            'runs depending on scheduling. Set PYTHONHASHSEED and '
+            'use worker initialisation functions to ensure '
+            'reproducible parallel execution.',
+            ['Parallel patterns detected without worker seeds',
+             'Recommendation: set PYTHONHASHSEED=0 and use '
+             'worker_init_fn or equivalent']
         ))
 
     return findings
