@@ -481,6 +481,14 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_AA_figure_reproducibility(repo_dir, all_files)
     print("  [AB] Parallel determinism check...")
     all_findings += detect_AB_parallel_no_seed(repo_dir, all_files)
+    print("  [AC] Deprecated functions check...")
+    all_findings += detect_AC_deprecated_functions(repo_dir, all_files)
+    print("  [AD] Gitignore check...")
+    all_findings += detect_AD_missing_gitignore(repo_dir, all_files)
+    print("  [AE] Mixed languages check...")
+    all_findings += detect_AE_mixed_languages(repo_dir, all_files)
+    print("  [AF] Output format check...")
+    all_findings += detect_AF_output_format_undocumented(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -1701,5 +1709,204 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
              'Recommendation: set PYTHONHASHSEED=0 and use '
              'worker_init_fn or equivalent']
         ))
+
+    return findings
+
+
+def detect_AC_deprecated_functions(repo_dir, all_files):
+    """Failure Mode AC: Use of deprecated functions likely to break."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() == '.py']
+
+    deprecated = {
+        'np.bool': 'np.bool_',
+        'np.int': 'np.int_',
+        'np.float': 'np.float64',
+        'np.complex': 'np.complex128',
+        'np.object': 'np.object_',
+        'np.str': 'np.str_',
+        'sklearn.cross_validation': 'sklearn.model_selection',
+        'from sklearn.externals': 'install joblib directly',
+        'pd.Panel': 'pd.DataFrame (Panel removed)',
+        'DataFrame.ix[': 'DataFrame.loc[ or .iloc[',
+        'tensorflow.compat.v1': 'TensorFlow 2.x API',
+    }
+
+    for f in code_files:
+        content = read_file_safe(f)
+        found = []
+        for old, new in deprecated.items():
+            if old in content:
+                found.append(f'{old} → {new}')
+        if found:
+            findings.append(finding(
+                'AC', 'SIGNIFICANT',
+                f'Deprecated functions detected in {f.name}',
+                'This file uses functions that have been removed or '
+                'deprecated in recent package versions. Running this '
+                'code with current package versions will likely '
+                'produce errors.',
+                [f'Deprecated: {d}' for d in found[:5]]
+            ))
+
+    return findings
+
+
+def detect_AD_missing_gitignore(repo_dir, all_files):
+    """Failure Mode AD: No .gitignore — sensitive or junk files may be committed."""
+    findings = []
+
+    has_gitignore = any(
+        f.name == '.gitignore' for f in all_files
+    )
+
+    has_python = any(f.suffix.lower() == '.py' for f in all_files)
+
+    if has_python and not has_gitignore:
+        # check for files that should be ignored
+        junk_files = [
+            f for f in all_files
+            if f.suffix.lower() in {'.pyc', '.pyo'}
+            or f.name in {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
+            or '__pycache__' in str(f)
+        ]
+
+        if junk_files:
+            findings.append(finding(
+                'AD', 'SIGNIFICANT',
+                'No .gitignore and junk files detected in repository',
+                'No .gitignore file was found and system or compiled '
+                'files are present in the repository. These files '
+                'bloat the repository, may contain system-specific '
+                'paths, and suggest the repository was not cleaned '
+                'before sharing.',
+                [f'Junk files found: '
+                 f'{", ".join(f.name for f in junk_files[:5])}']
+            ))
+        else:
+            findings.append(finding(
+                'AD', 'LOW CONFIDENCE',
+                'No .gitignore file found',
+                'No .gitignore file was found. Without one, compiled '
+                'files, credentials, and system files may be '
+                'accidentally committed in future.',
+                ['Recommendation: add a .gitignore file']
+            ))
+
+    return findings
+
+
+def detect_AE_mixed_languages(repo_dir, all_files):
+    """Failure Mode AE: Multiple languages used without integration docs."""
+    findings = []
+
+    language_extensions = {
+        'Python': {'.py'},
+        'R': {'.r', '.rmd', '.qmd'},
+        'Julia': {'.jl'},
+        'Stata': {'.do', '.ado'},
+        'MATLAB': {'.m', '.mlx'},
+        'Shell': {'.sh', '.bash'},
+        'SQL': {'.sql'},
+    }
+
+    languages_found = {}
+    for lang, exts in language_extensions.items():
+        files = [f for f in all_files if f.suffix.lower() in exts]
+        if files:
+            languages_found[lang] = len(files)
+
+    if len(languages_found) >= 3:
+        readme_file = None
+        for f in all_files:
+            if f.name.lower() in {'readme.md', 'readme.txt'}:
+                readme_file = f
+                break
+
+        integration_documented = False
+        if readme_file:
+            try:
+                content = readme_file.read_text(
+                    encoding='utf-8', errors='ignore'
+                ).lower()
+                if any(lang.lower() in content
+                       for lang in languages_found):
+                    integration_documented = True
+            except Exception:
+                pass
+
+        if not integration_documented:
+            langs = ', '.join(
+                f'{l} ({n} files)'
+                for l, n in languages_found.items()
+            )
+            findings.append(finding(
+                'AE', 'SIGNIFICANT',
+                f'Multiple languages used without integration documentation',
+                'This repository uses multiple programming languages '
+                'but the README does not explain how they fit together. '
+                'Validators need to know the execution order across '
+                'languages and any data handoffs between them.',
+                [f'Languages: {langs}',
+                 'Required: explain how languages interact in README']
+            ))
+
+    return findings
+
+
+def detect_AF_output_format_undocumented(repo_dir, all_files):
+    """Failure Mode AF: Output format not documented."""
+    findings = []
+
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    write_patterns = re.compile(
+        r'(to_csv|to_excel|to_parquet|to_stata|to_latex'
+        r'|savefig|to_html|write_csv|fwrite|write\.csv'
+        r'|saveRDS|save\.image|np\.save|pickle\.dump'
+        r'|\.write\s*\()',
+        re.IGNORECASE
+    )
+
+    has_write_code = False
+    for f in code_files:
+        content = read_file_safe(f)
+        if write_patterns.search(content):
+            has_write_code = True
+            break
+
+    if not has_write_code:
+        return findings
+
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt'}:
+            readme_file = f
+            break
+
+    if readme_file:
+        try:
+            content = readme_file.read_text(
+                encoding='utf-8', errors='ignore'
+            ).lower()
+            output_documented = any(term in content for term in [
+                'output', 'result', 'produces', 'generates',
+                'will create', 'will produce', 'expected'
+            ])
+            if not output_documented:
+                findings.append(finding(
+                    'AF', 'LOW CONFIDENCE',
+                    'Code writes output files but outputs not documented in README',
+                    'The code generates output files but the README '
+                    'does not describe what outputs to expect. '
+                    'Validators cannot verify successful completion '
+                    'without knowing what files should be produced.',
+                    ['Recommendation: list expected output files '
+                     'in README']
+                ))
+        except Exception:
+            pass
 
     return findings
