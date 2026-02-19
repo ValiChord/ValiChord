@@ -447,6 +447,14 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BL_git_history_dependency(repo_dir, all_files)
     print("  [G]  README adequacy check...")
     all_findings += detect_G_inadequate_readme(repo_dir, all_files)
+    print("  [H]  Hardcoded versions check...")
+    all_findings += detect_H_hardcoded_versions(repo_dir, all_files)
+    print("  [K]  Compute environment check...")
+    all_findings += detect_K_compute_environment(repo_dir, all_files)
+    print("  [P]  Pre-registration check...")
+    all_findings += detect_P_preregistration(repo_dir, all_files)
+    print("  [V]  Virtual environment check...")
+    all_findings += detect_V_virtual_environment(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -747,5 +755,239 @@ def detect_G_inadequate_readme(repo_dir, all_files):
              'Required: expected values, tolerance bands, or '
              'explicit comparison criteria']
         ))
+
+    return findings
+
+
+def detect_H_hardcoded_versions(repo_dir, all_files):
+    """Failure Mode H: Version numbers hardcoded in code not requirements."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    version_in_code = re.compile(
+        r'(pandas|numpy|scipy|sklearn|matplotlib|torch|tensorflow'
+        r'|keras|statsmodels|seaborn|plotly|xgboost|lightgbm'
+        r'|transformers|datasets|huggingface)[=><!\s]+[\d]+\.[\d]',
+        re.IGNORECASE
+    )
+
+    for f in code_files:
+        content = read_file_safe(f)
+        matches = version_in_code.findall(content)
+        if matches:
+            findings.append(finding(
+                'H', 'LOW CONFIDENCE',
+                f'Version constraint hardcoded in {f.name}',
+                'Version constraints found inside code rather than '
+                'in a dependency specification file. This can cause '
+                'conflicts and makes dependency management harder. '
+                'Move version constraints to requirements.txt or '
+                'equivalent.',
+                [f'Evidence: {f.name} — {", ".join(set(matches))[:80]}']
+            ))
+    return findings
+
+
+def detect_K_compute_environment(repo_dir, all_files):
+    """Failure Mode K: Compute environment not documented."""
+    findings = []
+
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+
+    if not readme_file:
+        return findings
+
+    try:
+        content = readme_file.read_text(
+            encoding='utf-8', errors='ignore'
+        ).lower()
+    except Exception:
+        return findings
+
+    # check for compute environment documentation
+    os_indicators = [
+        'ubuntu', 'windows', 'macos', 'linux', 'operating system',
+        'os:', 'tested on', 'platform'
+    ]
+    ram_indicators = [
+        'ram', 'memory', 'gb', 'gigabyte', 'minimum'
+    ]
+    gpu_indicators = [
+        'gpu', 'cuda', 'nvidia', 'a100', 'v100', 'rtx',
+        'graphics card', 'accelerator'
+    ]
+    runtime_indicators = [
+        'runtime', 'running time', 'minutes', 'hours',
+        'approximately', 'takes', 'estimated'
+    ]
+
+    missing = []
+    if not any(ind in content for ind in os_indicators):
+        missing.append('operating system')
+    if not any(ind in content for ind in ram_indicators):
+        missing.append('RAM/memory requirements')
+    if not any(ind in content for ind in runtime_indicators):
+        missing.append('estimated runtime')
+
+    # GPU check only relevant if GPU libraries present
+    has_gpu_libs = any(
+        f.name.lower() in {'requirements.txt', 'environment.yml'}
+        for f in all_files
+    )
+    if has_gpu_libs:
+        code_content = ''
+        for f in all_files:
+            if f.suffix.lower() == '.py':
+                code_content += read_file_safe(f).lower()
+        uses_gpu = any(g in code_content for g in [
+            'cuda', 'torch.cuda', '.to("cuda")', '.gpu',
+            'tf.device', 'jax.devices'
+        ])
+        if uses_gpu and not any(
+            ind in content for ind in gpu_indicators
+        ):
+            missing.append('GPU specification')
+
+    if len(missing) >= 2:
+        findings.append(finding(
+            'K', 'SIGNIFICANT',
+            f'Compute environment not documented: {", ".join(missing)}',
+            'Validators need to know what hardware and software '
+            'environment is required to reproduce results. Without '
+            'this, they may spend hours on environment issues before '
+            'discovering the code requires more RAM or a GPU than '
+            'they have available.',
+            [f'Missing from README: {", ".join(missing)}']
+        ))
+    elif len(missing) == 1:
+        findings.append(finding(
+            'K', 'LOW CONFIDENCE',
+            f'Compute environment partially documented — missing: '
+            f'{missing[0]}',
+            'Most compute environment details are present but '
+            f'{missing[0]} is not mentioned.',
+            [f'Missing: {missing[0]}']
+        ))
+
+    return findings
+
+
+def detect_P_preregistration(repo_dir, all_files):
+    """Failure Mode P: Pre-registration mentioned but no link provided."""
+    findings = []
+
+    text_files = [
+        f for f in all_files
+        if f.suffix.lower() in {'.md', '.txt', '.rst', '.html'}
+    ]
+
+    prereg_mentioned = False
+    prereg_link = False
+
+    prereg_terms = [
+        'pre-registr', 'preregistr', 'registered report',
+        'osf.io', 'aspredicted', 'clinicaltrials',
+        'protocol registration', 'pre-analysis plan',
+        'preanalysis plan'
+    ]
+
+    link_pattern = re.compile(
+        r'osf\.io/[a-z0-9]+|aspredicted\.org|clinicaltrials\.gov'
+        r'|protocols\.io|zenodo\.org|doi\.org',
+        re.IGNORECASE
+    )
+
+    for f in text_files:
+        content = read_file_safe(f).lower()
+        if any(term in content for term in prereg_terms):
+            prereg_mentioned = True
+        if link_pattern.search(content):
+            prereg_link = True
+
+    if prereg_mentioned and not prereg_link:
+        findings.append(finding(
+            'P', 'SIGNIFICANT',
+            'Pre-registration mentioned but no link found',
+            'The documentation mentions pre-registration or a '
+            'registered report but no link to the pre-registration '
+            'record was found. Validators cannot verify that the '
+            'analysis matches the pre-registered protocol without '
+            'this link.',
+            ['Pre-registration terms found in documentation',
+             'Missing: OSF, AsPredicted, or ClinicalTrials link']
+        ))
+
+    return findings
+
+
+def detect_V_virtual_environment(repo_dir, all_files):
+    """Failure Mode V: No virtual environment specification."""
+    findings = []
+
+    has_venv_spec = any(
+        f.name.lower() in {
+            'environment.yml', 'environment.yaml',
+            'pipfile', 'pipfile.lock',
+            'poetry.lock', 'pyproject.toml',
+            '.python-version', 'runtime.txt',
+            'conda-lock.yml', 'setup.py', 'setup.cfg'
+        }
+        for f in all_files
+    )
+
+    has_requirements = any(
+        f.name.lower() == 'requirements.txt'
+        for f in all_files
+    )
+
+    has_python = any(
+        f.suffix.lower() == '.py'
+        for f in all_files
+    )
+
+    if not has_python:
+        return findings
+
+    if not has_venv_spec and not has_requirements:
+        findings.append(finding(
+            'V', 'SIGNIFICANT',
+            'No virtual environment or dependency specification found',
+            'Python code is present but no virtual environment '
+            'specification (environment.yml, Pipfile, pyproject.toml) '
+            'or requirements.txt was found. Validators will be forced '
+            'to guess which packages to install and may encounter '
+            'version conflicts with their existing Python environment.',
+            ['Missing: requirements.txt, environment.yml, or Pipfile']
+        ))
+    elif has_requirements and not has_venv_spec:
+        # check if README mentions virtual environment
+        readme_mentions_venv = False
+        for f in all_files:
+            if f.name.lower() in {'readme.md', 'readme.txt'}:
+                content = read_file_safe(f).lower()
+                if any(term in content for term in [
+                    'venv', 'virtualenv', 'conda', 'virtual environment',
+                    'python -m venv', 'conda create'
+                ]):
+                    readme_mentions_venv = True
+
+        if not readme_mentions_venv:
+            findings.append(finding(
+                'V', 'LOW CONFIDENCE',
+                'requirements.txt present but no virtual environment '
+                'setup instructions found',
+                'A requirements.txt exists but the README does not '
+                'mention creating a virtual environment before '
+                'installing. Installing into a global Python '
+                'environment risks conflicts and unreproducible '
+                'behaviour.',
+                ['Recommendation: add venv or conda setup instructions '
+                 'to README']
+            ))
 
     return findings
