@@ -38,7 +38,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
 
     # ── header ───────────────────────────────────────────────────────
     lines += [
-        ''# ValiChord Repository Readiness Check — Cleaning Report',',
+        '# ValiChord Repository Readiness Check — Cleaning Report',
         '',
         '> ⚠️ **ANTI-AUTHORITY NOTICE**',
         '> ',
@@ -79,7 +79,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         '',
         '**If your cleaned repository runs end-to-end but produces '
         'results that differ from your published paper, this is not '
-        ''a ValiChord Repository Readiness Check error.** First check whether you adopted any proposed corrections — a correction may have introduced a change. If no corrections were adopted and results still differ, this is a scientific discrepancy only ' '
+        'a ValiChord Repository Readiness Check error.**
         'you can resolve.',
         '',
         '**This report does not constitute certification that this '
@@ -188,7 +188,7 @@ def _write_assessment(repo_name, findings, output_dir):
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     lines = [
-        '# ValiChord Auto-Generate — Assessment',
+        '# ValiChord Repository Readiness Check — Assessment',
         '',
         f'**Repository:** {repo_name}',
         f'**Generated:** {now}',
