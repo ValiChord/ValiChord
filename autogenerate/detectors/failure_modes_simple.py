@@ -467,6 +467,12 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_O_output_not_committed(repo_dir, all_files)
     print("  [Q]  Configuration files check...")
     all_findings += detect_Q_config_files(repo_dir, all_files)
+    print("  [R]  Statistical assumptions check...")
+    all_findings += detect_R_statistical_tests_undocumented(repo_dir, all_files)
+    print("  [S]  Software citations check...")
+    all_findings += detect_S_software_citations_missing(repo_dir, all_files)
+    print("  [T]  Test coverage check...")
+    all_findings += detect_T_test_coverage(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -1332,6 +1338,156 @@ def detect_Q_config_files(repo_dir, all_files):
             'Verify that all required configuration files are '
             'committed and documented.',
             ['Config loading detected — manual verification recommended']
+        ))
+
+    return findings
+
+
+def detect_R_statistical_tests_undocumented(repo_dir, all_files):
+    """Failure Mode R: Statistical tests used but assumptions not documented."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    stat_patterns = re.compile(
+        r'\b(OLS|WLS|GLS|2SLS|IV|GMM|logit|probit|tobit'
+        r'|t\.test|chi\.sq|anova|kruskal|wilcox|mann.whitney'
+        r'|LinearRegression|LogisticRegression|statsmodels'
+        r'|smf\.ols|sm\.OLS|ivreg|feols|felm'
+        r'|fixed.effect|random.effect|panel)\b',
+        re.IGNORECASE
+    )
+
+    assumption_patterns = re.compile(
+        r'\b(heteroskedastic|robust|cluster|bootstrap'
+        r'|standard.error|HAC|Newey.West|White'
+        r'|vif|multicollin|autocorrelation|serial.correlation'
+        r'|hausman|endogeneit)\b',
+        re.IGNORECASE
+    )
+
+    stat_methods_found = set()
+    assumptions_documented = False
+
+    for f in code_files:
+        content = read_file_safe(f)
+        methods = stat_patterns.findall(content)
+        if methods:
+            stat_methods_found.update(methods)
+        if assumption_patterns.search(content):
+            assumptions_documented = True
+
+    if stat_methods_found and not assumptions_documented:
+        findings.append(finding(
+            'R', 'LOW CONFIDENCE',
+            f'Statistical methods detected with no assumption checks found',
+            'The code uses statistical methods that have assumptions '
+            '(normality, homoskedasticity, independence, etc.) but '
+            'no assumption-checking code was detected. Validators '
+            'cannot verify that the methods were appropriately applied.',
+            [f'Methods detected: '
+             f'{", ".join(sorted(stat_methods_found)[:8])}',
+             'Recommendation: document assumption checks or '
+             'reference where they appear in the paper']
+        ))
+
+    return findings
+
+
+def detect_S_software_citations_missing(repo_dir, all_files):
+    """Failure Mode S: Key software used but not cited."""
+    findings = []
+
+    major_packages = {
+        'numpy', 'pandas', 'scipy', 'matplotlib', 'sklearn',
+        'scikit-learn', 'statsmodels', 'torch', 'pytorch',
+        'tensorflow', 'keras', 'r', 'stata', 'matlab'
+    }
+
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+
+    if not readme_file:
+        return findings
+
+    try:
+        readme_content = readme_file.read_text(
+            encoding='utf-8', errors='ignore'
+        ).lower()
+    except Exception:
+        return findings
+
+    has_citations = any(term in readme_content for term in [
+        'citation', 'cite', 'reference', 'bibliography',
+        'doi:', 'zenodo', 'joss', 'journal of open source'
+    ])
+
+    if not has_citations:
+        # check what packages are used
+        imports_found = set()
+        for f in all_files:
+            if f.suffix.lower() == '.py':
+                content = read_file_safe(f).lower()
+                for pkg in major_packages:
+                    if f'import {pkg}' in content or f'from {pkg}' in content:
+                        imports_found.add(pkg)
+
+        if imports_found:
+            findings.append(finding(
+                'S', 'LOW CONFIDENCE',
+                'No software citations found in README',
+                'Major software packages are used but no citations '
+                'or references section was found in the README. '
+                'Software citation is increasingly required by '
+                'journals and supports reproducibility by '
+                'identifying exact software versions.',
+                [f'Packages used: {", ".join(sorted(imports_found))}',
+                 'Recommendation: add citations for key packages']
+            ))
+
+    return findings
+
+
+def detect_T_test_coverage(repo_dir, all_files):
+    """Failure Mode T: No tests present for analysis code."""
+    findings = []
+
+    has_python = any(f.suffix.lower() == '.py' for f in all_files)
+    if not has_python:
+        return findings
+
+    test_indicators = [
+        'test_', '_test.py', 'tests/', 'test/', 'spec/',
+        'pytest', 'unittest', 'nose'
+    ]
+
+    has_tests = any(
+        any(ind in f.name.lower() or ind in str(f).lower()
+            for ind in test_indicators)
+        for f in all_files
+    )
+
+    code_files = [
+        f for f in all_files
+        if f.suffix.lower() == '.py'
+        and not any(t in f.name.lower() for t in ['test_', '_test'])
+    ]
+
+    if not has_tests and len(code_files) > 3:
+        findings.append(finding(
+            'T', 'LOW CONFIDENCE',
+            'No test files found',
+            'No automated tests were found for the analysis code. '
+            'Tests are not required for reproducibility but their '
+            'absence means there is no automated way to verify '
+            'that helper functions produce expected outputs. '
+            'Even simple smoke tests significantly improve '
+            'validator confidence.',
+            [f'Python files without tests: {len(code_files)}',
+             'Recommendation: add pytest tests for key functions']
         ))
 
     return findings
