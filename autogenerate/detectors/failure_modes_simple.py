@@ -489,6 +489,14 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_AE_mixed_languages(repo_dir, all_files)
     print("  [AF] Output format check...")
     all_findings += detect_AF_output_format_undocumented(repo_dir, all_files)
+    print("  [AG] Hardcoded credentials check...")
+    all_findings += detect_AG_api_keys_in_code(repo_dir, all_files)
+    print("  [AH] Changelog check...")
+    all_findings += detect_AH_no_changelog(repo_dir, all_files)
+    print("  [AI] Print debugging check...")
+    all_findings += detect_AI_print_debugging(repo_dir, all_files)
+    print("  [AJ] Magic numbers check...")
+    all_findings += detect_AJ_hardcoded_sample_size(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -1908,5 +1916,144 @@ def detect_AF_output_format_undocumented(repo_dir, all_files):
                 ))
         except Exception:
             pass
+
+    return findings
+
+
+def detect_AG_api_keys_in_code(repo_dir, all_files):
+    """Failure Mode AG: API keys or tokens hardcoded in source files."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    key_patterns = re.compile(
+        r'(?:api_key|apikey|api_token|access_token|secret_key'
+        r'|private_key|auth_token|bearer)\s*=\s*["\'][a-zA-Z0-9_\-]{16,}["\']',
+        re.IGNORECASE
+    )
+
+    for f in code_files:
+        content = read_file_safe(f)
+        matches = key_patterns.findall(content)
+        if matches:
+            findings.append(finding(
+                'AG', 'CRITICAL',
+                f'Possible hardcoded credentials in {f.name}',
+                'What appears to be an API key or token is hardcoded '
+                'in source code. If real, this is a security issue — '
+                'credentials committed to a repository should be '
+                'considered compromised. Replace with environment '
+                'variables immediately.',
+                [f'Evidence: {f.name} — credential pattern detected',
+                 'Action required: rotate this credential immediately '
+                 'if real']
+            ))
+
+    return findings
+
+
+def detect_AH_no_changelog(repo_dir, all_files):
+    """Failure Mode AH: No changelog or version history."""
+    findings = []
+
+    changelog_names = {
+        'changelog', 'changelog.md', 'changelog.txt',
+        'changes', 'changes.md', 'history.md',
+        'news.md', 'releases.md'
+    }
+
+    has_changelog = any(
+        f.name.lower() in changelog_names
+        for f in all_files
+    )
+
+    has_readme = any(
+        f.name.lower() in {'readme.md', 'readme.txt'}
+        for f in all_files
+    )
+
+    # only flag if there's a substantial codebase
+    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+
+    if len(py_files) > 5 and not has_changelog and has_readme:
+        findings.append(finding(
+            'AH', 'LOW CONFIDENCE',
+            'No changelog or version history found',
+            'No changelog file was found. For research code, a '
+            'changelog helps validators understand what changed '
+            'between versions and whether the committed code matches '
+            'the version used to generate the published results.',
+            ['Recommendation: add CHANGELOG.md noting the version '
+             'used for publication']
+        ))
+
+    return findings
+
+
+def detect_AI_print_debugging(repo_dir, all_files):
+    """Failure Mode AI: Excessive print debugging suggests unfinished code."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() == '.py']
+
+    for f in code_files:
+        content = read_file_safe(f)
+        lines = content.splitlines()
+
+        print_count = sum(
+            1 for line in lines
+            if re.search(r'^\s*print\s*\(', line)
+            and not re.search(r'#.*print', line)
+        )
+
+        total_lines = len([l for l in lines if l.strip()])
+
+        if total_lines > 0 and print_count / total_lines > 0.1:
+            findings.append(finding(
+                'AI', 'LOW CONFIDENCE',
+                f'High density of print statements in {f.name}',
+                f'{print_count} print statements in {total_lines} '
+                f'lines of code suggests debugging output was not '
+                f'cleaned up before publication. This does not affect '
+                f'reproducibility but suggests the code may not be '
+                f'in its final form.',
+                [f'Evidence: {print_count} prints in {total_lines} '
+                 f'non-blank lines ({print_count*100//total_lines}%)']
+            ))
+
+    return findings
+
+
+def detect_AJ_hardcoded_sample_size(repo_dir, all_files):
+    """Failure Mode AJ: Sample sizes or thresholds hardcoded without explanation."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in {'.py', '.r', '.rmd'}]
+
+    magic_number_pattern = re.compile(
+        r'(?:head|sample|nrow|iloc|[:]\s*)\s*\(\s*(\d{3,})\s*\)'
+        r'|n\s*=\s*(\d{3,})\b'
+        r'|threshold\s*=\s*(0\.\d+)'
+        r'|cutoff\s*=\s*(0\.\d+)',
+        re.IGNORECASE
+    )
+
+    for f in code_files:
+        content = read_file_safe(f)
+        matches = magic_number_pattern.findall(content)
+        flat = [m for group in matches for m in group if m]
+
+        if len(flat) >= 3:
+            findings.append(finding(
+                'AJ', 'LOW CONFIDENCE',
+                f'Multiple hardcoded numerical thresholds in {f.name}',
+                'Several hardcoded numbers that appear to be sample '
+                'sizes, thresholds, or cutoffs were found without '
+                'explanatory comments. Validators cannot determine '
+                'if these match the values described in the paper '
+                'without documentation.',
+                [f'Values found: {", ".join(sorted(set(flat))[:8])}',
+                 'Recommendation: add comments explaining each value']
+            ))
 
     return findings
