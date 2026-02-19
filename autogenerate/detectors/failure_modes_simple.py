@@ -461,6 +461,12 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_J_notebook_order(repo_dir, all_files)
     print("  [M]  Python version check...")
     all_findings += detect_M_python_version_conflict(repo_dir, all_files)
+    print("  [L]  Missing file references check...")
+    all_findings += detect_L_large_files_missing(repo_dir, all_files)
+    print("  [O]  Committed outputs check...")
+    all_findings += detect_O_output_not_committed(repo_dir, all_files)
+    print("  [Q]  Configuration files check...")
+    all_findings += detect_Q_config_files(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -1166,6 +1172,166 @@ def detect_M_python_version_conflict(repo_dir, all_files):
             'was used for the original analysis.',
             ['Recommendation: add python=3.x to environment.yml '
              'or add .python-version file']
+        ))
+
+    return findings
+
+
+def detect_L_large_files_missing(repo_dir, all_files):
+    """Failure Mode L: Code references files that appear to be missing."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    all_filenames = {f.name.lower() for f in all_files}
+    all_stems = {f.stem.lower() for f in all_files}
+
+    read_pattern = re.compile(
+        r'(?:pd\.read_csv|pd\.read_parquet|pd\.read_excel'
+        r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
+        r'|np\.load|open|read_csv|read_parquet|loadtxt'
+        r'|readRDS|read\.csv|read_dta|haven::read)'
+        r'\s*\(\s*["\']([^"\']+)["\']',
+        re.IGNORECASE
+    )
+
+    missing_refs = set()
+    for f in code_files:
+        content = read_file_safe(f)
+        for match in read_pattern.finditer(content):
+            filepath = match.group(1)
+            fname = filepath.replace('\\', '/').split('/')[-1].lower()
+            stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
+            if fname and '.' in fname:
+                if (fname not in all_filenames
+                        and stem not in all_stems
+                        and not filepath.startswith(('http', 'ftp', '$', '{'))):
+                    missing_refs.add(fname)
+
+    if missing_refs:
+        sample = sorted(missing_refs)[:5]
+        extra = f' (and {len(missing_refs)-5} more)' if len(missing_refs) > 5 else ''
+        findings.append(finding(
+            'L', 'SIGNIFICANT',
+            f'Code references {len(missing_refs)} file(s) not found in repository',
+            'The code attempts to read files that are not present '
+            'in the repository. These may be large data files that '
+            'were excluded, external downloads, or files that were '
+            'accidentally omitted. Validators cannot run the code '
+            'without these files.',
+            [f'Missing files referenced: {", ".join(sample)}{extra}',
+             'Add download instructions or data access information '
+             'to README']
+        ))
+
+    return findings
+
+
+def detect_O_output_not_committed(repo_dir, all_files):
+    """Failure Mode O: No committed outputs to compare against."""
+    findings = []
+
+    output_extensions = {
+        '.txt', '.csv', '.xlsx', '.html', '.pdf',
+        '.png', '.jpg', '.svg', '.eps', '.tex'
+    }
+
+    # look for results/output directories
+    result_dir_names = {
+        'results', 'output', 'outputs', 'figures',
+        'tables', 'plots', 'charts'
+    }
+
+    all_dirs = {f.parent.name.lower() for f in all_files}
+    has_results_dir = bool(result_dir_names & all_dirs)
+
+    output_files = [
+        f for f in all_files
+        if f.suffix.lower() in output_extensions
+        and f.parent.name.lower() in result_dir_names
+    ]
+
+    has_python = any(f.suffix.lower() == '.py' for f in all_files)
+
+    if has_python and not output_files and not has_results_dir:
+        findings.append(finding(
+            'O', 'SIGNIFICANT',
+            'No committed outputs found for comparison',
+            'No result files, figures, or tables were found in '
+            'standard output directories. Without committed outputs, '
+            'validators have no reference to compare their results '
+            'against. Even a single representative output file '
+            'significantly improves reproducibility verification.',
+            ['Missing: results/, output/, or figures/ directory '
+             'with committed outputs',
+             'Recommendation: commit key tables and figures from '
+             'the paper']
+        ))
+    elif has_python and output_files:
+        findings.append(finding(
+            'O', 'LOW CONFIDENCE',
+            f'{len(output_files)} output file(s) committed — '
+            f'verify these match paper',
+            'Output files are committed. Validators will compare '
+            'their results against these. Ensure these files were '
+            'generated by the committed code, not manually edited.',
+            [f'Output files: '
+             f'{", ".join(f.name for f in output_files[:5])}']
+        ))
+
+    return findings
+
+
+def detect_Q_config_files(repo_dir, all_files):
+    """Failure Mode Q: Configuration files missing or undocumented."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    config_read_pattern = re.compile(
+        r'(?:configparser|yaml\.load|yaml\.safe_load'
+        r'|json\.load|toml\.load|dotenv|load_dotenv'
+        r'|argparse|click\.option'
+        r'|config\[|cfg\[|params\[)',
+        re.IGNORECASE
+    )
+
+    config_file_pattern = re.compile(
+        r'["\']([^"\']+\.(?:yaml|yml|json|toml|ini|cfg|conf))["\']',
+        re.IGNORECASE
+    )
+
+    all_filenames_lower = {f.name.lower() for f in all_files}
+    uses_config = False
+    missing_configs = set()
+
+    for f in code_files:
+        content = read_file_safe(f)
+        if config_read_pattern.search(content):
+            uses_config = True
+        for match in config_file_pattern.finditer(content):
+            cfg_file = match.group(1).split('/')[-1].lower()
+            if cfg_file not in all_filenames_lower:
+                missing_configs.add(cfg_file)
+
+    if missing_configs:
+        findings.append(finding(
+            'Q', 'SIGNIFICANT',
+            f'Configuration files referenced but not found: '
+            f'{", ".join(sorted(missing_configs)[:5])}',
+            'The code references configuration files that are not '
+            'present in the repository. Validators cannot run the '
+            'code with the same settings used in the original analysis.',
+            [f'Missing configs: {", ".join(sorted(missing_configs)[:5])}']
+        ))
+    elif uses_config:
+        findings.append(finding(
+            'Q', 'LOW CONFIDENCE',
+            'Code uses configuration loading but no config file issues detected',
+            'The code uses configuration file loading patterns. '
+            'Verify that all required configuration files are '
+            'committed and documented.',
+            ['Config loading detected — manual verification recommended']
         ))
 
     return findings
