@@ -497,6 +497,14 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_AI_print_debugging(repo_dir, all_files)
     print("  [AJ] Magic numbers check...")
     all_findings += detect_AJ_hardcoded_sample_size(repo_dir, all_files)
+    print("  [AK] External URLs check...")
+    all_findings += detect_AK_external_urls(repo_dir, all_files)
+    print("  [AL] Data privacy check...")
+    all_findings += detect_AL_data_privacy(repo_dir, all_files)
+    print("  [AM] Pipeline automation check...")
+    all_findings += detect_AM_makefile_missing(repo_dir, all_files)
+    print("  [AN] Commented code check...")
+    all_findings += detect_AN_commented_code(repo_dir, all_files)
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
@@ -2054,6 +2062,154 @@ def detect_AJ_hardcoded_sample_size(repo_dir, all_files):
                 'without documentation.',
                 [f'Values found: {", ".join(sorted(set(flat))[:8])}',
                  'Recommendation: add comments explaining each value']
+            ))
+
+    return findings
+
+
+def detect_AK_external_urls(repo_dir, all_files):
+    """Failure Mode AK: External URLs that may become unavailable."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS | {'.md', '.txt'}]
+
+    url_pattern = re.compile(
+        r'https?://(?!github\.com|zenodo\.org|doi\.org|arxiv\.org'
+        r'|pypi\.org|anaconda\.org|conda\.io)[^\s\'")\]>]+',
+        re.IGNORECASE
+    )
+
+    urls_found = set()
+    for f in code_files:
+        content = read_file_safe(f)
+        matches = url_pattern.findall(content)
+        urls_found.update(matches[:3])
+
+    if urls_found:
+        sample = list(urls_found)[:5]
+        findings.append(finding(
+            'AK', 'LOW CONFIDENCE',
+            f'External URLs detected — may become unavailable',
+            'The code or documentation references external URLs. '
+            'If these URLs go offline, validators will be unable '
+            'to access required resources. Use DOIs or archived '
+            'URLs where possible.',
+            [f'URLs: {", ".join(sample)[:200]}']
+        ))
+
+    return findings
+
+
+def detect_AL_data_privacy(repo_dir, all_files):
+    """Failure Mode AL: Potential personal or sensitive data indicators."""
+    findings = []
+
+    sensitive_patterns = re.compile(
+        r'\b(patient|participant|subject_id|respondent'
+        r'|ssn|social.security|date.of.birth|dob\b'
+        r'|phone.number|email.address|home.address'
+        r'|medical.record|diagnosis|treatment'
+        r'|income|salary|wage)\b',
+        re.IGNORECASE
+    )
+
+    data_files = [
+        f for f in all_files
+        if f.suffix.lower() in {'.csv', '.tsv', '.xlsx', '.xls'}
+    ]
+
+    flagged = []
+    for f in data_files:
+        content = read_file_safe(f)
+        if sensitive_patterns.search(content[:2000]):
+            flagged.append(f.name)
+
+    if flagged:
+        findings.append(finding(
+            'AL', 'SIGNIFICANT',
+            f'Potential sensitive data indicators in: '
+            f'{", ".join(flagged[:3])}',
+            'Data files contain column names or values that suggest '
+            'personally identifiable or sensitive information. '
+            'Verify that data sharing complies with IRB approval, '
+            'GDPR, and journal data sharing policies before '
+            'publishing this repository.',
+            [f'Files with sensitive indicators: {", ".join(flagged)}',
+             'Required: data anonymisation or access restriction '
+             'documentation']
+        ))
+
+    return findings
+
+
+def detect_AM_makefile_missing(repo_dir, all_files):
+    """Failure Mode AM: Complex pipeline with no automation."""
+    findings = []
+
+    pipeline_indicators = [
+        f for f in all_files
+        if f.suffix.lower() == '.py'
+        and re.match(r'^\d+_', f.name)
+    ]
+
+    has_automation = any(
+        f.name.lower() in {
+            'makefile', 'dodo.py', 'snakefile',
+            'workflow.py', 'pipeline.py', 'run_all.py',
+            'run_all.sh', 'main.py', 'reproduce.py',
+            'reproduce.sh'
+        }
+        for f in all_files
+    )
+
+    if len(pipeline_indicators) >= 4 and not has_automation:
+        findings.append(finding(
+            'AM', 'SIGNIFICANT',
+            f'{len(pipeline_indicators)} numbered scripts with no pipeline automation',
+            'The repository has multiple numbered scripts suggesting '
+            'a sequential pipeline, but no automation file '
+            '(Makefile, Snakefile, run_all.py) was found. '
+            'Validators must manually execute each script in order. '
+            'A single entry point that runs the full pipeline '
+            'significantly improves reproducibility.',
+            [f'Scripts: '
+             f'{", ".join(f.name for f in pipeline_indicators[:6])}',
+             'Recommendation: add run_all.py or Makefile']
+        ))
+
+    return findings
+
+
+def detect_AN_commented_code(repo_dir, all_files):
+    """Failure Mode AN: Large blocks of commented-out code."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() == '.py']
+
+    for f in code_files:
+        content = read_file_safe(f)
+        lines = content.splitlines()
+
+        commented = sum(
+            1 for line in lines
+            if line.strip().startswith('#')
+            and len(line.strip()) > 5
+            and not line.strip().startswith('#!/')
+        )
+        total = len([l for l in lines if l.strip()])
+
+        if total > 20 and commented / total > 0.25:
+            findings.append(finding(
+                'AN', 'LOW CONFIDENCE',
+                f'High proportion of commented code in {f.name}',
+                f'{commented} of {total} non-blank lines are comments '
+                f'({commented*100//total}%). Large blocks of commented '
+                f'code suggest earlier versions of the analysis may '
+                f'be present. This is not a reproducibility error but '
+                f'may indicate the committed code is not the final '
+                f'version.',
+                [f'Evidence: {commented*100//total}% commented lines '
+                 f'in {f.name}']
             ))
 
     return findings
