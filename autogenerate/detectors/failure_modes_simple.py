@@ -152,45 +152,39 @@ def detect_B_no_dependencies(repo_dir, all_files):
 
 
 def detect_C_absolute_paths(repo_dir, all_files):
-    """Failure Mode C: Absolute paths in code."""
+    """Failure Mode C: Absolute paths that only work on researcher machine."""
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
-    # patterns for absolute paths
-    abs_path_patterns = [
-        r'["\']C:\\\\[^"\']+["\']',           # Windows C:\
-        r'["\']C:/[^"\']+["\']',              # Windows C:/
-        r'["\'][D-Z]:/[^"\']+["\']',          # Windows other drives
-        r'["\'][D-Z]:\\\\[^"\']+["\']',
-        r'["\']["\']',
-        r'["\']/Users/[^"\']+["\']',          # macOS home
-        r'["\']/home/[^"\']+["\']',           # Linux home
-        r'["\']/mnt/[^"\']+["\']',            # Linux mount
-    ]
-
-    combined = re.compile('|'.join(abs_path_patterns))
+    abs_pattern = re.compile(
+        r'(/Users/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
+        r'|(/home/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
+        r'|(/root/[a-zA-Z])'
+        r'|([A-Z]:\\[A-Za-z][A-Za-z0-9_\- ]{1,}\\)'
+        r'|([A-Z]:/[A-Za-z][A-Za-z0-9_\- ]{1,}/)'
+    )
 
     for f in code_files:
-        content = read_file_safe(f)
-        for i, line in enumerate(content.splitlines(), 1):
-            if combined.search(line):
-                # skip comment lines
-                stripped = line.strip()
-                if not stripped.startswith('#') \
-                        and not stripped.startswith('//'):
-                    findings.append(finding(
-                        'C', 'SIGNIFICANT',
-                        f'Absolute path detected in {f.name}',
-                        'Absolute paths break reproducibility — '
-                        'they only work on the researcher\'s machine. '
-                        'A corrected copy with relative paths will be '
-                        'generated in /proposed_corrections/.',
-                        [f'Evidence: {f.name} line {i}: '
-                         f'{line.strip()[:80]}']
-                    ))
-                    break  # one finding per file is enough
-
+        content_f = read_file_safe(f)
+        for i, line in enumerate(content_f.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith('#'):
+                continue
+            if stripped.startswith('"""') or stripped.startswith("'''"):
+                continue
+            if abs_pattern.search(line):
+                snippet = stripped[:80]
+                findings.append(finding(
+                    'C', 'SIGNIFICANT',
+                    f'Absolute path detected in {f.name}',
+                    'Absolute paths break reproducibility — they only '
+                    "work on the researcher's machine. A corrected "
+                    "copy with relative paths will be generated in "
+                    '/proposed_corrections/.',
+                    [f'Evidence: {f.name} line {i}: {snippet}']
+                ))
+                break
     return findings
 
 
