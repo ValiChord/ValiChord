@@ -438,7 +438,8 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [BJ] Encrypted file check...")
     print("  [BK] System clock check...")
     print("  [BL] Git history dependency check...")
-
+    print("  [F]  Random seed check...")
+    print("  [U]  Environment variable check...")
     all_findings = []
     all_findings += detect_A_no_readme(repo_dir, all_files)
     all_findings += detect_B_no_dependencies(repo_dir, all_files)
@@ -450,5 +451,137 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BJ_encrypted_files(repo_dir, all_files)
     all_findings += detect_BK_system_clock(repo_dir, all_files)
     all_findings += detect_BL_git_history_dependency(repo_dir, all_files)
-
+    all_findings += detect_F_missing_seeds(repo_dir, all_files)
+    all_findings += detect_U_environment_variables(repo_dir, all_files)
     return all_findings
+
+def detect_F_missing_seeds(repo_dir, all_files):
+    """Failure Mode F: Undocumented stochasticity / missing random seeds."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    rng_imports = {
+        'numpy': 'np.random.seed()',
+        'random': 'random.seed()',
+        'torch': 'torch.manual_seed()',
+        'tensorflow': 'tf.random.set_seed()',
+        'sklearn': 'random_state= parameter',
+        'scipy': 'np.random.seed()',
+        'lightgbm': 'random_state= parameter',
+        'xgboost': 'seed= parameter',
+    }
+
+    seed_patterns = re.compile(
+        r'(random\.seed|np\.random\.seed|numpy\.random\.seed'
+        r'|torch\.manual_seed|tf\.random\.set_seed'
+        r'|random_state\s*='
+        r'|jax\.random\.PRNGKey|jax\.random\.key'
+        r'|set_seed\s*\('
+        r'|default_rng\s*\()',
+        re.IGNORECASE
+    )
+
+    jax_import_pattern = re.compile(r'import jax|from jax')
+    jax_key_pattern = re.compile(
+        r'jax\.random\.PRNGKey|jax\.random\.key\s*\('
+    )
+
+    for f in code_files:
+        if f.suffix.lower() not in {'.py', '.r', '.rmd', '.jl'}:
+            continue
+        content = read_file_safe(f)
+        imported_rngs = []
+        for lib, seed_fn in rng_imports.items():
+            if re.search(rf'\bimport\s+{lib}\b|from\s+{lib}\s+import'
+                         rf'|library\s*\(\s*["\']?{lib}',
+                         content, re.IGNORECASE):
+                imported_rngs.append((lib, seed_fn))
+        if imported_rngs and not seed_patterns.search(content):
+            libs = ', '.join(lib for lib, _ in imported_rngs)
+            findings.append(finding(
+                'F', 'SIGNIFICANT',
+                f'No random seed set in {f.name}',
+                f'This file imports stochastic libraries ({libs}) '
+                f'but no random seed was detected. Results will '
+                f'differ between runs.',
+                [f'Evidence: {f.name} imports {libs} without seed']
+            ))
+        if jax_import_pattern.search(content):
+            if not jax_key_pattern.search(content):
+                findings.append(finding(
+                    'F', 'SIGNIFICANT',
+                    f'JAX imported without PRNG key management: {f.name}',
+                    'JAX uses a separate random number system from numpy. '
+                    'np.random.seed() does NOT control JAX randomness. '
+                    'Use jax.random.PRNGKey() or jax.random.key().',
+                    [f'Evidence: {f.name} imports jax without PRNGKey']
+                ))
+    return findings
+
+
+def detect_U_environment_variables(repo_dir, all_files):
+    """Failure Mode U: Undocumented environment variables and credentials."""
+    findings = []
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS]
+
+    credential_patterns = re.compile(
+        r'os\.environ\.get\s*\(\s*["\']([^"\']*'
+        r'(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD|AUTH|API_KEY)'
+        r'[^"\']*)["\']'
+        r'|os\.getenv\s*\(\s*["\']([^"\']*'
+        r'(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD|AUTH|API_KEY)'
+        r'[^"\']*)["\']',
+        re.IGNORECASE
+    )
+
+    config_patterns = re.compile(
+        r'os\.environ\.get\s*\(\s*["\']([^"\']+)["\']'
+        r'|os\.getenv\s*\(\s*["\']([^"\']+)["\']'
+        r'|os\.environ\s*\[\s*["\']([^"\']+)["\']',
+        re.IGNORECASE
+    )
+
+    has_env_example = any(
+        f.name.lower() in {'.env.example', '.env.sample', '.env.template'}
+        for f in all_files
+    )
+
+    found_credentials = set()
+    found_config = set()
+
+    for f in code_files:
+        content = read_file_safe(f)
+        for match in credential_patterns.finditer(content):
+            var_name = match.group(1) or match.group(2)
+            if var_name:
+                found_credentials.add(var_name.upper())
+        for match in config_patterns.finditer(content):
+            var_name = (match.group(1) or match.group(2)
+                        or match.group(3))
+            if var_name:
+                found_config.add(var_name.upper())
+
+    found_config -= found_credentials
+
+    if found_credentials:
+        findings.append(finding(
+            'U', 'CRITICAL',
+            'Credential environment variables detected',
+            'This repository uses environment variables that appear '
+            'to be credentials. Document in .env.example with '
+            'placeholder values only.',
+            [f'Variables: {", ".join(sorted(found_credentials))}']
+        ))
+
+    if found_config and not has_env_example:
+        findings.append(finding(
+            'U', 'SIGNIFICANT',
+            'Environment variables used but no .env.example found',
+            'Validators cannot know what variables to set. '
+            'A .env.example will be generated.',
+            [f'Variables: {", ".join(sorted(list(found_config)[:10]))}']
+        ))
+
+    return findings
