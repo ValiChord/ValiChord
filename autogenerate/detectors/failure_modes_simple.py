@@ -1292,6 +1292,18 @@ def detect_L_large_files_missing(repo_dir, all_files):
     generated_files = set()
     for f in code_files:
         content = read_file_safe(f)
+        # resolve one level of variable assignment
+        var_assign = re.findall(
+            r'([A-Z_][A-Z0-9_]*)\s*=\s*["\']([^"\']*\.(?:csv|dta|xlsx|parquet|rds))["\']\s*',
+            content
+        )
+        var_map = {v: p for v, p in var_assign}
+        # check for to_csv(VAR) patterns
+        for var, path in var_map.items():
+            if re.search(r'to_csv\s*\(\s*' + var + r'[,)]', content):
+                fname = path.replace('\\', '/').split('/')[-1].lower()
+                if fname and '.' in fname:
+                    generated_files.add(fname)
         for match in write_pattern.finditer(content):
             filepath = match.group(1)
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
