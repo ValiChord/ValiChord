@@ -177,7 +177,7 @@ def _readme_install_block(all_files, r_packages=None):
         'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
         '',
         '# 3. Install dependencies',
-        '# First complete requirements_DRAFT.txt and rename to requirements.txt',
+        '# First ensure all version numbers are pinned in requirements.txt',
         'pip install -r requirements.txt',
     ]
 
