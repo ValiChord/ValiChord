@@ -355,6 +355,18 @@ def _generate_requirements_draft(repo_dir, all_files,
                                    findings, output_dir):
     """Generate requirements_DRAFT.txt from import statements."""
 
+    for dep_file in all_files:
+        if dep_file.name.lower() in DEPENDENCY_FILES:
+            try:
+                existing = dep_file.read_text(encoding="utf-8", errors="ignore")
+                pinned = [l for l in existing.splitlines() if "==" in l and not l.strip().startswith("#")]
+                if pinned:
+                    out = output_dir / "requirements_DRAFT.txt"
+                    msg = "# Existing file: " + dep_file.name + "\n# " + str(len(pinned)) + " pinned packages - no DRAFT needed.\n# Verify versions before deposit.\n#\n" + existing
+                    out.write_text(msg, encoding="utf-8-sig")
+                    return
+            except Exception:
+                pass
     imports = set()
 
     import ast as _ast
