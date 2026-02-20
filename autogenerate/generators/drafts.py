@@ -402,9 +402,30 @@ def _generate_requirements_draft(repo_dir, all_files,
                     out.write_text(msg, encoding="utf-8-sig")
                     return
                 else:
-                    # existing file found but versions unpinned — copy with warning
+                    # existing file found but versions unpinned
+                    if dep_file.name.lower() == "pyproject.toml":
+                        # extract only dependencies from [project] section
+                        import re as _re
+                        dep_section = _re.search(
+                            r'dependencies\s*=\s*\[([^\]]+)\]', existing, _re.DOTALL)
+                        if dep_section:
+                            raw_deps = dep_section.group(1)
+                            pkgs = _re.findall(r'["\']([a-zA-Z][a-zA-Z0-9_\-\.]*)', raw_deps)
+                            bounds = _re.findall(r'["\']([a-zA-Z][^"\']*)["\']\s*,?', raw_deps)
+                            out = output_dir / "requirements_DRAFT.txt"
+                            lines_out = [
+                                "# pyproject.toml detected — dependencies extracted from [project] dependencies",
+                                "# These have minimum version bounds but need exact pinning for reproducibility.",
+                                "#", ""]
+                            for b in bounds:
+                                b = b.strip()
+                                if b and not b.startswith("#"):
+                                    lines_out.append(b + "  # pin to exact version")
+                            out.write_text("\n".join(lines_out), encoding="utf-8-sig")
+                            return
                     packages = [l.strip() for l in existing.splitlines()
-                                if l.strip() and not l.strip().startswith("#")]
+                                if l.strip() and not l.strip().startswith("#")
+                                and "=" in l and "[" not in l and "]" not in l]
                     if packages:
                         out = output_dir / "requirements_DRAFT.txt"
                         lines_out = ["# Existing " + dep_file.name + " found but versions are NOT pinned.",
@@ -573,6 +594,10 @@ def _quickstart_step2(all_files, code_files):
     if '.jl' in suffixes:
         return ['2. Dependencies managed by `Project.toml` — run '
                 '`julia --project=. -e "using Pkg; Pkg.instantiate()"`']
+    # check for pyproject.toml package
+    names = {f.name.lower() for f in all_files}
+    if 'pyproject.toml' in names:
+        return ['2. Install as editable package: `pip install -e .`']
     # Python — check if already pinned
     has_pinned = any(
         f.name.lower() in DEPENDENCY_FILES and
@@ -609,6 +634,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
     code_files = [
         f for f in all_files
         if f.suffix.lower() in CODE_EXTENSIONS
+        and f.name not in {"__init__.py", "__main__.py"}
     ]
 
     # try to find numbered scripts
