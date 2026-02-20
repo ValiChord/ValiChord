@@ -159,8 +159,8 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         '| File | Purpose |',
         '|---|---|',
         '| `README_DRAFT.md` | Repository documentation template |',
-        '| `requirements_DRAFT.txt` | Dependency skeleton '
-        '(versions UNKNOWN) |',
+        '| `requirements_DRAFT.txt` | Dependency information — '
+        'see file for details |',
         '| `QUICKSTART_DRAFT.md` | Inferred execution order |',
         '| `LICENCE_DRAFT.txt` | Licence template |',
         '| `INVENTORY_DRAFT.md` | File inventory |',
