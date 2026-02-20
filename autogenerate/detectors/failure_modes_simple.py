@@ -184,7 +184,6 @@ def detect_C_absolute_paths(repo_dir, all_files):
                     '/proposed_corrections/.',
                     [f'Evidence: {f.name} line {i}: {snippet}']
                 ))
-                break
     return findings
 
 
@@ -1207,6 +1206,9 @@ def detect_J_notebook_order(repo_dir, all_files):
 def detect_M_python_version_conflict(repo_dir, all_files):
     """Failure Mode M: Multiple or conflicting Python versions referenced."""
     findings = []
+    # skip if no Python files present
+    if not any(f.suffix.lower() == '.py' for f in all_files):
+        return findings
 
     version_pattern = re.compile(r'python\s*[=><!\s]+\s*(\d+\.\d+)', re.IGNORECASE)
     versions_found = {}
@@ -2304,7 +2306,7 @@ def detect_AO_r_specific_issues(repo_dir, all_files):
             'Without renv.lock validators cannot install exact package versions.',
             ['Missing: renv.lock', 'Run renv::init() and renv::snapshot()']))
     if not has_session_info:
-        findings.append(finding('AO', 'LOW CONFIDENCE',
+        findings.append(finding('BN', 'LOW CONFIDENCE',
             'No sessionInfo() call found in R scripts',
             'sessionInfo() documents exact R and package versions used.',
             ['Recommendation: add sessionInfo() at end of main script']))

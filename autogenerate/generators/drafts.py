@@ -139,6 +139,45 @@ def _file_notes(f):
 
 # ── README_DRAFT.md ──────────────────────────────────────────────────────────
 
+
+def _readme_install_block(all_files):
+    """Return language-appropriate installation instructions for README_DRAFT."""
+    suffixes = {f.suffix.lower() for f in all_files}
+    names = {f.name.lower() for f in all_files}
+    if '.jl' in suffixes:
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Install Julia dependencies',
+            'julia --project=. -e "using Pkg; Pkg.instantiate()"',
+        ]
+    if '.r' in suffixes or '.rmd' in suffixes:
+        if 'renv.lock' in names:
+            return [
+                '# 1. Clone or download this repository',
+                '# 2. Restore R environment',
+                'Rscript -e "renv::restore()"',
+            ]
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Install required R packages',
+            'Rscript -e "install.packages(c("dplyr", "ggplot2"))  # add your packages"',
+        ]
+    if '.do' in suffixes or '.ado' in suffixes:
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Install required Stata packages via ssc install',
+        ]
+    # default Python
+    return [
+        '# 1. Clone or download this repository',
+        '# 2. Create a virtual environment',
+        'python -m venv venv',
+        'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
+        '',
+        '# 3. Install dependencies',
+        'pip install -r requirements.txt',
+    ]
+
 def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     """Generate README_DRAFT.md."""
 
@@ -244,16 +283,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         '',
         '```bash',
         '# 1. Clone or download this repository',
-        '# 2. Create a virtual environment',
-        'python -m venv venv',
-        'source venv/bin/activate  '
-        '# Windows: venv\\Scripts\\activate',
-        '',
-        '# 3. Install dependencies',
-        '# IMPORTANT: First add version numbers to '
-        'requirements_DRAFT.txt',
-        '# then rename it to requirements.txt',
-        'pip install -r requirements.txt',
+        *_readme_install_block(all_files),
         '```',
         '',
         '[YOU MUST COMPLETE THIS — add any additional '
@@ -483,11 +513,23 @@ def _generate_requirements_draft(repo_dir, all_files,
             '# To install: julia --project=. -e "using Pkg; Pkg.instantiate()"',
         ]
     elif 'renv.lock' in all_names or '.r' in all_suffixes:
-        lines += [
-            '# R repository detected.',
-            '# If using renv: run renv::restore() to install dependencies.',
-            '# If not using renv: add your R package dependencies manually.',
-        ]
+        r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+        r_libs = set()
+        lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+        for rf in r_files:
+            for m in lib_pat.finditer(read_file_safe(rf)):
+                r_libs.add(m.group(1))
+        if r_libs:
+            lines += ['# R repository detected.',
+                      '# Packages detected from library()/require() calls:',
+                      '# Add version numbers before deposit.', '']
+            lines += [f'{pkg}  # version unknown' for pkg in sorted(r_libs)]
+        else:
+            lines += [
+                '# R repository detected.',
+                '# If using renv: run renv::restore() to install dependencies.',
+                '# If not using renv: add your R package dependencies manually.',
+            ]
     elif '.do' in all_suffixes or '.ado' in all_suffixes:
         lines += [
             '# Stata repository detected.',
