@@ -1283,6 +1283,12 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
+    # also catch filenames assigned to variables then passed to write functions
+    varname_pattern = re.compile(
+        r'([\w_]+)\s*=\s*["\']([^"\']*\.(?:csv|dta|xlsx|parquet|rds))["\']\s*\n'
+        r'.*?\1',
+        re.IGNORECASE | re.DOTALL
+    )
     generated_files = set()
     for f in code_files:
         content = read_file_safe(f)

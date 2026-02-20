@@ -162,7 +162,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if readme_adequate:
         # existing README is reasonable — just note what's missing
-        readme_findings = [f for f in findings if f.get('code') in ('A', 'G', 'Z', 'K')]
+        readme_findings = [f for f in findings if f.get('code') in ('A', 'G', 'Z', 'K', 'N', 'E', 'Y')]
         lines = [
             '# README Review Notes',
             '',
@@ -586,8 +586,10 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '## Before Running',
         '',
         '1. Complete `README_DRAFT.md` and rename to `README.md`',
-        '2. Add version numbers to `requirements_DRAFT.txt` '
-        'and rename to `requirements.txt`',
+        *(['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
+           if not any(f.name.lower() in DEPENDENCY_FILES and any('==' in l for l in f.read_text(encoding='utf-8',errors='ignore').splitlines() if not l.strip().startswith('#'))
+                       for f in all_files if f.name.lower() in DEPENDENCY_FILES)
+           else ['2. Your `requirements.txt` already has pinned versions — no changes needed']),
         *_install_instructions(code_files),
         '4. Test on a **clean machine** — not just a new folder '
         'on your development machine',
