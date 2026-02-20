@@ -364,27 +364,40 @@ def detect_BK_system_clock(repo_dir, all_files):
         r'(seed|random)\s*\([^\n]{0,80}(datetime\.now|time\.time)'
     )
 
+    clock_in_logic = re.compile(
+        r'(datetime\.now|datetime\.today|time\.time)\s*\(\s*\)'
+    )
+    clock_in_logic = re.compile(
+        r'(datetime\.now|datetime\.today|time\.time)\s*\(\s*\)'
+    )
+    clock_in_logic = re.compile(
+        r'(datetime\.now|datetime\.today|time\.time)\s*\(\s*\)'
+    )
     for f in code_files:
-        content = read_file_safe(f)
-        if clock_in_filename.search(content):
+        src = read_file_safe(f)
+        if clock_in_filename.search(src):
             findings.append(finding(
                 'BK', 'SIGNIFICANT',
                 f'System clock used in filename generation: {f.name}',
                 'Output filenames derived from datetime.now() or '
-                'time.time() will differ between runs, making '
-                'comparison of researcher and validator outputs '
-                'impossible.',
-                [f'Evidence: {f.name} — clock-based filename pattern']
+                'time.time() will differ between runs.',
+                [f'Evidence: {f.name} - clock-based filename pattern']
             ))
-        elif clock_as_seed.search(content):
+        if clock_as_seed.search(src):
             findings.append(finding(
                 'BK', 'SIGNIFICANT',
                 f'System clock used as random seed: {f.name}',
-                'Seeds derived from the system clock change with '
-                'every run, producing different results each time.',
-                [f'Evidence: {f.name} — clock-based seed pattern']
+                'Seeds derived from the system clock change every run.',
+                [f'Evidence: {f.name} - clock-based seed pattern']
             ))
-
+        elif clock_in_logic.search(src) and not clock_in_filename.search(src):
+            findings.append(finding(
+                'BK', 'SIGNIFICANT',
+                f'System clock used in conditional logic: {f.name}',
+                'Code behaviour depends on current date or time. '
+                'Results may differ if run in a different month or year.',
+                [f'Evidence: {f.name} - clock-based logic pattern']
+            ))
     return findings
 
 
