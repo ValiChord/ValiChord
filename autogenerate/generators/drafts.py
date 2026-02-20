@@ -162,7 +162,7 @@ def _readme_install_block(all_files, r_packages=None):
         return [
             '# 1. Clone or download this repository',
             '# 2. Install required R packages',
-            f'Rscript -e "install.packages(c({pkg_str})"',
+            f'Rscript -e "install.packages(c({pkg_str}))"',
         ]
     if '.do' in suffixes or '.ado' in suffixes:
         return [
