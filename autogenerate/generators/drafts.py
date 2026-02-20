@@ -103,6 +103,8 @@ def _classify_file(f):
         return 'Data'
     if ext in {'.png', '.jpg', '.jpeg', '.pdf', '.svg', '.tif'}:
         return 'Figure/Image'
+    if f.name.lower() == 'citation.cff':
+        return 'Citation'
     if f.name.lower() in DEPENDENCY_FILES:
         return 'Dependency spec'
     if ext in {'.yml', '.yaml', '.toml', '.ini', '.cfg'}:
@@ -119,6 +121,8 @@ def _file_notes(f):
     ext = f.suffix.lower()
     if ext in {'.gpg', '.enc', '.secret', '.age', '.asc'}:
         return '🔴 POSSIBLY ENCRYPTED — may be unusable without key'
+    if name == 'citation.cff':
+        return 'CITATION.cff — check all required fields are complete'
     if name in README_NAMES:
         return 'README'
     if name in {'licence', 'license', 'licence.md',
@@ -162,7 +166,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if readme_adequate:
         # existing README is reasonable — just note what's missing
-        readme_findings = [f for f in findings if f.get('code') in ('A', 'G', 'Z', 'K', 'N', 'E', 'Y')]
+        readme_findings = [f for f in findings if f.get('mode') in ('A', 'G', 'Z', 'K', 'N', 'E', 'Y')]
         lines = [
             '# README Review Notes',
             '',
