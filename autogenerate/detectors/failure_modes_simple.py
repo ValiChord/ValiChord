@@ -2199,11 +2199,11 @@ def detect_AL_data_privacy(repo_dir, all_files):
     findings = []
 
     sensitive_patterns = re.compile(
-        r'\b(patient|participant|subject_id|respondent'
-        r'|ssn|social.security|date.of.birth|dob\b'
+        r'\b(ssn|social.security|date.of.birth|dob'
         r'|phone.number|email.address|home.address'
-        r'|medical.record|diagnosis|treatment'
-        r'|income|salary|wage)\b',
+        r'|medical.record|patient.id|participant.id'
+        r'|subject.id|ip.address|passport'
+        r'|national.insurance|nin\b|nhs.number)\b',
         re.IGNORECASE
     )
 

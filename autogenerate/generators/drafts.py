@@ -140,7 +140,7 @@ def _file_notes(f):
 # ── README_DRAFT.md ──────────────────────────────────────────────────────────
 
 
-def _readme_install_block(all_files):
+def _readme_install_block(all_files, r_packages=None):
     """Return language-appropriate installation instructions for README_DRAFT."""
     suffixes = {f.suffix.lower() for f in all_files}
     names = {f.name.lower() for f in all_files}
@@ -157,10 +157,12 @@ def _readme_install_block(all_files):
                 '# 2. Restore R environment',
                 'Rscript -e "renv::restore()"',
             ]
+        pkgs = r_packages or ['dplyr', 'ggplot2']
+        pkg_str = ', '.join("'" + p + "'" for p in pkgs)
         return [
             '# 1. Clone or download this repository',
             '# 2. Install required R packages',
-            'Rscript -e "install.packages(c(\'dplyr\', \'ggplot2\'))"',
+            f'Rscript -e "install.packages(c({pkg_str})"',
         ]
     if '.do' in suffixes or '.ado' in suffixes:
         return [
@@ -237,6 +239,12 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         print(f"  → README_DRAFT.md (existing README adequate)")
         return
 
+    # extract R packages for install block
+    r_pkgs = set()
+    lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+    for rf in [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]:
+        for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
+            r_pkgs.add(m.group(1))
     lines = [
         '# [TITLE OF PAPER — YOU MUST COMPLETE THIS]',
         '',
@@ -283,7 +291,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         '## Installation',
         '',
         '```bash',
-        *_readme_install_block(all_files),
+        *_readme_install_block(all_files, sorted(r_pkgs) if r_pkgs else None),
         '```',
         '',
         '[YOU MUST COMPLETE THIS — add any additional '

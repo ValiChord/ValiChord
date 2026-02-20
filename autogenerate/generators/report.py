@@ -209,8 +209,9 @@ def _write_assessment(repo_name, findings, output_dir):
               'especially the study overview and definition of '
               'successful reproduction.',
         'B':  'Add exact version numbers to all packages marked '
-              'UNKNOWN in requirements_DRAFT.txt. Run '
-              '`pip freeze` in your original environment to get them.',
+              'UNKNOWN in requirements_DRAFT.txt. For Python: run '
+              '`pip freeze` in your original environment. For R: run '
+              '`installed.packages()` or `sessionInfo()` in R.',
         'C':  'Review corrected path files in /proposed_corrections/ '
               'and verify each relative path is correct before '
               'applying.',
