@@ -160,7 +160,7 @@ def _readme_install_block(all_files):
         return [
             '# 1. Clone or download this repository',
             '# 2. Install required R packages',
-            'Rscript -e "install.packages(c("dplyr", "ggplot2"))  # add your packages"',
+            'Rscript -e "install.packages(c(\"dplyr\", \"ggplot2\"))"',
         ]
     if '.do' in suffixes or '.ado' in suffixes:
         return [
@@ -564,6 +564,26 @@ def _generate_requirements_draft(repo_dir, all_files,
 # ── QUICKSTART_DRAFT.md ──────────────────────────────────────────────────────
 
 
+def _quickstart_step2(all_files, code_files):
+    """Return language-appropriate step 2 for QUICKSTART."""
+    suffixes = {f.suffix.lower() for f in code_files}
+    if '.r' in suffixes or '.rmd' in suffixes:
+        return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
+                'then run `renv::snapshot()` to create `renv.lock`']
+    if '.jl' in suffixes:
+        return ['2. Dependencies managed by `Project.toml` — run '
+                '`julia --project=. -e "using Pkg; Pkg.instantiate()"`']
+    # Python — check if already pinned
+    has_pinned = any(
+        f.name.lower() in DEPENDENCY_FILES and
+        any('==' in l for l in f.read_text(encoding='utf-8', errors='ignore').splitlines()
+            if not l.strip().startswith('#'))
+        for f in all_files if f.name.lower() in DEPENDENCY_FILES
+    )
+    if has_pinned:
+        return ['2. Your `requirements.txt` already has pinned versions — no changes needed']
+    return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
+
 def _install_instructions(code_files):
     """Return language-appropriate install instructions."""
     suffixes = {f.suffix.lower() for f in code_files}
@@ -646,10 +666,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '## Before Running',
         '',
         '1. Complete `README_DRAFT.md` and rename to `README.md`',
-        *(['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
-           if not any(f.name.lower() in DEPENDENCY_FILES and any('==' in l for l in f.read_text(encoding='utf-8',errors='ignore').splitlines() if not l.strip().startswith('#'))
-                       for f in all_files if f.name.lower() in DEPENDENCY_FILES)
-           else ['2. Your `requirements.txt` already has pinned versions — no changes needed']),
+        *(_quickstart_step2(all_files, code_files)),
         *_install_instructions(code_files),
         '4. Test on a **clean machine** — not just a new folder '
         'on your development machine',
@@ -865,9 +882,14 @@ def generate_proposed_corrections(repo_dir, all_files, findings, output_dir):
         out_file.write_text(final_content, encoding='utf-8-sig')
         corrected_files.append(src_file.name)
 
-    # write the corrections README
-    for fname in corrected_files:
-        readme_lines.append(f'- `{fname}`')
+    # write the corrections README — consolidate duplicate filenames
+    from collections import Counter
+    file_counts = Counter(corrected_files)
+    for fname, count in sorted(file_counts.items()):
+        if count > 1:
+            readme_lines.append(f'- `{fname}` ({count} corrections)')
+        else:
+            readme_lines.append(f'- `{fname}`')
 
     readme_lines += [
         '',
