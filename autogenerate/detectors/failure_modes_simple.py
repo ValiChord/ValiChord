@@ -2619,8 +2619,11 @@ def detect_BJ_citation_cff(repo_dir, all_files):
     # validate required fields
     try:
         content_cff = cff_files[0].read_text(encoding='utf-8', errors='ignore')
+        # strip commented lines before checking
+        active_lines = [l for l in content_cff.splitlines() if not l.strip().startswith('#')]
+        active_content = '\n'.join(active_lines)
         required = ['title:', 'authors:', 'version:', 'date-released:']
-        missing_fields = [f for f in required if f not in content_cff]
+        missing_fields = [f for f in required if f not in active_content]
         if missing_fields:
             findings.append(finding(
                 'BJ', 'SIGNIFICANT',

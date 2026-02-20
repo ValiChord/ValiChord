@@ -438,9 +438,36 @@ def _generate_requirements_draft(repo_dir, all_files,
         '',
     ]
 
+    # detect language-specific dependency systems
+    all_suffixes = {f.suffix.lower() for f in all_files}
+    all_names = {f.name.lower() for f in all_files}
+
     if external:
         for pkg in external:
             lines.append(f'{pkg}==UNKNOWN')
+    elif 'project.toml' in all_names and '.jl' in all_suffixes:
+        lines += [
+            '# Julia repository detected.',
+            '# Dependencies are managed by Project.toml and Manifest.toml.',
+            '# No requirements_DRAFT.txt needed.',
+            '# To install: julia --project=. -e "using Pkg; Pkg.instantiate()"',
+        ]
+    elif 'renv.lock' in all_names or '.r' in all_suffixes:
+        lines += [
+            '# R repository detected.',
+            '# If using renv: run renv::restore() to install dependencies.',
+            '# If not using renv: add your R package dependencies manually.',
+        ]
+    elif '.do' in all_suffixes or '.ado' in all_suffixes:
+        lines += [
+            '# Stata repository detected.',
+            '# List required Stata packages (ssc install) manually.',
+        ]
+    elif '.m' in all_suffixes:
+        lines += [
+            '# MATLAB repository detected.',
+            '# List required MATLAB toolboxes manually.',
+        ]
     else:
         lines += [
             '# No external imports detected.',
