@@ -160,7 +160,7 @@ def _readme_install_block(all_files):
         return [
             '# 1. Clone or download this repository',
             '# 2. Install required R packages',
-            'Rscript -e "install.packages(c(\"dplyr\", \"ggplot2\"))"',
+            'Rscript -e "install.packages(c(\'dplyr\', \'ggplot2\'))"',
         ]
     if '.do' in suffixes or '.ado' in suffixes:
         return [
@@ -282,7 +282,6 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         '## Installation',
         '',
         '```bash',
-        '# 1. Clone or download this repository',
         *_readme_install_block(all_files),
         '```',
         '',
