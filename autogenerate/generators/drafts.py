@@ -447,6 +447,23 @@ def _generate_requirements_draft(repo_dir, all_files,
     imports = set()
 
     import ast as _ast
+    # scan .ipynb notebooks for imports
+    import json as _json
+    for f in all_files:
+        if f.suffix.lower() == '.ipynb':
+            try:
+                nb = _json.loads(f.read_text(encoding='utf-8', errors='ignore'))
+                for cell in nb.get('cells', []):
+                    if cell.get('cell_type') == 'code':
+                        src = ''.join(cell.get('source', []))
+                        for line in src.splitlines():
+                            line = line.strip()
+                            m = re.match(r'^import\s+([\w]+)', line)
+                            if m: imports.add(m.group(1))
+                            m = re.match(r'^from\s+([\w]+)', line)
+                            if m: imports.add(m.group(1))
+            except Exception:
+                pass
     for f in all_files:
         if f.suffix.lower() == '.py':
             try:
@@ -613,8 +630,11 @@ def _quickstart_step2(all_files, code_files):
             if not l.strip().startswith('#'))
         for f in all_files if f.name.lower() in DEPENDENCY_FILES
     )
+    has_requirements = any(f.name.lower() == 'requirements.txt' for f in all_files)
     if has_pinned:
         return ['2. Your `requirements.txt` already has pinned versions — no changes needed']
+    if has_requirements:
+        return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
 
 def _install_instructions(code_files):
@@ -692,6 +712,11 @@ def _generate_quickstart_draft(repo_dir, all_files,
         for f in sorted(code_files, key=lambda x: x.name):
             rel = f.relative_to(repo_dir)
             lines.append(f'- `{rel}`')
+        # also list notebooks
+        notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
+        for f in sorted(notebook_files, key=lambda x: x.name):
+            rel = f.relative_to(repo_dir)
+            lines.append(f'- `{rel}` (open in Jupyter and run all cells top to bottom)')
         lines.append('')
 
     lines += [
