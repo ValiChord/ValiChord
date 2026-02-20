@@ -366,9 +366,23 @@ def _generate_requirements_draft(repo_dir, all_files,
                 pinned = [l for l in existing.splitlines() if "==" in l and not l.strip().startswith("#")]
                 if pinned:
                     out = output_dir / "requirements_DRAFT.txt"
-                    msg = "# Existing file: " + dep_file.name + "\n# " + str(len(pinned)) + " pinned packages - no DRAFT needed.\n# Verify versions before deposit.\n#\n" + existing
+                    msg = ("# Existing file: " + dep_file.name + "\n"
+                           "# " + str(len(pinned)) + " pinned packages found - no DRAFT needed.\n"
+                           "# Verify versions are correct before deposit.\n#\n" + existing)
                     out.write_text(msg, encoding="utf-8-sig")
                     return
+                else:
+                    # existing file found but versions unpinned — copy with warning
+                    packages = [l.strip() for l in existing.splitlines()
+                                if l.strip() and not l.strip().startswith("#")]
+                    if packages:
+                        out = output_dir / "requirements_DRAFT.txt"
+                        lines_out = ["# Existing " + dep_file.name + " found but versions are NOT pinned.",
+                                     "# Add exact version numbers (e.g. pandas==2.1.3) before deposit.",
+                                     "#", "# Current contents:", ""]
+                        lines_out += [p + "==UNKNOWN" if "==" not in p and not p.startswith("#") else p for p in packages]
+                        out.write_text("\n".join(lines_out), encoding="utf-8-sig")
+                        return
             except Exception:
                 pass
     imports = set()

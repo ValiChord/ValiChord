@@ -359,12 +359,10 @@ def detect_BK_system_clock(repo_dir, all_files):
 
     clock_in_filename = re.compile(
         r'(datetime\.now|datetime\.today|time\.time)\s*\(\s*\)'
-        r'.*?(f["\']|format|str|%)',
-        re.DOTALL
+        r'[^\n]{0,50}(f["\']|format|str|%)'
     )
     clock_as_seed = re.compile(
-        r'(seed|random)\s*\(.*?(datetime\.now|time\.time)',
-        re.DOTALL
+        r'(seed|random)\s*\([^\n]{0,80}(datetime\.now|time\.time)'
     )
 
     for f in code_files:
@@ -547,7 +545,7 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BH_zip_bomb_risk(repo_dir, all_files)
     print("  [BI] Unicode paths check...")
     all_findings += detect_BI_unicode_in_paths(repo_dir, all_files)
-    all_findings += detect_BK_citation_cff(repo_dir, all_files)
+    all_findings += detect_BM_citation_cff(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -2621,13 +2619,13 @@ def detect_AV_hardcoded_dates(repo_dir, all_files):
     return []
 
 
-def detect_BK_citation_cff(repo_dir, all_files):
+def detect_BM_citation_cff(repo_dir, all_files):
     """Check CITATION.cff exists and has required fields."""
     findings = []
     cff_files = [f for f in all_files if f.name.lower() == 'citation.cff']
     if not cff_files:
         findings.append(finding(
-            'BK', 'LOW CONFIDENCE',
+            'BM', 'LOW CONFIDENCE',
             'No CITATION.cff found',
             'A CITATION.cff file makes your repository directly citable '
             'and is increasingly expected by journals and data archives.',
