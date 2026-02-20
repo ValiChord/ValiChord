@@ -451,7 +451,7 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [P]  Pre-registration check...")
     all_findings += detect_P_preregistration(repo_dir, all_files)
     print("  [V]  Virtual environment check...")
-    all_findings += detect_V_virtual_environment(repo_dir, all_files)
+    all_findings += detect_V_virtual_environment(repo_dir, all_files, all_findings)
     print("  [I]  Intermediate files check...")
     all_findings += detect_I_intermediate_files(repo_dir, all_files)
     print("  [J]  Notebook execution order check...")
@@ -804,7 +804,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
 
     if len(missing) >= 3:
         findings.append(finding(
-            'G', 'SIGNIFICANT',
+            'G', 'LOW CONFIDENCE',
             f'README is missing critical sections: {", ".join(missing)}',
             'A README exists but is missing sections that validators '
             'need to reproduce the work. Without installation '
@@ -1016,9 +1016,12 @@ def detect_P_preregistration(repo_dir, all_files):
     return findings
 
 
-def detect_V_virtual_environment(repo_dir, all_files):
+def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
     """Failure Mode V: No virtual environment specification."""
     findings = []
+    # suppress if [B] already fired — same issue at higher severity
+    if existing_findings and any(f.get('mode') == 'B' for f in existing_findings):
+        return findings
 
     has_venv_spec = any(
         f.name.lower() in {
@@ -1511,7 +1514,7 @@ def detect_S_software_citations_missing(repo_dir, all_files):
     major_packages = {
         'numpy', 'pandas', 'scipy', 'matplotlib', 'sklearn',
         'scikit-learn', 'statsmodels', 'torch', 'pytorch',
-        'tensorflow', 'keras', 'r', 'stata', 'matlab'
+        'tensorflow', 'keras', 'stata', 'matlab'
     }
 
     readme_file = None
