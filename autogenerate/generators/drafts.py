@@ -517,7 +517,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         r_libs = set()
         lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
         for rf in r_files:
-            for m in lib_pat.finditer(read_file_safe(rf)):
+            for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
                 r_libs.add(m.group(1))
         if r_libs:
             lines += ['# R repository detected.',
