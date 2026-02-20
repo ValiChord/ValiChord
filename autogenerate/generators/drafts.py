@@ -152,6 +152,47 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
                 pass
             break
 
+    # assess whether existing readme is adequate
+    readme_adequate = False
+    if existing_readme and len(existing_readme.strip()) > 500:
+        key_sections = ['installation', 'usage', 'data', 'run', 'reproduce', 'requirement']
+        sections_found = sum(1 for s in key_sections if s in existing_readme.lower())
+        if sections_found >= 2:
+            readme_adequate = True
+
+    if readme_adequate:
+        # existing README is reasonable — just note what's missing
+        readme_findings = [f for f in findings if f.get('code') in ('A', 'G', 'Z', 'K')]
+        lines = [
+            '# README Review Notes',
+            '',
+            '> ⚠️ **README_DRAFT.md** — Your existing README appears adequate.',
+            '> This file only lists items that may need attention.',
+            '> Your original README has been preserved — do not replace it with this file.',
+            '',
+            '---',
+            '',
+            '## Items to check in your existing README',
+            '',
+        ]
+        if readme_findings:
+            for f in readme_findings:
+                lines.append(f'- {f.get("title", "")}')
+        else:
+            lines.append('- No specific README gaps detected.')
+        lines += [
+            '',
+            '---',
+            '',
+            '## Your existing README (for reference)',
+            '',
+            existing_readme,
+        ]
+        out = output_dir / 'README_DRAFT.md'
+        out.write_text('\n'.join(lines), encoding='utf-8-sig')
+        print(f"  → README_DRAFT.md (existing README adequate)")
+        return
+
     lines = [
         '# [TITLE OF PAPER — YOU MUST COMPLETE THIS]',
         '',
