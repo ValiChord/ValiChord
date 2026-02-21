@@ -739,6 +739,22 @@ def _generate_requirements_draft(repo_dir, all_files,
 # ── QUICKSTART_DRAFT.md ──────────────────────────────────────────────────────
 
 
+def _renumber_steps(steps):
+    """Resequence numbered steps (lines starting with a digit and .) after deletions."""
+    result = []
+    n = 1
+    for s in steps:
+        import re as _re
+        if _re.match(r'^\d+\.', s):
+            s = _re.sub(r'^\d+\.', f'{n}.', s, count=1)
+            n += 1
+        elif s.startswith('N.'):
+            s = s.replace('N.', f'{n}.', 1)
+            n += 1
+        result.append(s)
+    return result
+
+
 def _quickstart_step2(all_files, code_files):
     """Return language-appropriate step 2 for QUICKSTART."""
     suffixes = {f.suffix.lower() for f in code_files}
@@ -872,11 +888,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '',
         '## Before Running',
         '',
-        '1. Complete `README_DRAFT.md` and rename to `README.md`',
-        *(_quickstart_step2(all_files, code_files)),
-        *_install_instructions(code_files, all_files),
-        '4. Test on a **clean machine** — not just a new folder '
-        'on your development machine',
+        *_renumber_steps([
+            '1. Complete `README_DRAFT.md` and rename to `README.md`',
+            *(_quickstart_step2(all_files, code_files)),
+            *_install_instructions(code_files, all_files),
+            'N. Test on a **clean machine** — not just a new folder '
+            'on your development machine',
+        ]),
         '',
         '---',
         '',
