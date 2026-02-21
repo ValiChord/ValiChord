@@ -759,9 +759,25 @@ def _generate_requirements_draft(repo_dir, all_files,
     all_suffixes = {f.suffix.lower() for f in all_files}
     all_names = {f.name.lower() for f in all_files}
 
+    # Extract version bounds from embedded Pluto TOML if present
+    pluto_compat = {}
+    for jl_f in all_files:
+        if jl_f.suffix.lower() == '.jl':
+            try:
+                jl_src = jl_f.read_text(encoding='utf-8', errors='ignore')
+                compat_m = re.search(r'\[compat\](.*?)(?:\[|$)', jl_src, re.DOTALL)
+                if compat_m:
+                    for vm in re.finditer(r'^(\w[\w.]+)\s*=\s*"([^"]+)"', compat_m.group(1), re.MULTILINE):
+                        pluto_compat[vm.group(1).lower()] = vm.group(2).lstrip('~^')
+            except Exception:
+                pass
     if external:
         for pkg in external:
-            lines.append(f'{pkg}==UNKNOWN')
+            ver = pluto_compat.get(pkg.lower())
+            if ver:
+                lines.append(f'{pkg}>={ver}  # from embedded Pluto compat block — not an exact pin')
+            else:
+                lines.append(f'{pkg}==UNKNOWN')
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
         lines += [
             '# Julia repository detected.',
