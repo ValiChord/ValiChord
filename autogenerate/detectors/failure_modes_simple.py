@@ -618,6 +618,10 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BZ_matlab_v73_format(repo_dir, all_files)
     print("  [CA] README script reference check...")
     all_findings += detect_CA_readme_script_missing(repo_dir, all_files)
+    print("  [CB] Snakemake environment isolation check...")
+    all_findings += detect_CB_snakemake_no_env_isolation(repo_dir, all_files)
+    print("  [CC] External tool versions check...")
+    all_findings += detect_CC_undocumented_external_tools(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
