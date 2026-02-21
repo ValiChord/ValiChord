@@ -787,7 +787,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         for pkg in external:
             ver = pluto_compat.get(pkg.lower())
             if ver:
-                lines.append(f'{pkg}>={ver}  # from embedded Pluto compat block — not an exact pin')
+                lines.append(f'{pkg}>={ver}  # from Project.toml or Pluto [compat] — not an exact pin')
             else:
                 lines.append(f'{pkg}==UNKNOWN')
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
