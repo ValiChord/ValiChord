@@ -77,7 +77,8 @@ def detect_A_no_readme(repo_dir, all_files):
     findings = []
     names = {f.name.lower() for f in all_files}
 
-    if not names.intersection(README_NAMES):
+    root_readme = [f for f in all_files if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve()]
+    if not root_readme:
         findings.append(finding(
             'A', 'CRITICAL',
             'No README file found',
@@ -88,7 +89,7 @@ def detect_A_no_readme(repo_dir, all_files):
     else:
         # check if readme is too short to be useful
         for f in all_files:
-            if f.name.lower() in README_NAMES:
+            if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve():
                 content = read_file_safe(f)
                 if len(content.strip()) < 200:
                     findings.append(finding(
@@ -270,7 +271,7 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
     findings = []
 
     for f in all_files:
-        if f.name.lower() in README_NAMES:
+        if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve():
             content = read_file_safe(f)
             # look for commit hash (40 hex chars) or version tag
             has_hash = bool(re.search(r'\b[0-9a-f]{40}\b', content))
@@ -832,7 +833,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
 
     readme_file = None
     for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and f.parent.resolve() == repo_dir.resolve():
             readme_file = f
             break
 
@@ -1366,7 +1367,8 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'(?:pd\.read_csv|pd\.read_parquet|pd\.read_excel'
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
-        r'|readRDS|read\.csv|read_dta|haven::read)'
+        r'|readRDS|read\.csv|read_dta|haven::read'
+        r'|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
