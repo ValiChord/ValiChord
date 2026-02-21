@@ -182,6 +182,23 @@ def _readme_install_block(all_files, r_packages=None):
             '# 1. Clone or download this repository',
             '# 2. Install required Stata packages via ssc install',
         ]
+    # conda repo — environment.yml present
+    if 'environment.yml' in names or 'environment.yaml' in names:
+        env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
+        # Try to extract conda env name
+        env_name = 'myenv'
+        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        if env_path:
+            import re as _re
+            m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
+            if m:
+                env_name = m.group(1)
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Create and activate the conda environment',
+            f'conda env create -f {env_file}',
+            f'conda activate {env_name}',
+        ]
     # default Python
     return [
         '# 1. Clone or download this repository',
@@ -709,6 +726,18 @@ def _generate_requirements_draft(repo_dir, all_files,
 def _quickstart_step2(all_files, code_files):
     """Return language-appropriate step 2 for QUICKSTART."""
     suffixes = {f.suffix.lower() for f in code_files}
+    names = {f.name.lower() for f in all_files}
+    # conda repo takes priority — single env file replaces all other dep steps
+    if 'environment.yml' in names or 'environment.yaml' in names:
+        env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
+        env_name = 'myenv'
+        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        if env_path:
+            import re as _re
+            m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
+            if m:
+                env_name = m.group(1)
+        return [f'2. Create and activate environment: `conda env create -f {env_file} && conda activate {env_name}`']
     if '.r' in suffixes or '.rmd' in suffixes:
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
@@ -733,10 +762,23 @@ def _quickstart_step2(all_files, code_files):
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
 
-def _install_instructions(code_files):
+def _install_instructions(code_files, all_files=None):
     """Return language-appropriate install instructions."""
     suffixes = {f.suffix.lower() for f in code_files}
     lines = []
+    # conda repo — single install step replaces everything else
+    if all_files:
+        names = {f.name.lower() for f in all_files}
+        if 'environment.yml' in names or 'environment.yaml' in names:
+            env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
+            env_name = 'myenv'
+            env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+            if env_path:
+                import re as _re
+                m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
+                if m:
+                    env_name = m.group(1)
+            return [f'3. Create and activate environment: `conda env create -f {env_file} && conda activate {env_name}`']
     if '.jl' in suffixes:
         lines.append('3. Install dependencies: `julia --project=. -e "using Pkg; Pkg.instantiate()"`')
     if '.r' in suffixes or '.rmd' in suffixes:
@@ -824,7 +866,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '',
         '1. Complete `README_DRAFT.md` and rename to `README.md`',
         *(_quickstart_step2(all_files, code_files)),
-        *_install_instructions(code_files),
+        *_install_instructions(code_files, all_files),
         '4. Test on a **clean machine** — not just a new folder '
         'on your development machine',
         '',
