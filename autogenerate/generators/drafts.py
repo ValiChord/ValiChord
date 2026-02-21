@@ -221,7 +221,18 @@ def _readme_install_block(all_files, r_packages=None):
                 '# 2. Install required Julia packages manually using Pkg.add()',
             ]
     if '.r' in suffixes or '.rmd' in suffixes:
+        has_python = '.py' in suffixes
         if 'renv.lock' in names:
+            if has_python:
+                return [
+                    '# 1. Clone or download this repository',
+                    '# 2. Set up Python environment',
+                    'python -m venv venv',
+                    'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
+                    'pip install -r requirements.txt',
+                    '# 3. Restore R environment',
+                    'Rscript -e "renv::restore()"',
+                ]
             return [
                 '# 1. Clone or download this repository',
                 '# 2. Restore R environment',
@@ -229,6 +240,16 @@ def _readme_install_block(all_files, r_packages=None):
             ]
         pkgs = r_packages or ['dplyr', 'ggplot2']
         pkg_str = ', '.join("'" + p + "'" for p in pkgs)
+        if has_python:
+            return [
+                '# 1. Clone or download this repository',
+                '# 2. Set up Python environment',
+                'python -m venv venv',
+                'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
+                'pip install -r requirements.txt',
+                '# 3. Install required R packages',
+                f'Rscript -e "install.packages(c({pkg_str}))"',
+            ]
         return [
             '# 1. Clone or download this repository',
             '# 2. Install required R packages',
