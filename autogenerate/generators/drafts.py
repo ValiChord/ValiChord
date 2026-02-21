@@ -618,6 +618,24 @@ def _generate_requirements_draft(repo_dir, all_files,
             except Exception:
                 pass
 
+    # scan .jl / Pluto notebooks for 'using' statements
+    julia_stdlib = {'Random', 'Statistics', 'LinearAlgebra', 'Dates', 'Printf',
+                    'Base', 'Core', 'Main', 'Pkg', 'Test', 'Logging', 'REPL',
+                    'InteractiveUtils', 'Distributed', 'Serialization'}
+    for f in all_files:
+        if f.suffix.lower() in {'.jl'}:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                for line in src.splitlines():
+                    line = line.strip()
+                    m = re.match(r'^using\s+([\w,\s]+)', line)
+                    if m:
+                        for pkg in re.split(r'[,\s]+', m.group(1)):
+                            pkg = pkg.strip()
+                            if pkg and pkg not in julia_stdlib:
+                                imports.add(pkg)
+            except Exception:
+                pass
     # filter out stdlib and local modules
     stdlib = {
         'os', 'sys', 're', 'math', 'json', 'csv', 'io',
@@ -803,8 +821,9 @@ def _install_instructions(code_files, all_files=None):
         names = {f.name.lower() for f in all_files}
         if 'environment.yml' in names or 'environment.yaml' in names:
             return []
+    # Julia: step 2 already covers install via _quickstart_step2; suppress step 3
     if '.jl' in suffixes:
-        lines.append('3. Install dependencies: `julia --project=. -e "using Pkg; Pkg.instantiate()"`')
+        pass  # handled in step 2
     if '.r' in suffixes or '.rmd' in suffixes:
         lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
     if '.do' in suffixes or '.ado' in suffixes:

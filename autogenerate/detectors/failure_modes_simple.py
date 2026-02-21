@@ -917,6 +917,10 @@ def detect_G_inadequate_readme(repo_dir, all_files):
              'explicit comparison criteria']
         ))
 
+    # If SIGNIFICANT fires, suppress LOW CONFIDENCE to avoid double-reporting [G]
+    if any(f['severity'] == 'SIGNIFICANT' for f in findings):
+        findings = [f for f in findings if f['severity'] != 'LOW CONFIDENCE']
+
     return findings
 
 
