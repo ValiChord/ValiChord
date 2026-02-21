@@ -558,6 +558,8 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [BI] Unicode paths check...")
     all_findings += detect_BI_unicode_in_paths(repo_dir, all_files)
     all_findings += detect_BM_citation_cff(repo_dir, all_files)
+    all_findings += detect_BO_codebook_reference_mismatch(repo_dir, all_files)
+    all_findings += detect_BP_licence_in_readme_only(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -772,6 +774,8 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 def detect_G_inadequate_readme(repo_dir, all_files):
     """Failure Mode G: README exists but missing critical sections."""
     findings = []
+    # skip installation/execution checks for data-only repos
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
 
     readme_file = None
     for f in all_files:
@@ -790,25 +794,39 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     content_lower = content.lower()
 
     # sections we expect in a reproducible research README
-    required_sections = {
-        'installation': [
-            'install', 'setup', 'getting started', 'requirements',
-            'dependencies', 'environment', 'pip install', 'conda'
-        ],
-        'execution': [
-            'how to run', 'usage', 'running', 'execute', 'run the',
-            'to reproduce', 'reproduc', 'quickstart', 'quick start',
-            'steps to', 'instructions'
-        ],
-        'expected outputs': [
-            'expected output', 'results', 'figures', 'tables',
-            'what to expect', 'output files', 'produces',
-            'generates', 'successful reproduction', 'success'
-        ],
-        'data': [
-            'data', 'dataset', 'download', 'source', 'input'
-        ],
-    }
+    if has_code:
+        required_sections = {
+            'installation': [
+                'install', 'setup', 'getting started', 'requirements',
+                'dependencies', 'environment', 'pip install', 'conda'
+            ],
+            'execution': [
+                'how to run', 'usage', 'running', 'execute', 'run the',
+                'to reproduce', 'reproduc', 'quickstart', 'quick start',
+                'steps to', 'instructions'
+            ],
+            'expected outputs': [
+                'expected output', 'results', 'figures', 'tables',
+                'what to expect', 'output files', 'produces',
+                'generates', 'successful reproduction', 'success'
+            ],
+            'data': [
+                'data', 'dataset', 'download', 'source', 'input'
+            ],
+        }
+    else:
+        required_sections = {
+            'data description': [
+                'data', 'dataset', 'variable', 'column', 'field'
+            ],
+            'access conditions': [
+                'access', 'download', 'licence', 'license', 'embargo',
+                'available', 'request'
+            ],
+            'collection methodology': [
+                'collected', 'survey', 'method', 'source', 'provenance'
+            ],
+        }
 
     missing = []
     for section, keywords in required_sections.items():
@@ -896,6 +914,9 @@ def detect_H_hardcoded_versions(repo_dir, all_files):
 def detect_K_compute_environment(repo_dir, all_files):
     """Failure Mode K: Compute environment not documented."""
     findings = []
+    # skip for data-only repos
+    if not any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files):
+        return findings
 
     readme_file = None
     for f in all_files:
@@ -2668,4 +2689,126 @@ def detect_BM_citation_cff(repo_dir, all_files):
             ))
     except Exception:
         pass
+    return findings
+
+
+def detect_BN_codebook_reference_mismatch(repo_dir, all_files):
+    """Check if README references a codebook file that doesn't exist."""
+    findings = []
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    try:
+        content = readme_file.read_text(encoding='utf-8', errors='ignore').lower()
+    except Exception:
+        return findings
+    import re as _re
+    codebook_refs = _re.findall(r'codebook[\w\-]*\.\w+', content)
+    all_names = {f.name.lower() for f in all_files}
+    for ref in codebook_refs:
+        if ref not in all_names:
+            findings.append(finding(
+                'BO', 'LOW CONFIDENCE',
+                f'README references {ref} but file not found',
+                'The README mentions a codebook or data dictionary file '
+                'that does not appear to be present in the repository.',
+                [f'Referenced: {ref}', f'Files present: {", ".join(n for n in all_names if "codebook" in n or "dict" in n) or "none"}']
+            ))
+    return findings
+
+
+def detect_BP_licence_in_readme_only(repo_dir, all_files):
+    """Check if licence is stated in README but no LICENCE file exists."""
+    findings = []
+    has_licence_file = any(
+        f.name.lower() in {'licence', 'license', 'licence.md',
+                           'license.md', 'licence.txt', 'license.txt'}
+        for f in all_files
+    )
+    if has_licence_file:
+        return findings
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    try:
+        content = readme_file.read_text(encoding='utf-8', errors='ignore').lower()
+    except Exception:
+        return findings
+    licence_terms = ['cc by', 'cc-by', 'mit license', 'apache 2', 'gpl', 'creative commons']
+    if any(term in content for term in licence_terms):
+        findings.append(finding(
+            'BP', 'LOW CONFIDENCE',
+            'Licence stated in README but no LICENCE file found',
+            'The README mentions a licence but no dedicated LICENCE file '
+            'exists. A separate LICENCE file is standard practice and '
+            'required by many repositories and journals.',
+            ['Recommendation: create a LICENCE file with the full licence text']
+        ))
+    return findings
+
+
+def detect_BO_codebook_reference_mismatch(repo_dir, all_files):
+    """Check if README references a codebook file that does not exist."""
+    findings = []
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {"readme.md", "readme.txt", "readme.rst"}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    try:
+        content = readme_file.read_text(encoding="utf-8", errors="ignore").lower()
+    except Exception:
+        return findings
+    import re as _re
+    codebook_refs = _re.findall(r"codebook[\w\-]*\.\w+", content)
+    all_names = {f.name.lower() for f in all_files}
+    for ref in codebook_refs:
+        if ref not in all_names:
+            findings.append(finding(
+                "BO", "LOW CONFIDENCE",
+                f"README references {ref} but file not found",
+                "The README mentions a codebook file that is not present.",
+                [f"Referenced: {ref}"]
+            ))
+    return findings
+
+
+def detect_BP_licence_in_readme_only(repo_dir, all_files):
+    """Check if licence stated in README but no LICENCE file exists."""
+    findings = []
+    has_licence_file = any(
+        f.name.lower() in {"licence", "license", "licence.md",
+                           "license.md", "licence.txt", "license.txt"}
+        for f in all_files
+    )
+    if has_licence_file:
+        return findings
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {"readme.md", "readme.txt", "readme.rst"}:
+            readme_file = f
+            break
+    if not readme_file:
+        return findings
+    try:
+        content = readme_file.read_text(encoding="utf-8", errors="ignore").lower()
+    except Exception:
+        return findings
+    if any(t in content for t in ["cc by", "cc-by", "mit license", "apache 2", "gpl", "creative commons"]):
+        findings.append(finding(
+            "BP", "LOW CONFIDENCE",
+            "Licence stated in README but no LICENCE file found",
+            "The README mentions a licence but no dedicated LICENCE file exists.",
+            ["Recommendation: create a LICENCE file with the full licence text"]
+        ))
     return findings

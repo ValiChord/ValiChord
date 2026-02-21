@@ -32,12 +32,14 @@ def generate_all_drafts(repo_dir, all_files, findings, output_dir):
 
     modes_found = {f['mode'] for f in findings}
 
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
     _generate_inventory(repo_dir, all_files, output_dir)
     _generate_readme_draft(repo_dir, all_files, findings, output_dir)
-    _generate_requirements_draft(repo_dir, all_files,
-                                  findings, output_dir)
-    _generate_quickstart_draft(repo_dir, all_files,
-                                findings, output_dir)
+    if has_code:
+        _generate_requirements_draft(repo_dir, all_files,
+                                      findings, output_dir)
+        _generate_quickstart_draft(repo_dir, all_files,
+                                    findings, output_dir)
     _generate_licence_draft(output_dir)
     generate_proposed_corrections(repo_dir, all_files, findings, output_dir)
 
@@ -123,6 +125,8 @@ def _file_notes(f):
         return '🔴 POSSIBLY ENCRYPTED — may be unusable without key'
     if name == 'citation.cff':
         return 'CITATION.cff — check all required fields are complete'
+    if 'codebook' in name or 'data_dictionary' in name or 'data_dict' in name:
+        return 'Codebook / data dictionary'
     if name in README_NAMES:
         return 'README'
     if name in {'licence', 'license', 'licence.md',
