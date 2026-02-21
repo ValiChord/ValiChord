@@ -614,6 +614,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BX_pluto_empty_manifest(repo_dir, all_files)
     print("  [BY] Julia manifest check...")
     all_findings += detect_BY_julia_missing_manifest(repo_dir, all_files)
+    print("  [BZ] MATLAB v7.3 format check...")
+    all_findings += detect_BZ_matlab_v73_format(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
