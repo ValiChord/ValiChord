@@ -113,6 +113,18 @@ def detect_B_no_dependencies(repo_dir, all_files):
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
     has_dep_file = bool(names_lower.intersection(DEPENDENCY_FILES))
+    # R install scripts are valid dependency specifications
+    if not has_dep_file:
+        has_dep_file = any(
+            bool(re.match(r'(install|setup).*\.r$', f.name.lower()))
+            for f in all_files
+        )
+    # Also check for install_packages.R style names explicitly
+    if not has_dep_file:
+        has_dep_file = any(
+            'install' in f.name.lower() and f.suffix.lower() == '.r'
+            for f in all_files
+        )
     # Modern Pluto notebooks embed deps as PLUTO_PROJECT_TOML_CONTENTS — treat as dep file
     if not has_dep_file:
         for f in all_files:
@@ -624,6 +636,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CD_dockerfile_run_before_copy(repo_dir, all_files)
     print("  [CC] External tool versions check...")
     all_findings += detect_CC_undocumented_external_tools(repo_dir, all_files)
+    print("  [CE] Unpinned GitHub R packages check...")
+    all_findings += detect_CE_unpinned_github_packages(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -1382,7 +1396,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
-        r'|SeqIO\.parse|load)'
+        r'|SeqIO\.parse|read\.FASTA|read\.alignment|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
@@ -3007,6 +3021,39 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+
+def detect_CE_unpinned_github_packages(repo_dir, all_files):
+    """Failure Mode CE: devtools::install_github() calls without commit/tag pin."""
+    findings = []
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    github_pattern = re.compile(
+        r'(?:devtools|remotes)::install_github\s*\(\s*["']([^"']+)["']',
+        re.IGNORECASE
+    )
+    unpinned = []
+    for f in r_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in github_pattern.finditer(src):
+                pkg = m.group(1)
+                # Pinned if @ present (commit sha or tag)
+                if '@' not in pkg:
+                    unpinned.append(pkg)
+        except Exception:
+            pass
+    if unpinned:
+        findings.append(finding(
+            'CE', 'SIGNIFICANT',
+            f'GitHub R packages installed without commit or version pin: {", ".join(unpinned[:4])}',
+            'devtools::install_github() calls found with no @commit or @tag specified. '
+            'These will always install the current HEAD — a different version than '
+            'what was used in the original analysis. Results may not be reproducible.',
+            [f'Unpinned: {p}' for p in unpinned[:5]] +
+            ['Fix: pin each call, e.g. install_github("YuLab-SMU/ggtree@a1b2c3d")',
+             'Or use renv to lock all package versions including GitHub sources']
+        ))
+    return findings
 
 def detect_CD_dockerfile_run_before_copy(repo_dir, all_files):
     """Failure Mode CD: Dockerfile has RUN pip install before COPY — build will fail."""
