@@ -670,6 +670,10 @@ def detect_F_missing_seeds(repo_dir, all_files):
             if re.search(rf'\bimport\s+{lib}\b|from\s+{lib}\s+import'
                          rf'|library\s*\(\s*["\']?{lib}',
                          content, re.IGNORECASE):
+                # numpy only stochastic if np.random actually called
+                import re as _re
+                if lib == 'numpy' and not _re.search(r'np\.random\.|numpy\.random\.', content):
+                    continue
                 imported_rngs.append((lib, seed_fn))
         if imported_rngs and not seed_patterns.search(content):
             libs = ', '.join(lib for lib, _ in imported_rngs)
@@ -1376,7 +1380,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
-        r'|load)'
+        r'|SeqIO\.parse|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
@@ -3000,6 +3004,39 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+
+def detect_CD_dockerfile_run_before_copy(repo_dir, all_files):
+    """Failure Mode CD: Dockerfile has RUN pip install before COPY — build will fail."""
+    findings = []
+    dockerfiles = [f for f in all_files if f.name.lower() == 'dockerfile']
+    for f in dockerfiles:
+        content = read_file_safe(f)
+        if not content:
+            continue
+        lines = content.splitlines()
+        copy_line = None
+        for i, line in enumerate(lines):
+            stripped = line.strip().upper()
+            if stripped.startswith('RUN') and ('PIP INSTALL' in stripped or 'CONDA INSTALL' in stripped):
+                # Check if COPY . or COPY requirements appears after this RUN
+                for j, later in enumerate(lines[i+1:], i+1):
+                    if later.strip().upper().startswith('COPY'):
+                        # RUN pip install before COPY — flag it
+                        findings.append(finding(
+                            'CD', 'SIGNIFICANT',
+                            f'Dockerfile has RUN pip install before COPY — build will fail',
+                            f'The RUN pip install command on line {i+1} runs before '
+                            f'the COPY on line {j+1}. The requirements file will not '
+                            f'exist in the container at build time, causing an immediate '
+                            f'build failure.',
+                            [f'Line {i+1}: {lines[i].strip()}',
+                             f'Line {j+1}: {lines[j].strip()}',
+                             'Fix: move COPY requirements.txt . before the RUN pip install line']
+                        ))
+                        break
+                break
+    return findings
 
 def detect_CB_snakemake_no_env_isolation(repo_dir, all_files):
     """Failure Mode CB: Snakemake workflow has no per-rule environment isolation."""
