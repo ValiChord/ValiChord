@@ -621,7 +621,10 @@ def _generate_requirements_draft(repo_dir, all_files,
     # scan .jl / Pluto notebooks for 'using' statements
     julia_stdlib = {'Random', 'Statistics', 'LinearAlgebra', 'Dates', 'Printf',
                     'Base', 'Core', 'Main', 'Pkg', 'Test', 'Logging', 'REPL',
-                    'InteractiveUtils', 'Distributed', 'Serialization'}
+                    'InteractiveUtils', 'Distributed', 'Serialization',
+                    'Markdown', 'Unicode', 'DelimitedFiles', 'SparseArrays',
+                    'SharedArrays', 'Mmap', 'Profile', 'FileWatching'}
+    julia_imports = set()
     for f in all_files:
         if f.suffix.lower() in {'.jl'}:
             try:
@@ -633,9 +636,11 @@ def _generate_requirements_draft(repo_dir, all_files,
                         for pkg in re.split(r'[,\s]+', m.group(1)):
                             pkg = pkg.strip()
                             if pkg and pkg not in julia_stdlib:
-                                imports.add(pkg)
+                                julia_imports.add(pkg)
             except Exception:
                 pass
+    # Julia imports bypass Python stdlib filter — add directly
+    imports.update(julia_imports)
     # filter out stdlib and local modules
     stdlib = {
         'os', 'sys', 're', 'math', 'json', 'csv', 'io',
@@ -792,8 +797,28 @@ def _quickstart_step2(all_files, code_files):
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
     if '.jl' in suffixes:
-        return ['2. Dependencies managed by `Project.toml` — run '
-                '`julia --project=. -e "using Pkg; Pkg.instantiate()"`']
+        names = {f.name.lower() for f in all_files}
+        if 'project.toml' in names:
+            return ['2. Dependencies managed by `Project.toml` — run '
+                    '`julia --project=. -e "using Pkg; Pkg.instantiate()"`']
+        else:
+            # No Project.toml — manually install detected packages
+            jl_pkgs = sorted({
+                pkg for f in all_files if f.suffix.lower() == '.jl'
+                for line in f.read_text(encoding='utf-8', errors='ignore').splitlines()
+                for m in [__import__('re').match(r'^using\s+([\w,\s]+)', line.strip())]
+                if m
+                for pkg in __import__('re').split(r'[,\s]+', m.group(1))
+                if pkg.strip() and pkg.strip() not in {
+                    'Random','Statistics','LinearAlgebra','Dates','Printf',
+                    'Base','Core','Main','Pkg','Test','Logging','REPL',
+                    'InteractiveUtils','Distributed','Serialization',
+                    'Markdown','Unicode','DelimitedFiles','SparseArrays'}
+            })
+            if jl_pkgs:
+                pkg_list = ', '.join(f'"{p}"' for p in jl_pkgs)
+                return [f'2. Install required packages: `julia -e \'using Pkg; Pkg.add([{pkg_list}])\'`']
+            return ['2. Install required Julia packages manually using `julia -e "using Pkg; Pkg.add(\"PackageName\")"`']
     # check for pyproject.toml package
     names = {f.name.lower() for f in all_files}
     if 'pyproject.toml' in names:
@@ -823,7 +848,7 @@ def _install_instructions(code_files, all_files=None):
             return []
     # Julia: step 2 already covers install via _quickstart_step2; suppress step 3
     if '.jl' in suffixes:
-        pass  # handled in step 2
+        return []  # handled in step 2
     if '.r' in suffixes or '.rmd' in suffixes:
         lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
     if '.do' in suffixes or '.ado' in suffixes:
