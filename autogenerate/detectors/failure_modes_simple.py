@@ -592,6 +592,11 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BM_citation_cff(repo_dir, all_files)
     all_findings += detect_BO_codebook_reference_mismatch(repo_dir, all_files)
     all_findings += detect_BP_licence_in_readme_only(repo_dir, all_files)
+    all_findings += detect_BR_credentials_exposed(repo_dir, all_files)
+    all_findings += detect_BS_archive_code_present(repo_dir, all_files)
+    all_findings += detect_BT_spaces_in_filenames(repo_dir, all_files)
+    all_findings += detect_BS_archive_code_present(repo_dir, all_files)
+    all_findings += detect_BT_spaces_in_filenames(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -2842,5 +2847,91 @@ def detect_BP_licence_in_readme_only(repo_dir, all_files):
             "Licence stated in README but no LICENCE file found",
             "The README mentions a licence but no dedicated LICENCE file exists.",
             ["Recommendation: create a LICENCE file with the full licence text"]
+        ))
+    return findings
+
+
+def detect_BR_credentials_exposed(repo_dir, all_files):
+    """Check for exposed credentials, API keys, or passwords."""
+    findings = []
+    import re as _re
+    cred_patterns = _re.compile(
+        r'(password|passwd|api_key|api_secret|secret_key|token|auth_token'
+        r'|private_key|access_key|client_secret|database_url)\s*[=:]\s*\S+',
+        _re.IGNORECASE
+    )
+    env_files = [f for f in all_files if f.name.lower() in {
+        '.env', '.env.local', '.env.production', '.env.development',
+        'secrets.yml', 'secrets.yaml', 'credentials.json', 'credentials.yml'
+    }]
+    flagged = []
+    evidence = []
+    # always flag .env files present
+    for f in env_files:
+        flagged.append(f.name)
+        evidence.append(f"Sensitive file present: {f.name}")
+    # scan other files for credential patterns
+    check_exts = {'.py', '.r', '.jl', '.yaml', '.yml', '.json', '.toml', '.cfg', '.ini', '.txt', '.md'}
+    for f in all_files:
+        if f.name.lower() in {ef.name.lower() for ef in env_files}:
+            continue
+        if f.suffix.lower() not in check_exts:
+            continue
+        try:
+            content = f.read_text(encoding='utf-8', errors='ignore')
+            matches = cred_patterns.findall(content)
+            if matches:
+                flagged.append(f.name)
+                evidence.append(f"{f.name}: possible credential pattern ({matches[0][0]})")
+        except Exception:
+            pass
+    if flagged:
+        findings.append(finding(
+            'BR', 'CRITICAL',
+            f'Potential credentials or secrets detected in: {", ".join(flagged[:3])}',
+            'Files containing passwords, API keys, or secrets must NEVER '
+            'be published. Remove these files and rotate any exposed credentials '
+            'immediately. Add .env to .gitignore before any further commits.',
+            evidence[:5]
+        ))
+    return findings
+
+
+def detect_BS_archive_code_present(repo_dir, all_files):
+    """Check for vestigial code in archive/old directories."""
+    findings = []
+    archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
+    archive_files = [
+        f for f in all_files
+        if f.suffix.lower() in CODE_EXTENSIONS
+        and any(p.name.lower() in archive_dirs for p in f.parents)
+    ]
+    if archive_files:
+        findings.append(finding(
+            'BS', 'LOW CONFIDENCE',
+            f'Vestigial code files found in archive directories: {", ".join(f.name for f in archive_files[:3])}',
+            'Code files in old/, archive/, or deprecated/ directories suggest '
+            'version history managed by file duplication rather than git. '
+            'Remove these before deposit to avoid confusion about which files '
+            'are part of the active pipeline.',
+            [f'Archive file: {f.relative_to(repo_dir)}' for f in archive_files[:5]]
+        ))
+    return findings
+
+
+def detect_BT_spaces_in_filenames(repo_dir, all_files):
+    """Check for spaces in code or data filenames."""
+    findings = []
+    problem_files = [
+        f for f in all_files
+        if ' ' in f.name and f.suffix.lower() in CODE_EXTENSIONS | {'.csv', '.tsv', '.xlsx'}
+    ]
+    if problem_files:
+        findings.append(finding(
+            'BT', 'LOW CONFIDENCE',
+            f'Spaces in filenames: {", ".join(f.name for f in problem_files[:3])}',
+            'Filenames with spaces cause shell execution failures unless quoted. '
+            'Replace spaces with underscores before deposit.',
+            [f'Problem file: {f.name}' for f in problem_files[:5]]
         ))
     return findings
