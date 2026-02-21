@@ -2125,8 +2125,8 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
     key_patterns = re.compile(
-        r'(?:api_key|apikey|api_token|access_token|secret_key'
-        r'|private_key|auth_token|bearer)\s*=\s*["\'][a-zA-Z0-9_\-]{16,}["\']',
+        r'[A-Z_]*(?:KEY|SECRET|TOKEN|PASSWORD|AUTH|CREDENTIAL|API)[A-Z_]*'
+        r'\s*=\s*["\'][a-zA-Z0-9_\-]{16,}["\']',
         re.IGNORECASE
     )
 
