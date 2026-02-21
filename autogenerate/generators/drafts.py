@@ -759,8 +759,20 @@ def _generate_requirements_draft(repo_dir, all_files,
     all_suffixes = {f.suffix.lower() for f in all_files}
     all_names = {f.name.lower() for f in all_files}
 
-    # Extract version bounds from embedded Pluto TOML if present
+    # Extract version bounds from Project.toml [compat] or embedded Pluto TOML
     pluto_compat = {}
+    # Standard Project.toml
+    for toml_f in all_files:
+        if toml_f.name.lower() == 'project.toml':
+            try:
+                toml_src = toml_f.read_text(encoding='utf-8', errors='ignore')
+                compat_m = re.search(r'\[compat\](.*?)(?:\[|$)', toml_src, re.DOTALL)
+                if compat_m:
+                    for vm in re.finditer(r'^(\w[\w.]+)\s*=\s*"([^"]+)"', compat_m.group(1), re.MULTILINE):
+                        pluto_compat[vm.group(1).lower()] = vm.group(2).lstrip('~^')
+            except Exception:
+                pass
+    # Embedded Pluto TOML (overrides if present)
     for jl_f in all_files:
         if jl_f.suffix.lower() == '.jl':
             try:

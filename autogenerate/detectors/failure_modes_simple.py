@@ -2956,6 +2956,29 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+def detect_BY_julia_missing_manifest(repo_dir, all_files):
+    """Failure Mode BY: Julia repo has Project.toml but no Manifest.toml."""
+    findings = []
+    names_lower = {f.name.lower() for f in all_files}
+    if 'project.toml' not in names_lower:
+        return findings
+    if 'manifest.toml' in names_lower:
+        return findings
+    findings.append(finding(
+        'BY', 'SIGNIFICANT',
+        'Julia Manifest.toml missing',
+        'Project.toml found but no Manifest.toml present. Without a manifest, '
+        'julia --project=. -e "using Pkg; Pkg.instantiate()" resolves packages '
+        'to the latest compatible versions, not the exact versions used at '
+        'publication. Validators may get different package versions than you used.',
+        ['Project.toml present — compat bounds specified',
+         'Manifest.toml absent — exact versions unspecified',
+         'Fix: run julia --project=. -e "using Pkg; Pkg.resolve(); Pkg.instantiate()" '
+         'then commit the generated Manifest.toml']
+    ))
+    return findings
+
 def detect_BX_pluto_empty_manifest(repo_dir, all_files):
     """Failure Mode BX: Pluto notebook has PLUTO_MANIFEST_TOML_CONTENTS but it is empty."""
     findings = []
