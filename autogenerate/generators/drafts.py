@@ -482,6 +482,17 @@ def _generate_requirements_draft(repo_dir, all_files,
                                    findings, output_dir):
     """Generate requirements_DRAFT.txt from import statements."""
 
+    # preserve existing requirements_DRAFT.txt from prior run
+    prior_draft = next((f for f in all_files if f.name.lower() == "requirements_draft.txt"), None)
+    if prior_draft:
+        prior_content = prior_draft.read_text(encoding="utf-8", errors="ignore")
+        out = output_dir / "requirements_DRAFT.txt"
+        out.write_text(
+            "# Prior requirements_DRAFT.txt preserved from previous ValiChord run.\n"
+            "# Review and pin all versions before renaming to requirements.txt.\n"
+            "#\n" + prior_content, encoding="utf-8-sig")
+        print("  -> requirements_DRAFT.txt (preserved from prior run)")
+        return
     for dep_file in all_files:
         if dep_file.name.lower() in DEPENDENCY_FILES:
             try:

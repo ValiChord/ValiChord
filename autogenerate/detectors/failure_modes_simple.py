@@ -114,7 +114,8 @@ def detect_B_no_dependencies(repo_dir, all_files):
     has_dep_file = bool(names_lower.intersection(DEPENDENCY_FILES))
     has_code = bool(code_files)
 
-    if has_code and not has_dep_file:
+    has_draft_only = "requirements_draft.txt" in names_lower and not has_dep_file
+    if has_code and not has_dep_file and not has_draft_only:
         findings.append(finding(
             'B', 'CRITICAL',
             'No dependency specification found',
@@ -124,6 +125,18 @@ def detect_B_no_dependencies(repo_dir, all_files):
             [f'Code files found: {len(code_files)}',
              'No requirements.txt, environment.yml, renv.lock, '
              'or equivalent found']
+        ))
+    elif has_code and has_draft_only:
+        # prior run left a requirements_DRAFT.txt — check if versions are pinned
+        draft_file = next(f for f in all_files if f.name.lower() == "requirements_draft.txt")
+        draft_content = read_file_safe(draft_file)
+        has_pinned = any("==" in l for l in draft_content.splitlines() if l.strip() and not l.strip().startswith("#"))
+        findings.append(finding(
+            'B', 'SIGNIFICANT',
+            'requirements_DRAFT.txt found from prior run but not yet finalised',
+            'A requirements_DRAFT.txt exists but has not been completed and renamed '
+            'to requirements.txt. Pin all version numbers and rename before deposit.',
+            ['Action: complete version numbers in requirements_DRAFT.txt and rename to requirements.txt']
         ))
     elif has_dep_file:
         # check for unpinned dependencies in requirements.txt
@@ -445,6 +458,25 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [F]  Random seed check...")
     print("  [U]  Environment variable check...")
     all_findings = []
+    # prior run detection
+    prior_report = next((f for f in all_files if f.name.lower() == "cleaning_report.md"), None)
+    if prior_report:
+        try:
+            prior_content = prior_report.read_text(encoding="utf-8", errors="ignore")
+            import re as _re
+            version_match = _re.search(r"v(\d+\.\d+\.\d+)", prior_content)
+            date_match = _re.search(r"(\d{4}-\d{2}-\d{2})", prior_content)
+            version_str = version_match.group(0) if version_match else "unknown version"
+            date_str = date_match.group(0) if date_match else "unknown date"
+            all_findings.append(finding(
+                "BQ", "LOW CONFIDENCE",
+                f"Prior ValiChord report detected ({version_str}, {date_str})",
+                "A previous ValiChord cleaning report was found in this repository. "
+                "This appears to be a re-run. Review prior findings before actioning new ones.",
+                [f"Prior report: {prior_report.name} ({version_str}, {date_str})"]
+            ))
+        except Exception:
+            pass
     all_findings += detect_A_no_readme(repo_dir, all_files)
     all_findings += detect_B_no_dependencies(repo_dir, all_files)
     all_findings += detect_C_absolute_paths(repo_dir, all_files)
