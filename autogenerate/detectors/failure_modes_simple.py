@@ -11,7 +11,7 @@ from pathlib import Path
 # ── file classification helpers ──────────────────────────────────────────────
 
 CODE_EXTENSIONS = {
-    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash',
+    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
     '.sql', '.rs', '.go', '.java', '.js', '.ts'
 }
@@ -833,7 +833,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     """Failure Mode G: README exists but missing critical sections."""
     findings = []
     # skip installation/execution checks for data-only repos
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
 
     readme_file = None
     for f in all_files:
@@ -2995,6 +2995,85 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+
+def detect_CB_snakemake_no_env_isolation(repo_dir, all_files):
+    """Failure Mode CB: Snakemake workflow has no per-rule environment isolation."""
+    findings = []
+    snake_files = [f for f in all_files
+                   if f.name == 'Snakefile' or f.suffix.lower() == '.smk']
+    if not snake_files:
+        return findings
+    for f in snake_files:
+        content = read_file_safe(f)
+        if not content:
+            continue
+        # Count rules
+        rules = re.findall(r'^rule\s+\w+', content, re.MULTILINE)
+        if not rules:
+            continue
+        has_conda = 'conda:' in content
+        has_container = 'container:' in content or 'singularity:' in content
+        if not has_conda and not has_container:
+            findings.append(finding(
+                'CB', 'SIGNIFICANT',
+                f'Snakemake workflow has no per-rule environment isolation: {f.name}',
+                f'No rule in {f.name} has a conda: or container: directive. '
+                'Without these, the workflow depends on tools being available '
+                'on PATH with no version control. Different tool versions '
+                'will produce different results.',
+                [f'Rules found: {", ".join(r.split()[1] for r in rules[:5])}',
+                 'Fix: add conda: directives with environment YAML files to each rule,',
+                 'or use container: with a Docker/Singularity image']
+            ))
+    return findings
+
+
+def detect_CC_undocumented_external_tools(repo_dir, all_files):
+    """Failure Mode CC: README mentions external tools on PATH with no version specified."""
+    findings = []
+    readme_file = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            if len(f.relative_to(repo_dir).parts) <= 2:
+                readme_file = f
+                break
+    if not readme_file:
+        return findings
+    content = read_file_safe(readme_file)
+    if not content:
+        return findings
+    # Common bioinformatics/scientific CLI tools
+    tool_pattern = re.compile(
+        r'\b(bwa|samtools|gatk|bcftools|bowtie2|hisat2|star|kallisto|salmon'
+        r'|bedtools|picard|trimmomatic|fastqc|multiqc|varscan|snpeff'
+        r'|minimap2|blastn|blastp|makeblastdb|cellranger|seqkit)\b',
+        re.IGNORECASE
+    )
+    tools_found = sorted(set(m.group(1).lower() for m in tool_pattern.finditer(content)))
+    if not tools_found:
+        return findings
+    # Check if versions are mentioned near tool names
+    unversioned = []
+    for tool in tools_found:
+        # Look for version number near tool mention
+        tool_ctx = re.search(rf'\b{tool}\b.{{0,80}}', content, re.IGNORECASE)
+        if tool_ctx:
+            ctx = tool_ctx.group(0)
+            if not re.search(r'v?\d+\.\d+', ctx):
+                unversioned.append(tool)
+    if unversioned:
+        findings.append(finding(
+            'CC', 'SIGNIFICANT',
+            f'External tools required but versions not specified: {", ".join(unversioned[:5])}',
+            'The README references external tools that must be on PATH, but no '
+            'version numbers are specified. Different versions of these tools '
+            '(e.g. GATK v3 vs v4) have completely different command-line interfaces '
+            'and may produce different results.',
+            [f'Unversioned tools: {", ".join(unversioned)}',
+             'Fix: specify exact versions in README System Requirements section']
+        ))
+    return findings
 
 def detect_CA_readme_script_missing(repo_dir, all_files):
     """Failure Mode CA: Script referenced in README does not exist in repository."""

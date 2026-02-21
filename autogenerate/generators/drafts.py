@@ -11,7 +11,7 @@ import re
 
 
 CODE_EXTENSIONS = {
-    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash',
+    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
     '.sql', '.rs', '.go', '.java', '.js', '.ts'
 }
@@ -149,7 +149,7 @@ def _readme_install_block(all_files, r_packages=None):
     suffixes = {f.suffix.lower() for f in all_files}
     names = {f.name.lower() for f in all_files}
     # data-only deposit — no code present
-    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd"})
+    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk"})
     if not has_code:
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
         return [
@@ -953,6 +953,9 @@ def _quickstart_step2(all_files, code_files):
     if '.r' in suffixes or '.rmd' in suffixes:
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
+    if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):
+        return ['2. Run the Snakemake workflow: `snakemake --cores all`',
+                '   (add --use-conda if per-rule conda: directives are present)']
     if '.jl' in suffixes:
         names = {f.name.lower() for f in all_files}
         if 'project.toml' in names:
