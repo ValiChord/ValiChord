@@ -244,7 +244,7 @@ def _readme_install_block(all_files, r_packages=None):
             '# 1. Open MATLAB (see README for required version)',
             '# 2. Ensure required toolboxes are licensed and installed',
             '# 3. If using EEGLAB: add EEGLAB folder to your MATLAB path',
-            '#    addpath(genpath('/path/to/eeglab\'))',
+            '#    addpath(genpath("/path/to/eeglab"))',
             '# 4. Open and run the main script',
         ]
     # conda repo — environment.yml present
