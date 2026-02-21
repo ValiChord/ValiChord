@@ -115,6 +115,8 @@ def _classify_file(f):
         return 'Shell script'
     if ext in {'.gpg', '.enc', '.secret', '.age', '.asc'}:
         return '⚠️ POSSIBLY ENCRYPTED'
+    if f.name == 'Snakefile' or f.suffix.lower() == '.smk':
+        return 'Workflow'
     return 'Other'
 
 
