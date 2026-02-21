@@ -68,7 +68,7 @@ def generate_cleaning_report(repo_name, repo_dir, all_files,
 
     _write_cleaning_report(repo_name, repo_dir, all_files,
                            findings, output_dir)
-    _write_assessment(repo_name, findings, output_dir)
+    _write_assessment(repo_name, all_files, findings, output_dir)
 
 
 def _severity_emoji(severity):
@@ -237,7 +237,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
     print(f"  → CLEANING_REPORT.md")
 
 
-def _write_assessment(repo_name, findings, output_dir):
+def _write_assessment(repo_name, all_files, findings, output_dir):
     """Generate ASSESSMENT.md with questions for the researcher."""
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
