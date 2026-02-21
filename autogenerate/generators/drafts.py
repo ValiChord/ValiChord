@@ -675,12 +675,12 @@ def _generate_requirements_draft(repo_dir, all_files,
 
     external = sorted(
         imp for imp in imports
-        if imp.lower()
-    # Merge Julia imports after Python stdlib filter so CSV etc. aren't excluded
-    external = sorted(set(external) | {pkg for pkg in julia_imports if not pkg.startswith('_')}) not in stdlib
+        if imp.lower() not in stdlib
         and imp.lower() not in local_modules
         and not imp.startswith('_')
     )
+    # Merge Julia imports after Python stdlib filter so CSV etc. aren't excluded
+    external = sorted(set(external) | {pkg for pkg in julia_imports if not pkg.startswith('_')})
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
