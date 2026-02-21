@@ -157,6 +157,22 @@ def _readme_install_block(all_files, r_packages=None):
             "# Files are provided in standard formats (CSV, Excel, etc.)",
             f"# See {codebook} for variable descriptions." if codebook else "# See the codebook for variable descriptions.",
         ]
+    # conda repo — takes precedence over all language-specific checks
+    if 'environment.yml' in names or 'environment.yaml' in names:
+        env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
+        env_name = 'myenv'
+        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        if env_path:
+            import re as _re
+            m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
+            if m:
+                env_name = m.group(1)
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Create and activate the conda environment',
+            f'conda env create -f {env_file}',
+            f'conda activate {env_name}',
+        ]
     if '.jl' in suffixes:
         return [
             '# 1. Clone or download this repository',
@@ -766,19 +782,11 @@ def _install_instructions(code_files, all_files=None):
     """Return language-appropriate install instructions."""
     suffixes = {f.suffix.lower() for f in code_files}
     lines = []
-    # conda repo — single install step replaces everything else
+    # conda repo — step 2 already covers install via _quickstart_step2; suppress step 3
     if all_files:
         names = {f.name.lower() for f in all_files}
         if 'environment.yml' in names or 'environment.yaml' in names:
-            env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
-            env_name = 'myenv'
-            env_path = next((f for f in all_files if f.name.lower() == env_file), None)
-            if env_path:
-                import re as _re
-                m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
-                if m:
-                    env_name = m.group(1)
-            return [f'3. Create and activate environment: `conda env create -f {env_file} && conda activate {env_name}`']
+            return []
     if '.jl' in suffixes:
         lines.append('3. Install dependencies: `julia --project=. -e "using Pkg; Pkg.instantiate()"`')
     if '.r' in suffixes or '.rmd' in suffixes:
