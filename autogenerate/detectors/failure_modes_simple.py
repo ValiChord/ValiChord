@@ -637,7 +637,7 @@ def detect_F_missing_seeds(repo_dir, all_files):
         'torch': 'torch.manual_seed()',
         'tensorflow': 'tf.random.set_seed()',
         'sklearn': 'random_state= parameter',
-        'scipy': 'np.random.seed()',
+        # scipy removed — scipy.stats functions are deterministic; only scipy.stats.distributions random sampling needs seeding
         'lightgbm': 'random_state= parameter',
         'xgboost': 'seed= parameter',
     }
@@ -2134,17 +2134,23 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
         content = read_file_safe(f)
         matches = key_patterns.findall(content)
         if matches:
+            # Extract variable names from matches for evidence
+            var_names = []
+            for m in matches:
+                var = m.split('=')[0].strip().split('\n')[-1].strip()
+                if var and var not in var_names:
+                    var_names.append(var)
+            evidence_lines = [f'Hardcoded credential: {v}' for v in var_names[:5]]
+            evidence_lines.append('Action required: rotate these credentials immediately if real')
             findings.append(finding(
                 'AG', 'CRITICAL',
-                f'Possible hardcoded credentials in {f.name}',
+                f'Possible hardcoded credentials in {f.name}: {", ".join(var_names[:3])}',
                 'What appears to be an API key or token is hardcoded '
                 'in source code. If real, this is a security issue — '
                 'credentials committed to a repository should be '
                 'considered compromised. Replace with environment '
                 'variables immediately.',
-                [f'Evidence: {f.name} — credential pattern detected',
-                 'Action required: rotate this credential immediately '
-                 'if real']
+                evidence_lines
             ))
 
     return findings
@@ -2913,11 +2919,15 @@ def detect_BR_credentials_exposed(repo_dir, all_files):
     for f in env_files:
         flagged.append(f.name)
         evidence.append(f"Sensitive file present: {f.name}")
-    # scan other files for credential patterns
-    check_exts = {'.py', '.r', '.jl', '.yaml', '.yml', '.json', '.toml', '.cfg', '.ini', '.txt', '.md'}
+    # scan non-code config/secrets files for credential patterns
+    # Source code (.py/.r/.jl) is handled by [AG] — avoid duplication
+    code_exts = {'.py', '.r', '.rmd', '.jl', '.m'}
+    check_exts = {'.yaml', '.yml', '.json', '.toml', '.cfg', '.ini', '.txt', '.md'}
     for f in all_files:
         if f.name.lower() in {ef.name.lower() for ef in env_files}:
             continue
+        if f.suffix.lower() in code_exts:
+            continue  # [AG] handles source code credentials
         if f.suffix.lower() not in check_exts:
             continue
         try:
@@ -2925,7 +2935,9 @@ def detect_BR_credentials_exposed(repo_dir, all_files):
             matches = cred_patterns.findall(content)
             if matches:
                 flagged.append(f.name)
-                evidence.append(f"{f.name}: possible credential pattern ({matches[0][0]})")
+                # matches[0] is the captured group (key name), not a tuple
+                key_name = matches[0] if isinstance(matches[0], str) else matches[0][0]
+                evidence.append(f"{f.name}: credential pattern found ({key_name})")
         except Exception:
             pass
     if flagged:
