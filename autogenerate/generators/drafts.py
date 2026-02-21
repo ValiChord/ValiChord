@@ -148,6 +148,15 @@ def _readme_install_block(all_files, r_packages=None):
     """Return language-appropriate installation instructions for README_DRAFT."""
     suffixes = {f.suffix.lower() for f in all_files}
     names = {f.name.lower() for f in all_files}
+    # data-only deposit — no code present
+    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd"})
+    if not has_code:
+        codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
+        return [
+            "# This is a data-only deposit. No code execution is required.",
+            "# Files are provided in standard formats (CSV, Excel, etc.)",
+            f"# See {codebook} for variable descriptions." if codebook else "# See the codebook for variable descriptions.",
+        ]
     if '.jl' in suffixes:
         return [
             '# 1. Clone or download this repository',

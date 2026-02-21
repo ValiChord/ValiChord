@@ -8,6 +8,60 @@ from pathlib import Path
 from datetime import datetime
 
 
+
+def _assessment_verification_questions(all_files):
+    """Return verification questions appropriate to repo type."""
+    has_code = any(
+        f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb'}
+        for f in all_files
+    )
+    if not has_code:
+        return [
+            '1. **Data completeness:** Are all variables and cases '
+            'described in the codebook present in the data files?',
+            '',
+            '2. **Data provenance:** Where did each data file come from? '
+            'If any data is anonymised or synthetic, document the transformation.',
+            '',
+            '3. **Access conditions:** Can the data be shared openly? '
+            'If not, document the access restrictions and who to contact.',
+            '',
+            '4. **File integrity:** Have you verified checksums for all data files?',
+            '',
+            '5. **Licence:** Is the data licence clearly stated and appropriate '
+            'for the sensitivity of the data?',
+        ]
+    return [
+        '1. **Definition of successful reproduction:** What exactly '
+        'should a validator see when they have successfully reproduced '
+        'your results? Include numerical values and tolerance bands '
+        'where relevant.',
+        '',
+        '2. **Data provenance:** Where did each data file come from? '
+        'If any data is anonymised or synthetic, document the '
+        'transformation.',
+        '',
+        '3. **Platform sensitivity:** Did you run this on a specific '
+        'OS, GPU, or hardware configuration? Do results differ '
+        'across platforms?',
+        '',
+        '4. **Stochasticity:** Are any results expected to vary '
+        'between runs? If so, by how much?',
+        '',
+        '5. **Figure mapping:** Which script produces which figure '
+        'in your paper? Please complete this mapping:',
+        '',
+        '   | Paper Figure | Generated File | Script |',
+        '   |---|---|---|',
+        '   | Figure 1 | | |',
+        '   | Figure 2 | | |',
+        '   | Figure 3 | | |',
+        '',
+        '6. **Manual steps:** Are there any steps in your analysis '
+        'that cannot be automated — e.g., manual data entry, '
+        'GUI-based steps, or proprietary software exports?',
+    ]
+
 def generate_cleaning_report(repo_name, repo_dir, all_files,
                               findings, output_dir):
     """Generate CLEANING_REPORT.md and ASSESSMENT.md."""
@@ -159,9 +213,10 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         '| File | Purpose |',
         '|---|---|',
         '| `README_DRAFT.md` | Repository documentation template |',
-        '| `requirements_DRAFT.txt` | Dependency information — '
-        'see file for details |',
-        '| `QUICKSTART_DRAFT.md` | Inferred execution order |',
+        *(['| `requirements_DRAFT.txt` | Dependency information — see file for details |',
+           '| `QUICKSTART_DRAFT.md` | Inferred execution order |']
+          if any(f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd'} for f in all_files)
+          else []),
         '| `LICENCE_DRAFT.txt` | Licence template |',
         '| `INVENTORY_DRAFT.md` | File inventory |',
         '| `ASSESSMENT.md` | Detailed assessment questions |',
@@ -256,34 +311,7 @@ def _write_assessment(repo_name, findings, output_dir):
         '',
         'Please answer these regardless of the findings above:',
         '',
-        '1. **Definition of successful reproduction:** What exactly '
-        'should a validator see when they have successfully reproduced '
-        'your results? Include numerical values and tolerance bands '
-        'where relevant.',
-        '',
-        '2. **Data provenance:** Where did each data file come from? '
-        'If any data is anonymised or synthetic, document the '
-        'transformation.',
-        '',
-        '3. **Platform sensitivity:** Did you run this on a specific '
-        'OS, GPU, or hardware configuration? Do results differ '
-        'across platforms?',
-        '',
-        '4. **Stochasticity:** Are any results expected to vary '
-        'between runs? If so, by how much?',
-        '',
-        '5. **Figure mapping:** Which script produces which figure '
-        'in your paper? Please complete this mapping:',
-        '',
-        '   | Paper Figure | Generated File | Script |',
-        '   |---|---|---|',
-        '   | Figure 1 | | |',
-        '   | Figure 2 | | |',
-        '   | Figure 3 | | |',
-        '',
-        '6. **Manual steps:** Are there any steps in your analysis '
-        'that cannot be automated — e.g., manual data entry, '
-        'GUI-based steps, or proprietary software exports?',
+        *(_assessment_verification_questions(all_files)),
         '',
         '---',
         '',
