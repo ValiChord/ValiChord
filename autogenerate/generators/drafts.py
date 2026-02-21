@@ -177,6 +177,16 @@ def _readme_install_block(all_files, r_packages=None):
             f'conda env create -f {env_file}',
             f'conda activate {env_name}',
         ]
+    # Docker repo — takes priority over language-specific blocks
+    if 'dockerfile' in names:
+        return [
+            '# 1. Build the Docker image',
+            'docker build -t my-analysis .',
+            '# 2. Run the container (mount data directory)',
+            'docker run -v $(pwd)/data:/app/data my-analysis',
+            '# Or with an interactive shell:',
+            '# docker run -it -v $(pwd)/data:/app/data my-analysis bash',
+        ]
     if '.jl' in suffixes:
         if 'project.toml' in names:
             return [
