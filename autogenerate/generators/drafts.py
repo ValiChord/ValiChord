@@ -146,8 +146,10 @@ def _file_notes(f):
 # ── README_DRAFT.md ──────────────────────────────────────────────────────────
 
 
-def _readme_install_block(all_files, r_packages=None):
+def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
     """Return language-appropriate installation instructions for README_DRAFT."""
+    if github_pkgs is None:
+        github_pkgs = {}
     suffixes = {f.suffix.lower() for f in all_files}
     if any(f.name == 'Snakefile' for f in all_files):
         suffixes.add('.smk')
@@ -253,22 +255,27 @@ def _readme_install_block(all_files, r_packages=None):
                 'Rscript -e "renv::restore()"',
             ]
         pkgs = r_packages or ['dplyr', 'ggplot2']
-        pkg_str = ', '.join("'" + p + "'" for p in pkgs)
+        cran_pkgs = [p for p in pkgs if p.lower() not in github_pkgs]
+        gh_only = [p for p in pkgs if p.lower() in github_pkgs]
+        pkg_str = ', '.join("'" + p + "'" for p in cran_pkgs) if cran_pkgs else None
+        gh_lines = [f'Rscript -e "devtools::install_github(\'\'{github_pkgs.get(p.lower(), p)}\'\')"' for p in gh_only]
+        block = ['# 1. Clone or download this repository']
         if has_python:
-            return [
-                '# 1. Clone or download this repository',
-                '# 2. Set up Python environment',
-                'python -m venv venv',
-                'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
-                'pip install -r requirements.txt',
-                '# 3. Install required R packages',
-                f'Rscript -e "install.packages(c({pkg_str}))"',
-            ]
-        return [
-            '# 1. Clone or download this repository',
-            '# 2. Install required R packages',
-            f'Rscript -e "install.packages(c({pkg_str}))"',
-        ]
+            block += ['# 2. Set up Python environment',
+                      'python -m venv venv',
+                      'source venv/bin/activate  # Windows: venv\\Scripts\\activate',
+                      'pip install -r requirements.txt']
+            step = 3
+        else:
+            step = 2
+        if pkg_str:
+            block.append(f'# {step}. Install CRAN packages')
+            block.append(f'Rscript -e "install.packages(c({pkg_str}))".format()' if False else f'Rscript -e "install.packages(c({pkg_str}))"')
+            step += 1
+        if gh_lines:
+            block.append(f'# {step}. Install GitHub packages')
+            block += gh_lines
+        return block
     if '.do' in suffixes or '.ado' in suffixes:
         return [
             '# 1. Clone or download this repository',
@@ -383,10 +390,20 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     # extract R packages for install block
     r_pkgs = set()
+    github_pkgs = {}  # pkg_name_lower -> 'owner/repo'
     lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+    github_pat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
     for rf in [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]:
         for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
             r_pkgs.add(m.group(1))
+    for rf in all_files:
+        if re.match(r'(install|setup).*\.r$', rf.name.lower()):
+            try:
+                src = rf.read_text(encoding='utf-8', errors='ignore')
+                for m in github_pat.finditer(src):
+                    github_pkgs[m.group(2).lower()] = m.group(1)
+            except Exception:
+                pass
     has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
     if not has_code:
         # data-only deposit — use data-focused template
@@ -505,7 +522,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         '## Installation',
         '',
         '```bash',
-        *_readme_install_block(all_files, sorted(r_pkgs) if r_pkgs else None),
+        *_readme_install_block(all_files, sorted(r_pkgs) if r_pkgs else None, github_pkgs=github_pkgs),
         '```',
         '',
         '[YOU MUST COMPLETE THIS — add any additional '
@@ -861,11 +878,32 @@ def _generate_requirements_draft(repo_dir, all_files,
         for rf in r_files:
             for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
                 r_libs.add(m.group(1))
+        # Build github_pkgs map from install*.R scripts
+        _ghpat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
+        gh_map = {}
+        for _rf in all_files:
+            if re.match(r'(install|setup).*\.r$', _rf.name.lower()):
+                try:
+                    for _m in _ghpat.finditer(_rf.read_text(encoding='utf-8', errors='ignore')):
+                        gh_map[_m.group(2).lower()] = _m.group(1)
+                except Exception:
+                    pass
         if r_libs:
+            cran_list = [p for p in sorted(r_libs) if p.lower() not in gh_map]
+            gh_list = [p for p in sorted(r_libs) if p.lower() in gh_map]
             lines += ['# R repository detected.',
                       '# Packages detected from library()/require() calls:',
                       '# Add version numbers before deposit.', '']
-            lines += [f'{pkg}  # version unknown' for pkg in sorted(r_libs)]
+            if cran_list:
+                lines.append('# CRAN packages:')
+                lines += [f'{pkg}  # version unknown' for pkg in cran_list]
+            if gh_list:
+                if cran_list:
+                    lines.append('')
+                lines.append('# GitHub packages (no CRAN release -- pinning required):')
+                for pkg in gh_list:
+                    repo = gh_map.get(pkg.lower(), 'unknown/unknown')
+                    lines.append(f'{pkg}  # GitHub: {repo} -- commit unknown')
         else:
             lines += [
                 '# R repository detected.',
