@@ -181,11 +181,44 @@ def _readme_install_block(all_files, r_packages=None):
                 'julia --project=. -e "using Pkg; Pkg.instantiate()"',
             ]
         else:
+            # Check for embedded Pluto manifest — if present, just open in Pluto
+            pluto_files = [f for f in all_files if f.suffix.lower() == '.jl']
+            has_pluto_deps = any(
+                'PLUTO_PROJECT_TOML_CONTENTS' in f.read_text(encoding='utf-8', errors='ignore')
+                for f in pluto_files
+            )
+            if has_pluto_deps:
+                return [
+                    '# 1. Clone or download this repository',
+                    '# 2. Open the notebook in Pluto — dependencies are embedded',
+                    '# julia -e \'using Pkg; Pkg.add(\"Pluto\"); using Pluto; Pluto.run()\'',
+                    '# Then open the .jl notebook file — Pluto will install dependencies automatically',
+                ]
+            # No Pluto, no Project.toml — extract packages dynamically
+            import re as _re
+            julia_stdlib_set = {'Random','Statistics','LinearAlgebra','Dates','Printf',
+                                'Base','Core','Main','Pkg','Test','Logging','REPL',
+                                'InteractiveUtils','Distributed','Serialization',
+                                'Markdown','Unicode','DelimitedFiles','SparseArrays'}
+            jl_pkgs = sorted({
+                pkg.strip()
+                for f in pluto_files
+                for line in f.read_text(encoding='utf-8', errors='ignore').splitlines()
+                for m in [_re.match(r'^using\s+([\w,\s]+)', line.strip())]
+                if m
+                for pkg in _re.split(r'[,\s]+', m.group(1))
+                if pkg.strip() and pkg.strip() not in julia_stdlib_set
+            })
+            if jl_pkgs:
+                pkg_list = ', '.join(f'\"{p}\"' for p in jl_pkgs)
+                return [
+                    '# 1. Clone or download this repository',
+                    '# 2. Install required Julia packages',
+                    f'julia -e \'using Pkg; Pkg.add([{pkg_list}])\'',
+                ]
             return [
                 '# 1. Clone or download this repository',
-                '# 2. Install required Julia packages',
-                'julia -e \'using Pkg; Pkg.add(["Turing", "StatsPlots", "DataFrames", "CSV"])\'',
-                '# Replace package list above with your actual dependencies',
+                '# 2. Install required Julia packages manually using Pkg.add()',
             ]
     if '.r' in suffixes or '.rmd' in suffixes:
         if 'renv.lock' in names:
@@ -576,7 +609,24 @@ def _generate_requirements_draft(repo_dir, all_files,
                         lines_out = ["# Existing " + dep_file.name + " found but versions are NOT pinned.",
                                      "# Add exact version numbers (e.g. pandas==2.1.3) before deposit.",
                                      "#", "# Current contents:", ""]
-                        lines_out += [p + "==UNKNOWN" if "==" not in p and not p.startswith("#") else p for p in packages]
+                        # Try to extract version bounds from embedded Pluto TOML
+        pluto_versions = {}
+        for jl_f in all_files:
+            if jl_f.suffix.lower() == '.jl':
+                jl_src = jl_f.read_text(encoding='utf-8', errors='ignore')
+                compat_m = re.search(r'\[compat\](.*?)(?:\[|$)', jl_src, re.DOTALL)
+                if compat_m:
+                    for vm in re.finditer(r'^(\w[\w\.]+)\s*=\s*"([^"]+)"', compat_m.group(1), re.MULTILINE):
+                        pluto_versions[vm.group(1).lower()] = vm.group(2)
+        def _pin_or_unknown(p):
+            if "==" in p or p.startswith("#"):
+                return p
+            pkg_name = p.split("==")[0].split(">=")[0].split("~=")[0].strip()
+            ver = pluto_versions.get(pkg_name.lower())
+            if ver:
+                return f"{pkg_name}>={ver.lstrip('~^')}  # from embedded Pluto compat block"
+            return p + "==UNKNOWN"
+        lines_out += [_pin_or_unknown(p) for p in packages]
                         out.write_text("\n".join(lines_out), encoding="utf-8-sig")
                         return
             except Exception:

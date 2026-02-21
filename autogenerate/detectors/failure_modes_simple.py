@@ -112,6 +112,16 @@ def detect_B_no_dependencies(repo_dir, all_files):
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
     has_dep_file = bool(names_lower.intersection(DEPENDENCY_FILES))
+    # Modern Pluto notebooks embed deps as PLUTO_PROJECT_TOML_CONTENTS — treat as dep file
+    if not has_dep_file:
+        for f in all_files:
+            if f.suffix.lower() == '.jl':
+                try:
+                    if 'PLUTO_PROJECT_TOML_CONTENTS' in f.read_text(encoding='utf-8', errors='ignore'):
+                        has_dep_file = True
+                        break
+                except Exception:
+                    pass
     has_code = bool(code_files)
 
     has_draft_only = "requirements_draft.txt" in names_lower and not has_dep_file
@@ -599,6 +609,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BU_conda_channel_priority(repo_dir, all_files)
     print("  [BV] Shell error handling check...")
     all_findings += detect_BV_shell_no_set_e(repo_dir, all_files)
+    print("  [BX] Pluto manifest check...")
+    all_findings += detect_BX_pluto_empty_manifest(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -2942,6 +2954,40 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
         ))
     return findings
 
+
+
+def detect_BX_pluto_empty_manifest(repo_dir, all_files):
+    """Failure Mode BX: Pluto notebook has PLUTO_MANIFEST_TOML_CONTENTS but it is empty."""
+    findings = []
+    for f in all_files:
+        if f.suffix.lower() != '.jl':
+            continue
+        try:
+            content = read_file_safe(f)
+            if not content:
+                continue
+            if 'PLUTO_PROJECT_TOML_CONTENTS' not in content:
+                continue
+            # Check manifest
+            manifest_match = re.search(
+                r'PLUTO_MANIFEST_TOML_CONTENTS\s*=\s*"([^"]*)"', content, re.DOTALL)
+            if manifest_match and len(manifest_match.group(1).strip()) == 0:
+                findings.append(finding(
+                    'BX', 'SIGNIFICANT',
+                    f'Pluto notebook has empty manifest: {f.name}',
+                    'PLUTO_MANIFEST_TOML_CONTENTS is present but empty. '
+                    'Without a populated manifest, Pluto resolves packages '
+                    'to the latest compatible versions rather than the exact '
+                    'versions used at publication. Open the notebook in Pluto, '
+                    'allow it to resolve dependencies, then save to populate '
+                    'the manifest before depositing.',
+                    [f'File: {f.name}',
+                     'PLUTO_MANIFEST_TOML_CONTENTS = "" (empty)',
+                     'Fix: open in Pluto and save — manifest will be populated automatically']
+                ))
+        except Exception:
+            pass
+    return findings
 
 def detect_BU_conda_channel_priority(repo_dir, all_files):
     """Failure Mode BU: Conda environment.yml mixes channels without strict priority."""
