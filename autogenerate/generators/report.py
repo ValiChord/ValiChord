@@ -14,7 +14,6 @@ def _assessment_verification_questions(all_files):
     has_code = any(
         f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk'}
         or f.name == 'Snakefile'
-        for f in all_files)) in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb'}
         for f in all_files
     )
     if not has_code:
