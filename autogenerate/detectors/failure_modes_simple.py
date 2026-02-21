@@ -616,6 +616,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BY_julia_missing_manifest(repo_dir, all_files)
     print("  [BZ] MATLAB v7.3 format check...")
     all_findings += detect_BZ_matlab_v73_format(repo_dir, all_files)
+    print("  [CA] README script reference check...")
+    all_findings += detect_CA_readme_script_missing(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
@@ -1382,6 +1384,12 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'\s*\(\s*f?["\']([^"\']+)["\']',
         re.IGNORECASE
     )
+    # R-style: write.csv(data, 'filename') — filename is second argument
+    write_pattern_r = re.compile(
+        r'(?:write\.csv|write\.table|saveRDS|fwrite)'
+        r'\s*\([^,]+,\s*f?["\']([^"\']+)["\']',
+        re.IGNORECASE
+    )
     # also catch filenames assigned to variables then passed to write functions
     varname_pattern = re.compile(
         r'([\w_]+)\s*=\s*["\']([^"\']*\.(?:csv|dta|xlsx|parquet|rds))["\']\s*\n'
@@ -1404,6 +1412,11 @@ def detect_L_large_files_missing(repo_dir, all_files):
                 if fname and '.' in fname:
                     generated_files.add(fname)
         for match in write_pattern.finditer(content):
+            filepath = match.group(1)
+            fname = filepath.replace('\\', '/').split('/')[-1].lower()
+            if fname and '.' in fname:
+                generated_files.add(fname)
+        for match in write_pattern_r.finditer(content):
             filepath = match.group(1)
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
