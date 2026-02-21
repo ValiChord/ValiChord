@@ -147,6 +147,8 @@ def _file_notes(f):
 def _readme_install_block(all_files, r_packages=None):
     """Return language-appropriate installation instructions for README_DRAFT."""
     suffixes = {f.suffix.lower() for f in all_files}
+    if any(f.name == 'Snakefile' for f in all_files):
+        suffixes.add('.smk')
     names = {f.name.lower() for f in all_files}
     # data-only deposit — no code present
     has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk"})
@@ -373,7 +375,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     for rf in [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]:
         for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
             r_pkgs.add(m.group(1))
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
     if not has_code:
         # data-only deposit — use data-focused template
         data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet"}]
@@ -798,6 +800,8 @@ def _generate_requirements_draft(repo_dir, all_files,
 
     # detect language-specific dependency systems
     all_suffixes = {f.suffix.lower() for f in all_files}
+    if any(f.name == 'Snakefile' for f in all_files):
+        all_suffixes.add('.smk')
     all_names = {f.name.lower() for f in all_files}
 
     # Extract version bounds from Project.toml [compat] or embedded Pluto TOML
@@ -938,6 +942,8 @@ def _renumber_steps(steps):
 def _quickstart_step2(all_files, code_files):
     """Return language-appropriate step 2 for QUICKSTART."""
     suffixes = {f.suffix.lower() for f in code_files}
+    if any(f.name == 'Snakefile' for f in all_files):
+        suffixes.add('.smk')
     names = {f.name.lower() for f in all_files}
     # conda repo takes priority — single env file replaces all other dep steps
     if 'environment.yml' in names or 'environment.yaml' in names:
@@ -1028,7 +1034,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
     code_files = [
         f for f in all_files
-        if f.suffix.lower() in CODE_EXTENSIONS
+        if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile')
         and f.name not in {"__init__.py", "__main__.py"}
         and not any(p.name.lower() in archive_dirs for p in f.parents)
     ]
