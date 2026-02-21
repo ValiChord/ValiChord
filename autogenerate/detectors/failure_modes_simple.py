@@ -2937,3 +2937,60 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
             [f'Problem file: {f.name}' for f in problem_files[:5]]
         ))
     return findings
+
+
+def detect_BU_conda_channel_priority(repo_dir, all_files):
+    """Failure Mode BU: Conda environment.yml mixes channels without strict priority."""
+    findings = []
+    env_files = [f for f in all_files
+                 if f.name.lower() in {'environment.yml', 'environment.yaml'}]
+    for f in env_files:
+        txt = read_file_safe(f)
+        if not txt or 'channels:' not in txt:
+            continue
+        import re as _re2
+        m = _re2.search(r'channels:\s*\n((?:\s*-[^\n]+\n)*)', txt)
+        if not m:
+            continue
+        channel_lines = _re2.findall(r'-\s*(\S+)', m.group(1))
+        if len(channel_lines) < 2:
+            continue
+        if 'channel_priority: strict' not in txt:
+            findings.append(finding(
+                'BU', 'SIGNIFICANT',
+                f'Conda channels mixed without strict priority in {f.name}',
+                f'Mixing channels ({", ".join(channel_lines)}) without '
+                f'channel_priority: strict causes non-deterministic package '
+                f'resolution. Conda may silently install packages from '
+                f'unexpected channels, producing different environments on '
+                f'different machines.',
+                [f'Channels listed: {", ".join(channel_lines)}',
+                 f'Fix: add "channel_priority: strict" to {f.name} above the channels: block']
+            ))
+    return findings
+
+
+def detect_BV_shell_no_set_e(repo_dir, all_files):
+    """Failure Mode BV: Shell pipeline script has no error handling (set -e missing)."""
+    findings = []
+    shell_files = [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
+    for f in shell_files:
+        txt = read_file_safe(f)
+        if not txt or not txt.startswith('#!'):
+            continue
+        lines = [l for l in txt.splitlines() if l.strip() and not l.strip().startswith('#')]
+        if len(lines) < 3:
+            continue
+        if 'set -e' not in txt and 'set -o errexit' not in txt:
+            findings.append(finding(
+                'BV', 'SIGNIFICANT',
+                f'Shell pipeline has no error handling: {f.name}',
+                'Without set -e, the pipeline will continue executing '
+                'even if a step fails. Later steps may run on missing '
+                'or corrupt inputs without any error being raised, '
+                'producing silent garbage output.',
+                [f'File: {f.name}',
+                 'Fix: add "set -e" on the line immediately after the shebang (#!)',
+                 'Optionally also add "set -o pipefail" to catch pipeline errors']
+            ))
+    return findings
