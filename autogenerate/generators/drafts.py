@@ -174,11 +174,19 @@ def _readme_install_block(all_files, r_packages=None):
             f'conda activate {env_name}',
         ]
     if '.jl' in suffixes:
-        return [
-            '# 1. Clone or download this repository',
-            '# 2. Install Julia dependencies',
-            'julia --project=. -e "using Pkg; Pkg.instantiate()"',
-        ]
+        if 'project.toml' in names:
+            return [
+                '# 1. Clone or download this repository',
+                '# 2. Install Julia dependencies',
+                'julia --project=. -e "using Pkg; Pkg.instantiate()"',
+            ]
+        else:
+            return [
+                '# 1. Clone or download this repository',
+                '# 2. Install required Julia packages',
+                'julia -e \'using Pkg; Pkg.add(["Turing", "StatsPlots", "DataFrames", "CSV"])\'',
+                '# Replace package list above with your actual dependencies',
+            ]
     if '.r' in suffixes or '.rmd' in suffixes:
         if 'renv.lock' in names:
             return [
@@ -639,8 +647,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                                 julia_imports.add(pkg)
             except Exception:
                 pass
-    # Julia imports bypass Python stdlib filter — add directly
-    imports.update(julia_imports)
+    # Julia imports added after Python stdlib filter (see below)
     # filter out stdlib and local modules
     stdlib = {
         'os', 'sys', 're', 'math', 'json', 'csv', 'io',
@@ -668,7 +675,9 @@ def _generate_requirements_draft(repo_dir, all_files,
 
     external = sorted(
         imp for imp in imports
-        if imp.lower() not in stdlib
+        if imp.lower()
+    # Merge Julia imports after Python stdlib filter so CSV etc. aren't excluded
+    external = sorted(set(external) | {pkg for pkg in julia_imports if not pkg.startswith('_')}) not in stdlib
         and imp.lower() not in local_modules
         and not imp.startswith('_')
     )
