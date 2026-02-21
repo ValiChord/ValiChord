@@ -620,6 +620,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CA_readme_script_missing(repo_dir, all_files)
     print("  [CB] Snakemake environment isolation check...")
     all_findings += detect_CB_snakemake_no_env_isolation(repo_dir, all_files)
+    print("  [CD] Dockerfile build order check...")
+    all_findings += detect_CD_dockerfile_run_before_copy(repo_dir, all_files)
     print("  [CC] External tool versions check...")
     all_findings += detect_CC_undocumented_external_tools(repo_dir, all_files)
 
@@ -3010,31 +3012,46 @@ def detect_CD_dockerfile_run_before_copy(repo_dir, all_files):
     """Failure Mode CD: Dockerfile has RUN pip install before COPY — build will fail."""
     findings = []
     dockerfiles = [f for f in all_files if f.name.lower() == 'dockerfile']
-    for f in dockerfiles:
-        content = read_file_safe(f)
-        if not content:
+    for df in dockerfiles:
+        try:
+            raw = df.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
             continue
-        lines = content.splitlines()
-        copy_line = None
-        for i, line in enumerate(lines):
-            stripped = line.strip().upper()
-            if stripped.startswith('RUN') and ('PIP INSTALL' in stripped or 'CONDA INSTALL' in stripped):
-                # Check if COPY . or COPY requirements appears after this RUN
-                for j, later in enumerate(lines[i+1:], i+1):
-                    if later.strip().upper().startswith('COPY'):
-                        # RUN pip install before COPY — flag it
-                        findings.append(finding(
-                            'CD', 'SIGNIFICANT',
-                            f'Dockerfile has RUN pip install before COPY — build will fail',
-                            f'The RUN pip install command on line {i+1} runs before '
-                            f'the COPY on line {j+1}. The requirements file will not '
-                            f'exist in the container at build time, causing an immediate '
-                            f'build failure.',
-                            [f'Line {i+1}: {lines[i].strip()}',
-                             f'Line {j+1}: {lines[j].strip()}',
-                             'Fix: move COPY requirements.txt . before the RUN pip install line']
-                        ))
-                        break
+        if not raw:
+            continue
+        # Strip comment lines and blank lines for analysis but keep original for evidence
+        orig_lines = raw.splitlines()
+        # Find index of first COPY or ADD instruction
+        first_copy_idx = None
+        for i, line in enumerate(orig_lines):
+            s = line.strip()
+            if s.startswith('#') or not s:
+                continue
+            if s.upper().startswith('COPY') or s.upper().startswith('ADD '):
+                first_copy_idx = i
+                break
+        if first_copy_idx is None:
+            continue
+        # Check if any pip/conda install RUN appears before first COPY
+        for i, line in enumerate(orig_lines):
+            if i >= first_copy_idx:
+                break
+            s = line.strip()
+            if s.startswith('#') or not s:
+                continue
+            su = s.upper()
+            if su.startswith('RUN') and ('PIP INSTALL' in su or 'CONDA INSTALL' in su or 'PIP3 INSTALL' in su):
+                findings.append(finding(
+                    'CD', 'SIGNIFICANT',
+                    'Dockerfile has RUN pip install before COPY — build will fail',
+                    f'The RUN pip install command on line {i+1} executes before '
+                    f'the COPY instruction on line {first_copy_idx+1}. '
+                    'The requirements file does not yet exist in the container '
+                    'at build time, causing an immediate build failure.',
+                    [f'Line {i+1}: {orig_lines[i].strip()}',
+                     f'Line {first_copy_idx+1}: {orig_lines[first_copy_idx].strip()}',
+                     'Fix: add "COPY requirements.txt ." before the RUN pip install line']
+                ))
                 break
     return findings
 
