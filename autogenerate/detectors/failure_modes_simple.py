@@ -595,8 +595,6 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BR_credentials_exposed(repo_dir, all_files)
     all_findings += detect_BS_archive_code_present(repo_dir, all_files)
     all_findings += detect_BT_spaces_in_filenames(repo_dir, all_files)
-    all_findings += detect_BS_archive_code_present(repo_dir, all_files)
-    all_findings += detect_BT_spaces_in_filenames(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
