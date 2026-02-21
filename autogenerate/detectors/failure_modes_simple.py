@@ -2961,6 +2961,33 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+def detect_BZ_matlab_v73_format(repo_dir, all_files):
+    """Failure Mode BZ: MATLAB .mat file saved with -v7.3 flag (HDF5) — version compatibility risk."""
+    findings = []
+    v73_pattern = re.compile(r'v7\.3|-v7\.3|HDF5|R2011b', re.IGNORECASE)
+    flagged = []
+    for f in all_files:
+        if f.suffix.lower() in {'.m', '.txt', '.md', '.rst'}:
+            try:
+                content = read_file_safe(f)
+                if v73_pattern.search(content):
+                    flagged.append(f.name)
+            except Exception:
+                pass
+    if flagged:
+        findings.append(finding(
+            'BZ', 'SIGNIFICANT',
+            'MATLAB data file uses v7.3 (HDF5) format — version compatibility risk',
+            'One or more .mat files appear to have been saved with the -v7.3 flag '
+            '(HDF5 format). This requires MATLAB R2011b or later to load. '
+            'Validators using older versions will be unable to read the data. '
+            'Document this version requirement explicitly in your README.',
+            [f'Evidence found in: {", ".join(flagged)}',
+             'Fix: add "Requires MATLAB R2011b or later" to README System Requirements']
+        ))
+    return findings
+
 def detect_BY_julia_missing_manifest(repo_dir, all_files):
     """Failure Mode BY: Julia repo has Project.toml but no Manifest.toml."""
     findings = []

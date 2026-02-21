@@ -240,13 +240,25 @@ def _readme_install_block(all_files, r_packages=None):
             '# 2. Install required Stata packages via ssc install',
         ]
     if '.m' in suffixes:
-        return [
+        eeglab_fns = {'pop_epoch', 'pop_autorej', 'pop_resample', 'pop_eegfiltnew',
+                      'eeglab', 'pop_loadset', 'pop_saveset', 'runica'}
+        has_eeglab = any(
+            any(fn in f.read_text(encoding='utf-8', errors='ignore') for fn in eeglab_fns)
+            for f in all_files if f.suffix.lower() == '.m'
+        )
+        block = [
             '# 1. Open MATLAB (see README for required version)',
             '# 2. Ensure required toolboxes are licensed and installed',
-            '# 3. If using EEGLAB: add EEGLAB folder to your MATLAB path',
-            '#    addpath(genpath("/path/to/eeglab"))',
-            '# 4. Open and run the main script',
         ]
+        if has_eeglab:
+            block += [
+                '# 3. Add EEGLAB folder to your MATLAB path',
+                '#    addpath(genpath("/path/to/eeglab"))',
+                '# 4. Open and run the main script',
+            ]
+        else:
+            block.append('# 3. Open and run the main script')
+        return block
     # conda repo — environment.yml present
     if 'environment.yml' in names or 'environment.yaml' in names:
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
@@ -840,7 +852,11 @@ def _generate_requirements_draft(repo_dir, all_files,
                 try:
                     msrc = mf.read_text(encoding='utf-8', errors='ignore')
                     for m in toolbox_pattern.finditer(msrc):
-                        found_toolboxes.add(m.group(1).strip())
+                        tb = m.group(1).strip()
+                    # Normalise abbreviated MathWorks names to full current names
+                    if tb.lower() in {'statistics toolbox', 'statistics and machine learning toolbox'}:
+                        tb = 'Statistics and Machine Learning Toolbox'
+                    found_toolboxes.add(tb)
                     if any(fn in msrc for fn in eeglab_fns):
                         found_eeglab = True
                 except Exception:
