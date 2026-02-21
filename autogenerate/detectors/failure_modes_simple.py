@@ -469,7 +469,7 @@ def run_simple_detectors(repo_dir, all_files):
             version_str = version_match.group(0) if version_match else "unknown version"
             date_str = date_match.group(0) if date_match else "unknown date"
             all_findings.append(finding(
-                "BQ", "LOW CONFIDENCE",
+                "BQ", "SIGNIFICANT",
                 f"Prior ValiChord report detected ({version_str}, {date_str})",
                 "A previous ValiChord cleaning report was found in this repository. "
                 "This appears to be a re-run. Review prior findings before actioning new ones.",
