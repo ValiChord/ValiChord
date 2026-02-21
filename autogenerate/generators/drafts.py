@@ -258,7 +258,7 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         cran_pkgs = [p for p in pkgs if p.lower() not in github_pkgs]
         gh_only = [p for p in pkgs if p.lower() in github_pkgs]
         pkg_str = ', '.join("'" + p + "'" for p in cran_pkgs) if cran_pkgs else None
-        gh_lines = [f'Rscript -e "devtools::install_github(\'\'{github_pkgs.get(p.lower(), p)}\'\')"' for p in gh_only]
+        gh_lines = [f"Rscript -e \"devtools::install_github('{github_pkgs.get(p.lower(), p).strip(chr(39)).strip(chr(34))}')\"" for p in gh_only]
         block = ['# 1. Clone or download this repository']
         if has_python:
             block += ['# 2. Set up Python environment',
