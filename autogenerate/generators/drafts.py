@@ -610,23 +610,23 @@ def _generate_requirements_draft(repo_dir, all_files,
                                      "# Add exact version numbers (e.g. pandas==2.1.3) before deposit.",
                                      "#", "# Current contents:", ""]
                         # Try to extract version bounds from embedded Pluto TOML
-        pluto_versions = {}
-        for jl_f in all_files:
-            if jl_f.suffix.lower() == '.jl':
-                jl_src = jl_f.read_text(encoding='utf-8', errors='ignore')
-                compat_m = re.search(r'\[compat\](.*?)(?:\[|$)', jl_src, re.DOTALL)
-                if compat_m:
-                    for vm in re.finditer(r'^(\w[\w\.]+)\s*=\s*"([^"]+)"', compat_m.group(1), re.MULTILINE):
-                        pluto_versions[vm.group(1).lower()] = vm.group(2)
-        def _pin_or_unknown(p):
-            if "==" in p or p.startswith("#"):
-                return p
-            pkg_name = p.split("==")[0].split(">=")[0].split("~=")[0].strip()
-            ver = pluto_versions.get(pkg_name.lower())
-            if ver:
-                return f"{pkg_name}>={ver.lstrip('~^')}  # from embedded Pluto compat block"
-            return p + "==UNKNOWN"
-        lines_out += [_pin_or_unknown(p) for p in packages]
+                        pluto_versions = {}
+                        for jl_f in all_files:
+                            if jl_f.suffix.lower() == '.jl':
+                                jl_src = jl_f.read_text(encoding='utf-8', errors='ignore')
+                                compat_m = re.search(r'\[compat\](.*?)(?:\[|$)', jl_src, re.DOTALL)
+                                if compat_m:
+                                    for vm in re.finditer(r'^(\w[\w\.]+)\s*=\s*"([^"]+)"', compat_m.group(1), re.MULTILINE):
+                                        pluto_versions[vm.group(1).lower()] = vm.group(2)
+                        def _pin_or_unknown(p):
+                            if "==" in p or p.startswith("#"):
+                                return p
+                            pkg_name = p.split("==")[0].split(">=")[0].split("~=")[0].strip()
+                            ver = pluto_versions.get(pkg_name.lower())
+                            if ver:
+                                return f"{pkg_name}>={ver.lstrip('~^')}  # from embedded Pluto compat block"
+                            return p + "==UNKNOWN"
+                        lines_out += [_pin_or_unknown(p) for p in packages]
                         out.write_text("\n".join(lines_out), encoding="utf-8-sig")
                         return
             except Exception:
