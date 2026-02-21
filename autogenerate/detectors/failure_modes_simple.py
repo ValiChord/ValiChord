@@ -3028,7 +3028,7 @@ def detect_CE_unpinned_github_packages(repo_dir, all_files):
     findings = []
     r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
     github_pattern = re.compile(
-        r'(?:devtools|remotes)::install_github\s*\(\s*["']([^"']+)["']',
+        r'(?:devtools|remotes)::install_github\s*\(\s*["\'][^"\']+/([\w.-]+)["\'][^)]*\)',
         re.IGNORECASE
     )
     unpinned = []
