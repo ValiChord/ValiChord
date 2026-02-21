@@ -77,7 +77,7 @@ def detect_A_no_readme(repo_dir, all_files):
     findings = []
     names = {f.name.lower() for f in all_files}
 
-    root_readme = [f for f in all_files if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve()]
+    root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2]
     if not root_readme:
         findings.append(finding(
             'A', 'CRITICAL',
@@ -89,7 +89,7 @@ def detect_A_no_readme(repo_dir, all_files):
     else:
         # check if readme is too short to be useful
         for f in all_files:
-            if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve():
+            if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
                 content = read_file_safe(f)
                 if len(content.strip()) < 200:
                     findings.append(finding(
@@ -271,7 +271,7 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
     findings = []
 
     for f in all_files:
-        if f.name.lower() in README_NAMES and f.parent.resolve() == repo_dir.resolve():
+        if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
             content = read_file_safe(f)
             # look for commit hash (40 hex chars) or version tag
             has_hash = bool(re.search(r'\b[0-9a-f]{40}\b', content))
@@ -833,7 +833,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
 
     readme_file = None
     for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and f.parent.resolve() == repo_dir.resolve():
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and len(f.relative_to(repo_dir).parts) <= 2:
             readme_file = f
             break
 

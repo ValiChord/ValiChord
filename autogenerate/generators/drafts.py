@@ -239,6 +239,14 @@ def _readme_install_block(all_files, r_packages=None):
             '# 1. Clone or download this repository',
             '# 2. Install required Stata packages via ssc install',
         ]
+    if '.m' in suffixes:
+        return [
+            '# 1. Open MATLAB (see README for required version)',
+            '# 2. Ensure required toolboxes are licensed and installed',
+            '# 3. If using EEGLAB: add EEGLAB folder to your MATLAB path',
+            '#    addpath(genpath('/path/to/eeglab\'))',
+            '# 4. Open and run the main script',
+        ]
     # conda repo — environment.yml present
     if 'environment.yml' in names or 'environment.yaml' in names:
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
@@ -821,9 +829,34 @@ def _generate_requirements_draft(repo_dir, all_files,
             '# List required Stata packages (ssc install) manually.',
         ]
     elif '.m' in all_suffixes:
-        lines += [
-            '# MATLAB repository detected.',
-            '# List required MATLAB toolboxes manually.',
+        # Scan .m files for inline toolbox requirements
+        toolbox_pattern = re.compile(r'[(%]?requires?\s+([\w\s]+(?:Toolbox|EEGLAB))', re.IGNORECASE)
+        eeglab_fns = {'pop_epoch', 'pop_autorej', 'pop_resample', 'pop_eegfiltnew',
+                      'eeglab', 'pop_loadset', 'pop_saveset', 'runica'}
+        found_toolboxes = set()
+        found_eeglab = False
+        for mf in all_files:
+            if mf.suffix.lower() == '.m':
+                try:
+                    msrc = mf.read_text(encoding='utf-8', errors='ignore')
+                    for m in toolbox_pattern.finditer(msrc):
+                        found_toolboxes.add(m.group(1).strip())
+                    if any(fn in msrc for fn in eeglab_fns):
+                        found_eeglab = True
+                except Exception:
+                    pass
+        if found_eeglab:
+            found_toolboxes.add('EEGLAB (third-party — download from sccn.ucsd.edu/eeglab)')
+        if found_toolboxes:
+            lines += ['# MATLAB repository detected.',
+                      '# Required toolboxes detected from code comments:']
+            for tb in sorted(found_toolboxes):
+                lines.append(f'# - {tb}')
+            lines += ['# Verify these are licensed and installed before running.', '']
+        else:
+            lines += [
+                '# MATLAB repository detected.',
+                '# List required MATLAB toolboxes manually.',
         ]
     else:
         lines += [
