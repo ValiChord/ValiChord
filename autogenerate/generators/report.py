@@ -12,10 +12,11 @@ from datetime import datetime
 def _assessment_verification_questions(all_files):
     """Return verification questions appropriate to repo type."""
     has_code = any(
-        f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk'}
-        or f.name == 'Snakefile'
+        f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
+        or f.name in {'Snakefile', 'main.nf'}
         for f in all_files
     )
+    print(f"DEBUG assessment has_code={has_code} files={[f.name for f in all_files]}")
     if not has_code:
         return [
             '1. **Data completeness:** Are all variables and cases '
