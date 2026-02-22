@@ -1496,6 +1496,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
                 if fname and '.' in fname:
                     generated_files.add(fname)
 
+    missing_refs = set()
     # Also scan notebook cell sources for quoted file paths
     import json as _json
     for nb in all_files:
