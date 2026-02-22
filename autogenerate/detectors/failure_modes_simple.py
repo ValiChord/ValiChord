@@ -3237,7 +3237,7 @@ def detect_CJ_readme_references_missing_files(repo_dir, all_files):
     )
     # Also catch bare filename references like "config.yaml" near run instructions
     bare_config = re.compile(
-        r'(?:--config|config=|\s-f\s+)([\w./\-]+\.(?:ya?ml|json|cfg|ini|toml))\b',
+        r'(?:--config|config=|-f)\s+([\w./\-]+\.(?:ya?ml|json|cfg|ini|toml))\b',
         re.IGNORECASE
     )
     missing = []
@@ -3603,10 +3603,15 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
         r'(?:python|Rscript|julia|bash|sh|matlab)\s+([\w/.-]+\.(?:py|r|jl|sh|m|do))\b',
         re.IGNORECASE
     )
+    # Also catch run-order descriptions: 'preprocess.py -> analyse.py'
+    runorder_pattern = re.compile(
+        r'(?:^|\s|->|,)([\w/.-]+\.(?:py|r|jl|sh|m|do))(?=\s|->|,|$)',
+        re.IGNORECASE | re.MULTILINE
+    )
     all_file_paths = {str(f.relative_to(repo_dir)).replace('\\', '/') for f in all_files}
     all_file_names = {f.name.lower() for f in all_files}
     missing = []
-    for m in script_pattern.finditer(content):
+    for m in list(script_pattern.finditer(content)) + list(runorder_pattern.finditer(content)):
         ref = m.group(1)
         ref_name = ref.split('/')[-1].lower()
         # Check if referenced file exists anywhere in repo
