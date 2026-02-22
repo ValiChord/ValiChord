@@ -684,6 +684,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CH_broken_source_chain(repo_dir, all_files)
     print("  [CI] Live data no archive check...")
     all_findings += detect_CI_live_data_no_archive(repo_dir, all_files)
+    print("  [CJ] README missing file references check...")
+    all_findings += detect_CJ_readme_references_missing_files(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1437,7 +1439,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
-        r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|read\.csv|read_csv|load)'
+        r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|read\.csv|read_csv|gpd\.read_file|fiona\.open|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
@@ -3146,6 +3148,50 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CJ_readme_references_missing_files(repo_dir, all_files):
+    """Failure Mode CJ: README references config/environment files not in repository."""
+    findings = []
+    all_names = {f.name.lower() for f in all_files}
+    # Scan all READMEs including subdirectory ones
+    readme_files = [f for f in all_files
+                    if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}]
+    if not readme_files:
+        return findings
+    content = '\n'.join(read_file_safe(f) or '' for f in readme_files)
+    # Patterns for referenced files that should exist
+    ref_pattern = re.compile(
+        r'(?:conda\s+env\s+create\s+-f|'
+        r'--config|'
+        r'-f\s+|'
+        r'conda\s+activate\s+\S+\s+-f\s+)'
+        r'([\w./\-]+\.(?:ya?ml|yaml|json|cfg|ini|toml|txt))\b',
+        re.IGNORECASE
+    )
+    # Also catch bare filename references like "config.yaml" near run instructions
+    bare_config = re.compile(
+        r'(?:--config|config=|\s-f\s+)([\w./\-]+\.(?:ya?ml|json|cfg|ini|toml))\b',
+        re.IGNORECASE
+    )
+    missing = []
+    for pat in [ref_pattern, bare_config]:
+        for m in pat.finditer(content):
+            ref = m.group(1)
+            ref_name = ref.replace('\\', '/').split('/')[-1].lower()
+            if ref_name not in all_names and ref not in all_names:
+                if ref_name not in [r.split('/')[-1] for r in missing]:
+                    missing.append(ref)
+    if missing:
+        findings.append(finding(
+            'CJ', 'SIGNIFICANT',
+            f'README references {len(missing)} file(s) not found in repository',
+            'The README instructions reference files that do not exist in the repository. '
+            'A validator following these instructions will immediately encounter errors.',
+            [f'Missing: {m}' for m in missing[:5]] +
+            ['Fix: add the missing files or update the README instructions']
+        ))
+    return findings
 
 def detect_CI_live_data_no_archive(repo_dir, all_files):
     """Failure Mode CI: Code fetches live data at runtime with no local archived copy."""
