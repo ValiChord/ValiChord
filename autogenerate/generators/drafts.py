@@ -319,6 +319,14 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             f'conda env create -f {env_file}',
             f'conda activate {env_name}',
         ]
+    # Nextflow pipeline
+    if '.nf' in suffixes or any(f.name.lower() == 'main.nf' for f in all_files):
+        return [
+            '# 1. Clone or download this repository',
+            '# 2. Install Nextflow (if not already installed)',
+            'curl -s https://get.nextflow.io | bash',
+            '# Or via conda: conda install -c bioconda nextflow',
+        ]
     # default Python
     return [
         '# 1. Clone or download this repository',
@@ -1180,6 +1188,8 @@ def _install_instructions(code_files, all_files=None):
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:
         lines.append('3. Open MATLAB and run the master script listed above')
+    if '.nf' in suffixes:
+        return lines  # Nextflow — step 2 covers it
     if '.py' in suffixes or (not lines and '.r' not in suffixes and '.rmd' not in suffixes):
         # Only add step 3 pip install if step 2 didn't already cover it
         import re as _re3
