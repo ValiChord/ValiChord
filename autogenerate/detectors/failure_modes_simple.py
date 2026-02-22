@@ -1445,6 +1445,21 @@ def detect_L_large_files_missing(repo_dir, all_files):
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
                 generated_files.add(fname)
+    # Also scan shell scripts for output files (redirect > or -o flag)
+    shell_write = re.compile(
+        r'(?:>\s*|(?:-o|--out(?:put)?)\s+)([\w./\-]+\.(?:txt|csv|tsv|bam|sam|vcf|gz|pdf|png|svg|html))',
+        re.IGNORECASE
+    )
+    for f in all_files:
+        if f.suffix.lower() in {'.sh', '.bash'}:
+            try:
+                sh_content = f.read_text(encoding='utf-8', errors='ignore')
+            except Exception:
+                sh_content = ''
+            for m in shell_write.finditer(sh_content):
+                fname = m.group(1).replace('\\', '/').split('/')[-1].lower()
+                if fname and '.' in fname:
+                    generated_files.add(fname)
 
     missing_refs = set()
     for f in code_files:
@@ -3023,6 +3038,30 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+def detect_CR_crlf_line_endings(repo_dir, all_files):
+    """Failure Mode CR: Shell script has Windows CRLF line endings — will fail on Linux/macOS."""
+    findings = []
+    shell_files = [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}
+                   or (f.suffix == '' and f.name.lower() in {'makefile'})]
+    for f in shell_files:
+        try:
+            raw = f.read_bytes()
+            if b'\r\n' in raw:
+                findings.append(finding(
+                    'CR', 'SIGNIFICANT',
+                    f'Shell script has Windows CRLF line endings — will fail on Linux/macOS: {f.name}',
+                    f'{f.name} contains Windows-style CRLF (\\r\\n) line endings. '
+                    'On Linux/macOS, bash interprets the \\r as part of the interpreter '
+                    'path, causing: /bin/bash^M: bad interpreter: No such file or directory.',
+                    [f'File: {f.name} — CRLF endings detected',
+                     'Fix: run dos2unix ' + f.name,
+                     'Or: sed -i \'s/\\r//\' ' + f.name]
+                ))
+        except Exception:
+            pass
+    return findings
+
 def detect_CE_unpinned_github_packages(repo_dir, all_files):
     """Failure Mode CE: devtools::install_github() calls without commit/tag pin."""
     findings = []
@@ -3137,22 +3176,23 @@ def detect_CB_snakemake_no_env_isolation(repo_dir, all_files):
 def detect_CC_undocumented_external_tools(repo_dir, all_files):
     """Failure Mode CC: README mentions external tools on PATH with no version specified."""
     findings = []
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
-            if len(f.relative_to(repo_dir).parts) <= 2:
-                readme_file = f
-                break
-    if not readme_file:
+    # Scan README and shell scripts for tool references
+    scan_files = [f for f in all_files
+                  if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
+                  and len(f.relative_to(repo_dir).parts) <= 2]
+    scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
+    if not scan_files:
         return findings
-    content = read_file_safe(readme_file)
+    content = '\n'.join(read_file_safe(f) or '' for f in scan_files)
     if not content:
         return findings
     # Common bioinformatics/scientific CLI tools
     tool_pattern = re.compile(
         r'\b(bwa|samtools|gatk|bcftools|bowtie2|hisat2|star|kallisto|salmon'
         r'|bedtools|picard|trimmomatic|fastqc|multiqc|varscan|snpeff'
-        r'|minimap2|blastn|blastp|makeblastdb|cellranger|seqkit)\b',
+        r'|minimap2|blastn|blastp|makeblastdb|cellranger|seqkit'
+        r'|trim_galore|featurecounts|subread|rsem|deseq2|edger|bismark'
+        r'|bamtools|deeptools|macs2|homer|stringtie|cufflinks)\b',
         re.IGNORECASE
     )
     tools_found = sorted(set(m.group(1).lower() for m in tool_pattern.finditer(content)))
@@ -3183,15 +3223,14 @@ def detect_CC_undocumented_external_tools(repo_dir, all_files):
 def detect_CA_readme_script_missing(repo_dir, all_files):
     """Failure Mode CA: Script referenced in README does not exist in repository."""
     findings = []
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
-            if len(f.relative_to(repo_dir).parts) <= 2:
-                readme_file = f
-                break
-    if not readme_file:
+    # Scan README and shell scripts for tool references
+    scan_files = [f for f in all_files
+                  if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
+                  and len(f.relative_to(repo_dir).parts) <= 2]
+    scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
+    if not scan_files:
         return findings
-    content = read_file_safe(readme_file)
+    content = '\n'.join(read_file_safe(f) or '' for f in scan_files)
     if not content:
         return findings
     # Find references to script files in README
