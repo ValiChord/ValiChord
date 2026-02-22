@@ -694,6 +694,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CM_nextflow_no_container(repo_dir, all_files)
     print("  [CN] Known version conflicts check...")
     all_findings += detect_CN_known_version_conflicts(repo_dir, all_files)
+    print("  [CO] MATLAB undocumented functions check...")
+    all_findings += detect_CO_matlab_undocumented_functions(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3180,6 +3182,53 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+def detect_CO_matlab_undocumented_functions(repo_dir, all_files):
+    """Failure Mode CO: MATLAB code uses undocumented internal functions."""
+    findings = []
+    m_files = [f for f in all_files if f.suffix.lower() == '.m']
+    if not m_files:
+        return findings
+    # Patterns for undocumented/internal MATLAB usage
+    internal_patterns = [
+        (re.compile(r'matlab\.internal\.', re.IGNORECASE),
+         'matlab.internal.* — undocumented internal namespace, may change without notice'),
+        (re.compile(r'matlab\.lang\.internal\.', re.IGNORECASE),
+         'matlab.lang.internal.* — undocumented internal namespace'),
+        (re.compile(r'\bundocumented\b', re.IGNORECASE),
+         'comment flags undocumented function usage'),
+    ]
+    # gradient() on image data is undocumented — imgradient() is the documented alternative
+    gradient_img_pat = re.compile(
+        r'\[\s*\w+\s*,\s*\w+\s*\]\s*=\s*gradient\s*\(\s*(?:double|single|uint8|uint16|img|image|im|stack|frame)',
+        re.IGNORECASE
+    )
+    evidence_all = []
+    for f in m_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for pat, desc in internal_patterns:
+                if pat.search(src):
+                    evidence_all.append(f'{f.name}: {desc}')
+            if gradient_img_pat.search(src):
+                evidence_all.append(
+                    f'{f.name}: gradient() used on image data — '
+                    f'undocumented for this use case; use imgradient() instead'
+                )
+        except Exception:
+            pass
+    if evidence_all:
+        findings.append(finding(
+            'CO', 'SIGNIFICANT',
+            f'MATLAB code uses undocumented or internal functions ({len(evidence_all)} instance(s))',
+            'Undocumented MATLAB internal functions may change behaviour or be removed '
+            'between MATLAB releases without notice. Code depending on these functions '
+            'may produce different results or errors on different MATLAB versions.',
+            evidence_all[:5] + ['Fix: replace internal/undocumented functions with '
+                                 'documented equivalents (see MATLAB documentation)']
+        ))
+    return findings
+
 def detect_CN_known_version_conflicts(repo_dir, all_files):
     """Failure Mode CN: requirements.txt contains known incompatible package version combinations."""
     findings = []
@@ -3806,7 +3855,9 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
 def detect_BZ_matlab_v73_format(repo_dir, all_files):
     """Failure Mode BZ: MATLAB .mat file saved with -v7.3 flag (HDF5) — version compatibility risk."""
     findings = []
-    v73_pattern = re.compile(r'v7\.3|-v7\.3|HDF5|R2011b', re.IGNORECASE)
+    # Must appear in save() call context, not just comments
+    # Match save() with -v7.3 flag, but not in comment lines
+    v73_pattern = re.compile(r"^[^%\n]*save\s*\([^)]*-v7\.3", re.IGNORECASE | re.MULTILINE)
     flagged = []
     for f in all_files:
         if f.suffix.lower() in {'.m', '.txt', '.md', '.rst'}:
