@@ -16,7 +16,6 @@ def _assessment_verification_questions(all_files):
         or f.name in {'Snakefile', 'main.nf'}
         for f in all_files
     )
-    print(f"DEBUG assessment has_code={has_code} files={[f.name for f in all_files]}")
     if not has_code:
         return [
             '1. **Data completeness:** Are all variables and cases '
