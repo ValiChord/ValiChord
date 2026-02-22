@@ -3150,7 +3150,7 @@ def detect_CH_broken_source_chain(repo_dir, all_files):
     r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
     all_r_names = {f.name.lower() for f in r_files}
     all_r_paths = {str(f.relative_to(repo_dir)).replace('\\', '/').lower() for f in r_files}
-    source_pat = re.compile(r'source\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE))
+    source_pat = re.compile(r'source\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
     missing_sources = []
     for f in r_files:
         try:
