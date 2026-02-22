@@ -696,6 +696,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CN_known_version_conflicts(repo_dir, all_files)
     print("  [CO] MATLAB undocumented functions check...")
     all_findings += detect_CO_matlab_undocumented_functions(repo_dir, all_files)
+    print("  [CP] Python 2 syntax check...")
+    all_findings += detect_CP_python2_syntax(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3182,6 +3184,51 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CP_python2_syntax(repo_dir, all_files):
+    """Failure Mode CP: Python 2 syntax in Python 3 repository."""
+    findings = []
+    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+    if not py_files:
+        return findings
+    # Python 2 print statement: print "..." or print var, var
+    print_stmt = re.compile(r'^[ \t]*print\s+["\'\w]', re.MULTILINE)
+    # Python 2 exec statement
+    exec_stmt = re.compile(r'^[ \t]*exec\s+["\'\w]', re.MULTILINE)
+    # Python 2 raise: raise Exception, "msg"
+    raise_stmt = re.compile(r'raise\s+\w+\s*,\s*["\'\w]')
+    # Python 2 unicode/basestring/xrange builtins
+    py2_builtins = re.compile(r'\b(unicode|basestring|xrange|raw_input|reduce|execfile|reload)\s*\(')
+    # Python 2 integer division note (silent wrong results in Python 2)
+    patterns = [
+        (print_stmt, 'Python 2 print statement (SyntaxError in Python 3)'),
+        (exec_stmt, 'Python 2 exec statement (SyntaxError in Python 3)'),
+        (raise_stmt, 'Python 2 raise syntax (SyntaxError in Python 3)'),
+        (py2_builtins, 'Python 2 builtin function'),
+    ]
+    evidence = []
+    affected_files = set()
+    for f in py_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for pat, desc in patterns:
+                if pat.search(src):
+                    evidence.append(f'{f.name}: {desc}')
+                    affected_files.add(f.name)
+        except Exception:
+            pass
+    if evidence:
+        findings.append(finding(
+            'CP', 'SIGNIFICANT',
+            f'Python 2 syntax detected in {len(affected_files)} file(s) — will fail in Python 3',
+            'The repository contains Python 2 syntax that raises SyntaxError in Python 3. '
+            'The code cannot run under the stated Python version. '
+            'A validator will encounter an immediate error before any logic executes.',
+            evidence[:5] + (['Fix: convert to Python 3 syntax (use print(), raise Exception("msg"), etc.)']
+                           if evidence else [])
+        ))
+    return findings
 
 def detect_CO_matlab_undocumented_functions(repo_dir, all_files):
     """Failure Mode CO: MATLAB code uses undocumented internal functions."""

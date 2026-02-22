@@ -1188,6 +1188,14 @@ def _quickstart_step2(all_files, code_files):
         if _has_conflict:
             return ['2. WARNING: version conflicts in requirements.txt — see [CN] finding.',
                     '   Fix conflicts before running: `pip install -r requirements.txt` will fail.']
+        # Check for Python 2 syntax — pinned versions irrelevant if code won't run
+        _has_py2 = any(
+            re.search(r'^[ \t]*print\s+["\' \w]', f.read_text(encoding='utf-8', errors='ignore'), re.MULTILINE)
+            for f in all_files if f.suffix.lower() == '.py'
+        )
+        if _has_py2:
+            return ['2. WARNING: Python 2 syntax detected — see [CP] finding.',
+                    '   Fix Python 2 syntax before installing: code will not run in Python 3.']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
                 '   (requirements.txt has pinned versions — no changes needed)']
     if '.m' in suffixes:
@@ -1257,6 +1265,22 @@ def _generate_quickstart_draft(repo_dir, all_files,
         and not any(p.name.lower() in archive_dirs for p in f.parents)
     ]
 
+    # try to find execution order from README run block
+    readme_order = []
+    for rf in all_files:
+        if rf.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                rsrc = rf.read_text(encoding='utf-8', errors='ignore')
+                # Find python/Rscript commands in code blocks
+                for m in re.finditer(
+                    r'(?:python|Rscript|julia)\s+([\w/.-]+\.(?:py|r|jl|m|sh))\b',
+                    rsrc, re.IGNORECASE):
+                    fname = m.group(1).split('/')[-1]
+                    match = next((f for f in code_files if f.name == fname), None)
+                    if match and match not in readme_order:
+                        readme_order.append(match)
+            except Exception:
+                pass
     # try to find numbered scripts
     numbered = []
     for f in code_files:
@@ -1264,6 +1288,9 @@ def _generate_quickstart_draft(repo_dir, all_files,
         if m:
             numbered.append((int(m.group(2)), f))
     numbered.sort(key=lambda x: x[0])
+    # prefer README order over numbered/alphabetical
+    if readme_order and not numbered:
+        numbered = [(i+1, f) for i, f in enumerate(readme_order)]
 
     lines = [
         '# ValiChord Repository Readiness Check — Quick Start',
