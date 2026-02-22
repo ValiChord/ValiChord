@@ -688,6 +688,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CJ_readme_references_missing_files(repo_dir, all_files)
     print("  [CK] Conflicting READMEs check...")
     all_findings += detect_CK_conflicting_readmes(repo_dir, all_files)
+    print("  [CL] Bioconductor version pin check...")
+    all_findings += detect_CL_bioconductor_unpinned(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1490,9 +1492,10 @@ def detect_L_large_files_missing(repo_dir, all_files):
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
                 generated_files.add(fname)
+    missing_refs = set()
     # Broad scan of R files: any quoted path with data extension
     r_path_pat = re.compile(
-        r'["\']([^"\'\']+\.(?:csv|tsv|rds|rdata|xlsx|dta|sav|txt|gz|zip|nii|mat|fasta|fastq|bam|vcf))["\']',
+        r'["\']([^"\'\']+\.(?:csv|tsv|rds|rdata|xlsx|dta|sav|txt|gz|zip|nii|mat|fasta|fastq|bam|vcf|bed|bw|bigwig|gff|gtf|geojson|shp))["\']',
         re.IGNORECASE
     )
     for f in all_files:
@@ -1523,7 +1526,6 @@ def detect_L_large_files_missing(repo_dir, all_files):
                 if fname and '.' in fname:
                     generated_files.add(fname)
 
-    missing_refs = set()
     # Also scan notebook cell sources for quoted file paths
     import json as _json
     for nb in all_files:
@@ -3152,6 +3154,60 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CL_bioconductor_unpinned(repo_dir, all_files):
+    """Failure Mode CL: BiocManager::install() called without version= argument."""
+    findings = []
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    bioc_pat = re.compile(r'BiocManager::install\s*\(', re.IGNORECASE)
+    version_pat = re.compile(r'version\s*=', re.IGNORECASE)
+    # Extract stated Bioconductor version from README
+    stated_version = None
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            readme = read_file_safe(f)
+            m = re.search(r'Bioconductor\s+(\d+\.\d+)', readme, re.IGNORECASE)
+            if m:
+                stated_version = m.group(1)
+                break
+    for f in r_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in bioc_pat.finditer(src):
+                # Find the full call using paren depth
+                start = m.start()
+                depth = 0
+                call_end = start
+                for ci, ch in enumerate(src[start:]):
+                    if ch == '(': depth += 1
+                    elif ch == ')':
+                        depth -= 1
+                        if depth == 0:
+                            call_end = start + ci
+                            break
+                call_text = src[start:call_end+1]
+                if not version_pat.search(call_text):
+                    evidence = [
+                        f'File: {f.name} — BiocManager::install() has no version= argument',
+                        'Without version=, installs current Bioconductor release (may differ from original)',
+                    ]
+                    if stated_version:
+                        evidence.append(f'README states Bioconductor {stated_version} — add version="{stated_version}" to enforce this')
+                        evidence.append(f'Fix: BiocManager::install(c(...), version="{stated_version}")')
+                    else:
+                        evidence.append('Fix: add version="X.YY" matching the Bioconductor release used')
+                    findings.append(finding(
+                        'CL', 'SIGNIFICANT',
+                        f'Bioconductor packages installed without version pin in {f.name}',
+                        'BiocManager::install() without version= installs the current Bioconductor '
+                        'release, not the one used in the original analysis. Package APIs and '
+                        'default parameters change between releases.',
+                        evidence
+                    ))
+        except Exception:
+            pass
+    return findings
 
 def detect_CK_conflicting_readmes(repo_dir, all_files):
     """Failure Mode CK: Multiple README files with conflicting instructions."""
