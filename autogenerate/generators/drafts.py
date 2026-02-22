@@ -21,7 +21,7 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 
 DEPENDENCY_FILES = {
-    'requirements.txt', 'environment.yml', 'environment.yaml',
+    'requirements.txt', 'requirements_extra.txt', 'environment.yml', 'environment.yaml',
     'pipfile.lock', 'poetry.lock', 'setup.py', 'pyproject.toml',
     'renv.lock', 'cargo.toml', 'package.json'
 }
@@ -639,6 +639,45 @@ def _generate_requirements_draft(repo_dir, all_files,
             "#\n" + prior_content, encoding="utf-8-sig")
         print("  -> requirements_DRAFT.txt (preserved from prior run)")
         return
+    # Collect all requirements*.txt files to handle requirements_extra.txt etc.
+    import re as _re2
+    req_files_all = sorted(
+        [f for f in all_files if _re2.match(r'requirements.*\.txt$', f.name.lower())],
+        key=lambda x: x.name
+    )
+    if req_files_all:
+        combined_lines = []
+        for rf in req_files_all:
+            try:
+                rf_lines = rf.read_text(encoding='utf-8', errors='ignore').splitlines()
+                combined_lines.append(f'# --- {rf.name} ---')
+                combined_lines += rf_lines
+            except Exception:
+                pass
+        combined = '\n'.join(combined_lines)
+        pinned = [l for l in combined_lines if '==' in l and not l.strip().startswith('#')]
+        unpinned_git = [l for l in combined_lines if l.strip().startswith('git+')]
+        loose = [l for l in combined_lines if _re2.match(r'[\w.-]+\s*[><!]=', l.strip()) and '==' not in l]
+        has_issues = unpinned_git or loose
+        if pinned and not has_issues:
+            out = output_dir / 'requirements_DRAFT.txt'
+            msg = ('# All requirements files: ' + ', '.join(f.name for f in req_files_all) + '\n'
+                   '# ' + str(len(pinned)) + ' pinned packages found.\n'
+                   '# Verify versions are correct before deposit.\n#\n' + combined)
+            out.write_text(msg, encoding='utf-8-sig')
+            return
+        elif combined_lines:
+            out = output_dir / 'requirements_DRAFT.txt'
+            notes = []
+            if unpinned_git:
+                notes.append('# WARNING: git+ URLs present — pin to commit SHA for reproducibility')
+            if loose:
+                notes.append('# WARNING: loose version constraints present — pin to exact versions')
+            msg = ('# Combined from: ' + ', '.join(f.name for f in req_files_all) + '\n'
+                   + '\n'.join(notes) + ('\n' if notes else '')
+                   + '# Review and pin all versions before deposit.\n#\n' + combined)
+            out.write_text(msg, encoding='utf-8-sig')
+            return
     for dep_file in all_files:
         if dep_file.name.lower() in DEPENDENCY_FILES:
             try:

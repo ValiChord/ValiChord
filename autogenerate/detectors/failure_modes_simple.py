@@ -27,7 +27,7 @@ DATA_EXTENSIONS = {
 ENCRYPTED_EXTENSIONS = {'.gpg', '.enc', '.secret', '.age', '.asc'}
 
 DEPENDENCY_FILES = {
-    'requirements.txt', 'environment.yml', 'environment.yaml',
+    'requirements.txt', 'requirements_extra.txt', 'environment.yml', 'environment.yaml',
     'pipfile', 'pipfile.lock', 'poetry.lock', 'setup.py',
     'pyproject.toml', 'setup.cfg', 'conda-lock.yml',
     'description', 'renv.lock', 'packrat.lock',
@@ -671,6 +671,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CR_crlf_line_endings(repo_dir, all_files)
     print("  [CF] Notebook committed outputs check...")
     all_findings += detect_CF_notebook_outputs_committed(repo_dir, all_files)
+    print("  [CG] Unpinned git+ requirements check...")
+    all_findings += detect_CG_unpinned_git_requirements(repo_dir, all_files)
     print("  [BN] Codebook reference check...")
     all_findings += detect_BN_codebook_reference_mismatch(repo_dir, all_files)
 
@@ -1374,7 +1376,7 @@ def detect_M_python_version_conflict(repo_dir, all_files):
     check_files = [
         f for f in all_files
         if f.name.lower() in {
-            'requirements.txt', 'environment.yml', 'environment.yaml',
+            'requirements.txt', 'requirements_extra.txt', 'environment.yml', 'environment.yaml',
             'pipfile', 'pyproject.toml', 'setup.py', 'setup.cfg',
             'runtime.txt', '.python-version', 'readme.md', 'readme.txt'
         }
@@ -3120,6 +3122,57 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
             pass
     return findings
 
+
+
+def detect_CG_unpinned_git_requirements(repo_dir, all_files):
+    """Failure Mode CG: requirements files contain git+ URLs or unpinned constraints."""
+    findings = []
+    req_files = [f for f in all_files
+                 if re.match(r'requirements.*\.txt$', f.name.lower())]
+    unpinned_git = []
+    branch_pinned = []
+    loose_constraints = []
+    for f in req_files:
+        try:
+            lines = f.read_text(encoding='utf-8', errors='ignore').splitlines()
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#') or line.startswith('-r'):
+                    continue
+                if line.startswith('git+'):
+                    # Check for commit SHA (40 hex chars) or no pin at all
+                    at_idx = line.rfind('@')
+                    if at_idx == -1 or at_idx == line.index('git+'):
+                        unpinned_git.append(f'{f.name}: {line[:80]}')
+                    else:
+                        ref = line[at_idx+1:].split('#')[0].strip()
+                        # Branch names are not reproducible pins
+                        if re.match(r'^(main|master|dev|develop|HEAD|latest)$', ref, re.IGNORECASE):
+                            branch_pinned.append(f'{f.name}: {line[:80]} (@{ref} is a branch, not a commit)')
+                        elif not re.match(r'^[0-9a-f]{7,40}$', ref):
+                            branch_pinned.append(f'{f.name}: {line[:80]} (@{ref} may not be a commit SHA)')
+                elif re.match(r'^[\w.-]+\s*[><!]=', line) and '==' not in line:
+                    loose_constraints.append(f'{f.name}: {line[:80]}')
+        except Exception:
+            pass
+    evidence = []
+    if unpinned_git:
+        evidence += ['git+ URL with no pin (installs HEAD):'] + [f'  {e}' for e in unpinned_git[:3]]
+    if branch_pinned:
+        evidence += ['git+ URL pinned to branch (not reproducible):'] + [f'  {e}' for e in branch_pinned[:3]]
+    if loose_constraints:
+        evidence += ['Loose version constraint (not a reproducible pin):'] + [f'  {e}' for e in loose_constraints[:3]]
+    if evidence:
+        evidence.append('Fix: pin git+ URLs to a specific commit SHA, e.g. git+https://...@a1b2c3d')
+        findings.append(finding(
+            'CG', 'SIGNIFICANT',
+            'requirements file contains unpinned git+ URLs or loose version constraints',
+            'git+ URLs without a commit SHA always install the current HEAD — a '
+            'different version than what was used in the original analysis. '
+            'Branch references (@main, @master) are not reproducible pins.',
+            evidence[:8]
+        ))
+    return findings
 
 def detect_CF_notebook_outputs_committed(repo_dir, all_files):
     """Failure Mode CF: Jupyter notebook has committed cell outputs — may contain sensitive data or large blobs."""
