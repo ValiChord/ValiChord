@@ -3153,9 +3153,9 @@ def detect_CI_live_data_no_archive(repo_dir, all_files):
     code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
     # Patterns for live data fetching
     api_patterns = re.compile(
-        r'requests\.(get|post)\s*\(\s*["']https?://'
-        r'|urllib.*urlopen\s*\(\s*["']https?://'
-        r'|pd\.read_csv\s*\(\s*["']https?://',
+        r'requests\.(get|post)\s*\(\s*["\']https?://'
+        r'|urllib.*urlopen\s*\(\s*["\']https?://'
+        r'|pd\.read_csv\s*\(\s*["\']https?://',
         re.IGNORECASE
     )
     # Branch-pinned GitHub raw URLs (not a commit SHA)
