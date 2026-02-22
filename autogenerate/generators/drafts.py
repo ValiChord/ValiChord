@@ -11,7 +11,7 @@ import re
 
 
 CODE_EXTENSIONS = {
-    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk',
+    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk', '.nf', '.groovy',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
     '.sql', '.rs', '.go', '.java', '.js', '.ts'
 }
