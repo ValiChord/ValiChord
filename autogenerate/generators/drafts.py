@@ -940,16 +940,27 @@ def _generate_requirements_draft(repo_dir, all_files,
         for rf in r_files:
             for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
                 r_libs.add(m.group(1))
-        # Build github_pkgs map from install*.R scripts
+        # Build github_pkgs map and collect BiocManager/install.packages from install*.R
         _ghpat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
+        _biocpat = re.compile(r'BiocManager::install\s*\(\s*c\s*\(([^)]+)\)', re.IGNORECASE)
+        _ipat = re.compile(r'install\.packages\s*\(\s*c\s*\(([^)]+)\)', re.IGNORECASE)
         gh_map = {}
+        extra_pkgs = set()
         for _rf in all_files:
             if re.match(r'(install|setup).*\.r$', _rf.name.lower()):
                 try:
-                    for _m in _ghpat.finditer(_rf.read_text(encoding='utf-8', errors='ignore')):
+                    _rsrc = _rf.read_text(encoding='utf-8', errors='ignore')
+                    for _m in _ghpat.finditer(_rsrc):
                         gh_map[_m.group(2).lower()] = _m.group(1)
+                    for _bm in _biocpat.finditer(_rsrc):
+                        for _pkg in re.findall(r'["\']([\w.]+)["\']', _bm.group(1)):
+                            extra_pkgs.add(_pkg)
+                    for _im in _ipat.finditer(_rsrc):
+                        for _pkg in re.findall(r'["\']([\w.]+)["\']', _im.group(1)):
+                            extra_pkgs.add(_pkg)
                 except Exception:
                     pass
+        r_libs = r_libs | extra_pkgs
         if r_libs:
             cran_list = [p for p in sorted(r_libs) if p.lower() not in gh_map]
             gh_list = [p for p in sorted(r_libs) if p.lower() in gh_map]
@@ -1072,6 +1083,10 @@ def _quickstart_step2(all_files, code_files):
         if 'renv.lock' in names:
             return ['2. Restore R environment: `Rscript -e "renv::restore()"`',
                     '   (renv.lock present — exact package versions will be installed)']
+        install_r = next((f.name for f in all_files
+                         if re.match(r'install.*\.r$', f.name.lower())), None)
+        if install_r:
+            return ['2. Install R dependencies: `Rscript ' + install_r + '`']
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
     if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):
