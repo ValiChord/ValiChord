@@ -1129,7 +1129,8 @@ def _quickstart_step2(all_files, code_files):
             cmds = ['pip install -r requirements.txt'] + [f'pip install -r {n}' for n in extra_reqs]
             cmd_lines = ['   ```bash'] + [f'   {c}' for c in cmds] + ['   ```']
             return ['2. Install all dependencies:'] + cmd_lines
-        return ['2. Your `requirements.txt` already has pinned versions — no changes needed']
+        return ['2. Install dependencies: `pip install -r requirements.txt`',
+                '   (requirements.txt has pinned versions — no changes needed)']
     if has_requirements:
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
@@ -1241,6 +1242,11 @@ def _generate_quickstart_draft(repo_dir, all_files,
             *_install_instructions(code_files, all_files),
             'N. Test on a **clean machine** — not just a new folder '
             'on your development machine',
+            *([''⚠️  **Internet access required at runtime** — '
+               'code fetches live data. Document snapshot date and source version in README.']
+              if any(isinstance(f, dict) and f.get('mode') in {'AS', 'CI', 'AQ'}
+                     for f in findings)
+              else []),
         ]),
         '',
         '---',
