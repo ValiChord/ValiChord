@@ -1097,13 +1097,13 @@ def _quickstart_step2(all_files, code_files):
         )
         extra_reqs = [f.name for f in req_files_qs if f.name.lower() != 'requirements.txt']
         if has_git_urls:
-            return ['2. Install dependencies (WARNING: git+ URLs present — pin to commit SHA before deposit):',
-                    'pip install -r requirements.txt',
-                    *[f'pip install -r {n}' for n in extra_reqs]]
+            cmds = ['pip install -r requirements.txt'] + [f'pip install -r {n}' for n in extra_reqs]
+            cmd_lines = ['   ```bash'] + [f'   {c}' for c in cmds] + ['   ```']
+            return ['2. Install dependencies (WARNING: git+ URLs in requirements_extra.txt need pinning before deposit):'] + cmd_lines
         elif extra_reqs:
-            return ['2. Install all dependencies:',
-                    'pip install -r requirements.txt',
-                    *[f'pip install -r {n}  # additional dependencies' for n in extra_reqs]]
+            cmds = ['pip install -r requirements.txt'] + [f'pip install -r {n}' for n in extra_reqs]
+            cmd_lines = ['   ```bash'] + [f'   {c}' for c in cmds] + ['   ```']
+            return ['2. Install all dependencies:'] + cmd_lines
         return ['2. Your `requirements.txt` already has pinned versions — no changes needed']
     if has_requirements:
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
@@ -1128,7 +1128,11 @@ def _install_instructions(code_files, all_files=None):
     if '.m' in suffixes:
         lines.append('3. Open MATLAB and run the master script listed above')
     if '.py' in suffixes or not lines:
-        lines.append('3. Install dependencies: `pip install -r requirements.txt`')
+        # Only add step 3 pip install if step 2 didn't already cover it
+        import re as _re3
+        req_files_check = [f for f in all_files if _re3.match(r'requirements.*\.txt$', f.name.lower())]
+        if not req_files_check:
+            lines.append('3. Install dependencies: `pip install -r requirements.txt`')
     return lines
 
 def _generate_quickstart_draft(repo_dir, all_files,
