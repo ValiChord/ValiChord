@@ -134,7 +134,8 @@ def _file_notes(f):
     if name in {'licence', 'license', 'licence.md',
                 'license.md', 'licence.txt', 'license.txt'}:
         return 'Licence file'
-    if name == 'requirements.txt':
+    import re as _ren
+    if _ren.match(r'requirements.*\.txt$', name):
         return 'Dependency specification'
     if name == 'dockerfile':
         return 'Container definition'
@@ -1087,6 +1088,22 @@ def _quickstart_step2(all_files, code_files):
     )
     has_requirements = any(f.name.lower() == 'requirements.txt' for f in all_files)
     if has_pinned:
+        # Check if any requirements*.txt has git+ URLs or loose constraints
+        import re as _reqs
+        req_files_qs = [f for f in all_files if _reqs.match(r'requirements.*\.txt$', f.name.lower())]
+        has_git_urls = any(
+            any(l.strip().startswith('git+') for l in f.read_text(encoding='utf-8', errors='ignore').splitlines())
+            for f in req_files_qs
+        )
+        extra_reqs = [f.name for f in req_files_qs if f.name.lower() != 'requirements.txt']
+        if has_git_urls:
+            return ['2. Install dependencies (WARNING: git+ URLs present — pin to commit SHA before deposit):',
+                    'pip install -r requirements.txt',
+                    *[f'pip install -r {n}' for n in extra_reqs]]
+        elif extra_reqs:
+            return ['2. Install all dependencies:',
+                    'pip install -r requirements.txt',
+                    *[f'pip install -r {n}  # additional dependencies' for n in extra_reqs]]
         return ['2. Your `requirements.txt` already has pinned versions — no changes needed']
     if has_requirements:
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
