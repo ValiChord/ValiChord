@@ -1069,6 +1069,9 @@ def _quickstart_step2(all_files, code_files):
                 env_name = m.group(1)
         return [f'2. Create and activate environment: `conda env create -f {env_file} && conda activate {env_name}`']
     if '.r' in suffixes or '.rmd' in suffixes:
+        if 'renv.lock' in names:
+            return ['2. Restore R environment: `Rscript -e "renv::restore()"`',
+                    '   (renv.lock present — exact package versions will be installed)']
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
     if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):

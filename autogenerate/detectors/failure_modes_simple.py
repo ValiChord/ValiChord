@@ -680,6 +680,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
     all_findings += detect_F_missing_seeds(repo_dir, all_files)
     all_findings += detect_U_environment_variables(repo_dir, all_files)
+    print("  [CH] Broken R source() chain check...")
+    all_findings += detect_CH_broken_source_chain(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1433,7 +1435,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
-        r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|load)'
+        r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|read\.csv|read_csv|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
@@ -1482,6 +1484,23 @@ def detect_L_large_files_missing(repo_dir, all_files):
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
                 generated_files.add(fname)
+    # Broad scan of R files: any quoted path with data extension
+    r_path_pat = re.compile(
+        r'["\']([^"\'\']+\.(?:csv|tsv|rds|rdata|xlsx|dta|sav|txt|gz|zip|nii|mat|fasta|fastq|bam|vcf))["\']',
+        re.IGNORECASE
+    )
+    for f in all_files:
+        if f.suffix.lower() in {'.r', '.rmd', '.qmd'}:
+            try:
+                r_src = f.read_text(encoding='utf-8', errors='ignore')
+                for m in r_path_pat.finditer(r_src):
+                    fpath = m.group(1).replace('\\', '/').lstrip('./')
+                    fname = fpath.split('/')[-1].lower()
+                    if fname and not any(af.name.lower() == fname for af in all_files):
+                        if fpath not in generated_files and fname not in generated_files:
+                            missing_refs.add(fname)
+            except Exception:
+                pass
     # Also scan shell scripts for output files (redirect > or -o flag)
     shell_write = re.compile(
         r'(?:>\s*|(?:-o|--out(?:put)?)\s+)([\w./\-]+\.(?:txt|csv|tsv|bam|sam|vcf|gz|pdf|png|svg|html))',
@@ -3123,6 +3142,39 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
     return findings
 
 
+
+
+def detect_CH_broken_source_chain(repo_dir, all_files):
+    """Failure Mode CH: R source() calls reference files not in the repository."""
+    findings = []
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    all_r_names = {f.name.lower() for f in r_files}
+    all_r_paths = {str(f.relative_to(repo_dir)).replace('\\', '/').lower() for f in r_files}
+    source_pat = re.compile(r'source\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE))
+    missing_sources = []
+    for f in r_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in source_pat.finditer(src):
+                ref = m.group(1).strip()
+                ref_name = ref.replace('\\', '/').split('/')[-1].lower()
+                ref_norm = ref.replace('\\', '/').lower().lstrip('./')
+                if (ref_name not in all_r_names and
+                        ref_norm not in all_r_paths and
+                        not ref.startswith('http')):
+                    missing_sources.append(f'{f.name}: source("{ref}")')
+        except Exception:
+            pass
+    if missing_sources:
+        findings.append(finding(
+            'CH', 'SIGNIFICANT',
+            f'R source() chain references {len(missing_sources)} missing file(s)',
+            'source() calls reference R scripts that are not present in the repository. '
+            'The pipeline will fail immediately when these files are loaded.',
+            [f'Missing: {s}' for s in missing_sources[:5]] +
+            ['Fix: add the missing R script(s) to the repository or remove the source() call']
+        ))
+    return findings
 
 def detect_CG_unpinned_git_requirements(repo_dir, all_files):
     """Failure Mode CG: requirements files contain git+ URLs or unpinned constraints."""
