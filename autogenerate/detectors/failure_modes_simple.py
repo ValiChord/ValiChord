@@ -692,6 +692,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CL_bioconductor_unpinned(repo_dir, all_files)
     print("  [CM] Nextflow container/conda check...")
     all_findings += detect_CM_nextflow_no_container(repo_dir, all_files)
+    print("  [CN] Known version conflicts check...")
+    all_findings += detect_CN_known_version_conflicts(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3176,6 +3178,67 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CN_known_version_conflicts(repo_dir, all_files):
+    """Failure Mode CN: requirements.txt contains known incompatible package version combinations."""
+    findings = []
+    req_files = [f for f in all_files if re.match(r'requirements.*\.txt$', f.name.lower())]
+    if not req_files:
+        return findings
+    # Build pinned versions dict from all requirements files
+    pinned = {}
+    for rf in req_files:
+        try:
+            for line in rf.read_text(encoding='utf-8', errors='ignore').splitlines():
+                line = line.strip()
+                m = re.match(r'^([\w.-]+)==([\d.]+)', line)
+                if m:
+                    pinned[m.group(1).lower()] = m.group(2)
+        except Exception:
+            pass
+    if not pinned:
+        return findings
+    # Known incompatible combinations: (pkg, version_pred, conflicting_pkg, conflict_desc)
+    # Format: (package, max_version_exclusive, requires_pkg, constraint_desc)
+    known_conflicts = [
+        # tensorflow < 2.13 requires numpy < 1.24
+        ('tensorflow', lambda v: tuple(int(x) for x in v.split('.')[:2]) < (2, 13),
+         'numpy', lambda v: tuple(int(x) for x in v.split('.')[:2]) >= (1, 24),
+         'tensorflow<2.13 requires numpy<1.24'),
+        # tensorflow-gpu same constraint
+        ('tensorflow-gpu', lambda v: tuple(int(x) for x in v.split('.')[:2]) < (2, 13),
+         'numpy', lambda v: tuple(int(x) for x in v.split('.')[:2]) >= (1, 24),
+         'tensorflow-gpu<2.13 requires numpy<1.24'),
+        # torch < 2.0 and numpy >= 2.0 incompatible
+        ('torch', lambda v: tuple(int(x) for x in v.split('.')[:2]) < (2, 0),
+         'numpy', lambda v: tuple(int(x) for x in v.split('.')[:1]) >= (2,),
+         'torch<2.0 incompatible with numpy>=2.0'),
+        # scipy < 1.9 requires numpy < 1.25
+        ('scipy', lambda v: tuple(int(x) for x in v.split('.')[:2]) < (1, 9),
+         'numpy', lambda v: tuple(int(x) for x in v.split('.')[:2]) >= (1, 25),
+         'scipy<1.9 requires numpy<1.25'),
+    ]
+    conflicts = []
+    for pkg, pkg_pred, dep_pkg, dep_pred, desc in known_conflicts:
+        try:
+            if pkg in pinned and dep_pkg in pinned:
+                if pkg_pred(pinned[pkg]) and dep_pred(pinned[dep_pkg]):
+                    conflicts.append(
+                        f'{pkg}=={pinned[pkg]} conflicts with {dep_pkg}=={pinned[dep_pkg]}: {desc}'
+                    )
+        except Exception:
+            pass
+    if conflicts:
+        findings.append(finding(
+            'CN', 'SIGNIFICANT',
+            f'{len(conflicts)} known package version conflict(s) in requirements',
+            'The pinned versions contain known incompatible combinations. '
+            'pip install will fail with a dependency resolution error.',
+            [f'Conflict: {c}' for c in conflicts] +
+            ['Fix: update package versions to compatible combinations']
+        ))
+    return findings
 
 def detect_CM_nextflow_no_container(repo_dir, all_files):
     """Failure Mode CM: Nextflow processes lack container or conda directives."""

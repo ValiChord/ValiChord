@@ -1157,6 +1157,16 @@ def _quickstart_step2(all_files, code_files):
             cmds = ['pip install -r requirements.txt'] + [f'pip install -r {n}' for n in extra_reqs]
             cmd_lines = ['   ```bash'] + [f'   {c}' for c in cmds] + ['   ```']
             return ['2. Install all dependencies:'] + cmd_lines
+        # Check for known conflicts before reassuring researcher
+        has_conflicts = any(
+            getattr(f, 'mode', None) == 'CN' or
+            (isinstance(f, dict) and f.get('mode') == 'CN')
+            for f in (findings if findings else [])
+        )
+        if has_conflicts:
+            return ['2. Install dependencies: `pip install -r requirements.txt`',
+                    '   WARNING: version conflicts detected (see [CN] finding) — '
+                    'fix before installing']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
                 '   (requirements.txt has pinned versions — no changes needed)']
     if has_requirements:
