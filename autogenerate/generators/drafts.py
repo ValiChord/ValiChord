@@ -1147,7 +1147,10 @@ def _install_instructions(code_files, all_files=None):
     if '.jl' in suffixes:
         return []  # handled in step 2
     if '.r' in suffixes or '.rmd' in suffixes:
-        lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
+        # Suppress step 3 renv if step 2 already covers renv::restore
+        import re as _re3
+        if 'renv.lock' not in {f.name.lower() for f in all_files}:
+            lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
     if '.do' in suffixes or '.ado' in suffixes:
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:
