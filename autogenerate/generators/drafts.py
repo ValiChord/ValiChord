@@ -1242,11 +1242,11 @@ def _generate_quickstart_draft(repo_dir, all_files,
             *_install_instructions(code_files, all_files),
             'N. Test on a **clean machine** — not just a new folder '
             'on your development machine',
-            *([''⚠️  **Internet access required at runtime** — '
+            *(['WARNING: Internet access required at runtime -- '
                'code fetches live data. Document snapshot date and source version in README.']
               if any(isinstance(f, dict) and f.get('mode') in {'AS', 'CI', 'AQ'}
                      for f in findings)
-              else []),
+              else [])
         ]),
         '',
         '---',
