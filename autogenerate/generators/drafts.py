@@ -1175,7 +1175,7 @@ def _install_instructions(code_files, all_files=None):
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:
         lines.append('3. Open MATLAB and run the master script listed above')
-    if '.py' in suffixes or not lines:
+    if '.py' in suffixes or (not lines and '.r' not in suffixes and '.rmd' not in suffixes):
         # Only add step 3 pip install if step 2 didn't already cover it
         import re as _re3
         req_files_check = [f for f in all_files if _re3.match(r'requirements.*\.txt$', f.name.lower())]
