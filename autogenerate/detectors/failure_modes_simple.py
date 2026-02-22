@@ -193,6 +193,20 @@ def detect_C_absolute_paths(repo_dir, all_files):
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
+    # Also scan Jupyter notebook cell sources
+    notebook_sources = []
+    import json as _json
+    for nb in all_files:
+        if nb.suffix.lower() == '.ipynb':
+            try:
+                data = _json.loads(nb.read_text(encoding='utf-8', errors='ignore'))
+                for cell in data.get('cells', []):
+                    src = ''.join(cell.get('source', []))
+                    if src:
+                        notebook_sources.append((nb, src))
+            except Exception:
+                pass
+
     abs_pattern = re.compile(
         r'(/Users/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
         r'|(/home/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
@@ -219,6 +233,21 @@ def detect_C_absolute_paths(repo_dir, all_files):
                     "copy with relative paths will be generated in "
                     '/proposed_corrections/.',
                     [f'Evidence: {f.name} line {i}: {snippet}']
+                ))
+    # Scan notebook cell sources for absolute paths
+    for nb, src in notebook_sources:
+        for i, line in enumerate(src.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith('#'):
+                continue
+            if abs_pattern.search(line):
+                snippet = stripped[:80]
+                findings.append(finding(
+                    'C', 'SIGNIFICANT',
+                    f'Absolute path detected in notebook cell: {nb.name}',
+                    'Absolute paths in notebook cells break reproducibility — '
+                    "they only work on the researcher's machine.",
+                    [f'Evidence: {nb.name} cell line {i}: {snippet}']
                 ))
     return findings
 
@@ -640,6 +669,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CE_unpinned_github_packages(repo_dir, all_files)
     print("  [CR] CRLF line endings check...")
     all_findings += detect_CR_crlf_line_endings(repo_dir, all_files)
+    print("  [CF] Notebook committed outputs check...")
+    all_findings += detect_CF_notebook_outputs_committed(repo_dir, all_files)
     print("  [BN] Codebook reference check...")
     all_findings += detect_BN_codebook_reference_mismatch(repo_dir, all_files)
 
@@ -3064,6 +3095,45 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
                 ))
         except Exception:
             pass
+    return findings
+
+
+def detect_CF_notebook_outputs_committed(repo_dir, all_files):
+    """Failure Mode CF: Jupyter notebook has committed cell outputs — may contain sensitive data or large blobs."""
+    findings = []
+    import json as _json
+    notebooks = [f for f in all_files if f.suffix.lower() == '.ipynb']
+    for nb in notebooks:
+        try:
+            data = _json.loads(nb.read_text(encoding='utf-8', errors='ignore'))
+            cells = data.get('cells', [])
+            output_cells = []
+            large_output = False
+            for i, cell in enumerate(cells):
+                if cell.get('cell_type') == 'code':
+                    outputs = cell.get('outputs', [])
+                    if outputs:
+                        output_cells.append(i + 1)
+                        for out in outputs:
+                            # Check for embedded images (large base64 blobs)
+                            data_block = out.get('data', {})
+                            if 'image/png' in data_block or 'image/jpeg' in data_block:
+                                large_output = True
+            if output_cells:
+                findings.append(finding(
+                    'CF', 'LOW CONFIDENCE',
+                    f'Notebook has committed cell outputs: {nb.name}',
+                    'Cell outputs are embedded in the notebook file. This inflates '
+                    'repository size, may contain sensitive data (file paths, user info '
+                    'in tracebacks), and makes diffs unreadable. Best practice is to '
+                    'strip outputs before committing and regenerate by running the notebook.',
+                    [f'Cells with outputs: {len(output_cells)} cells',
+                     'Contains embedded images: ' + ('Yes' if large_output else 'No'),
+                     'Fix: jupyter nbconvert --ClearOutputPreprocessor.enabled=True '
+                     '--to notebook --inplace ' + nb.name]
+                ))
+        except Exception:
+            continue
     return findings
 
 def detect_CE_unpinned_github_packages(repo_dir, all_files):
