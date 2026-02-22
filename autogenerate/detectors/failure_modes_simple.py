@@ -640,6 +640,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CE_unpinned_github_packages(repo_dir, all_files)
     print("  [CR] CRLF line endings check...")
     all_findings += detect_CR_crlf_line_endings(repo_dir, all_files)
+    print("  [BN] Codebook reference check...")
+    all_findings += detect_BN_codebook_reference_mismatch(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
