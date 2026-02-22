@@ -1519,7 +1519,6 @@ def detect_L_large_files_missing(repo_dir, all_files):
                             missing_refs.add(fname)
             except Exception:
                 pass
-    missing_refs = set()
     for f in code_files:
         content = read_file_safe(f)
         for match in read_pattern.finditer(content):
