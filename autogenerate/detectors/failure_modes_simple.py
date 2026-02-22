@@ -11,7 +11,7 @@ from pathlib import Path
 # ── file classification helpers ──────────────────────────────────────────────
 
 CODE_EXTENSIONS = {
-    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk',
+    '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk', '.nf', '.groovy',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
     '.sql', '.rs', '.go', '.java', '.js', '.ts'
 }
@@ -690,6 +690,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CK_conflicting_readmes(repo_dir, all_files)
     print("  [CL] Bioconductor version pin check...")
     all_findings += detect_CL_bioconductor_unpinned(repo_dir, all_files)
+    print("  [CM] Nextflow container/conda check...")
+    all_findings += detect_CM_nextflow_no_container(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1495,7 +1497,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
     missing_refs = set()
     # Broad scan of R files: any quoted path with data extension
     r_path_pat = re.compile(
-        r'["\']([^"\'\']+\.(?:csv|tsv|rds|rdata|xlsx|dta|sav|txt|gz|zip|nii|mat|fasta|fastq|bam|vcf|bed|bw|bigwig|gff|gtf|geojson|shp))["\']',
+        r'["\']([^"\'\']+\.(?:csv|tsv|rds|rdata|xlsx|dta|sav|txt|gz|zip|nii|mat|fasta|fastq|bam|vcf|bed|bw|bigwig|gff|gtf|geojson|shp|nf|config))["\']',
         re.IGNORECASE
     )
     for f in all_files:
@@ -1526,6 +1528,24 @@ def detect_L_large_files_missing(repo_dir, all_files):
                 if fname and '.' in fname:
                     generated_files.add(fname)
 
+    # Scan Nextflow files for params referencing data files
+    for f in all_files:
+        if f.suffix.lower() == '.nf':
+            try:
+                nf_src = f.read_text(encoding='utf-8', errors='ignore')
+                # params.x = 'data/...' patterns
+                for m in re.finditer(r"params\.\w+\s*=\s*'([^']+\.(?:gz|fastq|fasta|bam|vcf|bed|db))", nf_src):
+                    fpath = m.group(1)
+                    fname = fpath.replace('\\', '/').split('/')[-1].lower()
+                    # Also check directory references
+                    dname = fpath.replace('\\', '/').split('/')[-1].lower()
+                    if not any(af.name.lower() == fname for af in all_files):
+                        missing_refs.add(fpath)
+                # glob patterns like data/*_{1,2}.fastq.gz
+                for m in re.finditer(r"'(data/[^']*\.(?:fastq\.gz|fasta|bam|fastq))'", nf_src):
+                    missing_refs.add('FASTQ input data: ' + m.group(1))
+            except Exception:
+                pass
     # Also scan notebook cell sources for quoted file paths
     import json as _json
     for nb in all_files:
@@ -3156,6 +3176,40 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+def detect_CM_nextflow_no_container(repo_dir, all_files):
+    """Failure Mode CM: Nextflow processes lack container or conda directives."""
+    findings = []
+    nf_files = [f for f in all_files if f.suffix.lower() == '.nf']
+    if not nf_files:
+        return findings
+    process_pat = re.compile(r'process\s+(\w+)\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}', re.DOTALL)
+    container_pat = re.compile(r'^\s*(container|conda)\s+', re.MULTILINE)
+    bare_processes = []
+    for f in nf_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in process_pat.finditer(src):
+                pname = m.group(1)
+                pbody = m.group(2)
+                if not container_pat.search(pbody):
+                    bare_processes.append(f'{f.name}: process {pname}')
+        except Exception:
+            pass
+    if bare_processes:
+        findings.append(finding(
+            'CM', 'SIGNIFICANT',
+            f'{len(bare_processes)} Nextflow process(es) have no container or conda directive',
+            'Without container or conda directives, tool versions depend entirely on '
+            'whatever software happens to be installed on the host machine. '
+            'A validator on a different system will get different versions and '
+            'potentially different results.',
+            [f'Process without container/conda: {p}' for p in bare_processes[:5]] +
+            ['Fix: add container \'docker://...\'  or conda \'...\'  to each process, '
+             'or set process.container globally in nextflow.config']
+        ))
+    return findings
+
 def detect_CL_bioconductor_unpinned(repo_dir, all_files):
     """Failure Mode CL: BiocManager::install() called without version= argument."""
     findings = []
@@ -3613,7 +3667,7 @@ def detect_CC_undocumented_external_tools(repo_dir, all_files):
         r'|bedtools|picard|trimmomatic|fastqc|multiqc|varscan|snpeff'
         r'|minimap2|blastn|blastp|makeblastdb|cellranger|seqkit'
         r'|trim_galore|featurecounts|subread|rsem|deseq2|edger|bismark'
-        r'|bamtools|deeptools|macs2|homer|stringtie|cufflinks)\b',
+        r'|bamtools|deeptools|macs2|homer|stringtie|cufflinks|kraken2|bracken|nextflow|snakemake)\b',
         re.IGNORECASE
     )
     tools_found = sorted(set(m.group(1).lower() for m in tool_pattern.finditer(content)))

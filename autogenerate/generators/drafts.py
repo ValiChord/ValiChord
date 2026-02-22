@@ -405,7 +405,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
                     github_pkgs[m.group(2).lower()] = m.group(1)
             except Exception:
                 pass
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() == '.ipynb' or f.name == 'Snakefile' for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() in {'.ipynb', '.nf'} or f.name in {'Snakefile', 'main.nf'} for f in all_files)
     if not has_code:
         # data-only deposit — use data-focused template
         data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet"}]
@@ -1089,6 +1089,11 @@ def _quickstart_step2(all_files, code_files):
             return ['2. Install R dependencies: `Rscript ' + install_r + '`']
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
+    if any(f.suffix.lower() == '.nf' for f in all_files):
+        nf_main = next((f.name for f in all_files if f.name.lower() == 'main.nf'), 'main.nf')
+        return ['2. Run the Nextflow pipeline:',
+                f'   nextflow run {nf_main}',
+                '   (add -with-docker or -with-conda if container/conda directives are present)']
     if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):
         return ['2. Run the Snakemake workflow: `snakemake --cores all`',
                 '   (add --use-conda if per-rule conda: directives are present)']
