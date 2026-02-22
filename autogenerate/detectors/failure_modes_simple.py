@@ -3151,57 +3151,54 @@ def detect_CI_live_data_no_archive(repo_dir, all_files):
     """Failure Mode CI: Code fetches live data at runtime with no local archived copy."""
     findings = []
     code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
-    # Patterns for live data fetching
-    api_patterns = re.compile(
-        r'requests\.(get|post)\s*\(\s*["\']https?://'
-        r'|urllib.*urlopen\s*\(\s*["\']https?://'
-        r'|pd\.read_csv\s*\(\s*["\']https?://',
+    api_pat = re.compile(
+        r"requests\.(get|post)\s*\(\s*["']https?://"
+        r"|urllib.*urlopen\s*\(\s*["']https?://"
+        r"|pd\.read_csv\s*\(\s*["']https?://",
         re.IGNORECASE
     )
-    # Branch-pinned GitHub raw URLs (not a commit SHA)
     branch_url_pat = re.compile(
-        r'raw\.githubusercontent\.com/[^/]+/[^/]+/(main|master|dev|develop|HEAD)/\S+',
+        r"raw\.githubusercontent\.com/[^/]+/[^/]+/(main|master|dev|develop|HEAD)/\S+",
         re.IGNORECASE
     )
-    # Check if data is saved locally after fetching
-    save_patterns = re.compile(
-        r'to_csv|to_parquet|to_excel|pickle\.dump|np\.save|open.*["']w["']',
+    save_pat = re.compile(
+        r"to_csv|to_parquet|to_excel|pickle\.dump|np\.save|open\s*\([^)]*["']w["']",
         re.IGNORECASE
+    )
+    url_extract = re.compile(
+        r"(?:requests\.get|pd\.read_csv)\s*\(\s*f?["']([^"']+)["']"
     )
     for f in code_files:
         try:
-            src = f.read_text(encoding='utf-8', errors='ignore')
-            if not api_patterns.search(src):
+            src = f.read_text(encoding="utf-8", errors="ignore")
+            if not api_pat.search(src):
                 continue
-            has_save = bool(save_patterns.search(src))
-            if has_save:
-                continue  # data is archived locally
-            # Find specific live sources
+            if save_pat.search(src):
+                continue
             evidence = []
-            for m in re.finditer(r'(?:requests\.get|pd\.read_csv)\s*\(\s*f?["']([^"']+)["']', src):
+            for m in url_extract.finditer(src):
                 url = m.group(1)
-                if url.startswith('http'):
-                    branch_m = branch_url_pat.search(url)
-                    if branch_m:
-                        evidence.append(f'GitHub raw URL at @{branch_m.group(1)} (branch ref — not pinned): {url[:80]}')
+                if url.startswith("http"):
+                    bm = branch_url_pat.search(url)
+                    if bm:
+                        evidence.append(f"GitHub raw URL at @{bm.group(1)} (branch — not pinned): {url[:80]}")
                     else:
-                        evidence.append(f'Live URL (no local snapshot): {url[:80]}')
-            # Also catch API calls via variable URLs
-            if not evidence and api_patterns.search(src):
-                evidence.append(f'Network fetch detected in {f.name} — no local data save found')
-            if evidence:
-                findings.append(finding(
-                    'CI', 'SIGNIFICANT',
-                    f'Live data fetched at runtime with no archived copy: {f.name}',
-                    'The code fetches data from external sources but does not save a '
-                    'local snapshot. Results cannot be reproduced if remote data changes — '
-                    'APIs add new data silently and branch URLs change whenever the source updates.',
-                    evidence[:5] + ['Fix: save fetched data to data/ and read locally, '
-                                    'or document exact snapshot date and version']
-                ))
+                        evidence.append(f"Live URL (no local snapshot): {url[:80]}")
+            if not evidence:
+                evidence.append(f"Network fetch in {f.name} — no local data save found")
+            findings.append(finding(
+                "CI", "SIGNIFICANT",
+                f"Live data fetched at runtime with no archived copy: {f.name}",
+                "Code fetches data from external sources but saves no local snapshot. "
+                "Results cannot be reproduced if remote data changes — APIs add data "
+                "silently and branch URLs change whenever the source updates.",
+                evidence[:5] + ["Fix: save fetched data to data/ and read locally, "
+                                "or document exact snapshot date and version"]
+            ))
         except Exception:
             pass
     return findings
+
 
 def detect_CH_broken_source_chain(repo_dir, all_files):
     """Failure Mode CH: R source() calls reference files not in the repository."""
