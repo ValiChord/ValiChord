@@ -999,6 +999,7 @@ def _generate_requirements_draft(repo_dir, all_files,
     elif '.m' in all_suffixes:
         # Scan .m files for inline toolbox requirements
         toolbox_pattern = re.compile(r'[(%]?requires?\s+([\w\s]+(?:Toolbox|EEGLAB))', re.IGNORECASE)
+        found_toolboxes = set()
         # Also scan README for toolbox requirements
         for rf in all_files:
             if rf.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
@@ -1012,7 +1013,6 @@ def _generate_requirements_draft(repo_dir, all_files,
                     pass
         eeglab_fns = {'pop_epoch', 'pop_autorej', 'pop_resample', 'pop_eegfiltnew',
                       'eeglab', 'pop_loadset', 'pop_saveset', 'runica'}
-        found_toolboxes = set()
         found_eeglab = False
         for mf in all_files:
             if mf.suffix.lower() == '.m':
@@ -1233,7 +1233,7 @@ def _install_instructions(code_files, all_files=None):
     if '.do' in suffixes or '.ado' in suffixes:
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:
-        pass  # MATLAB: step 2 covers toolbox check; step 3 not needed
+        return lines  # MATLAB: step 2 covers toolbox check; step 3 not needed
     if '.py' in suffixes or (not lines and '.r' not in suffixes and '.rmd' not in suffixes
                               and '.nf' not in suffixes):
         # Only add step 3 pip install if step 2 didn't already cover it
