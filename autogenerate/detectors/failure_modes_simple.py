@@ -1431,7 +1431,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
-        r'|SeqIO\.parse|read\.FASTA|read\.alignment|load)'
+        r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|load)'
         r'\s*\(\s*["\']([^"\']+)["\']',
         re.IGNORECASE
     )
@@ -1496,6 +1496,29 @@ def detect_L_large_files_missing(repo_dir, all_files):
                 if fname and '.' in fname:
                     generated_files.add(fname)
 
+    # Also scan notebook cell sources for quoted file paths
+    import json as _json
+    for nb in all_files:
+        if nb.suffix.lower() == '.ipynb':
+            try:
+                nb_data = _json.loads(nb.read_text(encoding='utf-8', errors='ignore'))
+                for cell in nb_data.get('cells', []):
+                    src = ''.join(cell.get('source', []))
+                    for match in read_pattern.finditer(src):
+                        fpath = match.group(1)
+                        fname = fpath.replace('\\', '/').split('/')[-1].lower()
+                        if fname and '.' in fname:
+                            # check if file exists
+                            if not any(f.name.lower() == fname for f in all_files):
+                                missing_refs.add(fname)
+                    # Also catch string literals with data file extensions
+                    for m in re.finditer(r'["\']([^"\']+\.(?:nii|nii\.gz|npy|npz|mat|csv|tsv|fasta|fastq|gz|bam|vcf))["\']', src, re.IGNORECASE):
+                        fpath = m.group(1)
+                        fname = fpath.replace('\\', '/').split('/')[-1].lower()
+                        if fname and not any(f.name.lower() == fname for f in all_files):
+                            missing_refs.add(fname)
+            except Exception:
+                pass
     missing_refs = set()
     for f in code_files:
         content = read_file_safe(f)

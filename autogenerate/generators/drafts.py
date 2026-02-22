@@ -32,7 +32,7 @@ def generate_all_drafts(repo_dir, all_files, findings, output_dir):
 
     modes_found = {f['mode'] for f in findings}
 
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() == '.ipynb' for f in all_files)
     _generate_inventory(repo_dir, all_files, output_dir)
     _generate_readme_draft(repo_dir, all_files, findings, output_dir)
     if has_code:
@@ -155,7 +155,7 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         suffixes.add('.smk')
     names = {f.name.lower() for f in all_files}
     # data-only deposit — no code present
-    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk"})
+    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk", ".ipynb"})
     if not has_code:
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
         return [
@@ -404,7 +404,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
                     github_pkgs[m.group(2).lower()] = m.group(1)
             except Exception:
                 pass
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() == '.ipynb' or f.name == 'Snakefile' for f in all_files)
     if not has_code:
         # data-only deposit — use data-focused template
         data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet"}]
