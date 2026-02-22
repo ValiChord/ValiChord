@@ -999,6 +999,17 @@ def _generate_requirements_draft(repo_dir, all_files,
     elif '.m' in all_suffixes:
         # Scan .m files for inline toolbox requirements
         toolbox_pattern = re.compile(r'[(%]?requires?\s+([\w\s]+(?:Toolbox|EEGLAB))', re.IGNORECASE)
+        # Also scan README for toolbox requirements
+        for rf in all_files:
+            if rf.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+                try:
+                    rsrc = rf.read_text(encoding='utf-8', errors='ignore')
+                    for m in re.finditer(r'([\w\s]+Toolbox)', rsrc, re.IGNORECASE):
+                        tb = m.group(1).strip()
+                        if len(tb) < 60:
+                            found_toolboxes.add(tb)
+                except Exception:
+                    pass
         eeglab_fns = {'pop_epoch', 'pop_autorej', 'pop_resample', 'pop_eegfiltnew',
                       'eeglab', 'pop_loadset', 'pop_saveset', 'runica'}
         found_toolboxes = set()
@@ -1179,6 +1190,21 @@ def _quickstart_step2(all_files, code_files):
                     '   Fix conflicts before running: `pip install -r requirements.txt` will fail.']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
                 '   (requirements.txt has pinned versions — no changes needed)']
+    if '.m' in suffixes:
+        import re as _rem2
+        _tbs = []
+        for _f in (all_files or []):
+            if _f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+                try:
+                    for _tm in _rem2.finditer(r'([\w\s]+Toolbox)', _f.read_text(encoding='utf-8', errors='ignore'), _rem2.IGNORECASE):
+                        _tb = _tm.group(1).strip()
+                        if len(_tb) < 60: _tbs.append(_tb)
+                except Exception: pass
+        _tb_note = ('Toolboxes required: ' + ', '.join(sorted(set(_tbs)))) if _tbs else 'Check README for required toolboxes'
+        return ['2. Ensure required MATLAB toolboxes are licensed and installed.',
+                f'   {_tb_note}']
+    if '.do' in suffixes or '.ado' in suffixes:
+        return ['2. Open Stata and ensure required packages are installed']
     if has_requirements:
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
@@ -1207,7 +1233,7 @@ def _install_instructions(code_files, all_files=None):
     if '.do' in suffixes or '.ado' in suffixes:
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:
-        lines.append('3. Open MATLAB and run the master script listed above')
+        pass  # MATLAB: step 2 covers toolbox check; step 3 not needed
     if '.py' in suffixes or (not lines and '.r' not in suffixes and '.rmd' not in suffixes
                               and '.nf' not in suffixes):
         # Only add step 3 pip install if step 2 didn't already cover it
