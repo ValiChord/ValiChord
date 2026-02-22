@@ -1157,16 +1157,26 @@ def _quickstart_step2(all_files, code_files):
             cmds = ['pip install -r requirements.txt'] + [f'pip install -r {n}' for n in extra_reqs]
             cmd_lines = ['   ```bash'] + [f'   {c}' for c in cmds] + ['   ```']
             return ['2. Install all dependencies:'] + cmd_lines
-        # Check for known conflicts before reassuring researcher
-        has_conflicts = any(
-            getattr(f, 'mode', None) == 'CN' or
-            (isinstance(f, dict) and f.get('mode') == 'CN')
-            for f in (findings if findings else [])
+        # Check for known TF/numpy style conflicts in requirements
+        import re as _recn
+        _pinned = {}
+        for _rf in all_files:
+            if _recn.match(r'requirements.*\.txt$', _rf.name.lower()):
+                try:
+                    for _line in _rf.read_text(encoding='utf-8', errors='ignore').splitlines():
+                        _m = _recn.match(r'^([\w.-]+)==([\d.]+)', _line.strip())
+                        if _m: _pinned[_m.group(1).lower()] = _m.group(2)
+                except Exception: pass
+        def _ver(v, n=2): return tuple(int(x) for x in v.split('.')[:n])
+        _has_conflict = (
+            ('tensorflow' in _pinned and 'numpy' in _pinned and
+             _ver(_pinned['tensorflow']) < (2,13) and _ver(_pinned['numpy']) >= (1,24))
+            or ('torch' in _pinned and 'numpy' in _pinned and
+                _ver(_pinned['torch']) < (2,0) and _ver(_pinned['numpy'],1) >= (2,))
         )
-        if has_conflicts:
-            return ['2. Install dependencies: `pip install -r requirements.txt`',
-                    '   WARNING: version conflicts detected (see [CN] finding) — '
-                    'fix before installing']
+        if _has_conflict:
+            return ['2. WARNING: version conflicts in requirements.txt — see [CN] finding.',
+                    '   Fix conflicts before running: `pip install -r requirements.txt` will fail.']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
                 '   (requirements.txt has pinned versions — no changes needed)']
     if has_requirements:
