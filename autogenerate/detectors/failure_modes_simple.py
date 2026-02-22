@@ -638,6 +638,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CC_undocumented_external_tools(repo_dir, all_files)
     print("  [CE] Unpinned GitHub R packages check...")
     all_findings += detect_CE_unpinned_github_packages(repo_dir, all_files)
+    print("  [CR] CRLF line endings check...")
+    all_findings += detect_CR_crlf_line_endings(repo_dir, all_files)
 
     print("  [E]  Data documentation check...")
     all_findings += detect_E_missing_data_documentation(repo_dir, all_files)
