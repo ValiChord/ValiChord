@@ -1163,8 +1163,13 @@ def _install_instructions(code_files, all_files=None):
     if '.jl' in suffixes:
         return []  # handled in step 2
     if '.r' in suffixes or '.rmd' in suffixes:
-        if 'renv.lock' in {f.name.lower() for f in all_files}:
-            return lines  # step 2 already has renv::restore — nothing more needed
+        _all = all_files or []
+        _names = {f.name.lower() for f in _all}
+        if 'renv.lock' in _names:
+            return lines  # step 2 already has renv::restore
+        import re as _re3r
+        if any(_re3r.match(r'install.*\.r$', fn) for fn in _names):
+            return lines  # step 2 already has Rscript install_deps.R
         lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
     if '.do' in suffixes or '.ado' in suffixes:
         lines.append('3. Open Stata and run the master do-file listed above')
