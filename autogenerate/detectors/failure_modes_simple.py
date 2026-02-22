@@ -3590,8 +3590,7 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
     findings = []
     # Scan README and shell scripts for tool references
     scan_files = [f for f in all_files
-                  if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
-                  and len(f.relative_to(repo_dir).parts) <= 2]
+                  if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}]
     scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
     if not scan_files:
         return findings
