@@ -686,6 +686,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CI_live_data_no_archive(repo_dir, all_files)
     print("  [CJ] README missing file references check...")
     all_findings += detect_CJ_readme_references_missing_files(repo_dir, all_files)
+    print("  [CK] Conflicting READMEs check...")
+    all_findings += detect_CK_conflicting_readmes(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3149,6 +3151,70 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CK_conflicting_readmes(repo_dir, all_files):
+    """Failure Mode CK: Multiple README files with conflicting instructions."""
+    findings = []
+    readme_files = [f for f in all_files
+                    if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}]
+    if len(readme_files) < 2:
+        return findings
+    # Extract Python version references from each README
+    ver_pat = re.compile(r'python\s+(\d+\.\d+\+?)', re.IGNORECASE)
+    conda_pat = re.compile(r'conda\s+env\s+create|conda\s+install', re.IGNORECASE)
+    pip_pat = re.compile(r'pip\s+install', re.IGNORECASE)
+    run_pat = re.compile(r'(?:python|Rscript)\s+([\w./\-]+\.(?:py|r)(?:\s+--\S+)*)', re.IGNORECASE)
+    draft_pat = re.compile(r'draft|outdated|see\s+\S+readme|for\s+latest', re.IGNORECASE)
+    readme_info = {}
+    for f in readme_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            rel = str(f.relative_to(repo_dir)).replace('\\', '/')
+            info = {}
+            versions = ver_pat.findall(src)
+            if versions:
+                info['python'] = versions[0]
+            if conda_pat.search(src):
+                info['install'] = 'conda'
+            elif pip_pat.search(src):
+                info['install'] = 'pip'
+            runs = run_pat.findall(src)
+            if runs:
+                info['run'] = runs[0].strip()
+            if draft_pat.search(src):
+                info['draft'] = True
+            readme_info[rel] = info
+        except Exception:
+            pass
+    if len(readme_info) < 2:
+        return findings
+    # Check for conflicts
+    conflicts = []
+    all_versions = {k: v['python'] for k, v in readme_info.items() if 'python' in v}
+    all_installs = {k: v['install'] for k, v in readme_info.items() if 'install' in v}
+    all_runs = {k: v['run'] for k, v in readme_info.items() if 'run' in v}
+    draft_files = [k for k, v in readme_info.items() if v.get('draft')]
+    if len(set(all_versions.values())) > 1:
+        conflicts.append('Python version: ' + ' / '.join(f'{k} says {v}' for k, v in all_versions.items()))
+    if len(set(all_installs.values())) > 1:
+        conflicts.append('Installation method: ' + ' / '.join(f'{k} says {v}' for k, v in all_installs.items()))
+    if len(set(all_runs.values())) > 1:
+        conflicts.append('Run command: ' + ' / '.join(f'{k} says {v}' for k, v in all_runs.items()))
+    if conflicts or len(readme_files) > 1:
+        evidence = [f'{len(readme_files)} README files found: ' + ', '.join(readme_info.keys())]
+        evidence += conflicts[:4]
+        if draft_files:
+            evidence.append('Note: ' + ', '.join(draft_files) + ' marked as DRAFT or outdated')
+        evidence.append('Fix: consolidate into a single README.md at repository root')
+        findings.append(finding(
+            'CK', 'SIGNIFICANT',
+            f'Multiple README files found ({len(readme_files)}) — instructions may conflict',
+            'Multiple README files were detected. Conflicting instructions on Python version, '
+            'installation method, or run commands will cause validators to follow incorrect steps.',
+            evidence[:7]
+        ))
+    return findings
 
 def detect_CJ_readme_references_missing_files(repo_dir, all_files):
     """Failure Mode CJ: README references config/environment files not in repository."""
