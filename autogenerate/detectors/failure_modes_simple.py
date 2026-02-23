@@ -710,6 +710,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CS_committed_model_binary(repo_dir, all_files)
     print("  [CU] Conda unpinned packages check...")
     all_findings += detect_CU_conda_unpinned_packages(repo_dir, all_files)
+    print("  [CV] Hardcoded CUDA no fallback check...")
+    all_findings += detect_CV_hardcoded_cuda_no_fallback(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1505,6 +1507,11 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'\s*\(\s*f?["\']([^"\']+)["\']',
         re.IGNORECASE
     )
+    # torch.save(obj, filepath) — filename is second argument
+    torch_save_pattern = re.compile(
+        r'torch\.save\s*\([^,]+,\s*f?["\']([^"\']+\.(?:pt|pth|bin|ckpt))["\']',
+        re.IGNORECASE
+    )
     # R-style: write.csv(data, 'filename') — filename is second argument
     write_pattern_r = re.compile(
         r'(?:write\.csv|write\.table|saveRDS|fwrite)'
@@ -1538,6 +1545,11 @@ def detect_L_large_files_missing(repo_dir, all_files):
             if fname and '.' in fname:
                 generated_files.add(fname)
         for match in write_pattern_r.finditer(content):
+            filepath = match.group(1)
+            fname = filepath.replace('\\', '/').split('/')[-1].lower()
+            if fname and '.' in fname:
+                generated_files.add(fname)
+        for match in torch_save_pattern.finditer(content):
             filepath = match.group(1)
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
@@ -3396,6 +3408,50 @@ def detect_CU_conda_unpinned_packages(repo_dir, all_files):
             'by validators may differ from the one used to produce the original results. '
             'Use `conda env export --no-builds` to capture exact versions.',
             details
+        ))
+    return findings
+
+
+def detect_CV_hardcoded_cuda_no_fallback(repo_dir, all_files):
+    """Failure Mode CV: Code uses torch.device('cuda') with no CPU fallback."""
+    findings = []
+    py_files = [f for f in all_files if f.suffix.lower() in {'.py', '.ipynb'}]
+    if not py_files:
+        return findings
+
+    import json as _json
+    cuda_pat = re.compile(r'torch\.device\s*\(\s*["\']cuda["\']\s*\)', re.IGNORECASE)
+    fallback_pat = re.compile(r'cuda\.is_available\s*\(\)', re.IGNORECASE)
+
+    affected = []
+    for f in py_files:
+        try:
+            if f.suffix.lower() == '.ipynb':
+                nb = _json.loads(f.read_text(encoding='utf-8', errors='ignore'))
+                src = '\n'.join(
+                    ''.join(cell.get('source', []))
+                    for cell in nb.get('cells', [])
+                    if cell.get('cell_type') == 'code'
+                )
+            else:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+            if cuda_pat.search(src) and not fallback_pat.search(src):
+                affected.append(f.name)
+        except Exception:
+            pass
+
+    if affected:
+        findings.append(finding(
+            'CV', 'SIGNIFICANT',
+            f'Hardcoded CUDA device with no CPU fallback in {len(affected)} file(s)',
+            'Code calls torch.device("cuda") without checking torch.cuda.is_available(). '
+            'This will crash immediately on any machine without a CUDA-capable GPU with: '
+            'AssertionError: Torch not compiled with CUDA enabled. '
+            'Most validators will not have access to the same GPU hardware. '
+            'Fix: replace with device = torch.device("cuda" if torch.cuda.is_available() else "cpu")',
+            [f'Affected files: {", ".join(affected)}',
+             'Fix: device = torch.device("cuda" if torch.cuda.is_available() else "cpu")',
+             'Also document GPU requirement in README System Requirements section']
         ))
     return findings
 

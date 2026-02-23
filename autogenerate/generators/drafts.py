@@ -1470,6 +1470,12 @@ def _generate_quickstart_draft(repo_dir, all_files,
                'code fetches live data. Document snapshot date and source version in README.']
               if any(isinstance(f, dict) and f.get('mode') in {'AS', 'CI', 'AQ'}
                      for f in findings)
+              else []),
+            *(['WARNING: GPU required — code uses torch.device("cuda") with no CPU fallback. '
+               'A CUDA-capable GPU is required to run this code. '
+               'See [CV] finding for fix instructions.']
+              if any(isinstance(f, dict) and f.get('mode') == 'CV'
+                     for f in findings)
               else [])
         ]),
         '',
