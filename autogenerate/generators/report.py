@@ -218,7 +218,10 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
            '| `QUICKSTART_DRAFT.md` | Inferred execution order |']
           if any(f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd'} for f in all_files)
           else []),
-        '| `LICENCE_DRAFT.txt` | Licence template |',
+        *(['| `LICENCE_DRAFT.txt` | Licence template |']
+          if not any(f.name.lower() in {'licence', 'license', 'licence.md', 'license.md',
+                                         'licence.txt', 'license.txt', 'copying', 'copying.md'}
+                     for f in all_files) else []),
         '| `INVENTORY_DRAFT.md` | File inventory |',
         '| `ASSESSMENT.md` | Detailed assessment questions |',
         '',
