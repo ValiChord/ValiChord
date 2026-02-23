@@ -1636,6 +1636,14 @@ def detect_L_large_files_missing(repo_dir, all_files):
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             stem = fname.rsplit('.', 1)[0] if '.' in fname else fname
             if fname and '.' in fname:
+                # Exclude model weight files — covered by CS/CV detectors, not L
+                _model_exts = {'.pt', '.pth', '.ckpt', '.bin', '.safetensors', '.onnx'}
+                if fname.endswith(tuple(_model_exts)):
+                    continue
+                # Exclude model weight files — covered by CS/CV detectors, not L
+                _model_exts = {'.pt', '.pth', '.ckpt', '.bin', '.safetensors', '.onnx'}
+                if fname.endswith(tuple(_model_exts)):
+                    continue
                 if (fname not in all_filenames
                         and fname not in generated_files
                         and stem not in all_stems
