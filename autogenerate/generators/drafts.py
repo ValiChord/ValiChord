@@ -1476,6 +1476,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
                'See [CV] finding for fix instructions.']
               if any(isinstance(f, dict) and f.get('mode') == 'CV'
                      for f in findings)
+              else []),
+            *(['WARNING: Authenticated cloud API required — '
+               'credentials must be configured before running. '
+               'See [CI] finding for account and authentication requirements.']
+              if any(isinstance(f, dict) and f.get('mode') == 'CI'
+                     and 'Authenticated' in f.get('title', '')
+                     for f in findings)
               else [])
         ]),
         '',

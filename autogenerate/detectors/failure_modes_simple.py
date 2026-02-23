@@ -3850,6 +3850,57 @@ def detect_CI_live_data_no_archive(repo_dir, all_files):
             ))
         except Exception:
             pass
+    # Authenticated cloud API check — separate from live URL check
+    auth_apis = [
+        # Google Earth Engine
+        (re.compile(r'ee\.(Authenticate|Initialize)\s*\(', re.IGNORECASE),
+         'earthengine-api', 'Google Earth Engine',
+         'GEE access requires registration at earthengine.google.com — approval is not instant.',
+         'ee.Authenticate() / ee.Initialize() detected'),
+        # AWS boto3
+        (re.compile(r'boto3\.(client|resource|session)\s*\(', re.IGNORECASE),
+         'boto3', 'AWS (boto3)',
+         'AWS credentials must be configured (aws configure or IAM role).',
+         'boto3.client() / boto3.resource() detected'),
+        # Google Cloud Storage / BigQuery
+        (re.compile(r'(google\.cloud\.(storage|bigquery)|bigquery\.Client|storage\.Client)\s*\(', re.IGNORECASE),
+         'google-cloud', 'Google Cloud',
+         'GCP credentials must be configured (gcloud auth application-default login).',
+         'google.cloud client detected'),
+        # Azure
+        (re.compile(r'(BlobServiceClient|AzureCliCredential|DefaultAzureCredential)\s*\(', re.IGNORECASE),
+         'azure', 'Azure',
+         'Azure credentials must be configured (az login).',
+         'Azure SDK client detected'),
+        # Copernicus / sentinelsat
+        (re.compile(r'(SentinelAPI|sentinelsat)\s*\(', re.IGNORECASE),
+         'sentinelsat', 'Copernicus/Sentinel Hub',
+         'Copernicus account required at scihub.copernicus.eu.',
+         'SentinelAPI() detected'),
+    ]
+    for pat, pkg_hint, api_name, auth_note, evidence_label in auth_apis:
+        # Check if pkg is in requirements (optional signal) or pattern found in code
+        for f in code_files:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                if not pat.search(src):
+                    continue
+                findings.append(finding(
+                    'CI', 'SIGNIFICANT',
+                    f'Authenticated cloud API required: {api_name} in {f.name}',
+                    f'Code uses {api_name} which requires account registration, '
+                    f'authentication credentials, and potentially approved project access. '
+                    f'Validators cannot run this code without setting up credentials. '
+                    f'{auth_note}',
+                    [f'Evidence: {evidence_label} in {f.name}',
+                     f'Fix: document {api_name} account requirement in README with step-by-step '
+                     f'authentication instructions',
+                     'Consider providing a local data export as a fallback for validators '
+                     'who cannot obtain credentials']
+                ))
+                break  # one finding per API type
+            except Exception:
+                pass
     return findings
 
 
