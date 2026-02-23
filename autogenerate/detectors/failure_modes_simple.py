@@ -714,6 +714,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CV_hardcoded_cuda_no_fallback(repo_dir, all_files)
     print("  [CW] Reticulate R/Python coupling check...")
     all_findings += detect_CW_reticulate_coupling(repo_dir, all_files)
+    print("  [CW] Reticulate R/Python coupling check...")
+    all_findings += detect_CW_reticulate_coupling(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3286,6 +3288,63 @@ def detect_CW_reticulate_coupling(repo_dir, all_files):
         'configured to use the right Python interpreter. If the interpreter is wrong '
         'or Python dependencies are missing, the pipeline fails silently or with '
         'cryptic errors.',
+        details
+    ))
+    return findings
+
+
+def detect_CW_reticulate_coupling(repo_dir, all_files):
+    """Failure Mode CW: R script uses reticulate to call Python at runtime."""
+    findings = []
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    if not r_files:
+        return findings
+    reticulate_use_pat = re.compile(
+        r'reticulate::',
+        re.IGNORECASE
+    )
+    reticulate_call_pat = re.compile(
+        r'reticulate::(py_run_file|py_run_string|source_python|import)',
+        re.IGNORECASE
+    )
+    config_pat = re.compile(
+        r'reticulate::(use_python|use_virtualenv|use_condaenv)',
+        re.IGNORECASE
+    )
+    affected = []
+    has_config = False
+    for f in r_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            if reticulate_use_pat.search(src):
+                affected.append(f.name)
+                if config_pat.search(src):
+                    has_config = True
+        except Exception:
+            pass
+    if not affected:
+        return findings
+    details = [
+        f'Affected files: {", ".join(affected)}',
+        'Both R (renv) and Python (pip/conda) environments must be installed and compatible',
+        'reticulate must point to the correct Python interpreter',
+    ]
+    if not has_config:
+        details.append(
+            'No reticulate::use_python() or use_virtualenv() found -- '
+            'Python interpreter selection is undocumented'
+        )
+    details += [
+        'Fix: add reticulate::use_virtualenv("path/to/venv") or set RETICULATE_PYTHON '
+        'env var, and document in README which Python interpreter to use',
+    ]
+    findings.append(finding(
+        'CW', 'SIGNIFICANT',
+        f'reticulate coupling: R script invokes Python at runtime ({', '.join(affected)})',
+        'The R script calls Python code via reticulate at runtime. Both R and Python '
+        'environments must be correctly installed and reticulate must be configured '
+        'to use the right Python interpreter. If the interpreter is wrong or Python '
+        'dependencies are missing, the pipeline fails silently or with cryptic errors.',
         details
     ))
     return findings
