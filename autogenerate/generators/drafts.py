@@ -908,10 +908,13 @@ def _generate_requirements_draft(repo_dir, all_files,
             except Exception:
                 pass
     if external:
+        _is_julia_repo = '.jl' in all_suffixes and '.py' not in all_suffixes
         for pkg in external:
             ver = pluto_compat.get(pkg.lower())
             if ver:
                 lines.append(f'{pkg}>={ver}  # from Project.toml or Pluto [compat] — not an exact pin')
+            elif _is_julia_repo:
+                lines.append(f'{pkg}  # Julia package — add to Project.toml instead of pinning here')
             else:
                 lines.append(f'{pkg}==UNKNOWN')
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
