@@ -1183,7 +1183,20 @@ def _quickstart_step2(all_files, code_files):
                 f'   nextflow run {nf_main}',
                 '   (add -with-docker or -with-conda if container/conda directives are present)']
     if '.r' in suffixes or '.rmd' in suffixes:
+        # Check for reticulate — R calls Python at runtime, need both installs
+        import re as _reretc
+        _has_reticulate = any(
+            _reretc.search(r'reticulate::', f.read_text(encoding='utf-8', errors='ignore'))
+            for f in all_files if f.suffix.lower() in {'.r', '.rmd'}
+        )
+        _has_requirements = any(
+            _reretc.match(r'requirements.*\.txt$', f.name.lower()) for f in all_files
+        )
         if 'renv.lock' in names:
+            if _has_reticulate and _has_requirements:
+                return ['2. Install Python dependencies: `pip install -r requirements.txt`',
+                        '   Then restore R environment: `Rscript -e "renv::restore()"`',
+                        '   (reticulate detected — both environments required)']
             return ['2. Restore R environment: `Rscript -e "renv::restore()"`',
                     '   (renv.lock present — exact package versions will be installed)']
         install_r = next((f.name for f in all_files
