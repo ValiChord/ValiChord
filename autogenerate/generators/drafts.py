@@ -1398,7 +1398,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
         '## Before Running',
         '',
         *_renumber_steps([
-            '1. Complete `README_DRAFT.md` and rename to `README.md`',
+            *([] if any(
+                f.name.lower() in README_NAMES and
+                len(f.read_text(encoding='utf-8', errors='ignore').strip()) > 500 and
+                sum(1 for s in ['usage', 'requirement', 'installation', 'data', 'reproduc', 'run']
+                    if s in f.read_text(encoding='utf-8', errors='ignore').lower()) >= 3
+                for f in all_files
+            ) else ['1. Complete `README_DRAFT.md` and rename to `README.md`']),
             *(_quickstart_step2(all_files, code_files)),
             *_install_instructions(code_files, all_files),
             'N. Test on a **clean machine** — not just a new folder '
