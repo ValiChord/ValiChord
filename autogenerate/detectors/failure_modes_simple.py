@@ -4027,7 +4027,8 @@ def detect_CC_undocumented_external_tools(repo_dir, all_files):
     scan_files = [f for f in all_files
                   if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
                   and len(f.relative_to(repo_dir).parts) <= 2]
-    scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash', '.nf'}]
+    scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash', '.nf', '.smk'}]
+    scan_files += [f for f in all_files if f.name == 'Snakefile']
     if not scan_files:
         return findings
     content = '\n'.join(read_file_safe(f) or '' for f in scan_files)
