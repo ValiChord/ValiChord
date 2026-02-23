@@ -1186,25 +1186,22 @@ def _quickstart_step2(all_files, code_files):
         # Check for reticulate — R calls Python at runtime, need both installs
         import re as _reretc
         _has_reticulate = any(
-            _reretc.search(r'reticulate::', f.read_text(encoding='utf-8', errors='ignore'))
+            _reretc.search(
+                r'library\s*\(\s*reticulate|reticulate::',
+                f.read_text(encoding='utf-8', errors='ignore')
+            )
             for f in all_files if f.suffix.lower() in {'.r', '.rmd'}
         )
-        _has_requirements = any(
-            _reretc.match(r'requirements.*\.txt$', f.name.lower()) for f in all_files
+        _has_req = any(
+            _reretc.match(r'requirements.*\.txt$', f.name.lower())
+            for f in all_files
         )
-        # reticulate: R calls Python at runtime — both installs needed
-        import re as _reretc
-        _has_reticulate = any(
-            _reretc.search(r'reticulate::', f.read_text(encoding='utf-8', errors='ignore'))
-            for f in all_files if f.suffix.lower() in {'.r', '.rmd'}
-        )
-        _has_requirements = any(
-            _reretc.match(r'requirements.*\.txt$', f.name.lower()) for f in all_files
-        )
-        if _has_reticulate and _has_requirements:
-            return ['2. Install Python dependencies: `pip install -r requirements.txt`',
-                    '   Then restore R environment: `Rscript -e "renv::restore()"`',
-                    '   (reticulate detected -- both environments required)']
+        if _has_reticulate and _has_req:
+            return [
+                '2. Install Python dependencies: `pip install -r requirements.txt`',
+                '3. Restore R environment: `Rscript -e "renv::restore()"`',
+                '   (reticulate detected -- both R and Python environments required)',
+            ]
         if 'renv.lock' in names:
             if _has_reticulate and _has_requirements:
                 return ['2. Install Python dependencies: `pip install -r requirements.txt`',
