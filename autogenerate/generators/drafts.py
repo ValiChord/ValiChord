@@ -711,6 +711,52 @@ def _generate_requirements_draft(repo_dir, all_files,
                    + '# Review and pin all versions before deposit.\n#\n' + combined)
             out.write_text(msg, encoding='utf-8-sig')
             return
+    # conda repo — handle environment.yml before generic dep file loop
+    _env_file = next((f for f in all_files if f.name.lower() in {'environment.yml', 'environment.yaml'}), None)
+    if _env_file:
+        try:
+            import re as _renv
+            _env_src = _env_file.read_text(encoding='utf-8', errors='ignore')
+            _pkgs = []
+            _in_deps = False
+            for _line in _env_src.splitlines():
+                _s = _line.strip()
+                if _s.startswith('dependencies:'):
+                    _in_deps = True
+                    continue
+                if _in_deps and _s and not _s.startswith('-') and not _s.startswith('#') and ':' in _s:
+                    _in_deps = False
+                if not _in_deps or not _s.startswith('-'):
+                    continue
+                _pkg = _s.lstrip('- ').strip()
+                if _pkg and _pkg != 'pip' and not _pkg.startswith('pip:') and not _pkg.startswith('{'):
+                    _pkgs.append(_pkg)
+            _unpinned = [p for p in _pkgs if not _renv.match(r'^[\w\-\.]+=\d', p)]
+            out = output_dir / 'requirements_DRAFT.txt'
+            _lines = [
+                f'# Source: {_env_file.name}',
+                '# conda environment detected.',
+                '# To capture exact pinned versions, run in your original environment:',
+                '#   conda env export --no-builds > environment.yml',
+                '#',
+                '# Packages listed in environment.yml:',
+                '',
+            ]
+            for _p in _pkgs:
+                _lines.append(f'  {_p}')
+            if _unpinned:
+                _lines += [
+                    '',
+                    f'# WARNING: {len(_unpinned)} package(s) are unpinned or loosely pinned:',
+                    f'#   {", ".join(_unpinned[:8])}',
+                    '# Pin all packages with exact conda syntax: packagename=X.Y.Z',
+                ]
+            out.write_text('\n'.join(_lines), encoding='utf-8-sig')
+            print('  -> requirements_DRAFT.txt (from environment.yml)')
+            return
+        except Exception:
+            pass
+
     for dep_file in all_files:
         if dep_file.name.lower() in DEPENDENCY_FILES:
             try:

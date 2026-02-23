@@ -702,6 +702,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CQ_julia_pkg_add_at_runtime(repo_dir, all_files)
     print("  [CS] Committed model binary (pickle) check...")
     all_findings += detect_CS_committed_model_binary(repo_dir, all_files)
+    print("  [CU] Conda unpinned packages check...")
+    all_findings += detect_CU_conda_unpinned_packages(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1481,6 +1483,8 @@ def detect_L_large_files_missing(repo_dir, all_files):
     read_pattern = re.compile(
         r'(?:pd\.read_csv|pd\.read_parquet|pd\.read_excel'
         r'|pd\.read_stata|pd\.read_sas|pd\.read_feather'
+        r'|xr\.open_dataset|xr\.open_dataarray|netCDF4\.Dataset|nc\.Dataset'
+        r'|h5py\.File|rasterio\.open|gdal\.Open'
         r'|np\.load|open|read_csv|read_parquet|loadtxt'
         r'|readRDS|read\.csv|read_dta|haven::read'
         r'|SeqIO\.parse|read\.FASTA|read\.alignment|nib\.load|nibabel\.load|read\.csv|read_csv|gpd\.read_file|fiona\.open|load)'
@@ -3321,6 +3325,72 @@ def detect_CS_committed_model_binary(repo_dir, all_files):
         'host the model on HuggingFace Hub and load it with a version-pinned API call.',
         details
     ))
+    return findings
+
+
+def detect_CU_conda_unpinned_packages(repo_dir, all_files):
+    """Failure Mode CU: environment.yml has unpinned or loosely-pinned conda packages."""
+    findings = []
+    env_file = next((f for f in all_files if f.name.lower() in {'environment.yml', 'environment.yaml'}), None)
+    if not env_file:
+        return findings
+    try:
+        src = env_file.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return findings
+
+    unpinned = []
+    loose = []
+    in_deps = False
+    for line in src.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('#') or not stripped:
+            continue
+        if stripped.startswith('dependencies:'):
+            in_deps = True
+            continue
+        if in_deps and stripped.startswith('-') and ':' in stripped and not stripped.startswith('- pip'):
+            # sub-key like 'name:', 'channels:' — end of deps
+            in_deps = False
+        if not in_deps:
+            continue
+        if stripped.startswith('- pip:') or stripped == '- pip':
+            continue
+        if stripped.startswith('-'):
+            pkg = stripped.lstrip('- ').strip()
+            if pkg.startswith('{') or not pkg:
+                continue
+            # exact pin: pkg=X.Y.Z or pkg=X.Y.Z=pyXXX
+            if re.match(r'^[\w\-\.]+=[0-9]', pkg):
+                continue  # pinned
+            # loose: pkg>=X or pkg>X or no version at all
+            if re.match(r'^[\w\-\.]+\s*[><!]', pkg):
+                loose.append(pkg)
+            elif '=' not in pkg and re.match(r'^[\w\-\.]+$', pkg):
+                unpinned.append(pkg)
+            elif re.match(r'^[\w\-\.]+$', pkg):
+                unpinned.append(pkg)
+
+    all_issues = unpinned + loose
+    if all_issues:
+        sample = all_issues[:8]
+        details = [
+            f'Unpinned/loosely-pinned packages ({len(all_issues)}): {", ".join(sample)}'
+            + (f' (and {len(all_issues)-8} more)' if len(all_issues) > 8 else ''),
+            'Conda uses = for exact pinning: numpy=1.24.3, not numpy>=1.24',
+            'Fix: run `conda env export --no-builds > environment.yml` in your original environment',
+        ]
+        if loose:
+            details.insert(1, f'Loose constraints (will install different versions over time): {", ".join(loose[:5])}')
+        findings.append(finding(
+            'CU', 'SIGNIFICANT',
+            f'environment.yml has {len(all_issues)} unpinned or loosely-pinned package(s)',
+            'Conda packages without exact version pins will install the latest available '
+            'version at the time of environment creation. This means the environment created '
+            'by validators may differ from the one used to produce the original results. '
+            'Use `conda env export --no-builds` to capture exact versions.',
+            details
+        ))
     return findings
 
 def detect_CP_python2_syntax(repo_dir, all_files):
