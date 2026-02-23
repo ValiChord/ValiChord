@@ -125,6 +125,12 @@ def detect_B_no_dependencies(repo_dir, all_files):
             'install' in f.name.lower() and f.suffix.lower() == '.r'
             for f in all_files
         )
+    # Snakemake workflow — Snakefile is the workflow/dependency spec
+    if not has_dep_file:
+        has_dep_file = any(
+            f.name == 'Snakefile' or f.suffix.lower() == '.smk'
+            for f in all_files
+        )
     # Modern Pluto notebooks embed deps as PLUTO_PROJECT_TOML_CONTENTS — treat as dep file
     if not has_dep_file:
         for f in all_files:
@@ -4033,7 +4039,9 @@ def detect_CC_undocumented_external_tools(repo_dir, all_files):
         r'|bedtools|picard|trimmomatic|fastqc|multiqc|varscan|snpeff'
         r'|minimap2|blastn|blastp|makeblastdb|cellranger|seqkit'
         r'|trim_galore|featurecounts|subread|rsem|deseq2|edger|bismark'
-        r'|bamtools|deeptools|macs2|homer|stringtie|cufflinks|kraken2|bracken|nextflow|snakemake)\b',
+        r'|bamtools|deeptools|macs2|homer|stringtie|cufflinks|kraken2|bracken|nextflow|snakemake'
+        r'|trim_galore|trimmomatic|fastqc|star|hisat2|bowtie2|bwa|samtools|picard'
+        r'|featurecounts|htseq|kallisto|salmon|cellranger|bismark|gatk|bcftools)\b',
         re.IGNORECASE
     )
     tools_found = sorted(set(m.group(1).lower() for m in tool_pattern.finditer(content)))

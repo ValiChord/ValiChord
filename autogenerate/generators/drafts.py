@@ -1325,6 +1325,9 @@ def _install_instructions(code_files, all_files=None):
         names = {f.name.lower() for f in all_files}
         if 'environment.yml' in names or 'environment.yaml' in names:
             return []
+    # Snakemake repo — step 2 is `snakemake --cores all`; suppress all further steps
+    if all_files and any(f.name == 'Snakefile' or f.suffix.lower() == '.smk' for f in all_files):
+        return []
     # Julia: step 2 already covers install via _quickstart_step2; suppress step 3
     if '.jl' in suffixes:
         return []  # handled in step 2
