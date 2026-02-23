@@ -284,6 +284,7 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
         'BJ': 'Provide decryption keys separately to validators, '
               'or replace encrypted files with the actual data if '
               'sharing is permitted.',
+        'BM': 'Complete the missing required field(s) in CITATION.cff (e.g. date-released). See https://citation-file-format.github.io/ for the full spec.',
         'BK': 'Replace clock-based filenames with fixed names, '
               'and replace clock-based seeds with fixed integers.',
         'BL': 'Pin your version number explicitly. Replace '

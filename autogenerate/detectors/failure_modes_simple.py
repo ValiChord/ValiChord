@@ -2965,7 +2965,7 @@ def detect_BM_citation_cff(repo_dir, all_files):
         missing_fields = [f for f in required if f not in active_content]
         if missing_fields:
             findings.append(finding(
-                'BJ', 'SIGNIFICANT',
+                'BM', 'SIGNIFICANT',
                 'CITATION.cff is missing required fields',
                 'CITATION.cff was found but is incomplete. '
                 'Missing fields will prevent automated citation tools from working correctly.',

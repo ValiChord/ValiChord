@@ -40,7 +40,11 @@ def generate_all_drafts(repo_dir, all_files, findings, output_dir):
                                       findings, output_dir)
         _generate_quickstart_draft(repo_dir, all_files,
                                     findings, output_dir)
-    _generate_licence_draft(output_dir, all_files)
+    _licence_names = {'licence', 'license', 'licence.md', 'license.md',
+                      'licence.txt', 'license.txt', 'copying', 'copying.md'}
+    _has_licence = any(f.name.lower() in _licence_names for f in all_files)
+    if not _has_licence:
+        _generate_licence_draft(output_dir, all_files)
     generate_proposed_corrections(repo_dir, all_files, findings, output_dir)
 
 
@@ -961,7 +965,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                     for pname, pinfo in sorted(pkgs.items()):
                         ver = pinfo.get('Version', 'unknown')
                         src = pinfo.get('Source', 'CRAN')
-                        lines.append(f'{pname}=={ver}  # {src}')
+                        lines.append(f'{pname}  # {ver}  ({src})')
                     out = output_dir / 'requirements_DRAFT.txt'
                     out.write_text('\n'.join(lines), encoding='utf-8-sig')
                     print('  -> requirements_DRAFT.txt (from renv.lock)')
