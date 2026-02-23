@@ -700,6 +700,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CP_python2_syntax(repo_dir, all_files)
     print("  [CQ] Julia Pkg.add() at runtime check...")
     all_findings += detect_CQ_julia_pkg_add_at_runtime(repo_dir, all_files)
+    print("  [CS] Committed model binary (pickle) check...")
+    all_findings += detect_CS_committed_model_binary(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -849,9 +851,19 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         '.xml', '.db', '.sqlite'
     }
 
+    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+
+    def _is_model_artifact(f):
+        if f.suffix.lower() not in {'.pkl', '.pickle'}:
+            return False
+        name_lower = f.name.lower()
+        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        has_model_name = any(ind in name_lower for ind in _model_name_indicators)
+        return has_model_name or in_model_dir
+
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions
+        if f.suffix.lower() in data_extensions and not _is_model_artifact(f)
     ]
 
     if not data_files:
@@ -1273,9 +1285,19 @@ def detect_I_intermediate_files(repo_dir, all_files):
         '.feather', '.arrow', '.parquet', '.hdf5', '.h5'
     }
 
+    _model_name_indicators_i = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+
+    def _is_model_artifact_i(f):
+        if f.suffix.lower() not in {'.pkl', '.pickle'}:
+            return False
+        name_lower = f.name.lower()
+        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        has_model_name = any(ind in name_lower for ind in _model_name_indicators_i)
+        return has_model_name or in_model_dir
+
     intermediate_files = [
         f for f in all_files
-        if f.suffix.lower() in intermediate_extensions
+        if f.suffix.lower() in intermediate_extensions and not _is_model_artifact_i(f)
     ]
 
     if not intermediate_files:
@@ -1917,9 +1939,19 @@ def detect_Y_data_source_missing(repo_dir, all_files):
         '.dta', '.sav', '.rds', '.rdata'
     }
 
+    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+
+    def _is_model_artifact(f):
+        if f.suffix.lower() not in {'.pkl', '.pickle'}:
+            return False
+        name_lower = f.name.lower()
+        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        has_model_name = any(ind in name_lower for ind in _model_name_indicators)
+        return has_model_name or in_model_dir
+
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions
+        if f.suffix.lower() in data_extensions and not _is_model_artifact(f)
     ]
 
     if not data_files:
@@ -3223,6 +3255,60 @@ def detect_CQ_julia_pkg_add_at_runtime(repo_dir, all_files):
             ['Fix: run `julia --project=. -e "using Pkg; Pkg.add([...]); Pkg.resolve()"` '
              'then commit Project.toml and Manifest.toml']
         ))
+    return findings
+
+
+def detect_CS_committed_model_binary(repo_dir, all_files):
+    """Failure Mode CS: Committed model binary loaded via pickle — version-sensitive and security risk."""
+    findings = []
+    model_artifact_extensions = {'.pkl', '.pickle'}
+    model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+
+    candidate_files = [
+        f for f in all_files
+        if f.suffix.lower() in model_artifact_extensions
+    ]
+    if not candidate_files:
+        return findings
+
+    code_content = ''
+    py_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    for f in py_files:
+        code_content += read_file_safe(f)
+
+    has_pickle_load = bool(re.search(r'pickle\.load\s*\(', code_content))
+
+    model_files = []
+    for f in candidate_files:
+        name_lower = f.name.lower()
+        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        has_model_name = any(ind in name_lower for ind in model_name_indicators)
+        if has_model_name or in_model_dir:
+            model_files.append(f)
+
+    if not model_files and has_pickle_load:
+        model_files = candidate_files
+
+    if not model_files or not has_pickle_load:
+        return findings
+
+    details = [f'Model file: {", ".join(f.name for f in model_files[:5])}',
+               'pickle.load() executes arbitrary code — validators loading this file run untrusted code',
+               'Pickle files are version-specific: model trained under one scikit-learn / torch version '
+               'may fail silently or produce different results under a different version',
+               'Fix: replace with a portable format (safetensors, ONNX) and/or host on HuggingFace Hub']
+    findings.append(finding(
+        'CS', 'SIGNIFICANT',
+        'Committed model binary loaded via pickle — version-sensitive and security risk',
+        'A trained model binary is committed to the repository and loaded with pickle.load(). '
+        'This creates two reproducibility risks: (1) pickle files encode version information — '
+        'a model serialised under one library version may silently produce wrong results under '
+        'another; (2) pickle.load() executes arbitrary code, meaning validators are running '
+        'untrusted code when loading the file. The fix is to use a portable, safe format '
+        '(safetensors for neural networks, ONNX for cross-framework interoperability) or to '
+        'host the model on HuggingFace Hub and load it with a version-pinned API call.',
+        details
+    ))
     return findings
 
 def detect_CP_python2_syntax(repo_dir, all_files):

@@ -1215,6 +1215,19 @@ def _quickstart_step2(all_files, code_files):
         if _has_py2:
             return ['2. WARNING: Python 2 syntax detected — see [CP] finding.',
                     '   Fix Python 2 syntax before installing: code will not run in Python 3.']
+        _model_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+        _has_model_pkl = any(
+            f.suffix.lower() in {'.pkl', '.pickle'} and (
+                any(ind in f.name.lower() for ind in _model_indicators) or
+                any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+            )
+            for f in (all_files or [])
+        )
+        if _has_model_pkl:
+            return ['2. Install dependencies: `pip install -r requirements.txt`',
+                    '   NOTE: A committed model binary (.pkl) is present — see [CS] finding.',
+                    '   Pickle files are version-specific; ensure your Python/library versions',
+                    '   match those used to train the model, or retrain from scratch.']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
                 '   (requirements.txt has pinned versions — no changes needed)']
     if '.m' in suffixes:
