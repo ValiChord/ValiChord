@@ -287,6 +287,7 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
         'BJ': 'Provide decryption keys separately to validators, '
               'or replace encrypted files with the actual data if '
               'sharing is permitted.',
+        'J':  'Fix the non-linear notebook execution order before deposit. Re-run the notebook from scratch (Kernel > Restart & Run All) and confirm all cell numbers are sequential. If the correct order differs from top-to-bottom, document it explicitly in README.',
         'BM': 'Complete the missing required field(s) in CITATION.cff (e.g. date-released). See https://citation-file-format.github.io/ for the full spec.',
         'BK': 'Replace clock-based filenames with fixed names, '
               'and replace clock-based seeds with fixed integers.',
@@ -296,6 +297,12 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
     }
 
     modes_found = {f['mode'] for f in findings}
+    # BM has two sub-types: LOW CONFIDENCE (no cff) and SIGNIFICANT (missing fields)
+    # Only show the action item when a cff exists but has missing fields
+    bm_action_applies = any(
+        f['mode'] == 'BM' and f.get('severity') == 'SIGNIFICANT'
+        for f in findings
+    )
     added = False
 
     for mode, action in action_map.items():

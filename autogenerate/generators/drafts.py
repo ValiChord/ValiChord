@@ -1251,7 +1251,8 @@ def _quickstart_step2(all_files, code_files):
                     '   Pickle files are version-specific; ensure your Python/library versions',
                     '   match those used to train the model, or retrain from scratch.']
         return ['2. Install dependencies: `pip install -r requirements.txt`',
-                '   (requirements.txt has pinned versions — no changes needed)']
+                '   (requirements.txt has pinned versions — no changes needed — '
+                '   but resolve any execution order issues before running)']
     if '.m' in suffixes:
         import re as _rem2
         _tbs = []
@@ -1387,9 +1388,15 @@ def _generate_quickstart_draft(repo_dir, all_files,
             lines.append(f'- `{rel}`')
         # also list notebooks
         notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
+        _has_j_finding = any(isinstance(f, dict) and f.get('mode') == 'J' for f in findings)
         for f in sorted(notebook_files, key=lambda x: x.name):
             rel = f.relative_to(repo_dir)
-            lines.append(f'- `{rel}` (open in Jupyter and run all cells top to bottom)')
+            if _has_j_finding:
+                lines.append(f'- `{rel}` ⚠️ WARNING: non-linear execution order detected — '
+                             f'see [J] finding. Do NOT run top-to-bottom until execution '
+                             f'order is resolved and documented.')
+            else:
+                lines.append(f'- `{rel}` (open in Jupyter and run all cells top to bottom)')
         lines.append('')
 
     lines += [
