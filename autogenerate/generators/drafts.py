@@ -236,12 +236,9 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
                     '# Or to install without pinning (not recommended for reproducibility):',
                     f'#    julia -e \'using Pkg; Pkg.add([{pkg_list}])\'',
                 ]
-            return [
-                '# 1. Clone or download this repository',
             return ['2. Create Project.toml and Manifest.toml to pin package versions.',
-                    '   Run: julia --project=. -e \'using Pkg; Pkg.add(["PackageName"]); Pkg.resolve()\'',
+                    '   Run: julia --project=. -e "using Pkg; Pkg.add([\"PackageName\"]); Pkg.resolve()"  ',
                     '   Then commit Project.toml and Manifest.toml']
-            ]
     if '.r' in suffixes or '.rmd' in suffixes:
         has_python = '.py' in suffixes
         if 'renv.lock' in names:
