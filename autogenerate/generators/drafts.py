@@ -1174,6 +1174,14 @@ def _quickstart_step2(all_files, code_files):
             if m:
                 env_name = m.group(1)
         return [f'2. Create and activate environment: `conda env create -f {env_file} && conda activate {env_name}`']
+    if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):
+        return ['2. Run the Snakemake workflow: `snakemake --cores all`',
+                '   (add --use-conda if per-rule conda: directives are present)']
+    if any(f.suffix.lower() == '.nf' for f in all_files):
+        nf_main = next((f.name for f in all_files if f.name.lower() == 'main.nf'), 'main.nf')
+        return ['2. Run the Nextflow pipeline:',
+                f'   nextflow run {nf_main}',
+                '   (add -with-docker or -with-conda if container/conda directives are present)']
     if '.r' in suffixes or '.rmd' in suffixes:
         if 'renv.lock' in names:
             return ['2. Restore R environment: `Rscript -e "renv::restore()"`',
@@ -1184,14 +1192,6 @@ def _quickstart_step2(all_files, code_files):
             return ['2. Install R dependencies: `Rscript ' + install_r + '`']
         return ['2. Add version numbers to packages in `requirements_DRAFT.txt`, '
                 'then run `renv::snapshot()` to create `renv.lock`']
-    if any(f.suffix.lower() == '.nf' for f in all_files):
-        nf_main = next((f.name for f in all_files if f.name.lower() == 'main.nf'), 'main.nf')
-        return ['2. Run the Nextflow pipeline:',
-                f'   nextflow run {nf_main}',
-                '   (add -with-docker or -with-conda if container/conda directives are present)']
-    if '.smk' in suffixes or any(f.name == 'Snakefile' for f in all_files):
-        return ['2. Run the Snakemake workflow: `snakemake --cores all`',
-                '   (add --use-conda if per-rule conda: directives are present)']
     if '.jl' in suffixes:
         names = {f.name.lower() for f in all_files}
         if 'project.toml' in names:
