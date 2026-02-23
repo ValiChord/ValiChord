@@ -91,6 +91,22 @@ def _generate_inventory(repo_dir, all_files, output_dir):
     print(f"  → INVENTORY_DRAFT.md ({len(all_files)} files)")
 
 
+def _is_model_artifact_file(f):
+    """Return True if this file is a trained model binary or model config, not research data."""
+    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator',
+                              'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
+    _model_dirs = {'models', 'model', 'checkpoints', 'saved_model'}
+    name_lower = f.name.lower()
+    ext = f.suffix.lower()
+    in_model_dir = any(part.lower() in _model_dirs for part in f.parts)
+    has_model_name = any(ind in name_lower for ind in _model_name_indicators)
+    if ext in {'.pkl', '.pickle', '.pt', '.pth', '.onnx', '.safetensors', '.bin'}:
+        return has_model_name or in_model_dir
+    if ext == '.json':
+        return (has_model_name or in_model_dir)
+    return False
+
+
 def _classify_file(f):
     ext = f.suffix.lower()
     if ext in CODE_EXTENSIONS:
@@ -99,6 +115,8 @@ def _classify_file(f):
         return 'Notebook'
     if ext in {'.md', '.txt', '.rst', '.html', '.tex'}:
         return 'Documentation'
+    if _is_model_artifact_file(f):
+        return 'Model artifact'
     if ext in {'.csv', '.tsv', '.xlsx', '.json', '.parquet',
                '.rds', '.rdata', '.dta', '.sav', '.mat',
                '.pkl', '.npy', '.npz', '.hdf5', '.h5'}:
