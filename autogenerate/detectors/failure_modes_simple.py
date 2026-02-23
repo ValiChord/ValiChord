@@ -714,6 +714,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CV_hardcoded_cuda_no_fallback(repo_dir, all_files)
     print("  [CW] Reticulate R/Python coupling check...")
     all_findings += detect_CW_reticulate_coupling(repo_dir, all_files)
+    print("  [CX] System-level dependencies check...")
+    all_findings += detect_CX_system_dependencies(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3229,6 +3231,113 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
 
 
 
+
+
+
+# Packages that require C/C++ system libraries not installable via pip alone
+_SYSTEM_DEP_PACKAGES = {
+    'geopandas': {'gdal', 'geos', 'proj'},
+    'fiona':     {'gdal', 'geos'},
+    'rasterio':  {'gdal', 'geos', 'proj'},
+    'pyproj':    {'proj'},
+    'shapely':   {'geos'},
+    'gdal':      {'gdal'},
+    'osgeo':     {'gdal', 'geos', 'proj'},
+    'cartopy':   {'geos', 'proj'},
+    'opencv-python': {'libopencv'},
+    'cv2':       {'libopencv'},
+    'lxml':      {'libxml2', 'libxslt'},
+    'psycopg2':  {'postgresql'},
+    'h5py':      {'hdf5'},
+    'netcdf4':   {'netcdf4', 'hdf5'},
+    'pyaudio':   {'portaudio'},
+}
+_SYSTEM_LIB_APT = {
+    'gdal':       'libgdal-dev',
+    'geos':       'libgeos-dev',
+    'proj':       'libproj-dev',
+    'libopencv':  'libopencv-dev',
+    'libxml2':    'libxml2-dev',
+    'libxslt':    'libxslt-dev',
+    'postgresql': 'libpq-dev',
+    'hdf5':       'libhdf5-dev',
+    'netcdf4':    'libnetcdf-dev',
+    'portaudio':  'portaudio19-dev',
+}
+_SYSTEM_LIB_BREW = {
+    'gdal': 'gdal', 'geos': 'geos', 'proj': 'proj',
+    'libopencv': 'opencv', 'postgresql': 'postgresql',
+    'hdf5': 'hdf5', 'netcdf4': 'netcdf', 'portaudio': 'portaudio',
+}
+
+
+def detect_CX_system_dependencies(repo_dir, all_files):
+    """Failure Mode CX: Python packages that require system C/C++ libraries."""
+    findings = []
+    import re as _re
+    # Collect all package names from requirements files
+    req_files = [f for f in all_files
+                 if _re.match(r'requirements.*\.txt$', f.name.lower())]
+    env_files = [f for f in all_files
+                 if f.name.lower() in {'environment.yml', 'environment.yaml'}]
+    if not req_files and not env_files:
+        return findings
+    pkgs_found = set()
+    for rf in req_files:
+        try:
+            for line in rf.read_text(encoding='utf-8', errors='ignore').splitlines():
+                line = line.strip().lower()
+                if not line or line.startswith('#'):
+                    continue
+                pkg = _re.split(r'[>=<!\[; ]', line)[0].strip()
+                if pkg:
+                    pkgs_found.add(pkg)
+        except Exception:
+            pass
+    for ef in env_files:
+        try:
+            for line in ef.read_text(encoding='utf-8', errors='ignore').splitlines():
+                s = line.strip().lstrip('- ').lower()
+                pkg = _re.split(r'[>=<!\[; =]', s)[0].strip()
+                if pkg and not pkg.startswith('#'):
+                    pkgs_found.add(pkg)
+        except Exception:
+            pass
+    # Check which found packages need system libs
+    triggered = {}
+    for pkg in pkgs_found:
+        if pkg in _SYSTEM_DEP_PACKAGES:
+            for lib in _SYSTEM_DEP_PACKAGES[pkg]:
+                triggered.setdefault(lib, set()).add(pkg)
+    if not triggered:
+        return findings
+    # Build fix instructions
+    apt_pkgs = [_SYSTEM_LIB_APT[lib] for lib in sorted(triggered) if lib in _SYSTEM_LIB_APT]
+    brew_pkgs = [_SYSTEM_LIB_BREW[lib] for lib in sorted(triggered) if lib in _SYSTEM_LIB_BREW]
+    py_pkgs = sorted({p for ps in triggered.values() for p in ps})
+    details = [
+        f'Packages requiring system libraries: {', '.join(py_pkgs)}',
+        f'System libraries needed: {', '.join(sorted(triggered.keys()))}',
+    ]
+    if apt_pkgs:
+        details.append('Ubuntu/Debian: sudo apt-get install ' + ' '.join(apt_pkgs))
+    if brew_pkgs:
+        details.append('macOS: brew install ' + ' '.join(set(brew_pkgs)))
+    details += [
+        'Recommended: use conda instead of pip for these packages:',
+        '  conda install -c conda-forge ' + ' '.join(py_pkgs),
+        'Fix: document system library requirements in README before pip install step',
+    ]
+    findings.append(finding(
+        'CX', 'SIGNIFICANT',
+        f'System-level C/C++ libraries required for {', '.join(py_pkgs)}',
+        'One or more Python packages require system-level C/C++ libraries that '
+        'cannot be installed via pip alone. On a clean machine, pip install will '
+        'fail with a cryptic compilation error unless these system libraries are '
+        'installed first. This must be documented in the README.',
+        details
+    ))
+    return findings
 
 
 def detect_CW_reticulate_coupling(repo_dir, all_files):
