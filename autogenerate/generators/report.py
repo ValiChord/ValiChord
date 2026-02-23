@@ -265,9 +265,11 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
               'especially the study overview and definition of '
               'successful reproduction.',
         'B':  'Add exact version numbers to all packages marked '
-              'UNKNOWN in requirements_DRAFT.txt. For Python: run '
-              '`pip freeze` in your original environment. For R: run '
-              '`installed.packages()` or `sessionInfo()` in R.',
+              'UNKNOWN in requirements_DRAFT.txt. '
+              'For Python: run `pip freeze` in your original environment. '
+              'For R: run `installed.packages()` or `sessionInfo()` in R. '
+              'For Julia: run `Pkg.status()` in your original environment, '
+              'or commit your Manifest.toml.',
         'C':  'Review corrected path files in /proposed_corrections/ '
               'and verify each relative path is correct before '
               'applying.',

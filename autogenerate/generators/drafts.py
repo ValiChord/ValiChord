@@ -230,12 +230,17 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
                 pkg_list = ', '.join(f'\"{p}\"' for p in jl_pkgs)
                 return [
                     '# 1. Clone or download this repository',
-                    '# 2. Install required Julia packages',
-                    f'julia -e \'using Pkg; Pkg.add([{pkg_list}])\'',
+                    '# 2. Create Project.toml and Manifest.toml (recommended):',
+                    f'#    julia --project=. -e \'using Pkg; Pkg.add([{pkg_list}]); Pkg.resolve()\'',
+                    '#    Then commit Project.toml and Manifest.toml',
+                    '# Or to install without pinning (not recommended for reproducibility):',
+                    f'#    julia -e \'using Pkg; Pkg.add([{pkg_list}])\'',
                 ]
             return [
                 '# 1. Clone or download this repository',
-                '# 2. Install required Julia packages manually using Pkg.add()',
+            return ['2. Create Project.toml and Manifest.toml to pin package versions.',
+                    '   Run: julia --project=. -e \'using Pkg; Pkg.add(["PackageName"]); Pkg.resolve()\'',
+                    '   Then commit Project.toml and Manifest.toml']
             ]
     if '.r' in suffixes or '.rmd' in suffixes:
         has_python = '.py' in suffixes
@@ -915,6 +920,9 @@ def _generate_requirements_draft(repo_dir, all_files,
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
         lines += [
             '# Julia repository detected.',
+            '# NOTE: Julia uses Project.toml + Manifest.toml for version pinning,',
+            '# not requirements.txt. Packages below are for reference only.',
+            '# Fix: julia --project=. -e "using Pkg; Pkg.add([...]); Pkg.resolve()" then commit Project.toml + Manifest.toml.',
             '# Dependencies are managed by Project.toml and Manifest.toml.',
             '# No requirements_DRAFT.txt needed.',
             '# To install: julia --project=. -e "using Pkg; Pkg.instantiate()"',
@@ -1122,6 +1130,17 @@ def _quickstart_step2(all_files, code_files):
             return ['2. Dependencies managed by `Project.toml` — run '
                     '`julia --project=. -e "using Pkg; Pkg.instantiate()"`']
         else:
+            # No Project.toml — check for runtime Pkg.add() anti-pattern
+            import re as _rejl
+            _has_pkg_add = any(
+                _rejl.search(r'Pkg\.add\s*\(', f.read_text(encoding='utf-8', errors='ignore'))
+                for f in all_files if f.suffix.lower() == '.jl'
+            )
+            if _has_pkg_add:
+                return ['2. Create Project.toml and Manifest.toml to lock package versions:',
+                        '   julia --project=. -e "using Pkg; Pkg.add([\"Optim\", ...]); Pkg.resolve()"',
+                        '   Then commit both Project.toml and Manifest.toml',
+                        '   (see [CQ] finding — runtime Pkg.add() does not pin versions)']
             # No Project.toml — manually install detected packages
             jl_pkgs = sorted({
                 pkg for f in all_files if f.suffix.lower() == '.jl'

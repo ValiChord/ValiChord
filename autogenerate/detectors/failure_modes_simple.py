@@ -698,6 +698,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CO_matlab_undocumented_functions(repo_dir, all_files)
     print("  [CP] Python 2 syntax check...")
     all_findings += detect_CP_python2_syntax(repo_dir, all_files)
+    print("  [CQ] Julia Pkg.add() at runtime check...")
+    all_findings += detect_CQ_julia_pkg_add_at_runtime(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3185,6 +3187,43 @@ def detect_CR_crlf_line_endings(repo_dir, all_files):
 
 
 
+
+
+def detect_CQ_julia_pkg_add_at_runtime(repo_dir, all_files):
+    """Failure Mode CQ: Julia script calls Pkg.add() at runtime with no Project.toml."""
+    findings = []
+    jl_files = [f for f in all_files if f.suffix.lower() == '.jl']
+    if not jl_files:
+        return findings
+    names = {f.name.lower() for f in all_files}
+    if 'project.toml' in names:
+        return findings  # Project.toml exists — BY handles missing Manifest
+    pkg_add_pat = re.compile(r'Pkg\.add\s*\(', re.IGNORECASE)
+    affected = []
+    pkgs_found = []
+    for f in jl_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            if pkg_add_pat.search(src):
+                affected.append(f.name)
+                for m in re.finditer(r'Pkg\.add\s*\(\s*["\'](\w+)["\'\)]', src):
+                    pkgs_found.append(m.group(1))
+        except Exception:
+            pass
+    if affected:
+        findings.append(finding(
+            'CQ', 'SIGNIFICANT',
+            f'Julia script installs packages at runtime via Pkg.add() with no Project.toml',
+            'Pkg.add() without a Project.toml/Manifest.toml installs the latest package '
+            'versions at the time of execution. Results cannot be reproduced if package '
+            'versions change. The correct approach is to commit a Project.toml and '
+            'Manifest.toml that lock exact versions.',
+            [f'File: {", ".join(affected)} — Pkg.add() called at runtime'] +
+            ([f'Packages: {", ".join(pkgs_found[:8])}'] if pkgs_found else []) +
+            ['Fix: run `julia --project=. -e "using Pkg; Pkg.add([...]); Pkg.resolve()"` '
+             'then commit Project.toml and Manifest.toml']
+        ))
+    return findings
 
 def detect_CP_python2_syntax(repo_dir, all_files):
     """Failure Mode CP: Python 2 syntax in Python 3 repository."""
