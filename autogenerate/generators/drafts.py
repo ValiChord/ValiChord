@@ -1250,9 +1250,7 @@ def _quickstart_step2(all_files, code_files):
                     '   NOTE: A committed model binary (.pkl) is present — see [CS] finding.',
                     '   Pickle files are version-specific; ensure your Python/library versions',
                     '   match those used to train the model, or retrain from scratch.']
-        return ['2. Install dependencies: `pip install -r requirements.txt`',
-                '   (requirements.txt has pinned versions — no changes needed — '
-                '   but resolve any execution order issues before running)']
+        return ['2. Install dependencies: `pip install -r requirements.txt`']
     if '.m' in suffixes:
         import re as _rem2
         _tbs = []

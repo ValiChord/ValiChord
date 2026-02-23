@@ -306,6 +306,18 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
     added = False
 
     for mode, action in action_map.items():
+        if mode == 'BM':
+            if any(f['mode'] == 'BM' and f.get('severity') == 'SIGNIFICANT' for f in findings):
+                lines += ['- **[BM]** Complete the missing required field(s) in '
+                          'CITATION.cff (e.g. date-released). '
+                          'See https://citation-file-format.github.io/ for the full spec.', '']
+                added = True
+            elif 'BM' in modes_found:
+                lines += ['- **[BM]** Add a CITATION.cff file to make your repository '
+                          'citable. See https://citation-file-format.github.io/ '
+                          'for the required fields and format.', '']
+                added = True
+            continue
         if mode in modes_found:
             lines += [f'- **[{mode}]** {action}', '']
             added = True
