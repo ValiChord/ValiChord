@@ -851,15 +851,19 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         '.xml', '.db', '.sqlite'
     }
 
-    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
 
     def _is_model_artifact(f):
-        if f.suffix.lower() not in {'.pkl', '.pickle'}:
-            return False
+        _model_dirs = {'models', 'model', 'checkpoints', 'saved_model'}
         name_lower = f.name.lower()
-        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        ext = f.suffix.lower()
+        in_model_dir = any(part.lower() in _model_dirs for part in f.parts)
         has_model_name = any(ind in name_lower for ind in _model_name_indicators)
-        return has_model_name or in_model_dir
+        if ext in {'.pkl', '.pickle', '.pt', '.pth', '.onnx', '.safetensors', '.bin'}:
+            return has_model_name or in_model_dir
+        if ext == '.json':
+            return has_model_name or in_model_dir
+        return False
 
     data_files = [
         f for f in all_files
@@ -1943,15 +1947,19 @@ def detect_Y_data_source_missing(repo_dir, all_files):
         '.dta', '.sav', '.rds', '.rdata'
     }
 
-    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights'}
+    _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
 
     def _is_model_artifact(f):
-        if f.suffix.lower() not in {'.pkl', '.pickle'}:
-            return False
+        _model_dirs = {'models', 'model', 'checkpoints', 'saved_model'}
         name_lower = f.name.lower()
-        in_model_dir = any(part.lower() in {'models', 'model', 'checkpoints'} for part in f.parts)
+        ext = f.suffix.lower()
+        in_model_dir = any(part.lower() in _model_dirs for part in f.parts)
         has_model_name = any(ind in name_lower for ind in _model_name_indicators)
-        return has_model_name or in_model_dir
+        if ext in {'.pkl', '.pickle', '.pt', '.pth', '.onnx', '.safetensors', '.bin'}:
+            return has_model_name or in_model_dir
+        if ext == '.json':
+            return has_model_name or in_model_dir
+        return False
 
     data_files = [
         f for f in all_files
