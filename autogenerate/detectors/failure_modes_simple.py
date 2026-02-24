@@ -79,13 +79,35 @@ def detect_A_no_readme(repo_dir, all_files):
 
     root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2]
     if not root_readme:
-        findings.append(finding(
-            'A', 'CRITICAL',
-            'No README file found',
-            'Every research repository requires a README. '
-            'README_DRAFT.md will be generated.',
-            ['No README.md, README.txt, or README.rst found in repository']
-        ))
+        # Check for same-named .txt files alongside data files
+        # (e.g. GDP_FDI_Dataset.txt next to GDP_FDI_Dataset.csv)
+        # These may serve as data descriptions rather than a proper README
+        data_names = {f.stem.lower() for f in all_files
+                      if f.suffix.lower() in DATA_EXTENSIONS}
+        companion_txt = [f for f in all_files
+                         if f.suffix.lower() == '.txt'
+                         and f.stem.lower() in data_names
+                         and len(f.relative_to(repo_dir).parts) <= 3]
+        if companion_txt:
+            findings.append(finding(
+                'A', 'SIGNIFICANT',
+                'No README file found — a text file may serve as documentation',
+                'No file named README.md, README.txt, or README.rst was found. '
+                'A text file with the same name as your data files was detected '
+                '— if this describes your dataset, rename it to README.md and '
+                'ensure it covers all required sections. README_DRAFT.md will '
+                'be generated as a template.',
+                [f'Text file found: {f.name} — verify whether this is your README'
+                 for f in companion_txt]
+            ))
+        else:
+            findings.append(finding(
+                'A', 'CRITICAL',
+                'No README file found',
+                'Every research repository requires a README. '
+                'README_DRAFT.md will be generated.',
+                ['No README.md, README.txt, or README.rst found in repository']
+            ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
@@ -929,6 +951,15 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         any(ind in name for ind in doc_indicators)
         for name in all_names_lower + all_stems_lower
     )
+    # Also treat same-named .txt files as potential data documentation
+    # e.g. GDP_FDI_Dataset.txt alongside GDP_FDI_Dataset.csv
+    if not has_data_doc:
+        data_stems = {f.stem.lower() for f in data_files}
+        companion_txt = [f for f in all_files
+                         if f.suffix.lower() == '.txt'
+                         and f.stem.lower() in data_stems]
+        if companion_txt:
+            has_data_doc = True
 
     readme_mentions_data = False
     for f in all_files:
