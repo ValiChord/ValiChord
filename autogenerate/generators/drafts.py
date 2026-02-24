@@ -1500,9 +1500,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
               if any(isinstance(f, dict) and f.get('mode') == 'CV'
                      for f in findings)
               else []),
-            *(['WARNING: System libraries required — see [CX] finding for install instructions.']
-               'System libraries required — see [CX] finding for affected packages and apt-get / brew / conda install instructions.']
-               'See [CX] finding for apt-get / brew / conda install instructions.']
+            *(['WARNING: System libraries required before pip install — see [CX] finding for install instructions.']
               if any(isinstance(f, dict) and f.get('mode') == 'CX'
                      for f in findings)
               else []),
