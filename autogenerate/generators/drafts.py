@@ -353,8 +353,8 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         ]
     # default Python
     _has_df = any(isinstance(f, dict) and f.get('mode') == 'DF' for f in findings)
-   _has_l = any(isinstance(f, dict) and f.get('mode') == 'L' for f in findings)
-   return [
+    _has_l = any(isinstance(f, dict) and f.get('mode') == 'L' for f in findings)
+    return [
         *(['# 0. Download required data',
            '# [YOU MUST COMPLETE — add wget/curl or manual download instructions]',
            '# Example: wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
