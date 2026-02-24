@@ -1445,6 +1445,76 @@ def _generate_quickstart_draft(repo_dir, all_files,
     if readme_order and not numbered:
         numbered = [(i+1, f) for i, f in enumerate(readme_order)]
 
+    # Shiny app — generate dedicated interactive-app QUICKSTART
+    import re as _reshiny
+    _shiny_names = {'server.r', 'ui.r', 'app.r'}
+    _all_names_lower = {f.name.lower() for f in all_files}
+    _is_shiny_repo = (
+        any(n in _all_names_lower for n in _shiny_names) or
+        any(
+            f.suffix.lower() in {'.r', '.rmd'} and
+            _reshiny.search(
+                r'library\s*\(\s*shiny\s*\)|shiny::runApp|shinyApp\s*\(',
+                f.read_text(encoding='utf-8', errors='ignore')
+            )
+            for f in all_files
+        )
+    )
+    if _is_shiny_repo:
+        _all_names = {f.name.lower() for f in all_files}
+        _has_renv = 'renv.lock' in _all_names
+        _app_parents = [
+            f.parent for f in all_files
+            if f.name.lower() in {'server.r', 'ui.r'}
+            and f.parent != repo_dir
+        ]
+        _app_dir = (
+            "'" + str(_app_parents[0].relative_to(repo_dir)).replace('\\', '/') + "'"
+            if _app_parents else '.'
+        )
+        shiny_lines = [
+            '# ValiChord Repository Readiness Check — Quick Start',
+            '',
+            '> ⚠️ **This repository contains a Shiny web application.**',
+            '> **Do NOT run `server.R` or `ui.R` directly.**',
+            '> Reproduction requires launching the app and interacting with the UI.',
+            '',
+            '---',
+            '',
+            '## Launching the Shiny App',
+            '',
+        ]
+        step = 1
+        _readme_exists = any(
+            f.name.lower() in {'readme.md', 'readme.txt'} and
+            len(f.read_text(encoding='utf-8', errors='ignore').strip()) > 500
+            for f in all_files
+        )
+        if not _readme_exists:
+            shiny_lines.append(f'{step}. Complete `README_DRAFT.md` and rename to `README.md`')
+            step += 1
+        if _has_renv:
+            shiny_lines.append(f'{step}. Restore R environment: `Rscript -e "renv::restore()"`')
+            step += 1
+        else:
+            shiny_lines.append(f'{step}. Install R dependencies: `Rscript -e "install.packages(c(\'shiny\', ...))"` (see README_DRAFT)')
+            step += 1
+        shiny_lines += [
+            f'{step}. Launch the app: `Rscript -e "shiny::runApp(' + _app_dir + ')"` ',
+            f'{step+1}. Open browser at `http://127.0.0.1:PORT` (port shown in console output)',
+            f'{step+2}. See **[DB] finding** for required interaction instructions and expected outputs',
+            '',
+            '---',
+            '',
+            '> ⚠️ **IMPORTANT**: No output files are generated automatically.',
+            '> Reproduction requires manual interaction with the UI and visual verification',
+            '> of charts and tables against published figures.',
+        ]
+        shiny_content = '\n'.join(shiny_lines) + '\n'
+        output_file = output_dir / 'QUICKSTART_DRAFT.md'
+        output_file.write_text(shiny_content, encoding='utf-8')
+        return output_file
+
     lines = [
         '# ValiChord Repository Readiness Check — Quick Start',
         '',
