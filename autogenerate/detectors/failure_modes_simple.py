@@ -722,6 +722,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CZ_eol_docker_base_image(repo_dir, all_files)
     print("  [DA] NLP model not in Dockerfile check...")
     all_findings += detect_DA_nlp_model_not_in_dockerfile(repo_dir, all_files)
+    print("  [DB] Shiny app interactive verification check...")
+    all_findings += detect_DB_shiny_app(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3286,6 +3288,84 @@ _EOL_PYTHON_VERSIONS = {
 }
 _CURRENT_PYTHON = '3.12'
 
+
+
+
+def detect_DB_shiny_app(repo_dir, all_files):
+    """Failure Mode DB: Repository is a Shiny app — needs interactive verification docs."""
+    findings = []
+    import re as _re
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    if not r_files:
+        return findings
+    shiny_pat = _re.compile(
+        r'shiny::(runApp|fluidPage|navbarPage|tabPanel|renderPlot|renderTable|renderText'
+        r'|reactive|observeEvent|eventReactive|shinyApp|shinyUI|shinyServer)'
+        r'|library\s*\(\s*shiny\s*\)',
+        _re.IGNORECASE
+    )
+    runapp_pat = _re.compile(r'shiny::runApp|runApp\s*\(', _re.IGNORECASE)
+    shiny_files = []
+    has_runapp = False
+    for f in r_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            if shiny_pat.search(src):
+                shiny_files.append(f.name)
+            if runapp_pat.search(src):
+                has_runapp = True
+        except Exception:
+            pass
+    # Also detect by canonical Shiny file names
+    shiny_names = {'app.r', 'server.r', 'ui.r', 'app.R', 'server.R', 'ui.R'}
+    has_shiny_files = any(f.name in shiny_names for f in all_files)
+    if not shiny_files and not has_shiny_files:
+        return findings
+    # Check for interactive verification docs in README
+    has_interaction_docs = False
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore').lower()
+                if any(term in src for term in
+                       ['interact', 'select', 'expected output', 'screenshot',
+                        'step-by-step', 'verify', 'ui control']):
+                    has_interaction_docs = True
+            except Exception:
+                pass
+    # Determine app directory
+    app_dirs = [f.parent for f in all_files
+                if f.name.lower() in {'server.r', 'ui.r'} and
+                f.parent != repo_dir]
+    app_dir_str = (
+        "'" + str(app_dirs[0].relative_to(repo_dir)).replace('\\', '/') + "'"
+        if app_dirs else '.'
+    )
+    details = [
+        f'Shiny files detected: {', '.join(shiny_files[:4]) if shiny_files else ', '.join(shiny_names & {f.name for f in all_files})}',
+        'shiny::runApp() launches a web server — no output files are generated',
+        'Validators must interact with the UI and visually verify outputs',
+    ]
+    if not has_interaction_docs:
+        details.append('README contains no interaction instructions or expected output descriptions')
+    details += [
+        'Fix: README must include:',
+        '  (1) Launch command: Rscript -e "shiny::runApp(' + app_dir_str + ')"',
+        '  (2) Step-by-step UI interaction instructions for each figure/table',
+        '  (3) Expected values for specific input combinations',
+        '  (4) Screenshots or descriptions of expected UI state',
+    ]
+    findings.append(finding(
+        'DB', 'SIGNIFICANT',
+        'Repository is a Shiny web application — interactive verification required',
+        'This repository contains a Shiny app. Reproduction requires launching '
+        'the app, interacting with UI controls, and manually verifying that charts '
+        'and tables match published figures. No automated file comparison is possible. '
+        'Without detailed interaction instructions in the README, validators cannot '
+        'assess reproducibility.',
+        details
+    ))
+    return findings
 
 
 def detect_DA_nlp_model_not_in_dockerfile(repo_dir, all_files):
