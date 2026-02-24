@@ -724,6 +724,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DA_nlp_model_not_in_dockerfile(repo_dir, all_files)
     print("  [DB] Shiny app interactive verification check...")
     all_findings += detect_DB_shiny_app(repo_dir, all_files)
+    print("  [DC] Monorepo independent sub-projects check...")
+    all_findings += detect_DC_monorepo_independent_subprojects(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3331,6 +3333,96 @@ _CURRENT_PYTHON = '3.12'
 
 
 
+
+def detect_DC_monorepo_independent_subprojects(repo_dir, all_files):
+    """Failure Mode DC: Repo contains multiple independent sub-projects presented as a pipeline."""
+    findings = []
+    import re as _re
+    # Look for sub-directories that each contain independent entry points
+    # Signal: top-level subdirs each containing code + their own dep file
+    subdirs = {}
+    for f in all_files:
+        try:
+            rel = f.relative_to(repo_dir)
+            parts = rel.parts
+            if len(parts) >= 2:
+                subdir = parts[0]
+                subdirs.setdefault(subdir, []).append(f)
+        except Exception:
+            pass
+    # A sub-project must have: code files + its own dep file or README
+    dep_files = {'requirements.txt', 'environment.yml', 'renv.lock',
+                 'pyproject.toml', 'pipfile', 'setup.py', 'project.toml'}
+    subprojects = []
+    for subdir, files in subdirs.items():
+        fnames = {f.name.lower() for f in files}
+        suffixes = {f.suffix.lower() for f in files}
+        has_code = bool(suffixes & {'.py', '.r', '.rmd', '.jl', '.m', '.do'})
+        has_deps = bool(fnames & dep_files)
+        has_readme = bool(fnames & {'readme.md', 'readme.txt', 'readme.rst'})
+        if has_code and (has_deps or has_readme):
+            langs = []
+            if '.py' in suffixes: langs.append('Python')
+            if suffixes & {'.r', '.rmd'}: langs.append('R')
+            if '.jl' in suffixes: langs.append('Julia')
+            if '.m' in suffixes: langs.append('MATLAB')
+            if '.do' in suffixes: langs.append('Stata')
+            entry = next(
+                (f.name for f in files
+                 if f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}
+                 and _re.match(r'^(main|run|analyse|analyze|model|pipeline|app)',
+                              f.name.lower())),
+                next((f.name for f in files
+                      if f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}),
+                     None)
+            )
+            subprojects.append({
+                'dir': subdir,
+                'langs': langs,
+                'entry': entry,
+                'has_deps': has_deps,
+            })
+    if len(subprojects) < 2:
+        return findings
+    # Check if root README introduces the sub-projects
+    root_readme_ok = False
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt'} and f.parent == repo_dir:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore').lower()
+                if all(sp['dir'].lower() in src for sp in subprojects):
+                    root_readme_ok = True
+            except Exception:
+                pass
+    details = [
+        f'{len(subprojects)} independent sub-projects detected:',
+    ]
+    for sp in subprojects:
+        lang_str = '/'.join(sp['langs']) if sp['langs'] else 'unknown'
+        entry_str = f' (entry: {sp["entry"]})' if sp['entry'] else ''
+        details.append(f'  {sp["dir"]}/: {lang_str}{entry_str}')
+    details += [
+        'These are independent pipelines — they do NOT need to run in sequence',
+        'Each sub-project has its own dependencies and data',
+    ]
+    if not root_readme_ok:
+        details.append('Root README does not clearly introduce all sub-projects')
+    details.append(
+        'Fix: root README must explain each sub-project and how to run each independently'
+    )
+    findings.append(finding(
+        'DC', 'SIGNIFICANT',
+        f'Monorepo: {len(subprojects)} independent sub-projects in one repository',
+        'The repository contains multiple independent sub-projects in separate '
+        'subdirectories. These are not sequential pipeline steps — each has its own '
+        'language, dependencies, and data. Presenting them as a sequence in QUICKSTART '
+        'will confuse validators. The root README must clearly explain each '
+        'sub-project and provide separate run instructions for each.',
+        details
+    ))
+    return findings
+
+
 def detect_DB_shiny_app(repo_dir, all_files):
     """Failure Mode DB: Repository is a Shiny app — needs interactive verification docs."""
     findings = []
@@ -4233,7 +4325,7 @@ def detect_CK_conflicting_readmes(repo_dir, all_files):
         evidence += conflicts[:4]
         if draft_files:
             evidence.append('Note: ' + ', '.join(draft_files) + ' marked as DRAFT or outdated')
-        evidence.append('Fix: consolidate into a single README.md at repository root')
+        evidence.append('Fix: if this is a monorepo, ensure root README clearly links to each sub-project README; otherwise consolidate into a single README.md')
         findings.append(finding(
             'CK', 'SIGNIFICANT',
             f'Multiple README files found ({len(readme_files)}) — instructions may conflict',

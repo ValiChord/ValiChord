@@ -1449,6 +1449,81 @@ def _generate_quickstart_draft(repo_dir, all_files,
     import re as _reshiny
     _shiny_names = {'server.r', 'ui.r', 'app.r'}
     _all_names_lower = {f.name.lower() for f in all_files}
+    # Monorepo — detect independent sub-projects and generate per-project sections
+    import re as _remono
+    _dep_files_mono = {'requirements.txt', 'environment.yml', 'renv.lock',
+                       'pyproject.toml', 'pipfile', 'setup.py'}
+    _subdirs_mono = {}
+    for _f in all_files:
+        try:
+            _rel = _f.relative_to(repo_dir)
+            if len(_rel.parts) >= 2:
+                _subdirs_mono.setdefault(_rel.parts[0], []).append(_f)
+        except Exception:
+            pass
+    _subprojects_mono = []
+    for _sd, _sfiles in _subdirs_mono.items():
+        _sfnames = {_f.name.lower() for _f in _sfiles}
+        _ssuffixes = {_f.suffix.lower() for _f in _sfiles}
+        if (_ssuffixes & {'.py', '.r', '.rmd', '.jl', '.m', '.do'}) and \
+           (_sfnames & _dep_files_mono or _sfnames & {'readme.md', 'readme.txt'}):
+            _subprojects_mono.append((_sd, _sfiles, _ssuffixes, _sfnames))
+    _is_monorepo = len(_subprojects_mono) >= 2
+    if _is_monorepo:
+        mono_lines = [
+            '# ValiChord Repository Readiness Check — Quick Start',
+            '',
+            '> ⚠️ **MONOREPO DETECTED** — This repository contains multiple independent',
+            '> sub-projects. Run each sub-project independently — they are NOT sequential.',
+            '',
+            '---',
+            '',
+        ]
+        for _sd, _sfiles, _ssuffixes, _sfnames in _subprojects_mono:
+            _has_renv = 'renv.lock' in _sfnames
+            _has_req = 'requirements.txt' in _sfnames
+            _has_env = 'environment.yml' in _sfnames or 'environment.yaml' in _sfnames
+            _is_r = bool(_ssuffixes & {'.r', '.rmd'})
+            _is_py = '.py' in _ssuffixes
+            # Find entry point
+            _entry = next(
+                (_f.name for _f in _sfiles
+                 if _f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}
+                 and _remono.match(r'^(main|run|analyse|analyze|model|pipeline|app)',
+                                   _f.name.lower())),
+                next((_f.name for _f in _sfiles
+                      if _f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}),
+                     None)
+            )
+            _lang = 'Python' if _is_py else ('R' if _is_r else 'unknown')
+            mono_lines += [
+                f'## Sub-project: {_sd}/ ({_lang})',
+                '',
+                f'1. `cd {_sd}/`',
+            ]
+            step = 2
+            if _has_env:
+                mono_lines.append(f'{step}. `conda env create -f environment.yml && conda activate ...`')
+                step += 1
+            elif _has_renv:
+                mono_lines.append(f'{step}. `Rscript -e "renv::restore()"`')
+                step += 1
+            elif _has_req:
+                mono_lines.append(f'{step}. `pip install -r requirements.txt`')
+                step += 1
+            if _entry:
+                if _is_py:
+                    mono_lines.append(f'{step}. `python {_entry}`')
+                elif _is_r:
+                    mono_lines.append(f'{step}. `Rscript {_entry}`')
+                else:
+                    mono_lines.append(f'{step}. Run `{_entry}`')
+            mono_lines.append('')
+        mono_content = '\n'.join(mono_lines) + '\n'
+        output_file = output_dir / 'QUICKSTART_DRAFT.md'
+        output_file.write_text(mono_content, encoding='utf-8')
+        return output_file
+
     _is_shiny_repo = (
         any(n in _all_names_lower for n in _shiny_names) or
         any(
