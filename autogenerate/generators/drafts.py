@@ -396,7 +396,11 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     # assess whether existing readme is adequate
     readme_adequate = False
     if existing_readme and len(existing_readme.strip()) > 500:
-        key_sections = ['installation', 'usage', 'data', 'run', 'reproduce', 'requirement']
+        key_sections = [
+            'installation', 'usage', 'data', 'run', 'reproduce',
+            'requirement', 'depend', 'import', 'abstract', 'author',
+            'method', 'result', 'how to', 'getting started', 'setup',
+        ]
         sections_found = sum(1 for s in key_sections if s in existing_readme.lower())
         if sections_found >= 2:
             readme_adequate = True
