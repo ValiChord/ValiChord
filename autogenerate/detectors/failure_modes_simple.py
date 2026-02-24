@@ -716,6 +716,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CW_reticulate_coupling(repo_dir, all_files)
     print("  [CX] System-level dependencies check...")
     all_findings += detect_CX_system_dependencies(repo_dir, all_files)
+    print("  [CY] Checksum not verified check...")
+    all_findings += detect_CY_checksum_not_verified(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3269,6 +3271,60 @@ _SYSTEM_LIB_BREW = {
     'libopencv': 'opencv', 'postgresql': 'postgresql',
     'hdf5': 'hdf5', 'netcdf4': 'netcdf', 'portaudio': 'portaudio',
 }
+
+
+
+def detect_CY_checksum_not_verified(repo_dir, all_files):
+    """Failure Mode CY: README documents a checksum but code never verifies it."""
+    findings = []
+    import re as _re
+    # Find checksum mentions in README
+    sha_pat = _re.compile(
+        r'(?:sha256|sha512|sha1|md5)[\s:=]+([0-9a-f]{32,128})',
+        _re.IGNORECASE
+    )
+    readme_checksums = []
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                for m in sha_pat.finditer(src):
+                    readme_checksums.append(m.group(0)[:60])
+            except Exception:
+                pass
+    if not readme_checksums:
+        return findings
+    # Check if any code file verifies checksums
+    verify_pat = _re.compile(
+        r'hashlib\.|sha256\(|sha512\(|md5\(|hexdigest\(|checksum',
+        _re.IGNORECASE
+    )
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    code_verifies = False
+    for f in code_files:
+        try:
+            if verify_pat.search(f.read_text(encoding='utf-8', errors='ignore')):
+                code_verifies = True
+                break
+        except Exception:
+            pass
+    if code_verifies:
+        return findings
+    findings.append(finding(
+        'CY', 'SIGNIFICANT',
+        'Data checksum documented in README but not verified in code',
+        'The README documents a checksum (SHA256/MD5) for a data file, '
+        'but no code file verifies it at runtime. A validator who downloads '
+        'a corrupted or wrong-version file will get silent wrong results. '
+        'Adding a runtime check takes three lines and prevents silent failure.',
+        [f'Checksum found in README: {readme_checksums[0]}',
+         'No hashlib / checksum verification found in any code file',
+         'Fix: add at the start of your analysis script:',
+         '  import hashlib',
+         '  with open("data/yourfile", "rb") as f:',
+         '      assert hashlib.sha256(f.read()).hexdigest() == "<hash>"']
+    ))
+    return findings
 
 
 def detect_CX_system_dependencies(repo_dir, all_files):

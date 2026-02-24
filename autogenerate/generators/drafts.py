@@ -1501,7 +1501,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
                      for f in findings)
               else []),
             *(['WARNING: System libraries required before pip install -- '
-               'packages such as geopandas/rasterio/fiona require GDAL, GEOS, PROJ. '
+               'System libraries required — see [CX] finding for affected packages and apt-get / brew / conda install instructions.']
                'See [CX] finding for apt-get / brew / conda install instructions.']
               if any(isinstance(f, dict) and f.get('mode') == 'CX'
                      for f in findings)
