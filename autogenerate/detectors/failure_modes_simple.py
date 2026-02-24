@@ -2668,8 +2668,22 @@ def detect_AL_data_privacy(repo_dir, all_files):
         if f.suffix.lower() in {'.csv', '.tsv', '.xlsx', '.xls'}
     ]
 
+    # Directory/filename patterns that indicate model outputs, not raw personal data
+    model_output_indicators = {
+        'coef', 'coefs', 'coefficient', 'coefficients',
+        'prediction', 'predictions', 'output', 'outputs',
+        'result', 'results', 'fitted', 'estimates'
+    }
+
     flagged = []
     for f in data_files:
+        # Skip files that are clearly model outputs not raw personal data
+        name_lower = f.stem.lower()
+        parent_lower = f.parent.name.lower()
+        if any(ind in name_lower for ind in model_output_indicators):
+            continue
+        if any(ind in parent_lower for ind in model_output_indicators):
+            continue
         content = read_file_safe(f)
         if sensitive_patterns.search(content[:2000]):
             flagged.append(f.name)

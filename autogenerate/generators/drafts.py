@@ -1672,7 +1672,10 @@ def _generate_quickstart_draft(repo_dir, all_files,
             'you must specify the correct execution order:',
             '',
         ]
+        notebook_extensions = NOTEBOOK_EXTENSIONS
         for f in sorted(code_files, key=lambda x: x.name):
+            if f.suffix.lower() in notebook_extensions:
+                continue  # notebooks listed separately below
             rel = f.relative_to(repo_dir)
             lines.append(f'- `{rel}`')
         # also list notebooks
@@ -1685,7 +1688,10 @@ def _generate_quickstart_draft(repo_dir, all_files,
                              f'see [J] finding. Do NOT run top-to-bottom until execution '
                              f'order is resolved and documented.')
             else:
-                lines.append(f'- `{rel}` (open in Jupyter and run all cells top to bottom)')
+                if f.suffix.lower() in {'.rmd', '.qmd'}:
+                    lines.append(f'- `{rel}` (open in RStudio and knit, or run via: Rscript -e \'rmarkdown::render("{rel}")\')')
+                else:
+                    lines.append(f'- `{rel}` (open in Jupyter and run all cells top to bottom)')
         lines.append('')
 
     lines += [
