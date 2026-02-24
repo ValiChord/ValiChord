@@ -1236,9 +1236,11 @@ def detect_P_preregistration(repo_dir, all_files):
 def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
     """Failure Mode V: No virtual environment specification."""
     findings = []
-    # suppress if [B] already fired — same issue at higher severity
-    if existing_findings and any(f.get('mode') == 'B' for f in existing_findings):
-        return findings
+    # Only suppress V if [B] fired for complete absence of deps (not just unpinning)
+    if existing_findings:
+        b_findings = [f for f in existing_findings if f.get('mode') == 'B']
+        if any('No dependency' in f.get('title', '') for f in b_findings):
+            return findings
 
     has_venv_spec = any(
         f.name.lower() in {
