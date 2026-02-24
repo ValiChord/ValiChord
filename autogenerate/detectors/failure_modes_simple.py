@@ -175,6 +175,16 @@ def detect_B_no_dependencies(repo_dir, all_files):
     if has_stata and has_ado_dir:
         has_dep_file = True  # ado/ directory is the Stata package bundle
 
+    # JS/HTML-only repos (web apps) have no pip/conda dependencies
+    _non_web_suffixes = {'.py', '.r', '.rmd', '.jl', '.do', '.ado',
+                         '.m', '.scala', '.java', '.cpp', '.c', '.rb'}
+    _web_suffixes = {'.js', '.html', '.css', '.ts'}
+    _code_suffixes = {f.suffix.lower() for f in all_files
+                      if f.suffix.lower() in CODE_EXTENSIONS}
+    _is_js_only = bool(_code_suffixes & _web_suffixes) and not bool(_code_suffixes & _non_web_suffixes)
+    if _is_js_only:
+        has_dep_file = True  # JS web apps have no pip/conda deps
+
     has_draft_only = "requirements_draft.txt" in names_lower and not has_dep_file
 
     # Check if README contains inline dependency instructions

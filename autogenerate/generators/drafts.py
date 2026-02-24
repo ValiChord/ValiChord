@@ -1528,6 +1528,12 @@ def _generate_quickstart_draft(repo_dir, all_files,
             _is_r = bool(_ssuffixes & {'.r', '.rmd'})
             _is_py = '.py' in _ssuffixes
             # Find entry point
+            _has_index_html = any(_f.name.lower() == 'index.html' for _f in _sfiles)
+            _has_js = any(_f.suffix.lower() == '.js' for _f in _sfiles)
+            _has_analysis_code = any(
+                _f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}
+                for _f in _sfiles
+            )
             _entry = next(
                 (_f.name for _f in _sfiles
                  if _f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}
@@ -1537,6 +1543,9 @@ def _generate_quickstart_draft(repo_dir, all_files,
                       if _f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'}),
                      None)
             )
+            if _has_index_html and _has_js and not _has_analysis_code:
+                _entry = 'index.html'
+                _lang = 'web'
             _lang = 'Python' if _is_py else ('R' if _is_r else 'unknown')
             mono_lines += [
                 f'## Sub-project: {_sd}/ ({_lang})',
