@@ -1643,7 +1643,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
     if numbered:
         lines += [
             '## Inferred Execution Order',
-            '(from numbered script filenames)',
+            '(from numbered script filenames)' if _numbered_from_filenames else '(from README run commands)',
             '',
         ]
         for num, f in numbered:
