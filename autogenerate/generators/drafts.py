@@ -1390,7 +1390,24 @@ def _install_instructions(code_files, all_files=None):
         import re as _re3r
         if any(_re3r.match(r'install.*\.r$', fn) for fn in _names):
             return lines  # step 2 already has Rscript install_deps.R
-        lines.append('3. Install R dependencies: `Rscript -e "renv::restore()"`')
+        # No renv.lock — renv::restore() would fail; suggest install.packages instead
+        _r_pkgs = []
+        import re as _re3r2
+        for _f in (all_files or []):
+            if _re3r2.match(r'requirements.*\.txt$', _f.name.lower()):
+                try:
+                    for _line in _f.read_text(encoding='utf-8', errors='ignore').splitlines():
+                        _pkg = _re3r2.split(r'[>=<!\[; ]', _line.strip())[0].strip()
+                        if _pkg and not _pkg.startswith('#'): _r_pkgs.append(_pkg)
+                except Exception: pass
+        if _r_pkgs:
+            _pkg_str = ', '.join(f"'{p}'" for p in _r_pkgs[:6])
+            lines.append('3. Install R dependencies: '
+                         f'`Rscript -e "install.packages(c({_pkg_str}))"` '
+                         '(no renv.lock — see [AO] finding to create one)')
+        else:
+            lines.append('3. Install R dependencies (no renv.lock present — '
+                         'see [AO] finding): `Rscript -e "renv::init(); renv::snapshot()"`')
     if '.do' in suffixes or '.ado' in suffixes:
         lines.append('3. Open Stata and run the master do-file listed above')
     if '.m' in suffixes:

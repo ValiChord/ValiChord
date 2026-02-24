@@ -91,7 +91,7 @@ def detect_A_no_readme(repo_dir, all_files):
         for f in all_files:
             if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
                 content = read_file_safe(f)
-                if len(content.strip()) < 200:
+                if len(content.strip()) < 300:
                     findings.append(finding(
                         'A', 'SIGNIFICANT',
                         'README is present but appears inadequate',
