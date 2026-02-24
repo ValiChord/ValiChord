@@ -2168,7 +2168,7 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
 
     parallel_patterns = re.compile(
         r'(multiprocessing|concurrent\.futures|joblib|dask'
-        r'|ray\.|\bPool\b|ProcessPool|ThreadPool'
+        r'|ray\.|(?<![Mm]ax)(?<![Aa]vg)(?<![Mm]in)\bPool\b|ProcessPool|ThreadPool'
         r'|n_jobs\s*=|parallel\s*=\s*True'
         r'|mp\.Pool|futures\.ProcessPoolExecutor'
         r'|DataLoader[^)]*num_workers\s*=\s*[1-9])',
