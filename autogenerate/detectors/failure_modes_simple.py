@@ -2084,7 +2084,9 @@ def detect_Y_data_source_missing(repo_dir, all_files):
 
     data_extensions = {
         '.csv', '.tsv', '.xlsx', '.xls', '.parquet',
-        '.dta', '.sav', '.rds', '.rdata'
+        '.dta', '.sav', '.rds', '.rdata',
+        '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc',
+        '.feather', '.arrow', '.dif'
     }
 
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
@@ -2953,7 +2955,7 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
-    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.parquet', '.xlsx', '.dta'}]
+    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.tsv', '.parquet', '.xlsx', '.xls', '.dta', '.sav', '.rds', '.rdata', '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc', '.feather', '.arrow', '.dif'}]
     if len(data_files) < 2:
         return findings
     has_checksums = any(
