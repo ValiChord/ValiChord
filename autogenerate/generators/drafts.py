@@ -1461,6 +1461,17 @@ def _generate_quickstart_draft(repo_dir, all_files,
                 _subdirs_mono.setdefault(_rel.parts[0], []).append(_f)
         except Exception:
             pass
+    # Peel single common top-level wrapper (e.g. zip extracts as monorepo/paper1/...)
+    if len(_subdirs_mono) == 1:
+        _wrapper_files = list(_subdirs_mono.values())[0]
+        _subdirs_mono = {}
+        for _f in _wrapper_files:
+            try:
+                _rel = _f.relative_to(repo_dir)
+                if len(_rel.parts) >= 3:
+                    _subdirs_mono.setdefault(_rel.parts[1], []).append(_f)
+            except Exception:
+                pass
     _subprojects_mono = []
     for _sd, _sfiles in _subdirs_mono.items():
         _sfnames = {_f.name.lower() for _f in _sfiles}

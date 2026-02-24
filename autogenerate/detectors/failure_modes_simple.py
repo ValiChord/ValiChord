@@ -3350,6 +3350,20 @@ def detect_DC_monorepo_independent_subprojects(repo_dir, all_files):
                 subdirs.setdefault(subdir, []).append(f)
         except Exception:
             pass
+    # Peel single common top-level wrapper (e.g. zip extracts as monorepo/paper1/...)
+    if len(subdirs) == 1:
+        wrapper = list(subdirs.keys())[0]
+        wrapper_files = subdirs[wrapper]
+        subdirs = {}
+        for f in wrapper_files:
+            try:
+                rel = f.relative_to(repo_dir)
+                parts = rel.parts
+                if len(parts) >= 3:
+                    subdir = parts[1]
+                    subdirs.setdefault(subdir, []).append(f)
+            except Exception:
+                pass
     # A sub-project must have: code files + its own dep file or README
     dep_files = {'requirements.txt', 'environment.yml', 'renv.lock',
                  'pyproject.toml', 'pipfile', 'setup.py', 'project.toml'}
