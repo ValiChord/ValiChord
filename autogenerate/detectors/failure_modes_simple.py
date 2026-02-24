@@ -1598,14 +1598,13 @@ def detect_L_large_files_missing(repo_dir, all_files):
             filepath = match.group(1)
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
+                generated_files.add(fname)
         for match in savez_pattern.finditer(content):
             filepath = match.group(1)
-            # np.savez appends .npz if not present
             if not filepath.endswith('.npz'):
                 filepath = filepath + '.npz'
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
-                generated_files.add(fname)
                 generated_files.add(fname)
     missing_refs = set()
     # Broad scan of R files: any quoted path with data extension
