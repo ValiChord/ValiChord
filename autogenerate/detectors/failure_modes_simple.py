@@ -13,7 +13,8 @@ from pathlib import Path
 CODE_EXTENSIONS = {
     '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk', '.nf', '.groovy',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
-    '.sql', '.rs', '.go', '.java', '.js', '.ts'
+    '.sql', '.rs', '.go', '.java', '.js', '.ts',
+    '.inp', '.gfn'
 }
 
 NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
@@ -22,7 +23,7 @@ DATA_EXTENSIONS = {
     '.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
     '.feather', '.rds', '.rdata', '.dta', '.sav', '.sas7bdat',
     '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
-    '.dif'
+    '.dif', '.gdt'
 }
 
 ENCRYPTED_EXTENSIONS = {'.gpg', '.enc', '.secret', '.age', '.asc'}
