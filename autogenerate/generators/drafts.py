@@ -1247,7 +1247,7 @@ def _quickstart_step2(all_files, code_files):
                 '   (reticulate detected -- both R and Python environments required)',
             ]
         if 'renv.lock' in names:
-            if _has_reticulate and _has_requirements:
+            if _has_reticulate and _has_req:
                 return ['2. Install Python dependencies: `pip install -r requirements.txt`',
                         '   Then restore R environment: `Rscript -e "renv::restore()"`',
                         '   (reticulate detected — both environments required)']
