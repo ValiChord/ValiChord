@@ -1330,6 +1330,34 @@ def detect_I_intermediate_files(repo_dir, all_files):
         if f.suffix.lower() in intermediate_extensions and not _is_model_artifact_i(f)
     ]
 
+    # Build set of filenames written by any code file
+    _written_fnames = set()
+    _write_pat_i = re.compile(
+        r'(?:np\.save(?:z(?:_compressed)?)?|to_csv|to_parquet|to_excel'
+        r'|savetxt|pickle\.dump|joblib\.dump|torch\.save'
+        r'|write\.csv|saveRDS|writeMat)'
+        r'\s*\(\s*f?["\']([^"\']+)["\']',
+        re.IGNORECASE
+    )
+    for _cf in all_files:
+        if _cf.suffix.lower() in CODE_EXTENSIONS:
+            try:
+                _csrc = _cf.read_text(encoding='utf-8', errors='ignore')
+                for _m in _write_pat_i.finditer(_csrc):
+                    _fp = _m.group(1)
+                    _fn = _fp.replace('\\', '/').split('/')[-1].lower()
+                    if 'savez' in _m.group(0).lower() and not _fn.endswith('.npz'):
+                        _fn = _fn + '.npz'
+                    _written_fnames.add(_fn)
+            except Exception:
+                pass
+    # Exclude files in data/ that are never written by code (pure raw inputs)
+    intermediate_files = [
+        f for f in intermediate_files
+        if f.name.lower() in _written_fnames
+        or not any(part.lower() == 'data' for part in f.parts)
+    ]
+
     if not intermediate_files:
         return findings
 
@@ -1524,6 +1552,11 @@ def detect_L_large_files_missing(repo_dir, all_files):
         r'torch\.save\s*\([^,]+,\s*f?["\']([^"\']+\.(?:pt|pth|bin|ckpt))["\']',
         re.IGNORECASE
     )
+    # np.savez('path/file', ...) — appends .npz automatically, first arg is path
+    savez_pattern = re.compile(
+        r'np\.savez(?:_compressed)?\s*\(\s*f?["\']([^"\']+)["\']',
+        re.IGNORECASE
+    )
     # R-style: write.csv(data, 'filename') — filename is second argument
     write_pattern_r = re.compile(
         r'(?:write\.csv|write\.table|saveRDS|fwrite)'
@@ -1565,6 +1598,14 @@ def detect_L_large_files_missing(repo_dir, all_files):
             filepath = match.group(1)
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
+        for match in savez_pattern.finditer(content):
+            filepath = match.group(1)
+            # np.savez appends .npz if not present
+            if not filepath.endswith('.npz'):
+                filepath = filepath + '.npz'
+            fname = filepath.replace('\\', '/').split('/')[-1].lower()
+            if fname and '.' in fname:
+                generated_files.add(fname)
                 generated_files.add(fname)
     missing_refs = set()
     # Broad scan of R files: any quoted path with data extension
