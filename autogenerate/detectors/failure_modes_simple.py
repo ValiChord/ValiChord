@@ -718,6 +718,10 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_CX_system_dependencies(repo_dir, all_files)
     print("  [CY] Checksum not verified check...")
     all_findings += detect_CY_checksum_not_verified(repo_dir, all_files)
+    print("  [CZ] EOL Docker base image check...")
+    all_findings += detect_CZ_eol_docker_base_image(repo_dir, all_files)
+    print("  [DA] NLP model not in Dockerfile check...")
+    all_findings += detect_DA_nlp_model_not_in_dockerfile(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3272,6 +3276,127 @@ _SYSTEM_LIB_BREW = {
     'hdf5': 'hdf5', 'netcdf4': 'netcdf', 'portaudio': 'portaudio',
 }
 
+
+
+
+# EOL Python versions in Docker base images
+_EOL_PYTHON_VERSIONS = {
+    '2.7': 'January 2020', '3.4': 'March 2019', '3.5': 'September 2020',
+    '3.6': 'December 2021', '3.7': 'June 2023', '3.8': 'October 2024',
+}
+_CURRENT_PYTHON = '3.12'
+
+
+
+def detect_DA_nlp_model_not_in_dockerfile(repo_dir, all_files):
+    """Failure Mode DA: Code loads spaCy/NLTK models not downloaded in Dockerfile."""
+    findings = []
+    import re as _re
+    dockerfiles = [f for f in all_files
+                   if f.name == 'Dockerfile' or f.name.startswith('Dockerfile.')]
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    if not dockerfiles or not code_files:
+        return findings
+    # Patterns for NLP model loads in code
+    spacy_load = _re.compile(r'spacy\.load\s*\([\"\']([^\"\']+)[\"\']', _re.IGNORECASE)
+    nltk_download = _re.compile(r'nltk\.download\s*\([\"\']([^\"\']+)[\"\']', _re.IGNORECASE)
+    # Collect models referenced in code
+    spacy_models = set()
+    nltk_corpora = set()
+    for f in code_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in spacy_load.finditer(src):
+                spacy_models.add(m.group(1))
+            for m in nltk_download.finditer(src):
+                nltk_corpora.add(m.group(1))
+        except Exception:
+            pass
+    if not spacy_models and not nltk_corpora:
+        return findings
+    # Check Dockerfile for download commands
+    missing_spacy = []
+    missing_nltk = []
+    for df in dockerfiles:
+        try:
+            dsrc = df.read_text(encoding='utf-8', errors='ignore')
+            for model in spacy_models:
+                if model not in dsrc:
+                    missing_spacy.append(model)
+            for corpus in nltk_corpora:
+                if corpus not in dsrc:
+                    missing_nltk.append(corpus)
+        except Exception:
+            pass
+    if not missing_spacy and not missing_nltk:
+        return findings
+    details = []
+    for model in missing_spacy:
+        details += [
+            f'spacy.load("{model}") in code but not downloaded in Dockerfile',
+            f'Fix: add to Dockerfile after pip install:',
+            f'  RUN python -m spacy download {model}',
+        ]
+    for corpus in missing_nltk:
+        details += [
+            f'nltk corpus "{corpus}" used in code but not downloaded in Dockerfile',
+            f'Fix: add to Dockerfile:',
+            f'  RUN python -c "import nltk; nltk.download(\'{corpus}\')"',
+        ]
+    details.append('Container will build successfully but crash at runtime')
+    findings.append(finding(
+        'DA', 'SIGNIFICANT',
+        'NLP model/corpus loaded in code but not installed in Dockerfile',
+        'Code calls spacy.load() or nltk.download() for models that are not '
+        'pip-installable. These must be downloaded separately in the Dockerfile. '
+        'The container will build without error but crash immediately at runtime '
+        'when the missing model is requested.',
+        details
+    ))
+    return findings
+
+
+def detect_CZ_eol_docker_base_image(repo_dir, all_files):
+    """Failure Mode CZ: Dockerfile uses an end-of-life Python base image."""
+    findings = []
+    import re as _re
+    dockerfiles = [f for f in all_files
+                   if f.name == 'Dockerfile' or f.name.startswith('Dockerfile.')]
+    if not dockerfiles:
+        return findings
+    from_pat = _re.compile(
+        r'^FROM\s+(\S+)',
+        _re.IGNORECASE | _re.MULTILINE
+    )
+    version_pat = _re.compile(r'python[:/](\d+\.\d+)', _re.IGNORECASE)
+    for f in dockerfiles:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            continue
+        for m in from_pat.finditer(src):
+            image = m.group(1)
+            vm = version_pat.search(image)
+            if not vm:
+                continue
+            ver = vm.group(1)
+            if ver in _EOL_PYTHON_VERSIONS:
+                eol_date = _EOL_PYTHON_VERSIONS[ver]
+                findings.append(finding(
+                    'CZ', 'SIGNIFICANT',
+                    f'Dockerfile uses end-of-life Python {ver} base image',
+                    f'The base image {image} uses Python {ver}, which reached '
+                    f'end-of-life in {eol_date}. EOL images receive no security '
+                    f'patches and may become unavailable or broken as registries '
+                    f'phase out old versions. Validators pulling this image may '
+                    f'encounter errors or security warnings.',
+                    [f'Dockerfile: FROM {image}',
+                     f'Python {ver} EOL: {eol_date}',
+                     f'Fix: update to FROM python:{_CURRENT_PYTHON}-slim',
+                     'Test that requirements.txt packages are compatible with '
+                     f'Python {_CURRENT_PYTHON}']
+                ))
+    return findings
 
 
 def detect_CY_checksum_not_verified(repo_dir, all_files):
