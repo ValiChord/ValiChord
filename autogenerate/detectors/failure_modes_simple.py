@@ -13,8 +13,7 @@ from pathlib import Path
 CODE_EXTENSIONS = {
     '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk', '.nf', '.groovy',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
-    '.sql', '.rs', '.go', '.java', '.js', '.ts',
-    '.inp', '.gfn'
+    '.sql', '.rs', '.go', '.java', '.js', '.ts'
 }
 
 NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}

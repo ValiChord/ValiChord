@@ -18,6 +18,10 @@ CODE_EXTENSIONS = {
 
 NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 
+# Gretl script/model files — classified as Code in inventory but not subject to
+# pip/conda dependency checks (Gretl manages its own environment)
+GRETL_EXTENSIONS = {'.inp', '.gfn'}
+
 README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 
 DEPENDENCY_FILES = {
@@ -113,7 +117,7 @@ def _is_model_artifact_file(f):
 
 def _classify_file(f):
     ext = f.suffix.lower()
-    if ext in CODE_EXTENSIONS:
+    if ext in CODE_EXTENSIONS or ext in GRETL_EXTENSIONS:
         return 'Code'
     if ext in NOTEBOOK_EXTENSIONS:
         return 'Notebook'
@@ -123,7 +127,7 @@ def _classify_file(f):
         return 'Model artifact'
     if ext in {'.csv', '.tsv', '.xlsx', '.json', '.parquet',
                '.rds', '.rdata', '.dta', '.sav', '.mat',
-               '.pkl', '.npy', '.npz', '.hdf5', '.h5'}:
+               '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.gdt'}:
         return 'Data'
     if ext in {'.png', '.jpg', '.jpeg', '.pdf', '.svg', '.tif'}:
         return 'Figure/Image'
