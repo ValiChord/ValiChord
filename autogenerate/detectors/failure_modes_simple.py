@@ -176,7 +176,23 @@ def detect_B_no_dependencies(repo_dir, all_files):
         has_dep_file = True  # ado/ directory is the Stata package bundle
 
     has_draft_only = "requirements_draft.txt" in names_lower and not has_dep_file
-    if has_code and not has_dep_file and not has_draft_only:
+
+    # Check if README contains inline dependency instructions
+    # e.g. install.packages(...) or pip install ... — these are informal
+    # but valid dependency specs; downgrade from CRITICAL to SIGNIFICANT
+    readme_has_inline_deps = False
+    if not has_dep_file:
+        for f in all_files:
+            if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst', 'readme'}:
+                readme_content = read_file_safe(f).lower()
+                if any(pat in readme_content for pat in [
+                    'install.packages(', 'pip install', 'conda install',
+                    'install_packages(', 'pkg.add(', 'pkg.instantiate('
+                ]):
+                    readme_has_inline_deps = True
+                    break
+
+    if has_code and not has_dep_file and not has_draft_only and not readme_has_inline_deps:
         findings.append(finding(
             'B', 'CRITICAL',
             'No dependency specification found',
@@ -186,6 +202,17 @@ def detect_B_no_dependencies(repo_dir, all_files):
             [f'Code files found: {len(code_files)}',
              'No requirements.txt, environment.yml, renv.lock, '
              'or equivalent found']
+        ))
+    elif has_code and not has_dep_file and not has_draft_only and readme_has_inline_deps:
+        findings.append(finding(
+            'B', 'SIGNIFICANT',
+            'Dependencies documented inline in README but no dependency file found',
+            'Install instructions were found in the README but no requirements.txt, '
+            'renv.lock, or equivalent file exists. Inline instructions are better '
+            'than nothing but a dedicated dependency file ensures reproducibility. '
+            'A requirements_DRAFT.txt will be generated.',
+            [f'Code files found: {len(code_files)}',
+             'Recommendation: extract install instructions to requirements.txt or renv.lock']
         ))
     elif has_code and has_draft_only:
         # prior run left a requirements_DRAFT.txt — check if versions are pinned
