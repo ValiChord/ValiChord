@@ -1163,6 +1163,28 @@ def _quickstart_step2(all_files, code_files):
     if any(f.name == 'Snakefile' for f in all_files):
         suffixes.add('.smk')
     names = {f.name.lower() for f in all_files}
+    # Docker repo — replace all install steps with build/run
+    if 'dockerfile' in names:
+        import re as _redock
+        _img = 'my-analysis'
+        _df = next((f for f in all_files if f.name == 'Dockerfile'), None)
+        if _df:
+            try:
+                _dsrc = _df.read_text(encoding='utf-8', errors='ignore')
+                # try to derive image name from repo dir or LABEL
+                _label = _redock.search(r'LABEL.*image[_-]?name[=\s]+["\']?([\w_-]+)', _dsrc, _redock.IGNORECASE)
+                if _label:
+                    _img = _label.group(1).lower()
+                else:
+                    # use parent directory name as image name
+                    _img = _df.parent.name.lower().replace(' ', '-') or 'my-analysis'
+            except Exception:
+                pass
+        return [
+            '2. Build the Docker image: `docker build -t ' + _img + ' .`',
+            '3. Run: `docker run -v $(pwd)/data:/app/data ' + _img + '`',
+            '   (adjust volume mounts to match your data directory)',
+        ]
     # conda repo takes priority — single env file replaces all other dep steps
     if 'environment.yml' in names or 'environment.yaml' in names:
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
@@ -1342,6 +1364,9 @@ def _quickstart_step2(all_files, code_files):
 def _install_instructions(code_files, all_files=None):
     """Return language-appropriate install instructions."""
     suffixes = {f.suffix.lower() for f in code_files}
+    # Docker repo — no separate install step needed
+    if all_files and any(f.name == 'Dockerfile' for f in all_files):
+        return []
     lines = []
     # conda repo — step 2 already covers install via _quickstart_step2; suppress step 3
     if all_files:
