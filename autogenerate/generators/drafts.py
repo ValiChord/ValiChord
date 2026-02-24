@@ -22,6 +22,8 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 # pip/conda dependency checks (Gretl manages its own environment)
 GRETL_EXTENSIONS = {'.inp', '.gfn'}
 
+_ALL_CODE_EXTENSIONS = CODE_EXTENSIONS | GRETL_EXTENSIONS
+
 README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 
 DEPENDENCY_FILES = {
@@ -117,7 +119,7 @@ def _is_model_artifact_file(f):
 
 def _classify_file(f):
     ext = f.suffix.lower()
-    if ext in CODE_EXTENSIONS or ext in GRETL_EXTENSIONS:
+    if ext in _ALL_CODE_EXTENSIONS:
         return 'Code'
     if ext in NOTEBOOK_EXTENSIONS:
         return 'Notebook'
