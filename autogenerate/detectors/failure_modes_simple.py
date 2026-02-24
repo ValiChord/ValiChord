@@ -2282,6 +2282,12 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
         re.IGNORECASE
     )
 
+    # JS is single-threaded — async/Promise are not non-deterministic parallelism
+    _ab_code_suffixes = {f.suffix.lower() for f in code_files}
+    _non_web = {'.py', '.r', '.rmd', '.jl', '.do', '.m', '.scala', '.java', '.cpp', '.c'}
+    if not (_ab_code_suffixes & _non_web):
+        return findings  # JS/web-only repo
+
     uses_parallel = False
     has_determinism = False
 
