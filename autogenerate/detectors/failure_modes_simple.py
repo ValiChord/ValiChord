@@ -2874,10 +2874,11 @@ def detect_AR_encoding_issues(repo_dir, all_files):
         if re.search(r'open\s*\(', content) and 'encoding=' not in content:
             bad.append(f.name)
     if len(bad) >= 2:
+        bad_files = ','.join(bad[:5])
         findings.append(finding('AR', 'LOW CONFIDENCE',
             f'open() without encoding in {len(bad)} files',
             'open() without encoding behaves differently on Windows vs Linux/Mac.',
-            [f'Files: {chr(44).join(bad[:5])}', 'Fix: add encoding="utf-8"']))
+            [f'Files: {bad_files}', 'Fix: add encoding="utf-8"']))
     return findings
 
 

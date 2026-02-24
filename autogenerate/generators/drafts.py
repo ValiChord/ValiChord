@@ -7,7 +7,6 @@ Produces all _DRAFT output files per ValiChord Specification v15
 from pathlib import Path
 import re
 from datetime import datetime
-import re
 
 
 CODE_EXTENSIONS = {
@@ -301,7 +300,7 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             step = 2
         if pkg_str:
             block.append(f'# {step}. Install CRAN packages')
-            block.append(f'Rscript -e "install.packages(c({pkg_str}))".format()' if False else f'Rscript -e "install.packages(c({pkg_str}))"')
+            block.append(f'Rscript -e "install.packages(c({pkg_str}))"')
             step += 1
         if gh_lines:
             block.append(f'# {step}. Install GitHub packages')
