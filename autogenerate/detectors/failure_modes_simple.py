@@ -728,6 +728,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DC_monorepo_independent_subprojects(repo_dir, all_files)
     print("  [DD] OS-specific commands check...")
     all_findings += detect_DD_os_specific_commands(repo_dir, all_files)
+    print("  [DE] PyTorch non-determinism check...")
+    all_findings += detect_DE_pytorch_nondeterminism(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -2168,7 +2170,8 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
         r'(multiprocessing|concurrent\.futures|joblib|dask'
         r'|ray\.|\bPool\b|ProcessPool|ThreadPool'
         r'|n_jobs\s*=|parallel\s*=\s*True'
-        r'|mp\.Pool|futures\.ProcessPoolExecutor)',
+        r'|mp\.Pool|futures\.ProcessPoolExecutor'
+        r'|DataLoader[^)]*num_workers\s*=\s*[1-9])',
         re.IGNORECASE
     )
 
@@ -3378,6 +3381,63 @@ _OS_SPECIFIC_COMMANDS = {
     '#!/bin/bash':    {'fails_on': 'Windows (without WSL)', 'reason': 'Bash shebang — not available natively on Windows'},
     '#!/bin/sh':      {'fails_on': 'Windows (without WSL)', 'reason': 'POSIX sh shebang — not available natively on Windows'},
 }
+
+
+
+def detect_DE_pytorch_nondeterminism(repo_dir, all_files):
+    """Failure Mode DE: PyTorch seeds set but use_deterministic_algorithms absent."""
+    findings = []
+    import re as _re
+    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+    if not py_files:
+        return findings
+    has_torch = False
+    has_manual_seed = False
+    has_deterministic = False
+    has_cudnn_deterministic = False
+    for f in py_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            if 'torch' in src:
+                has_torch = True
+            if _re.search(r'torch\.manual_seed|torch\.cuda\.manual_seed', src):
+                has_manual_seed = True
+            if _re.search(r'torch\.use_deterministic_algorithms\s*\(\s*True', src):
+                has_deterministic = True
+            if _re.search(r'cudnn\.deterministic\s*=\s*True', src):
+                has_cudnn_deterministic = True
+        except Exception:
+            pass
+    if not has_torch or not has_manual_seed:
+        return findings
+    if has_deterministic:
+        return findings
+    details = [
+        'torch.manual_seed() detected — seeds are set',
+        'torch.use_deterministic_algorithms(True) — NOT FOUND',
+    ]
+    if not has_cudnn_deterministic:
+        details.append('torch.backends.cudnn.deterministic = True — NOT FOUND')
+    details += [
+        'Seeds alone do not guarantee reproducibility in PyTorch:',
+        '  certain CUDA ops (atomics, non-deterministic reductions) vary between runs',
+        'Fix: add after seed setup:',
+        '  torch.use_deterministic_algorithms(True)',
+        '  torch.backends.cudnn.deterministic = True',
+        '  torch.backends.cudnn.benchmark = False',
+        'Note: some ops raise an error under deterministic mode — use',
+        '  torch.use_deterministic_algorithms(True, warn_only=True) to identify them',
+    ]
+    findings.append(finding(
+        'DE', 'SIGNIFICANT',
+        'PyTorch seeds set but deterministic mode not enabled',
+        'torch.manual_seed() is set but torch.use_deterministic_algorithms(True) '
+        'is absent. Certain CUDA operations remain non-deterministic even with seeds '
+        'set — results will vary between runs on GPU hardware. Seeds are necessary '
+        'but not sufficient for PyTorch reproducibility.',
+        details
+    ))
+    return findings
 
 
 def detect_DD_os_specific_commands(repo_dir, all_files):

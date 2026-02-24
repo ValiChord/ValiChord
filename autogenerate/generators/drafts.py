@@ -1458,7 +1458,8 @@ def _generate_quickstart_draft(repo_dir, all_files,
         if m:
             numbered.append((int(m.group(2)), f))
     numbered.sort(key=lambda x: x[0])
-    # prefer README order over numbered/alphabetical
+    # prefer README order over alphabetical — track source for confidence level
+    _numbered_from_filenames = bool(numbered)
     if readme_order and not numbered:
         numbered = [(i+1, f) for i, f in enumerate(readme_order)]
 
@@ -1624,7 +1625,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
         *(['> ✅ **Execution order inferred from numbered script filenames.**',
            '> **Confidence level: HIGH** — numeric prefixes make order explicit.',
            '> Verify this matches your intended pipeline before publishing.']
-          if numbered else
+          if _numbered_from_filenames else
           ['> ⚠️ **IMPORTANT — THIS EXECUTION ORDER IS INFERRED**',
            '> **AND HAS NOT BEEN VALIDATED.**',
            '> ',
