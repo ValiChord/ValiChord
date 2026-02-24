@@ -322,9 +322,11 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
             content = read_file_safe(f)
             # look for commit hash (40 hex chars) or version tag
             has_hash = bool(re.search(r'\b[0-9a-f]{40}\b', content))
+            # Only match version tags that refer to the CODE deposit,
+            # not dataset version strings inside parentheses or prose
             has_tag = bool(re.search(
-                r'v\d+\.\d+[\.\d]*|version\s+\d+\.\d+',
-                content, re.IGNORECASE
+                r'(?:^|\s|commit[:\s]+|tag[:\s]+|release[:\s]+|version[:\s]+)v\d+\.\d+[\d.]*(?:\s|$)',
+                content, re.IGNORECASE | re.MULTILINE
             ))
             if not has_hash and not has_tag:
                 findings.append(finding(
@@ -730,6 +732,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DD_os_specific_commands(repo_dir, all_files)
     print("  [DE] PyTorch non-determinism check...")
     all_findings += detect_DE_pytorch_nondeterminism(repo_dir, all_files)
+    print("  [DF] External data URL without fetch script check...")
+    all_findings += detect_DF_external_data_no_fetch(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3382,6 +3386,106 @@ _OS_SPECIFIC_COMMANDS = {
     '#!/bin/sh':      {'fails_on': 'Windows (without WSL)', 'reason': 'POSIX sh shebang — not available natively on Windows'},
 }
 
+
+
+
+def detect_DF_external_data_no_fetch(repo_dir, all_files):
+    """Failure Mode DF: README references external data URL but no fetch script or checksum."""
+    findings = []
+    import re as _re
+    # Data repository URL patterns
+    data_repo_pat = _re.compile(
+        r'https?://(?:www\.)?'
+        r'(?:zenodo\.org/(?:record|doi|deposit)|'
+        r'figshare\.com/(?:articles|collections)|'
+        r'osf\.io/[a-z0-9]+|'
+        r'datadryad\.org/stash/dataset|'
+        r'dataverse\.(?:harvard|nl|uc3)\.edu|'
+        r'pangaea\.de/10\.1594|'
+        r'data\.mendeley\.com/datasets)'
+        r'[/\w\-.?=&]*',
+        _re.IGNORECASE
+    )
+    # Fetch script indicators
+    fetch_script_names = {
+        'download_data.sh', 'download_data.py', 'fetch_data.sh', 'fetch_data.py',
+        'get_data.sh', 'get_data.py', 'download.sh', 'download.py',
+        'setup_data.sh', 'setup_data.py', 'data_download.sh', 'data_download.py',
+    }
+    # Checksum patterns in any file
+    checksum_pat = _re.compile(
+        r'(?:md5|sha256|sha512)[:\s]+[0-9a-f]{32,128}',
+        _re.IGNORECASE
+    )
+    # Find data repo URLs in README
+    data_urls = []
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                for m in data_repo_pat.finditer(src):
+                    data_urls.append(m.group(0))
+            except Exception:
+                pass
+    if not data_urls:
+        return findings
+    # Check for fetch script
+    all_names_lower = {f.name.lower() for f in all_files}
+    has_fetch_script = bool(all_names_lower & fetch_script_names)
+    # Also check for wget/curl commands in any .sh file
+    if not has_fetch_script:
+        for f in all_files:
+            if f.suffix.lower() in {'.sh', '.bash', '.py'}:
+                try:
+                    src = f.read_text(encoding='utf-8', errors='ignore')
+                    if _re.search(r'wget\s+.*zenodo|curl\s+.*zenodo|requests\.get.*zenodo'
+                                  r'|wget\s+.*figshare|pooch\.retrieve|urllib.*download', src, _re.IGNORECASE):
+                        has_fetch_script = True
+                        break
+                except Exception:
+                    pass
+    # Check for checksums
+    has_checksum = False
+    for f in all_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            if checksum_pat.search(src):
+                has_checksum = True
+                break
+        except Exception:
+            pass
+    if has_fetch_script and has_checksum:
+        return findings
+    details = [f'External data URL found: {data_urls[0]}']
+    if len(data_urls) > 1:
+        details.append(f'  (and {len(data_urls)-1} more)')
+    if not has_fetch_script:
+        details += [
+            'No download/fetch script found in repository',
+            'Validators must manually locate and download the data',
+            'Fix: add a download_data.sh or download_data.py script, e.g.:',
+            '  wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
+        ]
+    if not has_checksum:
+        details += [
+            'No checksum (MD5/SHA256) provided for the data file',
+            'Validators cannot verify they downloaded the identical version',
+            'Fix: add to README: SHA256: <hash of downloaded file>',
+        ]
+    details += [
+        'Also document: exact dataset version/DOI used (not just the record URL)',
+    ]
+    findings.append(finding(
+        'DF', 'SIGNIFICANT',
+        'External data URL present but no fetch script or checksum',
+        'The README references an external data repository (Zenodo, Figshare, OSF, etc.) '
+        'but provides no automated download script and no checksum. A URL alone is '
+        'insufficient for reproducibility: URLs can break, datasets can be updated, '
+        'and validators cannot confirm they downloaded the identical version used in '
+        'the original analysis.',
+        details
+    ))
+    return findings
 
 
 def detect_DE_pytorch_nondeterminism(repo_dir, all_files):
