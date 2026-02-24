@@ -3420,9 +3420,10 @@ def detect_DD_os_specific_commands(repo_dir, all_files):
         try:
             src = f.read_text(encoding='utf-8', errors='ignore')
             for cmd, info in _OS_SPECIFIC_COMMANDS.items():
-                if cmd in src and cmd not in seen_commands:
-                    seen_commands.add(cmd)
-                    hits.append((f.name, cmd.strip(), info))
+                cmd_key = cmd.strip()
+                if cmd in src and cmd_key not in seen_commands:
+                    seen_commands.add(cmd_key)
+                    hits.append((f.name, cmd_key, info))
         except Exception:
             pass
     # For non-cross-platform repos, still flag Linux-specific /proc and nproc
