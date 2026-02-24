@@ -143,6 +143,15 @@ def detect_B_no_dependencies(repo_dir, all_files):
                     pass
     has_code = bool(code_files)
 
+    # Stata repos bundle packages in ado/ directory — that IS the dependency spec
+    has_stata = any(f.suffix.lower() in {'.do', '.ado'} for f in all_files)
+    has_ado_dir = any(
+        'ado' in f.parts
+        for f in all_files
+    )
+    if has_stata and has_ado_dir:
+        has_dep_file = True  # ado/ directory is the Stata package bundle
+
     has_draft_only = "requirements_draft.txt" in names_lower and not has_dep_file
     if has_code and not has_dep_file and not has_draft_only:
         findings.append(finding(
