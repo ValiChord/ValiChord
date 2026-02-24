@@ -726,6 +726,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DB_shiny_app(repo_dir, all_files)
     print("  [DC] Monorepo independent sub-projects check...")
     all_findings += detect_DC_monorepo_independent_subprojects(repo_dir, all_files)
+    print("  [DD] OS-specific commands check...")
+    all_findings += detect_DD_os_specific_commands(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3348,6 +3350,109 @@ _CURRENT_PYTHON = '3.12'
 
 
 
+
+
+
+# OS-specific commands with their platform restrictions
+_OS_SPECIFIC_COMMANDS = {
+    # Linux-only (not macOS, not Windows)
+    'nproc':          {'fails_on': 'macOS, Windows', 'reason': 'Linux-only CPU count command (use sysctl -n hw.ncpu on macOS)'},
+    '/proc/meminfo':  {'fails_on': 'macOS, Windows', 'reason': 'Linux /proc filesystem not available'},
+    '/proc/cpuinfo':  {'fails_on': 'macOS, Windows', 'reason': 'Linux /proc filesystem not available'},
+    '/proc/':         {'fails_on': 'macOS, Windows', 'reason': 'Linux /proc filesystem not available'},
+    '/dev/shm':       {'fails_on': 'macOS, Windows', 'reason': 'Linux shared memory filesystem'},
+    'apt-get':        {'fails_on': 'macOS, Windows', 'reason': 'Debian/Ubuntu package manager only'},
+    'apt ':           {'fails_on': 'macOS, Windows', 'reason': 'Debian/Ubuntu package manager only'},
+    'yum ':           {'fails_on': 'macOS, Windows', 'reason': 'RHEL/CentOS package manager only'},
+    'systemctl':      {'fails_on': 'macOS, Windows', 'reason': 'systemd service manager — Linux only'},
+    'service ':       {'fails_on': 'macOS, Windows', 'reason': 'SysV init — Linux only'},
+    # GNU-only (not macOS BSD tools)
+    'grep -P':        {'fails_on': 'macOS (BSD grep), Windows', 'reason': 'PCRE mode (-P) requires GNU grep; macOS ships BSD grep'},
+    'grep -P ':       {'fails_on': 'macOS (BSD grep), Windows', 'reason': 'PCRE mode (-P) requires GNU grep; macOS ships BSD grep'},
+    'sed -i ':        {'fails_on': 'macOS (BSD sed)', 'reason': 'GNU sed -i syntax differs from BSD sed (needs empty string argument on macOS)'},
+    'date -d':        {'fails_on': 'macOS (BSD date)', 'reason': 'GNU date -d not available in BSD date'},
+    'readlink -f':    {'fails_on': 'macOS (BSD readlink)', 'reason': 'GNU readlink -f not available in BSD readlink'},
+    'timeout ':       {'fails_on': 'macOS', 'reason': 'GNU coreutils timeout — not in macOS by default'},
+    'xargs -r':       {'fails_on': 'macOS (BSD xargs)', 'reason': '-r flag not supported in BSD xargs'},
+    # Windows-incompatible
+    '#!/bin/bash':    {'fails_on': 'Windows (without WSL)', 'reason': 'Bash shebang — not available natively on Windows'},
+    '#!/bin/sh':      {'fails_on': 'Windows (without WSL)', 'reason': 'POSIX sh shebang — not available natively on Windows'},
+}
+
+
+def detect_DD_os_specific_commands(repo_dir, all_files):
+    """Failure Mode DD: Shell scripts use OS-specific commands contradicting cross-platform claims."""
+    findings = []
+    import re as _re
+    shell_files = [f for f in all_files if f.suffix.lower() in {'.sh', '.bash', '.zsh'}
+                   or (f.suffix == '' and f.name.lower() in {'makefile'})]
+    # Also check files with bash shebang
+    for f in all_files:
+        if f.suffix.lower() not in {'.py', '.r', '.rmd', '.md', '.txt', '.csv', '.tsv',
+                                     '.json', '.yml', '.yaml', '.toml', '.lock'} and f not in shell_files:
+            try:
+                first_line = f.read_text(encoding='utf-8', errors='ignore').split('\n')[0]
+                if '#!/bin/bash' in first_line or '#!/bin/sh' in first_line:
+                    shell_files.append(f)
+            except Exception:
+                pass
+    if not shell_files:
+        return findings
+    # Check if README claims cross-platform support
+    claims_crossplatform = False
+    platform_claim = ''
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore')
+                if _re.search(r'(windows|macos|mac os|cross.platform|platform.*linux.*mac|platform.*win)',
+                              src, _re.IGNORECASE):
+                    claims_crossplatform = True
+                    m = _re.search(r'\*{0,2}[Pp]latform\*{0,2}:?\s*([^\n]+)', src)
+                    if m:
+                        platform_claim = m.group(1).strip()
+            except Exception:
+                pass
+    # Scan shell files for OS-specific commands
+    hits = []  # (filename, command, info)
+    seen_commands = set()
+    for f in shell_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for cmd, info in _OS_SPECIFIC_COMMANDS.items():
+                if cmd in src and cmd not in seen_commands:
+                    seen_commands.add(cmd)
+                    hits.append((f.name, cmd.strip(), info))
+        except Exception:
+            pass
+    # For non-cross-platform repos, still flag Linux-specific /proc and nproc
+    # but only if multiple platforms are claimed
+    if not hits:
+        return findings
+    severity = 'SIGNIFICANT' if claims_crossplatform else 'LOW CONFIDENCE'
+    details = []
+    if claims_crossplatform and platform_claim:
+        details.append(f'README claims: Platform: {platform_claim}')
+    details.append('OS-specific commands detected in shell scripts:')
+    for fname, cmd, info in hits[:8]:
+        details.append(f'  {fname}: `{cmd}` — fails on {info["fails_on"]} ({info["reason"]})')
+    if claims_crossplatform:
+        details.append('Fix: replace Linux-specific commands with cross-platform equivalents,')
+        details.append('  or containerise with Docker to guarantee consistent environment.')
+    else:
+        details.append('Fix: document OS requirements in README, or use Docker for portability.')
+    findings.append(finding(
+        'DD', severity,
+        'Shell scripts use OS-specific commands' +
+        (' — contradicts cross-platform README claim' if claims_crossplatform else ''),
+        'Shell scripts contain commands that only work on specific operating systems. '
+        + ('The README claims cross-platform support, which is incorrect. '
+           if claims_crossplatform else
+           'Validators on other operating systems will encounter errors. ') +
+        'Affected commands are listed below.',
+        details
+    ))
+    return findings
 
 
 def detect_DC_monorepo_independent_subprojects(repo_dir, all_files):
