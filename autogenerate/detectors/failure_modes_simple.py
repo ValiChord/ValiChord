@@ -2845,7 +2845,7 @@ def detect_AX_container_not_tested(repo_dir, all_files):
         _from_m = _reax.search(r'^FROM\s+(\S+)', content, _reax.IGNORECASE | _reax.MULTILINE)
         _image = _from_m.group(1) if _from_m else 'python:latest'
         _base = _image.split(':')[0]
-        _hub_url = f'https://hub.docker.com/_{_base.split("/")[-1]}' if '/' not in _base else f'https://hub.docker.com/r/{_base}'
+        _hub_url = f'https://hub.docker.com/_/{_base.split("/")[-1]}' if '/' not in _base else f'https://hub.docker.com/r/{_base}'
         _suggested = _base + ':3.11-slim' if 'python' in _base.lower() else _base + ':<version>'
         issues.append(
             f'Base image uses :latest tag ({_image}) — resolves to a different version over time.\n'
