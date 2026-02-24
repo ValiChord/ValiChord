@@ -352,14 +352,20 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             '# Or via conda: conda install -c bioconda nextflow',
         ]
     # default Python
-    _has_df = any(isinstance(f, dict) and f.get('mode') == 'DF' for f in findings)
-    _has_l = any(isinstance(f, dict) and f.get('mode') == 'L' for f in findings)
+    import re as _re_iblk
+    _data_url_pat = _re_iblk.compile(
+        r'https?://(?:zenodo\.org|figshare\.com|osf\.io|datadryad\.org'  
+        r'|dataverse\.harvard\.edu|data\.mendeley\.com)',
+        _re_iblk.IGNORECASE)
+    _has_external_data = any(
+        _data_url_pat.search(f.read_text(encoding='utf-8', errors='ignore'))
+        for f in all_files if f.name.lower() in {'readme.md','readme.txt','readme.rst'})
     return [
         *(['# 0. Download required data',
            '# [YOU MUST COMPLETE — add wget/curl or manual download instructions]',
            '# Example: wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
            '# Verify checksum: sha256sum data/dataset.tif',
-           ''] if _has_df or _has_l else []),
+           ''] if _has_external_data else []),
         '# 1. Clone or download this repository',
         '# 2. Create a virtual environment',
         'python -m venv venv',
