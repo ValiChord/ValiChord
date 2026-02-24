@@ -353,6 +353,11 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         ]
     # default Python
     return [
+        '# 0. Download required data (if applicable)',
+        '# [YOU MUST COMPLETE — add wget/curl or manual download instructions]',
+        '# Example: wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
+        '# Verify checksum: sha256sum data/dataset.tif',
+        '',
         '# 1. Clone or download this repository',
         '# 2. Create a virtual environment',
         'python -m venv venv',
