@@ -78,7 +78,7 @@ def detect_A_no_readme(repo_dir, all_files):
     findings = []
     names = {f.name.lower() for f in all_files}
 
-    root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2]
+    root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4]
     if not root_readme:
         # Check for same-named .txt files alongside data files
         # (e.g. GDP_FDI_Dataset.txt next to GDP_FDI_Dataset.csv)
@@ -112,7 +112,7 @@ def detect_A_no_readme(repo_dir, all_files):
     else:
         # check if readme is too short to be useful
         for f in all_files:
-            if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
+            if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4:
                 content = read_file_safe(f)
                 if len(content.strip()) < 300:
                     findings.append(finding(
@@ -350,7 +350,7 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
     findings = []
 
     for f in all_files:
-        if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
+        if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4:
             content = read_file_safe(f)
             # look for commit hash (40 hex chars) or version tag
             has_hash = bool(re.search(r'\b[0-9a-f]{40}\b', content))
@@ -802,8 +802,21 @@ def detect_F_missing_seeds(repo_dir, all_files):
         r'jax\.random\.PRNGKey|jax\.random\.key\s*\('
     )
 
+    # Build set of all directories that contain __init__.py (Python packages)
+    package_dirs = {
+        init_file.parent for init_file in all_files
+        if init_file.name == '__init__.py'
+    }
+
     for f in code_files:
         if f.suffix.lower() not in {'.py', '.r', '.rmd', '.jl'}:
+            continue
+        # Skip library package internals — files inside a Python package
+        # directory or inside a tests/ directory are not analysis entry points
+        if f.parent in package_dirs:
+            continue
+        parts_lower = [p.lower() for p in f.parts]
+        if any(p in {'tests', 'test', 'docs', 'doc'} for p in parts_lower):
             continue
         content = read_file_safe(f)
         imported_rngs = []
@@ -1009,7 +1022,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
 
     readme_file = None
     for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and len(f.relative_to(repo_dir).parts) <= 2:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and len(f.relative_to(repo_dir).parts) <= 4:
             readme_file = f
             break
 
@@ -5169,7 +5182,7 @@ def detect_CC_undocumented_external_tools(repo_dir, all_files):
     # Scan README and shell scripts for tool references
     scan_files = [f for f in all_files
                   if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
-                  and len(f.relative_to(repo_dir).parts) <= 2]
+                  and len(f.relative_to(repo_dir).parts) <= 4]
     scan_files += [f for f in all_files if f.suffix.lower() in {'.sh', '.bash', '.nf', '.smk'}]
     scan_files += [f for f in all_files if f.name == 'Snakefile']
     if not scan_files:
