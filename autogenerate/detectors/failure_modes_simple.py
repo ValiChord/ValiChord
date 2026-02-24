@@ -734,6 +734,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DE_pytorch_nondeterminism(repo_dir, all_files)
     print("  [DF] External data URL without fetch script check...")
     all_findings += detect_DF_external_data_no_fetch(repo_dir, all_files)
+    print("  [DG] Undocumented GUI/manual steps check...")
+    all_findings += detect_DG_undocumented_gui_steps(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3387,6 +3389,116 @@ _OS_SPECIFIC_COMMANDS = {
 }
 
 
+
+
+
+def detect_DG_undocumented_gui_steps(repo_dir, all_files):
+    """Failure Mode DG: Pipeline has GUI/manual pre-processing steps not documented in README."""
+    findings = []
+    import re as _re
+
+    # Signals of GUI-based pre-processing in code/comments
+    gui_software_pat = _re.compile(
+        r'\b(?:imagej|fiji|imagej2|napari|ilastik|imaris|cellprofiler|'
+        r'leica|las\s*x|zeiss|zen\s+(?:blue|black)|nikon\s+nis|'
+        r'simple\s+neurite\s+tracer|trainable\s+weka|'
+        r'photoshop|illustrator|inkscape|gimp|'
+        r'prism|graphpad|spss|stata\s+gui|excel\s+manual|'
+        r'manual\s+(?:annotation|segmentation|tracing|curation|inspection|review)|'
+        r'hand[- ](?:annotated|labelled|labeled|traced|segmented)|'
+        r'manually\s+(?:drawn|traced|annotated|segmented|reviewed|curated|selected))',
+        _re.IGNORECASE
+    )
+
+    # Proprietary/GUI file extensions in directory names or code
+    gui_file_pat = _re.compile(
+        r'\b\w+\.(?:lif|czi|nd2|oib|oif|vsi|svs|ndpi|scn|'
+        r'roi|traces|ano|nrrd|nhdr|mrc|dm3|dm4)\b',
+        _re.IGNORECASE
+    )
+
+    # Directory structure signals: raw image dir + derived output dir
+    image_dirs = {'tiff', 'tif', 'raw', 'images', 'microscopy', 'confocal',
+                  'raw_images', 'raw_data', 'acquisition'}
+    derived_dirs = {'traces', 'rois', 'masks', 'annotations', 'segmented',
+                    'processed', 'annotated', 'labelled', 'labeled'}
+
+    gui_evidence = []
+    all_dir_names = {f.parent.name.lower() for f in all_files}
+
+    # Check for image + derived directory co-presence
+    has_image_dir = bool(all_dir_names & image_dirs)
+    has_derived_dir = bool(all_dir_names & derived_dirs)
+    if has_image_dir and has_derived_dir:
+        img_d = next(d for d in all_dir_names if d in image_dirs)
+        der_d = next(d for d in all_dir_names if d in derived_dirs)
+        gui_evidence.append(
+            f'Directory structure suggests manual pre-processing: {img_d}/ → {der_d}/'
+        )
+
+    # Scan code/comments for GUI software references
+    code_files = [f for f in all_files if f.suffix.lower() in {'.py', '.r', '.rmd', '.m', '.jl'}]
+    gui_refs = []
+    file_refs = []
+    for f in code_files:
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for m in gui_software_pat.finditer(src):
+                ref = m.group(0).strip()
+                if ref.lower() not in [r.lower() for r in gui_refs]:
+                    gui_refs.append(ref)
+            for m in gui_file_pat.finditer(src):
+                ref = m.group(0)
+                if ref not in file_refs:
+                    file_refs.append(ref)
+        except Exception:
+            pass
+
+    if gui_refs:
+        gui_evidence.append(f'GUI software referenced in code: {", ".join(gui_refs[:4])}')
+    if file_refs:
+        gui_evidence.append(f'GUI/proprietary file types referenced: {", ".join(file_refs[:4])}')
+
+    if not gui_evidence:
+        return findings
+
+    # Check if README documents the manual steps
+    readme_documents_gui = False
+    for f in all_files:
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and f.parent == repo_dir:
+            try:
+                src = f.read_text(encoding='utf-8', errors='ignore').lower()
+                if any(term in src for term in [
+                    'imageJ', 'fiji', 'manual', 'leica', 'las x', 'export', 'plugin',
+                    'annotate', 'segment', 'trace', 'roi', 'pre-process', 'preprocess'
+                ]):
+                    readme_documents_gui = True
+            except Exception:
+                pass
+
+    if readme_documents_gui:
+        return findings
+
+    details = gui_evidence[:5] + [
+        'README does not document these manual/GUI pre-processing steps',
+        'Validators cannot reproduce results without knowing these steps',
+        'Fix: add a "Pre-processing" section to README documenting:',
+        '  (1) Which GUI software is required (name, version)',
+        '  (2) Exact steps performed (menus, settings, parameters)',
+        '  (3) What files are produced and where to place them',
+        '  (4) Any judgment calls made during manual annotation/tracing',
+    ]
+    findings.append(finding(
+        'DG', 'SIGNIFICANT',
+        'Pipeline requires manual/GUI pre-processing steps not documented in README',
+        'The repository contains evidence of manual or GUI-based pre-processing steps '
+        '(microscopy export, image annotation, manual tracing, etc.) that must be '
+        'performed before the automated scripts can run. These steps are not documented '
+        'in the README. Validators will be unable to reproduce the analysis without '
+        'knowing the exact software, settings, and procedures used.',
+        details
+    ))
+    return findings
 
 
 def detect_DF_external_data_no_fetch(repo_dir, all_files):

@@ -352,12 +352,14 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             '# Or via conda: conda install -c bioconda nextflow',
         ]
     # default Python
-    return [
-        '# 0. Download required data (if applicable)',
-        '# [YOU MUST COMPLETE — add wget/curl or manual download instructions]',
-        '# Example: wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
-        '# Verify checksum: sha256sum data/dataset.tif',
-        '',
+    _has_df = any(isinstance(f, dict) and f.get('mode') == 'DF' for f in findings)
+   _has_l = any(isinstance(f, dict) and f.get('mode') == 'L' for f in findings)
+   return [
+        *(['# 0. Download required data',
+           '# [YOU MUST COMPLETE — add wget/curl or manual download instructions]',
+           '# Example: wget -O data/dataset.tif https://zenodo.org/record/.../files/dataset.tif',
+           '# Verify checksum: sha256sum data/dataset.tif',
+           ''] if _has_df or _has_l else []),
         '# 1. Clone or download this repository',
         '# 2. Create a virtual environment',
         'python -m venv venv',
