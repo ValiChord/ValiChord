@@ -21,7 +21,8 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 DATA_EXTENSIONS = {
     '.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
     '.feather', '.rds', '.rdata', '.dta', '.sav', '.sas7bdat',
-    '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc'
+    '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
+    '.dif'
 }
 
 ENCRYPTED_EXTENSIONS = {'.gpg', '.enc', '.secret', '.age', '.asc'}
@@ -913,7 +914,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
         '.rdata', '.dta', '.sav', '.mat', '.pkl', '.npy',
         '.npz', '.hdf5', '.h5', '.feather', '.arrow', '.json',
-        '.xml', '.db', '.sqlite'
+        '.xml', '.db', '.sqlite', '.dif'
     }
 
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
