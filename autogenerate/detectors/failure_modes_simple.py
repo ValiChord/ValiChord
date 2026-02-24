@@ -1236,6 +1236,9 @@ def detect_P_preregistration(repo_dir, all_files):
 def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
     """Failure Mode V: No virtual environment specification."""
     findings = []
+    # Suppress V for Docker repos — requirements.txt is for the build layer, not local install
+    if any(f.name == 'Dockerfile' or f.name.startswith('Dockerfile.') for f in all_files):
+        return findings
     # Only suppress V if [B] fired for complete absence of deps (not just unpinning)
     if existing_findings:
         b_findings = [f for f in existing_findings if f.get('mode') == 'B']
@@ -2838,7 +2841,18 @@ def detect_AX_container_not_tested(repo_dir, all_files):
         if 'WORKDIR' not in content:
             issues.append('No WORKDIR set before COPY')
     if 'latest' in content.lower():
-        issues.append('Base image uses :latest tag — pin to specific version')
+        import re as _reax
+        _from_m = _reax.search(r'^FROM\s+(\S+)', content, _reax.IGNORECASE | _reax.MULTILINE)
+        _image = _from_m.group(1) if _from_m else 'python:latest'
+        _base = _image.split(':')[0]
+        _hub_url = f'https://hub.docker.com/_{_base.split("/")[-1]}' if '/' not in _base else f'https://hub.docker.com/r/{_base}'
+        _suggested = _base + ':3.11-slim' if 'python' in _base.lower() else _base + ':<version>'
+        issues.append(
+            f'Base image uses :latest tag ({_image}) — resolves to a different version over time.\n'
+            f'Fix: replace with a pinned version, e.g. FROM {_suggested}\n'
+            f'See available tags: {_hub_url}\n'
+            f'Note: validators pulling this image in future may get different results.'
+        )
     if 'RUN pip install' in content and 'requirements' not in content.lower():
         issues.append('pip install without requirements file — not reproducible')
     if issues:
