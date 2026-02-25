@@ -1485,18 +1485,22 @@ def _generate_quickstart_draft(repo_dir, all_files,
                         readme_order.append(match)
             except Exception:
                 pass
-    # try to find numbered scripts — support both integer (01_, 1_) and
-    # decimal (0.1_, 1.2_) prefixes; sort by float value for correct order
+    # try to find numbered scripts — support integer (01_, 1_), decimal (1.2_),
+    # period/period-space (1. name, 1.name), and compound (3-1. name) prefixes;
+    # sort by (major, minor) tuple for correct order
     numbered = []
     for f in code_files:
-        m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[_\-](.+)', f.name)
+        # Separator: underscore, hyphen, or period-not-followed-by-digit
+        m = re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
         if m:
-            numbered.append((float(m.group(1)), f))
+            major = int(m.group(1))
+            minor = int(m.group(2)) if m.group(2) else 0
+            numbered.append(((major, minor), f))
     numbered.sort(key=lambda x: x[0])
     # prefer README order over alphabetical — track source for confidence level
     _numbered_from_filenames = bool(numbered)
     if readme_order and not numbered:
-        numbered = [(i+1, f) for i, f in enumerate(readme_order)]
+        numbered = [((i + 1, 0), f) for i, f in enumerate(readme_order)]
 
     # Shiny app — generate dedicated interactive-app QUICKSTART
     import re as _reshiny
@@ -1690,10 +1694,9 @@ def _generate_quickstart_draft(repo_dir, all_files,
             '(from numbered script filenames)' if _numbered_from_filenames else '(from README run commands)',
             '',
         ]
-        for num, f in numbered:
+        for i, (_, f) in enumerate(numbered, 1):
             rel = f.relative_to(repo_dir)
-            num_str = str(int(num)) if num == int(num) else str(num)
-            lines.append(f'{num_str}. `{rel}`')
+            lines.append(f'{i}. `{rel}`')
         lines.append('')
     else:
         lines += [

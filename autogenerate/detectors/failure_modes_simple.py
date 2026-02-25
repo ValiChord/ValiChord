@@ -5362,8 +5362,11 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
     for m in list(script_pattern.finditer(content)) + list(runorder_pattern.finditer(content)):
         ref = m.group(1)
         ref_name = ref.split('/')[-1].lower()
-        # Check if referenced file exists anywhere in repo
-        if ref_name not in all_file_names and ref not in all_file_paths:
+        # Check if referenced file exists anywhere in repo (exact or fuzzy substring)
+        ref_stem = ref_name.rsplit('.', 1)[0]  # e.g. "rand_hrs" from "rand_hrs.do"
+        found = (ref_name in all_file_names or ref in all_file_paths or
+                 any(ref_stem in fname for fname in all_file_names))
+        if not found:
             if ref not in missing:
                 missing.append(ref)
     if missing:
