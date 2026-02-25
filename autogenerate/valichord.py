@@ -98,6 +98,8 @@ def main():
         if f.is_file()
         and '.git' not in f.parts
         and '__pycache__' not in f.parts
+        and '__MACOSX' not in f.parts       # macOS zip metadata directory
+        and not f.name.startswith('._')     # macOS resource-fork sidecar files
         and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
     ]
 

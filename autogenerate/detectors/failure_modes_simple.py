@@ -80,43 +80,64 @@ def detect_A_no_readme(repo_dir, all_files):
 
     root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4]
     if not root_readme:
-        # Check for same-named .txt files alongside data files
-        # (e.g. GDP_FDI_Dataset.txt next to GDP_FDI_Dataset.csv)
-        # These may serve as data descriptions rather than a proper README
-        data_names = {f.stem.lower() for f in all_files
-                      if f.suffix.lower() in DATA_EXTENSIONS}
-        companion_txt = [f for f in all_files
-                         if f.suffix.lower() == '.txt'
-                         and f.stem.lower() in data_names
-                         and len(f.relative_to(repo_dir).parts) <= 3]
-        if companion_txt:
+        # Check for a README in PDF format (common but not machine-readable)
+        _pdf_readme = next(
+            (f for f in all_files
+             if f.stem.lower() == 'readme' and f.suffix.lower() == '.pdf'
+             and len(f.relative_to(repo_dir).parts) <= 4),
+            None
+        )
+        if _pdf_readme:
             findings.append(finding(
                 'A', 'SIGNIFICANT',
-                'No README file found — a text file may serve as documentation',
-                'No file named README.md, README.txt, or README.rst was found. '
-                'A text file with the same name as your data files was detected '
-                '— if this describes your dataset, rename it to README.md and '
-                'ensure it covers all required sections. README_DRAFT.md will '
-                'be generated as a template.',
-                [f'Text file found: {f.name} — verify whether this is your README'
-                 for f in companion_txt]
+                f'README found as PDF ({_pdf_readme.name}) — convert to README.md',
+                'A README.pdf was detected. PDF is not machine-readable and '
+                'cannot be parsed by automated validators or indexed by '
+                'repository platforms. Convert to README.md (plain text or '
+                'Markdown) so that all required sections are accessible. '
+                'README_DRAFT.md will be generated as a starting template.',
+                [f'Found: {_pdf_readme.name}',
+                 'Fix: export PDF content to README.md using a PDF-to-text tool '
+                 'or by copy-pasting the text into a Markdown file']
             ))
         else:
-            _sub_readme = next(
-                (f for f in all_files if f.name.lower() in README_NAMES), None
-            )
-            _evidence = 'No README.md, README.txt, or README.rst found at repository root level'
-            if _sub_readme:
-                _evidence += (f' (a README was found in a subdirectory: '
-                              f'{_sub_readme.parent.name}/{_sub_readme.name}'
-                              f' — a README is also needed at the root)')
-            findings.append(finding(
-                'A', 'CRITICAL',
-                'No README file found',
-                'Every research repository requires a README. '
-                'README_DRAFT.md will be generated.',
-                [_evidence]
-            ))
+            # Check for same-named .txt files alongside data files
+            # (e.g. GDP_FDI_Dataset.txt next to GDP_FDI_Dataset.csv)
+            # These may serve as data descriptions rather than a proper README
+            data_names = {f.stem.lower() for f in all_files
+                          if f.suffix.lower() in DATA_EXTENSIONS}
+            companion_txt = [f for f in all_files
+                             if f.suffix.lower() == '.txt'
+                             and f.stem.lower() in data_names
+                             and len(f.relative_to(repo_dir).parts) <= 3]
+            if companion_txt:
+                findings.append(finding(
+                    'A', 'SIGNIFICANT',
+                    'No README file found — a text file may serve as documentation',
+                    'No file named README.md, README.txt, or README.rst was found. '
+                    'A text file with the same name as your data files was detected '
+                    '— if this describes your dataset, rename it to README.md and '
+                    'ensure it covers all required sections. README_DRAFT.md will '
+                    'be generated as a template.',
+                    [f'Text file found: {f.name} — verify whether this is your README'
+                     for f in companion_txt]
+                ))
+            else:
+                _sub_readme = next(
+                    (f for f in all_files if f.name.lower() in README_NAMES), None
+                )
+                _evidence = 'No README.md, README.txt, or README.rst found at repository root level'
+                if _sub_readme:
+                    _evidence += (f' (a README was found in a subdirectory: '
+                                  f'{_sub_readme.parent.name}/{_sub_readme.name}'
+                                  f' — a README is also needed at the root)')
+                findings.append(finding(
+                    'A', 'CRITICAL',
+                    'No README file found',
+                    'Every research repository requires a README. '
+                    'README_DRAFT.md will be generated.',
+                    [_evidence]
+                ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
