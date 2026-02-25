@@ -73,7 +73,9 @@ def analyse():
             if f.is_file()
             and '.git' not in f.parts
             and '__pycache__' not in f.parts
-            and f.name not in {'.DS_Store', 'Thumbs.db'}
+            and '__MACOSX' not in f.parts       # macOS zip metadata directory
+            and not f.name.startswith('._')     # macOS resource-fork sidecar files
+            and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
         ]
 
         findings = run_simple_detectors(repo_dir, all_files)
