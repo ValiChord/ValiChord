@@ -401,9 +401,15 @@ def detect_D_no_entry_point(repo_dir, all_files):
         and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
     ]
 
-    has_numbered = any(
-        re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
-        for f in _researcher_code
+    _part_counts = {}
+    for _f in _researcher_code:
+        _mp = re.search(r'[_\-][Pp]art(\d+)', _f.stem)
+        if _mp:
+            _part_counts[int(_mp.group(1))] = _part_counts.get(int(_mp.group(1)), 0) + 1
+    has_numbered = (
+        any(re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
+            for f in _researcher_code)
+        or len(_part_counts) >= 2  # ≥2 distinct _PartN numbers = ordered sequence
     )
 
     code_count = len(_researcher_code)

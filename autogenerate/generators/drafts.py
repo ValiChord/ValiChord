@@ -1526,6 +1526,19 @@ def _generate_quickstart_draft(repo_dir, all_files,
             minor = int(m.group(2)) if m.group(2) else 0
             numbered.append(((major, minor), f))
     numbered.sort(key=lambda x: x[0])
+
+    # _PartN infix pattern (e.g. Master_Part1_Data.m, Script_Part2.R)
+    # Only used when leading-prefix detection found nothing
+    if not numbered:
+        _part_candidates = []
+        for f in code_files:
+            mp = re.search(r'[_\-][Pp]art(\d+)', f.stem)
+            if mp:
+                _part_candidates.append(((int(mp.group(1)), 0), f))
+        # Require ≥2 distinct part numbers to treat as an ordered sequence
+        if len({key[0] for key, _ in _part_candidates}) >= 2:
+            numbered = sorted(_part_candidates, key=lambda x: x[0])
+
     # prefer README order over alphabetical — track source for confidence level
     _numbered_from_filenames = bool(numbered)
     if readme_order and not numbered:
