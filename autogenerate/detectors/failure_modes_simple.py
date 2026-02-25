@@ -214,7 +214,8 @@ def detect_B_no_dependencies(repo_dir, all_files):
         # — these represent inline deps that the generator can extract
         if not readme_has_inline_deps:
             _r_inline_pat = re.compile(
-                r'(?:library|require)\s*\(|(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\('
+                r'(?:library|require)\s*\(|(?:packages?|pkgs?)\s*<-\s*c\s*\(',
+                re.IGNORECASE
             )
             for f in all_files:
                 if f.suffix.lower() in {'.r', '.rmd', '.qmd'}:
