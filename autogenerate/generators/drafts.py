@@ -976,6 +976,14 @@ def _generate_requirements_draft(repo_dir, all_files,
     # Merge Julia imports after Python stdlib filter so CSV etc. aren't excluded
     external = sorted(set(external) | {pkg for pkg in julia_imports if not pkg.startswith('_')})
 
+    # Second-pass: any name whose lowercase form matches the stem of a .py file
+    # in the repository is a local module, not a PyPI package.  This catches
+    # modules that are not imported by the scanned files (so they didn't appear
+    # in the first-pass local_modules check) and also filters any Julia imports
+    # that happen to share a name with a local Python file.
+    _py_stems = {f.stem.lower() for f in all_files if f.suffix.lower() == '.py'}
+    external = [pkg for pkg in external if pkg.lower() not in _py_stems]
+
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     lines = [

@@ -2005,13 +2005,10 @@ def detect_Q_config_files(repo_dir, all_files):
     )
 
     all_filenames_lower = {f.name.lower() for f in all_files}
-    uses_config = False
     missing_configs = set()
 
     for f in code_files:
         content = read_file_safe(f)
-        if config_read_pattern.search(content):
-            uses_config = True
         for match in config_file_pattern.finditer(content):
             cfg_ref = match.group(1)
             # Skip f-string / %-format / str.format template placeholders
@@ -2032,16 +2029,6 @@ def detect_Q_config_files(repo_dir, all_files):
             'code with the same settings used in the original analysis.',
             [f'Missing configs: {", ".join(sorted(missing_configs)[:5])}']
         ))
-    elif uses_config:
-        findings.append(finding(
-            'Q', 'LOW CONFIDENCE',
-            'Code uses configuration loading but no config file issues detected',
-            'The code uses configuration file loading patterns. '
-            'Verify that all required configuration files are '
-            'committed and documented.',
-            ['Config loading detected — manual verification recommended']
-        ))
-
     return findings
 
 
