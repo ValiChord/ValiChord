@@ -201,6 +201,18 @@ def detect_B_no_dependencies(repo_dir, all_files):
                 ]):
                     readme_has_inline_deps = True
                     break
+        # Also check R source files for library()/require() calls or
+        # vector package assignments (packages <- c(...) / pkgs <- c(...))
+        # — these represent inline deps that the generator can extract
+        if not readme_has_inline_deps:
+            _r_inline_pat = re.compile(
+                r'(?:library|require)\s*\(|(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\('
+            )
+            for f in all_files:
+                if f.suffix.lower() in {'.r', '.rmd', '.qmd'}:
+                    if _r_inline_pat.search(read_file_safe(f)):
+                        readme_has_inline_deps = True
+                        break
 
     if has_code and not has_dep_file and not has_draft_only and not readme_has_inline_deps:
         findings.append(finding(
@@ -1224,7 +1236,7 @@ def detect_K_compute_environment(repo_dir, all_files):
         'os:', 'tested on', 'platform'
     ]
     ram_indicators = [
-        'ram', 'memory', 'gb', 'gigabyte', 'minimum'
+        'ram', 'memory', 'gb', 'gigabyte', 'minimum', 'cores'
     ]
     gpu_indicators = [
         'gpu', 'cuda', 'nvidia', 'a100', 'v100', 'rtx',
@@ -2942,7 +2954,7 @@ def detect_AW_missing_doi(repo_dir, all_files):
     has_doi = False
     for f in text_files:
         content = read_file_safe(f).lower()
-        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content:
+        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content or 'zenodo.org/badge' in content or 'doi.org/10.5281' in content:
             has_doi = True
             break
     if not has_doi:
