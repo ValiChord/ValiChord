@@ -384,15 +384,29 @@ async function analyse() {
   analyseBtn.disabled = true;
   show("statusRunning"); hide("statusError"); hide("statusSuccess");
   try {
-    // Phase 1: submit upload, get job_id immediately
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    const submitRes = await fetch(API + "/analyse", { method: "POST", body: formData });
-    if (!submitRes.ok) {
-      const d = await submitRes.json();
-      throw new Error(d.error || "Server error");
+    // Phase 1: chunked upload — each chunk is small enough to beat proxy timeouts
+    const CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB
+    const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+    const uploadId = crypto.randomUUID();
+    let job_id = null;
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const chunk = selectedFile.slice(start, start + CHUNK_SIZE);
+      const formData = new FormData();
+      formData.append("upload_id", uploadId);
+      formData.append("chunk_index", i);
+      formData.append("total_chunks", totalChunks);
+      formData.append("chunk", chunk, selectedFile.name);
+
+      const res = await fetch(API + "/upload-chunk", { method: "POST", body: formData });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "Upload error");
+      }
+      const data = await res.json();
+      if (data.job_id) job_id = data.job_id;
     }
-    const { job_id } = await submitRes.json();
 
     // Phase 2: poll /status/<job_id> until done or error
     while (true) {
@@ -402,7 +416,6 @@ async function analyse() {
       const poll = await pollRes.json();
       if (poll.status === "error") throw new Error(poll.error || "Processing error");
       if (poll.status === "done") break;
-      // still running — keep polling
     }
 
     // Phase 3: download result

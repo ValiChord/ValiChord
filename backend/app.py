@@ -22,10 +22,13 @@ CORS(app)
 
 MAX_SIZE_MB = 100
 
-# ── in-memory job store ──────────────────────────────────────────────────────
-# _jobs[job_id] = {'status': 'running'|'done'|'error', 'output_zip': Path|None, 'error': str|None}
+# ── job store ────────────────────────────────────────────────────────────────
 _jobs: dict = {}
 _jobs_lock = threading.Lock()
+
+# ── in-progress uploads (chunked) ────────────────────────────────────────────
+_uploads: dict = {}
+_uploads_lock = threading.Lock()
 
 
 def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str):
@@ -95,36 +98,88 @@ def health():
     return jsonify({'status': 'ok', 'version': '1.0'})
 
 
-@app.route('/analyse', methods=['POST'])
-def analyse():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+@app.route('/upload-chunk', methods=['POST'])
+def upload_chunk():
+    """Receive one chunk of a multi-part upload.
 
-    f = request.files['file']
-    if not f.filename.lower().endswith('.zip'):
-        return jsonify({'error': 'File must be a .zip'}), 400
+    Form fields:
+      upload_id    – client-generated UUID for this upload session
+      chunk_index  – 0-based index of this chunk
+      total_chunks – total number of chunks
+      chunk        – the binary chunk (file field)
 
-    work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
+    Returns:
+      { "status": "received" }              – chunk stored, more to come
+      { "status": "processing", "job_id" }  – all chunks received, job started
+    """
+    upload_id = request.form.get('upload_id')
+    chunk_index = int(request.form.get('chunk_index', 0))
+    total_chunks = int(request.form.get('total_chunks', 1))
+    chunk_file = request.files.get('chunk')
+
+    if not upload_id or chunk_file is None:
+        return jsonify({'error': 'Missing upload_id or chunk'}), 400
+
+    filename = chunk_file.filename or 'upload.zip'
+
+    with _uploads_lock:
+        if upload_id not in _uploads:
+            work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
+            (work_dir / 'chunks').mkdir()
+            _uploads[upload_id] = {
+                'work_dir': work_dir,
+                'received': set(),
+                'total': total_chunks,
+                'filename': filename,
+            }
+        info = _uploads[upload_id]
+
+    # save this chunk (outside the lock so we don't block other requests)
+    chunk_path = info['work_dir'] / 'chunks' / f'chunk_{chunk_index:06d}'
+    chunk_file.save(str(chunk_path))
+
+    with _uploads_lock:
+        info['received'].add(chunk_index)
+        all_received = len(info['received']) == info['total']
+
+    if not all_received:
+        return jsonify({'status': 'received', 'chunk': chunk_index}), 200
+
+    # ── all chunks received — assemble and start job ──────────────────────
+    work_dir = info['work_dir']
     upload_path = work_dir / 'upload.zip'
-    f.save(str(upload_path))
+
+    with open(upload_path, 'wb') as out:
+        for i in range(total_chunks):
+            cp = work_dir / 'chunks' / f'chunk_{i:06d}'
+            with open(cp, 'rb') as cf:
+                out.write(cf.read())
 
     size_mb = upload_path.stat().st_size / (1024 * 1024)
     if size_mb > MAX_SIZE_MB:
         shutil.rmtree(work_dir, ignore_errors=True)
-        return jsonify({'error': f'File too large ({size_mb:.0f}MB). Maximum is {MAX_SIZE_MB}MB.'}), 400
+        with _uploads_lock:
+            _uploads.pop(upload_id, None)
+        return jsonify({'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'}), 400
 
     job_id = str(uuid.uuid4())
     with _jobs_lock:
-        _jobs[job_id] = {'status': 'running', 'output_zip': None, 'error': None, 'work_dir': work_dir}
+        _jobs[job_id] = {
+            'status': 'running',
+            'output_zip': None,
+            'error': None,
+            'work_dir': work_dir,
+        }
+    with _uploads_lock:
+        _uploads.pop(upload_id, None)
 
-    t = threading.Thread(
+    threading.Thread(
         target=_process_job,
-        args=(job_id, upload_path, work_dir, f.filename),
+        args=(job_id, upload_path, work_dir, filename),
         daemon=True
-    )
-    t.start()
+    ).start()
 
-    return jsonify({'job_id': job_id}), 202
+    return jsonify({'status': 'processing', 'job_id': job_id}), 202
 
 
 @app.route('/status/<job_id>', methods=['GET'])
@@ -166,7 +221,6 @@ def download(job_id):
         download_name=download_name,
         mimetype='application/zip'
     )
-    # Clean up after response is sent
     threading.Thread(target=cleanup, daemon=True).start()
     return response
 
