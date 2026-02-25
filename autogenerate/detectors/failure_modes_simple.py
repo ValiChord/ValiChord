@@ -3153,9 +3153,16 @@ def detect_BA_missing_checksums(repo_dir, all_files):
             if any(term in content for term in ['checksum', 'md5', 'sha256', 'hash']):
                 readme_has_checksums = True
     if not has_checksums and not readme_has_checksums:
+        _scope_note = (
+            ' For large deposits, checksums for every file is impractical — '
+            'prioritise the primary input data files.'
+            if len(data_files) > 20 else ''
+        )
         findings.append(finding('BA', 'LOW CONFIDENCE',
             f'{len(data_files)} data files with no checksums documented',
-            'No file checksums were found. Checksums allow validators to verify they have identical copies of the data files, ruling out download corruption as a source of discrepancy.',
+            'No file checksums were found. Checksums allow validators to verify '
+            'they have identical copies of the data files, ruling out download '
+            'corruption as a source of discrepancy.' + _scope_note,
             ['Recommendation: add MD5 or SHA256 checksums to README for key data files']))
     return findings
 

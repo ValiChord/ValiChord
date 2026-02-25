@@ -1893,10 +1893,15 @@ def _generate_quickstart_draft(repo_dir, all_files,
             lines.append(f'- `{rel}`')
         # also list notebooks
         notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
-        _has_j_finding = any(isinstance(f, dict) and f.get('mode') == 'J' for f in findings)
+        # build set of notebook filenames that have a [J] finding (non-linear order)
+        _j_notebook_names = {
+            fi['title'].rsplit(': ', 1)[-1]
+            for fi in findings
+            if isinstance(fi, dict) and fi.get('mode') == 'J'
+        }
         for f in sorted(notebook_files, key=lambda x: x.name):
             rel = f.relative_to(repo_dir)
-            if _has_j_finding:
+            if f.name in _j_notebook_names:
                 lines.append(f'- `{rel}` ⚠️ WARNING: non-linear execution order detected — '
                              f'see [J] finding. Do NOT run top-to-bottom until execution '
                              f'order is resolved and documented.')
