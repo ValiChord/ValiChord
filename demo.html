@@ -379,31 +379,51 @@ function selectFile(f) {
   hide("statusError"); hide("statusSuccess");
 }
 
-function analyse() {
+async function analyse() {
   if (!selectedFile) return;
   analyseBtn.disabled = true;
   show("statusRunning"); hide("statusError"); hide("statusSuccess");
-  const formData = new FormData();
-  formData.append("file", selectedFile);
-  fetch(API + "/analyse", { method: "POST", body: formData })
-    .then(res => {
-      if (!res.ok) return res.json().then(d => { throw new Error(d.error || "Server error"); });
-      return res.blob();
-    })
-    .then(blob => {
-      hide("statusRunning"); show("statusSuccess");
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "valichord_output_" + selectedFile.name;
-      a.click();
-      analyseBtn.disabled = false;
-    })
-    .catch(err => {
-      hide("statusRunning");
-      showError(err.message);
-      analyseBtn.disabled = false;
-    });
+  try {
+    // Phase 1: submit upload, get job_id immediately
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    const submitRes = await fetch(API + "/analyse", { method: "POST", body: formData });
+    if (!submitRes.ok) {
+      const d = await submitRes.json();
+      throw new Error(d.error || "Server error");
+    }
+    const { job_id } = await submitRes.json();
+
+    // Phase 2: poll /status/<job_id> until done or error
+    while (true) {
+      await new Promise(r => setTimeout(r, 3000));
+      const pollRes = await fetch(API + "/status/" + job_id);
+      if (!pollRes.ok) throw new Error("Status check failed");
+      const poll = await pollRes.json();
+      if (poll.status === "error") throw new Error(poll.error || "Processing error");
+      if (poll.status === "done") break;
+      // still running — keep polling
+    }
+
+    // Phase 3: download result
+    const dlRes = await fetch(API + "/download/" + job_id);
+    if (!dlRes.ok) {
+      const d = await dlRes.json();
+      throw new Error(d.error || "Download error");
+    }
+    const blob = await dlRes.blob();
+    hide("statusRunning"); show("statusSuccess");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "valichord_output_" + selectedFile.name;
+    a.click();
+    analyseBtn.disabled = false;
+  } catch (err) {
+    hide("statusRunning");
+    showError(err.message);
+    analyseBtn.disabled = false;
+  }
 }
 
 function show(id) { document.getElementById(id).style.display = "block"; }
