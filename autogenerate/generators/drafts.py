@@ -1561,21 +1561,46 @@ def _generate_quickstart_draft(repo_dir, all_files,
         key=lambda x: len(x.relative_to(repo_dir).parts),
         default=None
     )
-    if _run_script and len(code_files) > 3:
-        _run_rel = _run_script.relative_to(repo_dir)
-        _run_ext = _run_script.suffix.lower()
-        if _run_ext in {'.sh', '.bash'}:
-            _run_cmd = f'bash {_run_rel}'
-        elif _run_ext == '.py':
-            _run_cmd = f'python {_run_rel}'
-        elif _run_ext == '.do':
-            _run_cmd = f'stata -b do {_run_rel}'
-        elif _run_ext == '.m':
-            _run_cmd = f'matlab -batch "run(\'{_run_rel}\')"'
-        elif _run_ext == '.ipynb':
-            _run_cmd = f'jupyter nbconvert --to notebook --execute {_run_rel}'
+    def _entry_cmd(f):
+        """Return the shell command to run a single entry-point file."""
+        rel = f.relative_to(repo_dir)
+        ext = f.suffix.lower()
+        if ext in {'.sh', '.bash'}:
+            return str(rel), f'bash {rel}'
+        elif ext == '.py':
+            return str(rel), f'python {rel}'
+        elif ext == '.do':
+            return str(rel), f'stata -b do {rel}'
+        elif ext == '.m':
+            return str(rel), f'matlab -batch "run(\'{rel}\')"'
+        elif ext == '.ipynb':
+            return str(rel), f'jupyter nbconvert --to notebook --execute {rel}'
         else:
-            _run_cmd = f'./{_run_rel}'
+            return str(rel), f'./{rel}'
+
+    if _run_script and len(code_files) > 3:
+        _run_rel_str, _run_cmd = _entry_cmd(_run_script)
+
+        # Any other main.* files that weren't chosen as the primary entry point
+        _secondary_mains = [
+            f for f in _run_candidates
+            if f != _run_script and f.name.lower() in _MAIN_ENTRY_NAMES
+        ]
+        _secondary_block = []
+        for _sf in _secondary_mains:
+            _sf_rel_str, _sf_cmd = _entry_cmd(_sf)
+            _secondary_block += [
+                '',
+                f'### Also: `{_sf_rel_str}`',
+                '',
+                '> ⚠️ A second entry point was detected alongside the primary script.',
+                '> It may cover a separate part of the analysis — run it independently if needed.',
+                '',
+                '```bash',
+                _sf_cmd,
+                '```',
+            ]
+
         _run_lines = [
             '# ValiChord Repository Readiness Check — Quick Start',
             '',
@@ -1591,7 +1616,8 @@ def _generate_quickstart_draft(repo_dir, all_files,
             _run_cmd,
             '```',
             '',
-            f'(`{_run_rel}` orchestrates the full analysis pipeline.)',
+            f'(`{_run_rel_str}` orchestrates the full analysis pipeline.)',
+            *_secondary_block,
             '',
             '---',
             '',
