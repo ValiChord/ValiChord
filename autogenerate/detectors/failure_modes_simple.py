@@ -2823,11 +2823,21 @@ def detect_AK_external_urls(repo_dir, all_files):
         re.IGNORECASE
     )
 
-    urls_found = set()
-    for f in code_files:
+    # Collect URLs; deduplicate by domain for deterministic, compact output.
+    # Sort files by name so the same domain always maps to the same
+    # representative URL regardless of rglob traversal order.
+    _domain_pat = re.compile(r'https?://(?:www\.)?([^/\s\'")\]>]+)')
+    _domain_to_url: dict = {}   # domain -> first URL seen
+    for f in sorted(code_files, key=lambda x: x.name):
         content = read_file_safe(f)
-        matches = url_pattern.findall(content)
-        urls_found.update(matches[:3])
+        for url in url_pattern.findall(content):
+            m = _domain_pat.match(url)
+            if m:
+                domain = m.group(1).lower()
+                if domain not in _domain_to_url:
+                    _domain_to_url[domain] = url
+
+    urls_found = set(_domain_to_url.values())
 
     # Colab escalation: if Colab links are the primary analysis and there is no
     # local code, the repository is irreproducible if those links go dead.
@@ -2872,7 +2882,17 @@ def detect_AK_external_urls(repo_dir, all_files):
         urls_found -= set(_datacamp_urls)   # don't double-report at LOW CONFIDENCE
 
     if urls_found:
-        sample = list(urls_found)[:5]
+        # Show up to 10 unique domains, sorted, with "and N more" if needed.
+        MAX_DOMAINS = 10
+        _reported_urls = set(_colab_urls) | set(_datacamp_urls)
+        _remaining_domains = sorted(
+            d for d, u in _domain_to_url.items() if u not in _reported_urls
+        )
+        shown = _remaining_domains[:MAX_DOMAINS]
+        rest = len(_remaining_domains) - len(shown)
+        evidence_str = ', '.join(shown)
+        if rest > 0:
+            evidence_str += f' — and {rest} more domain{"s" if rest != 1 else ""}'
         findings.append(finding(
             'AK', 'LOW CONFIDENCE',
             f'External URLs detected — may become unavailable',
@@ -2880,7 +2900,7 @@ def detect_AK_external_urls(repo_dir, all_files):
             'If these URLs go offline, validators will be unable '
             'to access required resources. Use DOIs or archived '
             'URLs where possible.',
-            [f'URLs: {", ".join(sample)[:200]}']
+            [f'Domains: {evidence_str}']
         ))
 
     return findings
