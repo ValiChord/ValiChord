@@ -89,6 +89,12 @@ def detect_A_no_readme(repo_dir, all_files):
             and len(f.relative_to(repo_dir).parts) <= 4
         ]
         if _prop_readmes:
+            # Deduplicate by filename: keep shallowest copy of each distinct name
+            _seen_names = {}
+            for f in sorted(_prop_readmes, key=lambda x: len(x.relative_to(repo_dir).parts)):
+                if f.name.lower() not in _seen_names:
+                    _seen_names[f.name.lower()] = f
+            _prop_readmes = list(_seen_names.values())
             _names_str = ', '.join(f.name for f in _prop_readmes)
             _fmts_str = ', '.join(sorted({f.suffix.lower() for f in _prop_readmes}))
             findings.append(finding(
