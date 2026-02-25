@@ -892,7 +892,7 @@ def detect_F_missing_seeds(repo_dir, all_files):
     """Failure Mode F: Undocumented stochasticity / missing random seeds."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS | {'.ipynb'}]
 
     rng_imports = {
         'numpy': 'np.random.seed()',
@@ -927,7 +927,7 @@ def detect_F_missing_seeds(repo_dir, all_files):
     }
 
     for f in code_files:
-        if f.suffix.lower() not in {'.py', '.r', '.rmd', '.jl'}:
+        if f.suffix.lower() not in {'.py', '.r', '.rmd', '.jl', '.ipynb'}:
             continue
         # Skip library package internals — files inside a Python package
         # directory or inside a tests/ directory are not analysis entry points
@@ -2686,7 +2686,7 @@ def detect_AI_print_debugging(repo_dir, all_files):
     """Failure Mode AI: Excessive print debugging suggests unfinished code."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() == '.py']
+                  if f.suffix.lower() in {'.py', '.ipynb'}]
 
     for f in code_files:
         content = read_file_safe(f)
@@ -2980,7 +2980,7 @@ def detect_AQ_large_model_files(repo_dir, all_files):
 
 def detect_AR_encoding_issues(repo_dir, all_files):
     findings = []
-    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+    py_files = [f for f in all_files if f.suffix.lower() in {'.py', '.ipynb'}]
     bad = []
     for f in py_files:
         content = read_file_safe(f)
@@ -4697,7 +4697,7 @@ def detect_CV_hardcoded_cuda_no_fallback(repo_dir, all_files):
 def detect_CP_python2_syntax(repo_dir, all_files):
     """Failure Mode CP: Python 2 syntax in Python 3 repository."""
     findings = []
-    py_files = [f for f in all_files if f.suffix.lower() == '.py']
+    py_files = [f for f in all_files if f.suffix.lower() in {'.py', '.ipynb'}]
     if not py_files:
         return findings
     # Python 2 print statement: print "..." or print var, var
@@ -4880,7 +4880,7 @@ def detect_CM_nextflow_no_container(repo_dir, all_files):
 def detect_CL_bioconductor_unpinned(repo_dir, all_files):
     """Failure Mode CL: BiocManager::install() called without version= argument."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
     bioc_pat = re.compile(r'BiocManager::install\s*\(', re.IGNORECASE)
     version_pat = re.compile(r'version\s*=', re.IGNORECASE)
     # Extract stated Bioconductor version from README
@@ -5138,7 +5138,7 @@ def detect_CI_live_data_no_archive(repo_dir, all_files):
 def detect_CH_broken_source_chain(repo_dir, all_files):
     """Failure Mode CH: R source() calls reference files not in the repository."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
     all_r_names = {f.name.lower() for f in r_files}
     all_r_paths = {str(f.relative_to(repo_dir)).replace('\\', '/').lower() for f in r_files}
     source_pat = re.compile(r'source\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
@@ -5258,7 +5258,7 @@ def detect_CF_notebook_outputs_committed(repo_dir, all_files):
 def detect_CE_unpinned_github_packages(repo_dir, all_files):
     """Failure Mode CE: devtools::install_github() calls without commit/tag pin."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
     github_pattern = re.compile(
         r'(?:devtools|remotes)::install_github\s*\(\s*["\'][^"\']+/([\w.-]+)["\'][^)]*\)',
         re.IGNORECASE
@@ -5474,7 +5474,7 @@ def detect_BZ_matlab_v73_format(repo_dir, all_files):
     v73_pattern = re.compile(r"^[^%\n]*save\s*\([^)]*-v7\.3", re.IGNORECASE | re.MULTILINE)
     flagged = []
     for f in all_files:
-        if f.suffix.lower() in {'.m', '.txt', '.md', '.rst'}:
+        if f.suffix.lower() in {'.m', '.mlx', '.txt', '.md', '.rst'}:
             try:
                 content = read_file_safe(f)
                 if v73_pattern.search(content):
