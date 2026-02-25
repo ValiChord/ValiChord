@@ -2397,27 +2397,66 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
 
     uses_parallel = False
     has_determinism = False
+    parallel_langs: set[str] = set()   # extensions that triggered parallel match
 
     for f in code_files:
         content = read_file_safe(f)
         if parallel_patterns.search(content):
             uses_parallel = True
+            parallel_langs.add(f.suffix.lower())
         if determinism_patterns.search(content):
             has_determinism = True
 
     if uses_parallel and not has_determinism:
+        # Build language-specific guidance so the recommendation is actionable
+        # for the actual language(s) used — not just Python.
+        _guidance = []
+        _lang_names = []
+
+        if '.java' in parallel_langs or '.scala' in parallel_langs:
+            _lang = 'Java' if '.java' in parallel_langs else 'Scala'
+            _lang_names.append(_lang)
+            _guidance.append(
+                f'{_lang}: use ForkJoinPool with a fixed parallelism level; '
+                'ensure tasks produce results in a deterministic order '
+                '(e.g. collect into a sorted structure rather than relying '
+                'on thread-scheduling order); seed any per-thread RNG with '
+                'a fixed value (new Random(42))'
+            )
+        if '.py' in parallel_langs:
+            _lang_names.append('Python')
+            _guidance.append(
+                'Python: set PYTHONHASHSEED=0 and use worker_init_fn '
+                'to seed each worker process'
+            )
+        if {'.r', '.rmd'} & parallel_langs:
+            _lang_names.append('R')
+            _guidance.append(
+                'R: call set.seed() before parallel blocks; use '
+                'parallel::clusterSetRNGStream() for cluster-based parallelism'
+            )
+        if {'.cpp', '.c'} & parallel_langs:
+            _lang_names.append('C/C++')
+            _guidance.append(
+                'C/C++: seed each thread\'s RNG independently with a '
+                'fixed, deterministic value'
+            )
+        if not _guidance:
+            _guidance = [
+                'Set a fixed seed for each parallel worker and ensure '
+                'task results are collected in a deterministic order'
+            ]
+
+        _lang_str = '/'.join(_lang_names) if _lang_names else 'parallel'
         findings.append(finding(
             'AB', 'SIGNIFICANT',
-            'Parallelisation used without determinism controls',
-            'The code uses parallel processing but no determinism '
-            'controls were found. Parallel execution order is '
-            'non-deterministic by default. Results may vary between '
-            'runs depending on scheduling. Set PYTHONHASHSEED and '
-            'use worker initialisation functions to ensure '
-            'reproducible parallel execution.',
-            ['Parallel patterns detected without worker seeds',
-             'Recommendation: set PYTHONHASHSEED=0 and use '
-             'worker_init_fn or equivalent']
+            f'Parallelisation used without determinism controls ({_lang_str})',
+            'The code uses parallel processing but no determinism controls '
+            'were found. Parallel execution order is non-deterministic by '
+            'default — results may vary between runs depending on thread '
+            'scheduling.',
+            ['Parallel patterns detected without determinism controls',
+             *_guidance]
         ))
 
     return findings
