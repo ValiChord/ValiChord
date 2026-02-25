@@ -1528,12 +1528,17 @@ def _generate_quickstart_draft(repo_dir, all_files,
     # Master run-script — if a run_all / run.sh exists at any depth, use it as
     # the single entry point rather than listing every numbered file individually
     import re as _rerun
-    _run_script = next(
-        (f for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts))
-         if _rerun.match(r'^run[_\-]?all\b.*\.(sh|bash|py|do)$', f.name.lower())
-         or f.name.lower() in {'run.sh', 'run.bash', 'master.sh', 'master.do',
-                                'run_analysis.sh', 'run_replication.sh'}),
-        None
+    _run_candidates = [
+        f for f in all_files
+        if _rerun.match(r'^run[_\-]?all\b.*\.(sh|bash|py|do)$', f.name.lower())
+        or f.name.lower() in {'run.sh', 'run.bash', 'master.sh', 'master.do',
+                               'run_analysis.sh', 'run_replication.sh'}
+    ]
+    # pick shallowest (root-level wins over subfolder), same logic as README picker
+    _run_script = min(
+        _run_candidates,
+        key=lambda x: len(x.relative_to(repo_dir).parts),
+        default=None
     )
     if _run_script and len(code_files) > 3:
         _run_rel = _run_script.relative_to(repo_dir)
