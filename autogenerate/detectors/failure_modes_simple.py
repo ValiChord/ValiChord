@@ -2806,6 +2806,26 @@ def detect_AK_external_urls(repo_dir, all_files):
         ))
         urls_found -= set(_colab_urls)   # don't double-report at LOW CONFIDENCE
 
+    # DataCamp escalation: DataCamp workspaces can be private or expire, making
+    # them even more fragile than Colab links.
+    _datacamp_urls = sorted(
+        u for u in urls_found if 'datacamp.com/workspace' in u.lower()
+    )
+    if _datacamp_urls and not _has_local_code:
+        findings.append(finding(
+            'AK', 'SIGNIFICANT',
+            'Primary analysis hosted on DataCamp workspace — no local code found',
+            'The repository links to a DataCamp workspace but contains no local '
+            'code files. DataCamp workspaces can be set to private or deleted, '
+            'making them more fragile than other cloud notebooks. If the link '
+            'goes offline the analysis cannot be reproduced. Export the notebook '
+            'and commit it to the repository.',
+            [f'DataCamp link: {u}' for u in _datacamp_urls[:3]] +
+            ['Fix: in DataCamp workspace — File > Export as Notebook (.ipynb) — '
+             'then commit the .ipynb file to the repository']
+        ))
+        urls_found -= set(_datacamp_urls)   # don't double-report at LOW CONFIDENCE
+
     if urls_found:
         sample = list(urls_found)[:5]
         findings.append(finding(
