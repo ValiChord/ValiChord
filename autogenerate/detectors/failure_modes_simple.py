@@ -3189,10 +3189,17 @@ def detect_AY_workflow_file(repo_dir, all_files):
     ci_files = [f for f in all_files if f.suffix.lower() in {'.yml', '.yaml'}
                 and any(ci in str(f).lower() for ci in ['github', 'gitlab', 'circle', 'travis', 'actions'])]
     if ci_files:
+        # deduplicate by filename — same file at different depths counts once
+        _seen = set()
+        _unique_ci = []
+        for _f in ci_files:
+            if _f.name not in _seen:
+                _seen.add(_f.name)
+                _unique_ci.append(_f)
         findings.append(finding('AY', 'LOW CONFIDENCE',
             f'CI/CD workflow file(s) found — verify they test reproducibility',
             'Continuous integration workflows are present. Ensure they test that the full analysis pipeline runs successfully, not just code style checks.',
-            [f'Workflow files: {", ".join(f.name for f in ci_files[:3])}']))
+            [f'Workflow files: {", ".join(f.name for f in _unique_ci[:5])}']))
     return findings
 
 

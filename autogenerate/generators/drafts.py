@@ -1064,10 +1064,11 @@ def _generate_requirements_draft(repo_dir, all_files,
         'cv2',      # opencv-python
         'PIL',      # Pillow
         'imageio', 'skimage',
-        # web / networking
+        # web / networking / scraping
         'requests', 'flask', 'django', 'fastapi', 'aiohttp', 'httpx', 'urllib3',
+        'google_play_scraper', 'app_store_scraper', 'scrapy', 'mechanize',
         # text / NLP
-        'nltk', 'spacy', 'gensim', 'textblob',
+        'nltk', 'spacy', 'gensim', 'textblob', 'langdetect',
         # common utilities
         'click', 'rich', 'tqdm', 'pydantic', 'attrs', 'pytest', 'joblib',
         'psutil', 'dask', 'numba', 'lxml', 'bs4', 'cryptography', 'paramiko',
@@ -1092,13 +1093,10 @@ def _generate_requirements_draft(repo_dir, all_files,
             elif _is_julia_repo:
                 lines.append(f'{pkg}  # Julia package — add to Project.toml instead of pinning here')
             else:
-                # Flag packages that look suspicious: not in the known-packages
-                # allowlist, or short name with an underscore (common pattern for
-                # local helpers, vendor modules, and tool-internal namespaces).
-                _suspicious = (
-                    pkg.lower() not in _known_pypi
-                    or ('_' in pkg and len(pkg) < 6)
-                )
+                # Only warn if the package is genuinely absent from the known-valid
+                # allowlist. Be conservative — a missed warning is better than
+                # a false positive on a real package.
+                _suspicious = pkg.lower() not in _known_pypi
                 if _suspicious:
                     lines.append(
                         f'{pkg}==UNKNOWN'
@@ -2032,18 +2030,27 @@ def _generate_quickstart_draft(repo_dir, all_files,
             lines.append(f'- `{rel}`')
         # also list notebooks
         notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
-        # build set of notebook filenames that have a [J] finding (non-linear order)
-        _j_notebook_names = {
-            fi['title'].rsplit(': ', 1)[-1]
-            for fi in findings
-            if isinstance(fi, dict) and fi.get('mode') == 'J'
-        }
+        # build sets of notebook filenames by [J] sub-case
+        _j_nonlinear = set()
+        _j_null_counts = set()
+        for fi in findings:
+            if not isinstance(fi, dict) or fi.get('mode') != 'J':
+                continue
+            _nb_name = fi['title'].rsplit(': ', 1)[-1]
+            if fi['title'].startswith('Notebook cells executed out of order'):
+                _j_nonlinear.add(_nb_name)
+            else:
+                _j_null_counts.add(_nb_name)
         for f in sorted(notebook_files, key=lambda x: x.name):
             rel = f.relative_to(repo_dir)
-            if f.name in _j_notebook_names:
+            if f.name in _j_nonlinear:
                 lines.append(f'- `{rel}` ⚠️ WARNING: non-linear execution order detected — '
-                             f'see [J] finding. Do NOT run top-to-bottom until execution '
-                             f'order is resolved and documented.')
+                             f'do NOT run top-to-bottom until execution order is resolved '
+                             f'and documented (see [J] finding).')
+            elif f.name in _j_null_counts:
+                lines.append(f'- `{rel}` ⚠️ WARNING: notebook has never been run — '
+                             f'outputs are not saved. Run from scratch and verify results '
+                             f'before sharing (see [J] finding).')
             else:
                 if f.suffix.lower() in {'.rmd', '.qmd'}:
                     lines.append(f'- `{rel}` (open in RStudio and knit, or run via: Rscript -e \'rmarkdown::render("{rel}")\')')
