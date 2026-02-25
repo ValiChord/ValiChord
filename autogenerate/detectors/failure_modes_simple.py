@@ -5430,12 +5430,14 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
         return findings
     # Find references to script files in README
     script_pattern = re.compile(
-        r'(?:python|Rscript|julia|bash|sh|matlab)\s+([\w/.-]+\.(?:py|r|jl|sh|m|do))\b',
+        r'(?:python|Rscript|julia|bash|sh|matlab|jupyter)\s+'
+        r'([\w/.-]+\.(?:py|r|jl|sh|m|do|ipynb|rmd|qmd))\b',
         re.IGNORECASE
     )
     # Also catch run-order descriptions: 'preprocess.py -> analyse.py'
+    # and numbered notebook lists: '1. rainfall_processing.ipynb'
     runorder_pattern = re.compile(
-        r'(?:^|\s|->|,)([\w/.-]+\.(?:py|r|jl|sh|m|do))(?=\s|->|,|$)',
+        r'(?:^|\s|->|,)([\w/.-]+\.(?:py|r|jl|sh|m|do|ipynb|rmd|qmd))(?=\s|->|,|$)',
         re.IGNORECASE | re.MULTILINE
     )
     all_file_paths = {str(f.relative_to(repo_dir)).replace('\\', '/') for f in all_files}
