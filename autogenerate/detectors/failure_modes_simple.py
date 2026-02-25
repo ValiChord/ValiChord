@@ -1991,14 +1991,6 @@ def detect_Q_config_files(repo_dir, all_files):
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS]
 
-    config_read_pattern = re.compile(
-        r'(?:configparser|yaml\.load|yaml\.safe_load'
-        r'|json\.load|toml\.load|dotenv|load_dotenv'
-        r'|argparse|click\.option'
-        r'|config\[|cfg\[|params\[)',
-        re.IGNORECASE
-    )
-
     config_file_pattern = re.compile(
         r'["\']([^"\']+\.(?:yaml|yml|json|toml|ini|cfg|conf))["\']',
         re.IGNORECASE
