@@ -296,11 +296,21 @@ def detect_B_no_dependencies(repo_dir, all_files):
                 unpinned = []
                 for line in content.splitlines():
                     line = line.strip()
-                    if line and not line.startswith('#'):
-                        if '==' not in line and '>=' not in line \
-                                and '<=' not in line and '~=' not in line:
-                            if not line.startswith('-'):
-                                unpinned.append(line)
+                    if not line or line.startswith('#') or line.startswith('-'):
+                        continue
+                    # PEP 508 direct URL reference: pkg @ https://...
+                    # Treat as pinned if the URL contains a version string
+                    # (e.g. en_core_web_sm-3.0.0 or ==3.0.0 in the URL)
+                    if ' @ http' in line or '\t@ http' in line:
+                        url_part = line.split('@', 1)[-1]
+                        if re.search(r'[-/=]\d+\.\d+', url_part):
+                            continue  # versioned URL — pinned
+                        else:
+                            unpinned.append(line)
+                            continue
+                    if '==' not in line and '>=' not in line \
+                            and '<=' not in line and '~=' not in line:
+                        unpinned.append(line)
                 if unpinned:
                     findings.append(finding(
                         'B', 'SIGNIFICANT',
@@ -1995,7 +2005,12 @@ def detect_Q_config_files(repo_dir, all_files):
         if config_read_pattern.search(content):
             uses_config = True
         for match in config_file_pattern.finditer(content):
-            cfg_file = match.group(1).split('/')[-1].lower()
+            cfg_ref = match.group(1)
+            # Skip f-string / %-format / str.format template placeholders
+            # e.g. "{corpus}_{task}.json" or "%s_results.yaml"
+            if '{' in cfg_ref or '}' in cfg_ref or '%s' in cfg_ref or '%d' in cfg_ref:
+                continue
+            cfg_file = cfg_ref.split('/')[-1].lower()
             if cfg_file not in all_filenames_lower:
                 missing_configs.add(cfg_file)
 
