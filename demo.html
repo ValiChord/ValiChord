@@ -371,7 +371,7 @@ function drop(e) {
 
 function selectFile(f) {
   if (!f) return;
-  if (!f.name.endsWith(".zip")) { showError("Please upload a .zip file."); return; }
+  if (!f.name.toLowerCase().endsWith(".zip")) { showError("Please upload a .zip file."); return; }
   if (f.size > MAX_MB * 1024 * 1024) { showError("File is too large — maximum size is " + MAX_MB + "MB."); return; }
   selectedFile = f;
   filenameDiv.textContent = f.name + " (" + (f.size / 1024 / 1024).toFixed(1) + " MB)";
