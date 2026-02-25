@@ -904,6 +904,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DF_external_data_no_fetch(repo_dir, all_files)
     print("  [DG] Undocumented GUI/manual steps check...")
     all_findings += detect_DG_undocumented_gui_steps(repo_dir, all_files)
+    print("  [SP] Specialist/proprietary software check...")
+    all_findings += detect_SP_specialist_software(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -3766,6 +3768,71 @@ def detect_DG_undocumented_gui_steps(repo_dir, all_files):
         'knowing the exact software, settings, and procedures used.',
         details
     ))
+    return findings
+
+
+def detect_SP_specialist_software(repo_dir, all_files):
+    """Failure Mode SP: Repository requires specialist or proprietary software."""
+    findings = []
+
+    # Extensions that imply a specific commercial platform.
+    # Grouped by software so one finding fires per platform.
+    _EXT_SW = {
+        '.mph':      'COMSOL Multiphysics',
+        '.odb':      'Abaqus/CAE',
+        '.mxd':      'ArcMap (ArcGIS)',
+        '.aprx':     'ArcGIS Pro',
+        '.sas7bdat': 'SAS',
+        '.sav':      'SPSS',
+        '.dta':      'Stata',
+    }
+
+    # Python API imports that identify a proprietary runtime dependency.
+    _IMPORT_SW = [
+        (re.compile(r'(?:^|[ \t])import\s+mph\b|^from\s+mph\b', re.MULTILINE),
+         'COMSOL Multiphysics (mph Python API)'),
+        (re.compile(r'(?:^|[ \t])import\s+abaqus\b|^from\s+abaqus\b', re.MULTILINE),
+         'Abaqus (abaqus Python API)'),
+    ]
+
+    sw_files: dict[str, list[str]] = {}
+
+    for f in all_files:
+        sw = _EXT_SW.get(f.suffix.lower())
+        if sw:
+            sw_files.setdefault(sw, []).append(f.name)
+
+    for f in all_files:
+        if f.suffix.lower() not in {'.py', '.ipynb'}:
+            continue
+        try:
+            src = f.read_text(encoding='utf-8', errors='ignore')
+            for pat, sw in _IMPORT_SW:
+                if pat.search(src):
+                    sw_files.setdefault(sw, []).append(f'import in {f.name}')
+        except Exception:
+            pass
+
+    for sw, raw_files in sorted(sw_files.items()):
+        # deduplicate, cap list length
+        seen: list[str] = []
+        for fn in raw_files:
+            if fn not in seen:
+                seen.append(fn)
+        display = seen[:6]
+        suffix = f' (+ {len(seen) - 6} more)' if len(seen) > 6 else ''
+
+        findings.append(finding(
+            'SP', 'SIGNIFICANT',
+            f'Specialist software required: {sw}',
+            f'This repository contains files that require {sw} to open or run. '
+            f'Validators must hold a valid licence for {sw} to fully reproduce this work. '
+            f'Document the required software name and version in the README '
+            f'under a "Software requirements" section.',
+            [f'Files/imports: {", ".join(display)}{suffix}',
+             f'Action: add "{sw} vX.Y" to README software requirements']
+        ))
+
     return findings
 
 
