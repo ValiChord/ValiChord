@@ -80,25 +80,29 @@ def detect_A_no_readme(repo_dir, all_files):
 
     root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4]
     if not root_readme:
-        # Check for a README in PDF format (common but not machine-readable)
-        _pdf_readme = next(
-            (f for f in all_files
-             if f.stem.lower() == 'readme' and f.suffix.lower() == '.pdf'
-             and len(f.relative_to(repo_dir).parts) <= 4),
-            None
-        )
-        if _pdf_readme:
+        # Check for README in a proprietary/non-machine-readable format
+        _PROP_EXTS = {'.pdf', '.pages', '.docx', '.doc'}
+        _prop_readmes = [
+            f for f in all_files
+            if f.stem.lower() == 'readme'
+            and f.suffix.lower() in _PROP_EXTS
+            and len(f.relative_to(repo_dir).parts) <= 4
+        ]
+        if _prop_readmes:
+            _names_str = ', '.join(f.name for f in _prop_readmes)
+            _fmts_str = ', '.join(sorted({f.suffix.lower() for f in _prop_readmes}))
             findings.append(finding(
                 'A', 'SIGNIFICANT',
-                f'README found as PDF ({_pdf_readme.name}) — convert to README.md',
-                'A README.pdf was detected. PDF is not machine-readable and '
-                'cannot be parsed by automated validators or indexed by '
-                'repository platforms. Convert to README.md (plain text or '
-                'Markdown) so that all required sections are accessible. '
+                f'README found in proprietary format ({_names_str}) — convert to README.md',
+                f'A README in proprietary format ({_fmts_str}) was detected. '
+                'These formats are not machine-readable and cannot be parsed by '
+                'automated validators or indexed by repository platforms. '
+                'Convert to README.md (plain text or Markdown) so that all '
+                'required sections are accessible. '
                 'README_DRAFT.md will be generated as a starting template.',
-                [f'Found: {_pdf_readme.name}',
-                 'Fix: export PDF content to README.md using a PDF-to-text tool '
-                 'or by copy-pasting the text into a Markdown file']
+                [f'Found: {f.name}' for f in _prop_readmes] +
+                ['Fix: export content to README.md using a suitable conversion '
+                 'tool or by copy-pasting the text into a Markdown file']
             ))
         else:
             # Check for same-named .txt files alongside data files
@@ -388,9 +392,13 @@ def detect_D_no_entry_point(repo_dir, all_files):
     findings = []
     names_lower = {f.name.lower() for f in all_files}
 
-    has_run_all = any('run_all' in n or 'run_all' in n
-                      for n in names_lower
-                      if n.endswith('.sh') or n.endswith('.py'))
+    _MAIN_ENTRY_NAMES = {'main.m', 'main.py', 'main.ipynb', 'index.ipynb'}
+    has_run_all = (
+        any('run_all' in n
+            for n in names_lower
+            if n.endswith('.sh') or n.endswith('.py') or n.endswith('.do'))
+        or bool(names_lower & _MAIN_ENTRY_NAMES)
+    )
 
     has_makefile = 'makefile' in names_lower
 
@@ -793,6 +801,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_BU_conda_channel_priority(repo_dir, all_files)
     print("  [BV] Shell error handling check...")
     all_findings += detect_BV_shell_no_set_e(repo_dir, all_files)
+    print("  [BW] Empty code files check...")
+    all_findings += detect_BW_empty_code_files(repo_dir, all_files)
     print("  [BX] Pluto manifest check...")
     all_findings += detect_BX_pluto_empty_manifest(repo_dir, all_files)
     print("  [BY] Julia manifest check...")
@@ -5556,4 +5566,36 @@ def detect_BV_shell_no_set_e(repo_dir, all_files):
                  'Fix: add "set -e" on the line immediately after the shebang (#!)',
                  'Optionally also add "set -o pipefail" to catch pipeline errors']
             ))
+    return findings
+
+
+def detect_BW_empty_code_files(repo_dir, all_files):
+    """Failure Mode BW: Code file is effectively empty (≤5 bytes — likely a stub or missing upload)."""
+    findings = []
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
+    code_files = [
+        f for f in all_files
+        if f.suffix.lower() in CODE_EXTENSIONS
+        and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
+    ]
+    empty = []
+    for f in code_files:
+        try:
+            if f.stat().st_size <= 5:
+                empty.append(f)
+        except Exception:
+            pass
+    if empty:
+        findings.append(finding(
+            'BW', 'SIGNIFICANT',
+            f'Empty or near-empty code file{"s" if len(empty) > 1 else ""} detected '
+            f'({len(empty)} file{"s" if len(empty) > 1 else ""})',
+            'One or more code files contain fewer than 6 bytes and are '
+            'effectively empty stubs. Empty code files cannot reproduce any '
+            'results and suggest a missing upload or an incomplete deposit. '
+            'Either replace the file with the actual code, or remove it and '
+            'note the omission in your README.',
+            [f'{f.name} ({f.stat().st_size} byte{"s" if f.stat().st_size != 1 else ""})'
+             for f in empty]
+        ))
     return findings

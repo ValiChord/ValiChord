@@ -294,6 +294,9 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
         'BL': 'Pin your version number explicitly. Replace '
               'setuptools_scm / versioneer with '
               '`__version__ = "1.0.0"` in your package.',
+        'BW': 'Replace empty stub code files with the actual code, or remove '
+              'them and document the omission in your README. '
+              'A 1–5 byte file cannot contribute to reproducing your results.',
     }
 
     modes_found = {f['mode'] for f in findings}

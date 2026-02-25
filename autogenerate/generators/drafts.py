@@ -1547,11 +1547,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
     # Master run-script — if a run_all / run.sh exists at any depth, use it as
     # the single entry point rather than listing every numbered file individually
     import re as _rerun
+    _MAIN_ENTRY_NAMES = {'main.m', 'main.py', 'main.ipynb', 'index.ipynb'}
     _run_candidates = [
         f for f in all_files
         if _rerun.match(r'^run[_\-]?all\b.*\.(sh|bash|py|do)$', f.name.lower())
         or f.name.lower() in {'run.sh', 'run.bash', 'master.sh', 'master.do',
                                'run_analysis.sh', 'run_replication.sh'}
+        or f.name.lower() in _MAIN_ENTRY_NAMES
     ]
     # pick shallowest (root-level wins over subfolder), same logic as README picker
     _run_script = min(
@@ -1568,6 +1570,10 @@ def _generate_quickstart_draft(repo_dir, all_files,
             _run_cmd = f'python {_run_rel}'
         elif _run_ext == '.do':
             _run_cmd = f'stata -b do {_run_rel}'
+        elif _run_ext == '.m':
+            _run_cmd = f'matlab -batch "run(\'{_run_rel}\')"'
+        elif _run_ext == '.ipynb':
+            _run_cmd = f'jupyter nbconvert --to notebook --execute {_run_rel}'
         else:
             _run_cmd = f'./{_run_rel}'
         _run_lines = [
