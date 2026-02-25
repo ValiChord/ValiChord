@@ -958,6 +958,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         'pprint', 'glob', 'fnmatch', 'stat', 'pwd', 'grp',
         'zipfile', 'tarfile', 'gzip', 'bz2', 'lzma',
         'zlib', 'binascii', 'codecs',
+        'locale', 'statistics', 'signal',
     }
 
     # local python files in repo

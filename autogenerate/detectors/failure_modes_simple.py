@@ -1434,7 +1434,7 @@ def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
     # Only suppress V if [B] fired for complete absence of deps (not just unpinning)
     if existing_findings:
         b_findings = [f for f in existing_findings if f.get('mode') == 'B']
-        if any('No dependency' in f.get('title', '') for f in b_findings):
+        if any('no dependency' in f.get('title', '').lower() for f in b_findings):
             return findings
 
     has_venv_spec = any(
