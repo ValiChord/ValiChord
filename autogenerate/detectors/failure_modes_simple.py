@@ -3113,13 +3113,14 @@ def detect_AR_encoding_issues(repo_dir, all_files):
 def detect_AS_network_calls(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
-    # urllib.parse is string manipulation, not a network call — only flag
-    # urllib.request (actual HTTP client) and urllib.urlopen (legacy form).
+    # urllib.parse is string manipulation, not a network call — exclude it.
+    # Only match actual I/O operations: HTTP clients and socket connections.
     net_pattern = re.compile(
         r'(requests\.'
         r'|urllib\.request'
         r'|urllib\.urlopen'
         r'|http\.client'
+        r'|socket\.connect'
         r'|wget\.'
         r'|httpx\.'
         r'|aiohttp\.)',
