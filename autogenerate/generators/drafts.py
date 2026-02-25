@@ -447,10 +447,15 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     r_pkgs = set()
     github_pkgs = {}  # pkg_name_lower -> 'owner/repo'
     lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+    vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
     github_pat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
     for rf in [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]:
-        for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
+        src = rf.read_text(encoding='utf-8', errors='ignore')
+        for m in lib_pat.finditer(src):
             r_pkgs.add(m.group(1))
+        for m in vec_pkg_pat.finditer(src):
+            for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
+                r_pkgs.add(pkg)
     for rf in all_files:
         if re.match(r'(install|setup).*\.r$', rf.name.lower()):
             try:
@@ -1043,9 +1048,14 @@ def _generate_requirements_draft(repo_dir, all_files,
         r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
         r_libs = set()
         lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+        vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
         for rf in r_files:
-            for m in lib_pat.finditer(rf.read_text(encoding='utf-8', errors='ignore')):
+            src = rf.read_text(encoding='utf-8', errors='ignore')
+            for m in lib_pat.finditer(src):
                 r_libs.add(m.group(1))
+            for m in vec_pkg_pat.finditer(src):
+                for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
+                    r_libs.add(pkg)
         # Build github_pkgs map and collect BiocManager/install.packages from install*.R
         _ghpat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
         _biocpat = re.compile(r'BiocManager::install\s*\(\s*c\s*\(([^)]+)\)', re.IGNORECASE)
