@@ -140,11 +140,11 @@ def detect_A_no_readme(repo_dir, all_files):
                     _sub_rel = _sub_readme.relative_to(repo_dir)
                     findings.append(finding(
                         'A', 'CRITICAL',
-                        'No README at root — README found only in subdirectory',
-                        'Every research repository requires a README at the root level. '
-                        f'A README was found at {_sub_rel} but not at the repository root. '
-                        'Move or copy the README to the root and ensure it covers all '
-                        'required sections. README_DRAFT.md will be generated.',
+                        'No README at repository root — README found in subdirectory',
+                        f'No README at repository root. A README was found at {_sub_rel} '
+                        '— move it to the repository root so validators can find it '
+                        'immediately on download. Validators typically look only at the '
+                        'root level. README_DRAFT.md will be generated.',
                         [f'README found at: {_sub_rel} — move to repository root',
                          'No README.md, README.txt, or README.rst at root level']
                     ))
@@ -906,6 +906,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_DG_undocumented_gui_steps(repo_dir, all_files)
     print("  [SP] Specialist/proprietary software check...")
     all_findings += detect_SP_specialist_software(repo_dir, all_files)
+    print("  [EP] Data provenance check...")
+    all_findings += detect_EP_data_provenance(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -2392,7 +2394,14 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
         r'|ray\.|(?<![Mm]ax)(?<![Aa]vg)(?<![Mm]in)\bPool\b|ProcessPool|ThreadPool'
         r'|n_jobs\s*=|parallel\s*=\s*True'
         r'|mp\.Pool|futures\.ProcessPoolExecutor'
-        r'|DataLoader[^)]*num_workers\s*=\s*[1-9])',
+        r'|DataLoader[^)]*num_workers\s*=\s*[1-9]'
+        # R parallel libraries
+        r'|mclapply|parLapply|parSapply|mcmapply|registerDoParallel|%dopar%'
+        r'|library\s*\(\s*["\']?(?:parallel|foreach|doParallel)\b'
+        # Java / Scala
+        r'|ForkJoinPool|ExecutorService|parallelStream|newFixedThreadPool|newCachedThreadPool'
+        # Shell / Make
+        r'|make\s+(?:-j|--jobs)|xargs\s+-P|\bparallel\s+.*:::)',
         re.IGNORECASE
     )
 
@@ -2400,7 +2409,9 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
         r'(worker_init_fn|pl\.seed_everything'
         r'|torch\.use_deterministic_algorithms'
         r'|PYTHONHASHSEED|random_state\s*=\s*\d'
-        r'|initializer\s*=)',
+        r'|initializer\s*='
+        # R
+        r'|set\.seed\s*\(|clusterSetRNGStream)',
         re.IGNORECASE
     )
 
@@ -2414,11 +2425,19 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
     has_determinism = False
     parallel_langs: set[str] = set()   # extensions that triggered parallel match
 
-    for f in code_files:
+    # Include Makefiles (no suffix or .mk) alongside code_files
+    _makefile_names = {'makefile', 'gnumakefile', 'bsdmakefile'}
+    _makefile_files = [
+        f for f in all_files
+        if f.name.lower() in _makefile_names or f.suffix.lower() == '.mk'
+    ]
+
+    for f in list(code_files) + _makefile_files:
         content = read_file_safe(f)
         if parallel_patterns.search(content):
             uses_parallel = True
-            parallel_langs.add(f.suffix.lower())
+            ext = f.suffix.lower() if f.suffix else '.mk'
+            parallel_langs.add(ext)
         if determinism_patterns.search(content):
             has_determinism = True
 
@@ -2455,6 +2474,13 @@ def detect_AB_parallel_no_seed(repo_dir, all_files):
             _guidance.append(
                 'C/C++: seed each thread\'s RNG independently with a '
                 'fixed, deterministic value'
+            )
+        if {'.sh', '.bash', '.mk'} & parallel_langs:
+            _lang_names.append('Shell/Make')
+            _guidance.append(
+                'Shell/Make: document the exact number of parallel jobs used '
+                '(e.g. make -j4, not make -j) and ensure all parallel tasks '
+                'are independent with no shared output files or race conditions'
             )
         if not _guidance:
             _guidance = [
@@ -3920,7 +3946,23 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.sas7bdat': 'SAS',
         '.sav':      'SPSS',
         '.dta':      'Stata',
+        '.nb':       'Mathematica',
+        '.jmp':      'JMP',
     }
+
+    # MATLAB: .m files are the extension, but only flag MATLAB when no
+    # Python/R/Julia is present (otherwise .m is likely Objective-C or a
+    # mixed-language project where MATLAB is already expected).
+    _has_m = any(f.suffix.lower() == '.m' for f in all_files)
+    _has_py_r_jl = any(
+        f.suffix.lower() in {'.py', '.r', '.rmd', '.jl'} for f in all_files
+    )
+    _has_ios_markers = any(
+        f.suffix.lower() in {'.swift', '.xcodeproj', '.pbxproj'} for f in all_files
+    )
+    if _has_m and not _has_py_r_jl and not _has_ios_markers:
+        _m_files = [f.name for f in all_files if f.suffix.lower() == '.m']
+        sw_files['MATLAB'] = _m_files
 
     # Python API imports that identify a proprietary runtime dependency.
     _IMPORT_SW = [
@@ -3958,14 +4000,56 @@ def detect_SP_specialist_software(repo_dir, all_files):
         suffix = f' (+ {len(seen) - 6} more)' if len(seen) > 6 else ''
 
         findings.append(finding(
-            'SP', 'SIGNIFICANT',
-            f'Specialist software required: {sw}',
-            f'This repository contains files that require {sw} to open or run. '
-            f'Validators must hold a valid licence for {sw} to fully reproduce this work. '
-            f'Document the required software name and version in the README '
-            f'under a "Software requirements" section.',
+            'SP', 'LOW CONFIDENCE',
+            f'Proprietary software required: {sw}',
+            f'Proprietary software required: {sw}. Validators need a valid licence '
+            f'for {sw} to reproduce results. Confirm the required version in your README.',
             [f'Files/imports: {", ".join(display)}{suffix}',
              f'Action: add "{sw} vX.Y" to README software requirements']
+        ))
+
+    return findings
+
+
+def detect_EP_data_provenance(repo_dir, all_files):
+    """Failure Mode EP: Data-only deposit with no extraction methodology documented."""
+    findings = []
+
+    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    data_files = [f for f in all_files if f.suffix.lower() in DATA_EXTENSIONS]
+
+    # Only applies to near-data-only repos (reader scripts are fine, pipelines are not)
+    if len(code_files) >= 3 or not data_files:
+        return findings
+
+    # Check README for methodology / provenance keywords
+    readme_files = [f for f in all_files if f.name.lower() in README_NAMES]
+    _methodology_keywords = [
+        'extract', 'collect', 'scrap', 'mine', 'generat',
+        'methodolog', 'how we', 'how the data', 'data collection',
+        'data extraction', 'data generation', 'dataset construction',
+    ]
+    has_methodology = False
+    for readme in readme_files:
+        content = read_file_safe(readme).lower()
+        if any(kw in content for kw in _methodology_keywords):
+            has_methodology = True
+            break
+
+    if not has_methodology:
+        findings.append(finding(
+            'EP', 'SIGNIFICANT',
+            'Data-only repository — no extraction methodology documented',
+            'This repository contains primarily data files with no documented '
+            'explanation of how the data was produced or collected. Validators '
+            'cannot verify collection bias, check for errors in the extraction '
+            'process, or regenerate the dataset if needed. Add a README section '
+            'describing the collection or extraction process, tools used, and '
+            'date of collection.',
+            ['No methodology keywords found in README '
+             '(e.g. "extracted", "collected", "scraped", "generated")',
+             'Recommendation: add a "Data collection" or "Methodology" section '
+             'to README describing how this data was produced']
         ))
 
     return findings
