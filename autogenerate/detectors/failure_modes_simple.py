@@ -136,18 +136,26 @@ def detect_A_no_readme(repo_dir, all_files):
                 _sub_readme = next(
                     (f for f in all_files if f.name.lower() in README_NAMES), None
                 )
-                _evidence = 'No README.md, README.txt, or README.rst found at repository root level'
                 if _sub_readme:
-                    _evidence += (f' (a README was found in a subdirectory: '
-                                  f'{_sub_readme.parent.name}/{_sub_readme.name}'
-                                  f' — a README is also needed at the root)')
-                findings.append(finding(
-                    'A', 'CRITICAL',
-                    'No README file found',
-                    'Every research repository requires a README. '
-                    'README_DRAFT.md will be generated.',
-                    [_evidence]
-                ))
+                    _sub_rel = _sub_readme.relative_to(repo_dir)
+                    findings.append(finding(
+                        'A', 'CRITICAL',
+                        'No README at root — README found only in subdirectory',
+                        'Every research repository requires a README at the root level. '
+                        f'A README was found at {_sub_rel} but not at the repository root. '
+                        'Move or copy the README to the root and ensure it covers all '
+                        'required sections. README_DRAFT.md will be generated.',
+                        [f'README found at: {_sub_rel} — move to repository root',
+                         'No README.md, README.txt, or README.rst at root level']
+                    ))
+                else:
+                    findings.append(finding(
+                        'A', 'CRITICAL',
+                        'No README file found',
+                        'Every research repository requires a README. '
+                        'README_DRAFT.md will be generated.',
+                        ['No README.md, README.txt, or README.rst found at repository root level']
+                    ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
