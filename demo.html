@@ -191,7 +191,7 @@
        ondragover="ev(event,'drag-over',true)" ondragleave="ev(event,'drag-over',false)" ondrop="drop(event)">
     <div class="upload-icon">📦</div>
     <h2>Drop your repository here</h2>
-    <p>or click to browse — .zip files only, up to 25MB</p>
+    <p>or click to browse — .zip files only, up to 100MB</p>
     <div class="filename" id="filename"></div>
   </div>
   <input type="file" id="fileInput" accept=".zip" onchange="selectFile(this.files[0])">
@@ -351,7 +351,7 @@
 
 <script>
 const API = "https://valichord.onrender.com";
-const MAX_MB = 25;
+const MAX_MB = 100;
 let selectedFile = null;
 
 const analyseBtn = document.getElementById("analyseBtn");
