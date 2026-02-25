@@ -15,6 +15,7 @@ from generators.report import generate_cleaning_report
 from generators.drafts import generate_all_drafts
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024   # 100 MB hard cap
 CORS(app)
 
 MAX_SIZE_MB = 100
