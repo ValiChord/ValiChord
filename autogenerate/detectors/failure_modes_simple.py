@@ -102,12 +102,20 @@ def detect_A_no_readme(repo_dir, all_files):
                  for f in companion_txt]
             ))
         else:
+            _sub_readme = next(
+                (f for f in all_files if f.name.lower() in README_NAMES), None
+            )
+            _evidence = 'No README.md, README.txt, or README.rst found at repository root level'
+            if _sub_readme:
+                _evidence += (f' (a README was found in a subdirectory: '
+                              f'{_sub_readme.parent.name}/{_sub_readme.name}'
+                              f' — a README is also needed at the root)')
             findings.append(finding(
                 'A', 'CRITICAL',
                 'No README file found',
                 'Every research repository requires a README. '
                 'README_DRAFT.md will be generated.',
-                ['No README.md, README.txt, or README.rst found in repository']
+                [_evidence]
             ))
     else:
         # check if readme is too short to be useful
@@ -277,8 +285,12 @@ def detect_B_no_dependencies(repo_dir, all_files):
 def detect_C_absolute_paths(repo_dir, all_files):
     """Failure Mode C: Absolute paths that only work on researcher machine."""
     findings = []
+    # Stata installed-package directories (equivalent to site-packages) — skip entirely
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not ('ado' in f.parts
+                           and any(p in _stata_lib_dirs for p in f.parts))]
 
     # Also scan Jupyter notebook cell sources
     notebook_sources = []
@@ -306,7 +318,7 @@ def detect_C_absolute_paths(repo_dir, all_files):
         content_f = read_file_safe(f)
         for i, line in enumerate(content_f.splitlines(), 1):
             stripped = line.strip()
-            if stripped.startswith('#'):
+            if stripped.startswith('#') or stripped.startswith('//') or stripped.startswith('*'):
                 continue
             if stripped.startswith('"""') or stripped.startswith("'''"):
                 continue
@@ -1374,8 +1386,10 @@ def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
         for f in all_files
     )
 
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     has_python = any(
         f.suffix.lower() == '.py'
+        and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
         for f in all_files
     )
 
@@ -2274,8 +2288,11 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
 def detect_AB_parallel_no_seed(repo_dir, all_files):
     """Failure Mode AB: Parallelisation without determinism controls."""
     findings = []
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not ('ado' in f.parts
+                           and any(p in _stata_lib_dirs for p in f.parts))]
 
     parallel_patterns = re.compile(
         r'(multiprocessing|concurrent\.futures|joblib|dask'

@@ -1460,11 +1460,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     code_files = [
         f for f in all_files
         if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile')
         and f.name not in {"__init__.py", "__main__.py"}
         and not any(p.name.lower() in archive_dirs for p in f.parents)
+        and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
     ]
 
     # try to find execution order from README run block
