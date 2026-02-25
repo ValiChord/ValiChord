@@ -370,7 +370,7 @@ def detect_D_no_entry_point(repo_dir, all_files):
     ]
 
     has_numbered = any(
-        re.match(r'^0*[0-9]+[_\-]', f.name)
+        re.match(r'^[0-9]+(?:\.[0-9]+)?[_\-]', f.name)
         for f in _researcher_code
     )
 
@@ -3366,7 +3366,15 @@ def detect_BR_credentials_exposed(repo_dir, all_files):
     import re as _re
     cred_patterns = _re.compile(
         r'(password|passwd|api_key|api_secret|secret_key|token|auth_token'
-        r'|private_key|access_key|client_secret|database_url)\s*[=:]\s*\S+',
+        r'|private_key|access_key|client_secret|database_url)\s*[=:]\s*(\S+)',
+        _re.IGNORECASE
+    )
+    # Values that are clearly documentation placeholders, not real credentials
+    _placeholder_val = _re.compile(
+        r'^(your_|my_|example|dummy|test|placeholder|changeme|xxx+'
+        r'|<[^>]+>|\[[^\]]+\]|enter_|insert_|add_your|replace_'
+        r'|none|null|false|true|n/a|tbd|todo|[a-z0-9_]+_here'
+        r'|[A-Z_]+_KEY_HERE|[A-Z_]+_TOKEN_HERE|[A-Z_]+_SECRET_HERE)',
         _re.IGNORECASE
     )
     env_files = [f for f in all_files if f.name.lower() in {
@@ -3393,10 +3401,14 @@ def detect_BR_credentials_exposed(repo_dir, all_files):
         try:
             content = f.read_text(encoding='utf-8', errors='ignore')
             matches = cred_patterns.findall(content)
-            if matches:
+            # matches is list of (key_name, value) tuples; skip placeholder values
+            real_matches = [
+                (k, v) for k, v in matches
+                if not _placeholder_val.match(v.strip('"\''))
+            ]
+            if real_matches:
                 flagged.append(f.name)
-                # matches[0] is the captured group (key name), not a tuple
-                key_name = matches[0] if isinstance(matches[0], str) else matches[0][0]
+                key_name = real_matches[0][0]
                 evidence.append(f"{f.name}: credential pattern found ({key_name})")
         except Exception:
             pass

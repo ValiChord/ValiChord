@@ -1485,12 +1485,13 @@ def _generate_quickstart_draft(repo_dir, all_files,
                         readme_order.append(match)
             except Exception:
                 pass
-    # try to find numbered scripts
+    # try to find numbered scripts — support both integer (01_, 1_) and
+    # decimal (0.1_, 1.2_) prefixes; sort by float value for correct order
     numbered = []
     for f in code_files:
-        m = re.match(r'^(0*)([0-9]+)[_\-](.+)', f.name)
+        m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[_\-](.+)', f.name)
         if m:
-            numbered.append((int(m.group(2)), f))
+            numbered.append((float(m.group(1)), f))
     numbered.sort(key=lambda x: x[0])
     # prefer README order over alphabetical — track source for confidence level
     _numbered_from_filenames = bool(numbered)
@@ -1691,7 +1692,8 @@ def _generate_quickstart_draft(repo_dir, all_files,
         ]
         for num, f in numbered:
             rel = f.relative_to(repo_dir)
-            lines.append(f'{num}. `{rel}`')
+            num_str = str(int(num)) if num == int(num) else str(num)
+            lines.append(f'{num_str}. `{rel}`')
         lines.append('')
     else:
         lines += [
