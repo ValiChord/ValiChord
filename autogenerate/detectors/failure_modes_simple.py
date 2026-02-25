@@ -323,6 +323,12 @@ def detect_C_absolute_paths(repo_dir, all_files):
                 continue
             if stripped.startswith('"""') or stripped.startswith("'''"):
                 continue
+            # ~/path is home-relative (not a hardcoded machine path); skip
+            if '~/' in stripped:
+                continue
+            # PATH/LD_LIBRARY_PATH exports are environment setup, not data paths
+            if re.match(r'export\s+\w*PATH\s*=', stripped):
+                continue
             if abs_pattern.search(line):
                 snippet = stripped[:80]
                 findings.append(finding(

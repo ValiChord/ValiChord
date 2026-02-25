@@ -386,17 +386,17 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-    # try to find existing readme content
+    # try to find existing readme content — prefer root-level README over subfolder
     existing_readme = ''
-    for f in all_files:
+    existing_readme_file = None
+    for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
         if f.name.lower() in README_NAMES:
             try:
-                existing_readme = f.read_text(
-                    encoding='utf-8', errors='ignore'
-                )
+                existing_readme = f.read_text(encoding='utf-8', errors='ignore')
+                existing_readme_file = f
             except Exception:
                 pass
-            break
+            break  # sorted by depth, so first match is shallowest
 
     # assess whether existing readme is adequate
     readme_adequate = False
@@ -411,8 +411,11 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
             readme_adequate = True
 
     if readme_adequate:
-        # existing README is reasonable — just note what's missing
-        readme_findings = [f for f in findings if f.get('mode') in ('A', 'G', 'Z', 'K', 'N', 'E', 'Y')]
+        # existing README is reasonable — just note what's missing.
+        # Exclude [A] "no readme" findings since we did find one to show.
+        readme_findings = [f for f in findings
+                           if f.get('mode') in ('A', 'G', 'Z', 'K', 'N', 'E', 'Y')
+                           and 'No README file found' not in f.get('title', '')]
         lines = [
             '# README Review Notes',
             '',
@@ -718,24 +721,44 @@ def _generate_requirements_draft(repo_dir, all_files,
         pinned = [l for l in combined_lines if '==' in l and not l.strip().startswith('#')]
         unpinned_git = [l for l in combined_lines if l.strip().startswith('git+')]
         loose = [l for l in combined_lines if _re2.match(r'[\w.-]+\s*[><!]=', l.strip()) and '==' not in l]
-        has_issues = unpinned_git or loose
+        # packages with no version spec at all (bare package names)
+        unpinned_bare = [l for l in combined_lines
+                         if l.strip() and not l.strip().startswith('#')
+                         and not l.strip().startswith('-')
+                         and not l.strip().startswith('git+')
+                         and '==' not in l and not _re2.match(r'[\w.-]+\s*[><!]=', l.strip())
+                         and _re2.match(r'^[\w.-]+$', l.strip())]
+        has_issues = unpinned_git or loose or unpinned_bare
+        out = output_dir / 'requirements_DRAFT.txt'
+        file_list = ', '.join(f.name for f in req_files_all)
         if pinned and not has_issues:
-            out = output_dir / 'requirements_DRAFT.txt'
-            msg = ('# All requirements files: ' + ', '.join(f.name for f in req_files_all) + '\n'
-                   '# ' + str(len(pinned)) + ' pinned packages found.\n'
-                   '# Verify versions are correct before deposit.\n#\n' + combined)
+            header = [
+                f'# Source: {file_list}',
+                f'# {len(pinned)} packages — all pinned to exact versions.',
+                '# Verify these versions match your environment before deposit.',
+                '#',
+            ]
+            msg = '\n'.join(header) + '\n' + combined
             out.write_text(msg, encoding='utf-8-sig')
             return
         elif combined_lines:
-            out = output_dir / 'requirements_DRAFT.txt'
-            notes = []
+            header = [f'# Source: {file_list}']
             if unpinned_git:
-                notes.append('# WARNING: git+ URLs present — pin to commit SHA for reproducibility')
+                header.append('# WARNING: git+ URLs present — pin to commit SHA before deposit')
             if loose:
-                notes.append('# WARNING: loose version constraints present — pin to exact versions')
-            msg = ('# Combined from: ' + ', '.join(f.name for f in req_files_all) + '\n'
-                   + '\n'.join(notes) + ('\n' if notes else '')
-                   + '# Review and pin all versions before deposit.\n#\n' + combined)
+                header.append('# WARNING: loose constraints (>=, !=) found — change to == before deposit')
+            if unpinned_bare:
+                header.append(f'# ACTION NEEDED: {len(unpinned_bare)} package(s) have no version — add ==X.Y.Z')
+            header.append('#')
+            # annotate unpinned lines inline
+            annotated = []
+            for l in combined_lines:
+                s = l.strip()
+                if s and not s.startswith('#') and not s.startswith('-') and '==' not in s:
+                    annotated.append(l + '  # <-- pin version: packagename==X.Y.Z')
+                else:
+                    annotated.append(l)
+            msg = '\n'.join(header) + '\n' + '\n'.join(annotated)
             out.write_text(msg, encoding='utf-8-sig')
             return
     # conda repo — handle environment.yml before generic dep file loop
@@ -1502,6 +1525,68 @@ def _generate_quickstart_draft(repo_dir, all_files,
     if readme_order and not numbered:
         numbered = [((i + 1, 0), f) for i, f in enumerate(readme_order)]
 
+    # Master run-script — if a run_all / run.sh exists at any depth, use it as
+    # the single entry point rather than listing every numbered file individually
+    import re as _rerun
+    _run_script = next(
+        (f for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts))
+         if _rerun.match(r'^run[_\-]?all\b.*\.(sh|bash|py|do)$', f.name.lower())
+         or f.name.lower() in {'run.sh', 'run.bash', 'master.sh', 'master.do',
+                                'run_analysis.sh', 'run_replication.sh'}),
+        None
+    )
+    if _run_script and len(code_files) > 3:
+        _run_rel = _run_script.relative_to(repo_dir)
+        _run_ext = _run_script.suffix.lower()
+        if _run_ext in {'.sh', '.bash'}:
+            _run_cmd = f'bash {_run_rel}'
+        elif _run_ext == '.py':
+            _run_cmd = f'python {_run_rel}'
+        elif _run_ext == '.do':
+            _run_cmd = f'stata -b do {_run_rel}'
+        else:
+            _run_cmd = f'./{_run_rel}'
+        _run_lines = [
+            '# ValiChord Repository Readiness Check — Quick Start',
+            '',
+            '> ✅ **Master run script detected.**',
+            '> **Confidence level: HIGH** — a single orchestrating script was found.',
+            '> Run the script below to execute the full pipeline.',
+            '',
+            '---',
+            '',
+            '## Execution',
+            '',
+            f'```bash',
+            _run_cmd,
+            '```',
+            '',
+            f'(`{_run_rel}` orchestrates the full analysis pipeline.)',
+            '',
+            '---',
+            '',
+            '## Before Running',
+            '',
+            *_renumber_steps([
+                *([] if any(
+                    f.name.lower() in README_NAMES and
+                    len(f.read_text(encoding='utf-8', errors='ignore').strip()) > 500
+                    for f in all_files
+                ) else ['1. Complete `README_DRAFT.md` and rename to `README.md`']),
+                *(_quickstart_step2(all_files, code_files)),
+                *_install_instructions(code_files, all_files),
+                'N. Test on a **clean machine** before publishing',
+            ]),
+            '',
+            '---',
+            '',
+            f'*Generated by ValiChord Repository Readiness Check v15 — {now}*',
+        ]
+        out = output_dir / 'QUICKSTART_DRAFT.md'
+        out.write_text('\n'.join(_run_lines), encoding='utf-8-sig')
+        print(f"  → QUICKSTART_DRAFT.md (run_all entry point)")
+        return
+
     # Shiny app — generate dedicated interactive-app QUICKSTART
     import re as _reshiny
     _shiny_names = {'server.r', 'ui.r', 'app.r'}
@@ -1966,22 +2051,28 @@ def generate_proposed_corrections(repo_dir, all_files, findings, output_dir):
             r'|([A-Z]:/[A-Za-z][^\s\'")\]]*)'
         )
 
-        matches = abs_pattern.findall(content)
-        flat_matches = [m for group in matches for m in group if m]
+        # Replace paths line-by-line, skipping ~/  and export PATH= lines
+        # (mirrors the detection exclusions in detect_C_absolute_paths)
+        corrected_lines = []
+        replacements = []
+        for _ln in content.splitlines(keepends=True):
+            _s = _ln.strip()
+            if '~/' in _s or re.match(r'export\s+\w*PATH\s*=', _s):
+                corrected_lines.append(_ln)
+                continue
+            _line_matches = abs_pattern.findall(_ln)
+            _line_flat = [m for grp in _line_matches for m in grp if m]
+            for _m in _line_flat:
+                _parts = _m.replace('\\', '/').rstrip('/').split('/')
+                _suggested = './data/' + _parts[-1] if _parts else './data/file'
+                _ln = _ln.replace(_m, _suggested, 1)
+                replacements.append((_m, _suggested))
+            corrected_lines.append(_ln)
 
-        if not flat_matches:
+        if not replacements:
             continue
 
-        corrected = content
-        replacements = []
-
-        for match in flat_matches:
-            # generate a relative path suggestion
-            # extract just the filename/last component
-            parts = match.replace('\\', '/').rstrip('/').split('/')
-            suggested = './data/' + parts[-1] if parts else './data/file'
-            corrected = corrected.replace(match, suggested, 1)
-            replacements.append((match, suggested))
+        corrected = ''.join(corrected_lines)
 
         # build the warning block
         warning_lines = [
