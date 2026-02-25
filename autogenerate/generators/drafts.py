@@ -2013,6 +2013,11 @@ def generate_proposed_corrections(repo_dir, all_files, findings, output_dir):
         out_file.write_text(final_content, encoding='utf-8-sig')
         corrected_files.append(src_file.name)
 
+    # If no files were actually corrected (e.g. pattern mismatch between
+    # detector and generator), skip writing the README entirely
+    if not corrected_files:
+        return
+
     # write the corrections README — consolidate duplicate filenames
     from collections import Counter
     file_counts = Counter(corrected_files)

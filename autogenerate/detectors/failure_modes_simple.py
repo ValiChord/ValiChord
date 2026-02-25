@@ -362,16 +362,19 @@ def detect_D_no_entry_point(repo_dir, all_files):
 
     has_makefile = 'makefile' in names_lower
 
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
+    _researcher_code = [
+        f for f in all_files
+        if f.suffix.lower() in CODE_EXTENSIONS
+        and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
+    ]
+
     has_numbered = any(
         re.match(r'^0*[0-9]+[_\-]', f.name)
-        for f in all_files
-        if f.suffix.lower() in CODE_EXTENSIONS
+        for f in _researcher_code
     )
 
-    code_count = sum(
-        1 for f in all_files
-        if f.suffix.lower() in CODE_EXTENSIONS
-    )
+    code_count = len(_researcher_code)
 
     if code_count > 1 and not has_run_all \
             and not has_makefile and not has_numbered:
@@ -2443,9 +2446,14 @@ def detect_AE_mixed_languages(repo_dir, all_files):
         'SQL': {'.sql'},
     }
 
+    _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     languages_found = {}
     for lang, exts in language_extensions.items():
-        files = [f for f in all_files if f.suffix.lower() in exts]
+        files = [
+            f for f in all_files
+            if f.suffix.lower() in exts
+            and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
+        ]
         if files:
             languages_found[lang] = len(files)
 
