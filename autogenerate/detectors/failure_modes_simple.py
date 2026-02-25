@@ -3535,10 +3535,35 @@ def detect_BS_archive_code_present(repo_dir, all_files):
     """Check for vestigial code in archive/old directories."""
     findings = []
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
+
+    def _in_archive_dir(f):
+        """True if f sits inside a genuine archive folder.
+
+        'deprecated' (and similar words) are skipped when they appear as a
+        Java package path component rather than an intentional archival folder.
+        Specifically: if the file is .java/.class AND the suspicious segment is
+        immediately followed by another lowercase-word segment (Java package
+        naming convention), it is a package name, not an archive folder.
+        """
+        try:
+            parts = f.relative_to(repo_dir).parts
+        except ValueError:
+            parts = f.parts
+        is_java = f.suffix.lower() in {'.java', '.class'}
+        for i, part in enumerate(parts[:-1]):          # exclude filename itself
+            if part.lower() not in archive_dirs:
+                continue
+            if is_java and i + 1 < len(parts) - 1:   # there is a next segment
+                next_seg = parts[i + 1]
+                if next_seg == next_seg.lower() and next_seg.isidentifier():
+                    continue                           # Java package component
+            return True
+        return False
+
     archive_files = [
         f for f in all_files
         if f.suffix.lower() in CODE_EXTENSIONS
-        and any(p.name.lower() in archive_dirs for p in f.parents)
+        and _in_archive_dir(f)
     ]
     if archive_files:
         findings.append(finding(
