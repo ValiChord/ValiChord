@@ -1335,14 +1335,23 @@ def detect_K_compute_environment(repo_dir, all_files):
         'runtime', 'running time', 'minutes', 'hours',
         'approximately', 'takes', 'estimated'
     ]
+    # JDK/Java version: 'jdk', 'openjdk', 'java se', or 'java <digit>'
+    _java_ver_pat = re.compile(r'java\s+\d')
+    jdk_indicators = ['jdk', 'openjdk', 'java se']
 
+    documented = []
     missing = []
+
     if not any(ind in content for ind in os_indicators):
         missing.append('operating system')
     if not any(ind in content for ind in ram_indicators):
         missing.append('RAM/memory requirements')
     if not any(ind in content for ind in runtime_indicators):
         missing.append('estimated runtime')
+
+    # Note documented language/runtime versions so findings acknowledge them
+    if any(ind in content for ind in jdk_indicators) or _java_ver_pat.search(content):
+        documented.append('JDK version')
 
     # GPU check only relevant if GPU libraries present
     has_gpu_libs = any(
@@ -1363,25 +1372,33 @@ def detect_K_compute_environment(repo_dir, all_files):
         ):
             missing.append('GPU specification')
 
+    if not missing:
+        return findings
+
+    _doc_note = (f'Documented: {", ".join(documented)}. ' if documented else '')
+    _evidence = []
+    if documented:
+        _evidence.append(f'Already documented: {", ".join(documented)}')
+    _evidence.append(f'Missing from README: {", ".join(missing)}')
+
     if len(missing) >= 2:
         findings.append(finding(
             'K', 'SIGNIFICANT',
             f'Compute environment not documented: {", ".join(missing)}',
-            'Validators need to know what hardware and software '
+            f'{_doc_note}Validators need to know what hardware and software '
             'environment is required to reproduce results. Without '
             'this, they may spend hours on environment issues before '
             'discovering the code requires more RAM or a GPU than '
             'they have available.',
-            [f'Missing from README: {", ".join(missing)}']
+            _evidence
         ))
-    elif len(missing) == 1:
+    else:
         findings.append(finding(
             'K', 'LOW CONFIDENCE',
-            f'Compute environment partially documented — missing: '
-            f'{missing[0]}',
-            'Most compute environment details are present but '
+            f'Compute environment partially documented — missing: {missing[0]}',
+            f'{_doc_note}Most compute environment details are present but '
             f'{missing[0]} is not mentioned.',
-            [f'Missing: {missing[0]}']
+            _evidence
         ))
 
     return findings
