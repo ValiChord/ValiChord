@@ -1975,7 +1975,22 @@ def detect_O_output_not_committed(repo_dir, all_files):
 
     has_python = any(f.suffix.lower() == '.py' for f in all_files)
 
-    if has_python and not output_files and not has_results_dir:
+    # Dataset archive heuristic: if the repo has at least one large committed
+    # data file and very few code files, it is a dataset deposit — the data IS
+    # the output. [O] should not fire because there is no computational pipeline
+    # to produce outputs from.
+    _data_exts = {
+        '.json', '.csv', '.tsv', '.parquet', '.db', '.sqlite', '.sqlite3',
+        '.feather', '.h5', '.hdf5', '.pkl', '.pickle', '.npy', '.npz',
+    }
+    _large_data = [
+        f for f in all_files
+        if f.suffix.lower() in _data_exts and f.stat().st_size > 100_000
+    ]
+    _py_count = sum(1 for f in all_files if f.suffix.lower() == '.py')
+    _is_dataset_archive = len(_large_data) >= 1 and _py_count <= 3
+
+    if has_python and not output_files and not has_results_dir and not _is_dataset_archive:
         findings.append(finding(
             'O', 'SIGNIFICANT',
             'No committed outputs found for comparison',
@@ -3098,7 +3113,18 @@ def detect_AR_encoding_issues(repo_dir, all_files):
 def detect_AS_network_calls(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
-    net_pattern = re.compile(r'(requests\.|urllib\.|http\.client|wget\.|curl\.|httpx\.|aiohttp\.)', re.IGNORECASE)
+    # urllib.parse is string manipulation, not a network call — only flag
+    # urllib.request (actual HTTP client) and urllib.urlopen (legacy form).
+    net_pattern = re.compile(
+        r'(requests\.'
+        r'|urllib\.request'
+        r'|urllib\.urlopen'
+        r'|http\.client'
+        r'|wget\.'
+        r'|httpx\.'
+        r'|aiohttp\.)',
+        re.IGNORECASE
+    )
     files_with_network = []
     for f in code_files:
         content = read_file_safe(f)
