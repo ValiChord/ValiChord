@@ -29,7 +29,7 @@ def analyse():
         return jsonify({'error': 'No file uploaded'}), 400
 
     f = request.files['file']
-    if not f.filename.endswith('.zip'):
+    if not f.filename.lower().endswith('.zip'):
         return jsonify({'error': 'File must be a .zip'}), 400
 
     work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
