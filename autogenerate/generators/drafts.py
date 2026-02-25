@@ -984,6 +984,15 @@ def _generate_requirements_draft(repo_dir, all_files,
     _py_stems = {f.stem.lower() for f in all_files if f.suffix.lower() == '.py'}
     external = [pkg for pkg in external if pkg.lower() not in _py_stems]
 
+    # Known import aliases and proprietary API handles that are NOT PyPI packages.
+    # These appear as top-level import names but resolve to sub-modules of an
+    # existing package or to a vendor/tool-specific API that cannot be pip-installed.
+    _import_false_positives = {
+        'cmap',         # matplotlib.cm aliased at call site (e.g. import matplotlib.cm as cmap)
+        'func_module',  # COMSOL Python API internal module, not on PyPI
+    }
+    external = [pkg for pkg in external if pkg.lower() not in _import_false_positives]
+
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     lines = [
@@ -1037,6 +1046,43 @@ def _generate_requirements_draft(repo_dir, all_files,
                         pluto_compat[vm.group(1).lower()] = vm.group(2).lstrip('~^')
             except Exception:
                 pass
+    # Well-known PyPI packages (by import name).  Entries here get a clean
+    # "pkg==UNKNOWN" line.  Anything NOT in this set — or matching the
+    # short-underscore heuristic — gets a warning comment so the depositor
+    # can verify it before submission.
+    _known_pypi = {
+        # scientific core
+        'numpy', 'scipy', 'pandas', 'matplotlib', 'seaborn', 'plotly', 'bokeh',
+        'statsmodels', 'sympy', 'networkx', 'sklearn', 'skimage',
+        # ML / deep learning
+        'tensorflow', 'torch', 'torchvision', 'torchaudio', 'keras',
+        'transformers', 'xgboost', 'lightgbm', 'catboost', 'pymc', 'arviz',
+        # data / IO
+        'sqlalchemy', 'pymongo', 'redis', 'h5py', 'tables', 'xlrd', 'openpyxl',
+        'pyarrow', 'fastparquet',
+        # image / vision (import names differ from package names)
+        'cv2',      # opencv-python
+        'PIL',      # Pillow
+        'imageio', 'skimage',
+        # web / networking
+        'requests', 'flask', 'django', 'fastapi', 'aiohttp', 'httpx', 'urllib3',
+        # text / NLP
+        'nltk', 'spacy', 'gensim', 'textblob',
+        # common utilities
+        'click', 'rich', 'tqdm', 'pydantic', 'attrs', 'pytest', 'joblib',
+        'psutil', 'dask', 'numba', 'lxml', 'bs4', 'cryptography', 'paramiko',
+        'celery', 'packaging', 'six',
+        # serialisation / config (import names)
+        'yaml',     # pyyaml
+        'toml',
+        'dotenv',   # python-dotenv
+        'dateutil', # python-dateutil
+        # geo / spatial
+        'geopandas', 'shapely', 'pyproj', 'rasterio', 'fiona',
+        # visualisation extras
+        'holoviews', 'hvplot', 'altair',
+    }
+
     if external:
         _is_julia_repo = '.jl' in all_suffixes and '.py' not in all_suffixes
         for pkg in external:
@@ -1046,7 +1092,20 @@ def _generate_requirements_draft(repo_dir, all_files,
             elif _is_julia_repo:
                 lines.append(f'{pkg}  # Julia package — add to Project.toml instead of pinning here')
             else:
-                lines.append(f'{pkg}==UNKNOWN')
+                # Flag packages that look suspicious: not in the known-packages
+                # allowlist, or short name with an underscore (common pattern for
+                # local helpers, vendor modules, and tool-internal namespaces).
+                _suspicious = (
+                    pkg.lower() not in _known_pypi
+                    or ('_' in pkg and len(pkg) < 6)
+                )
+                if _suspicious:
+                    lines.append(
+                        f'{pkg}==UNKNOWN'
+                        f'  # WARNING: not found on PyPI — verify this is a real dependency'
+                    )
+                else:
+                    lines.append(f'{pkg}==UNKNOWN')
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
         lines += [
             '# Julia repository detected.',
