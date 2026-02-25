@@ -344,12 +344,16 @@ def detect_C_absolute_paths(repo_dir, all_files):
                 continue
             if stripped.startswith('"""') or stripped.startswith("'''"):
                 continue
-            # ~/path is home-relative (not a hardcoded machine path); skip
+            # home-relative and env-var paths are not machine-specific hardcodes
             if '~/' in stripped:
+                continue  # ~/path expands relative to $HOME, not a fixed machine path
+            if re.search(r'\$\{?(?:HOME|USERPROFILE|HOMEPATH)\}?/', stripped):
+                continue  # $HOME/path, ${HOME}/path — same issue
+            # PATH/library exports and shell sourcing are environment setup, not data paths
+            if re.match(r'export\s+\w*(?:PATH|LIB)\s*=', stripped):
                 continue
-            # PATH/LD_LIBRARY_PATH exports are environment setup, not data paths
-            if re.match(r'export\s+\w*PATH\s*=', stripped):
-                continue
+            if re.match(r'(?:source|\.)\s+', stripped):
+                continue  # shell source commands expand env vars at runtime
             if abs_pattern.search(line):
                 snippet = stripped[:80]
                 findings.append(finding(
@@ -398,7 +402,7 @@ def detect_D_no_entry_point(repo_dir, all_files):
     ]
 
     has_numbered = any(
-        re.match(r'^[0-9]+(?:\.[0-9]+)?[_\-]', f.name)
+        re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
         for f in _researcher_code
     )
 

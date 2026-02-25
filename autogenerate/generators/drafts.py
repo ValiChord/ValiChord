@@ -166,7 +166,7 @@ def _file_notes(f):
         return 'Dependency specification'
     if name == 'dockerfile':
         return 'Container definition'
-    if re.match(r'^0*[0-9]+[_\-]', f.name):
+    if re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name):
         return 'Numbered script — execution order implied'
     return ''
 
@@ -195,7 +195,8 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
     if 'environment.yml' in names or 'environment.yaml' in names:
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
         env_name = 'myenv'
-        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        env_path = min((f for f in all_files if f.name.lower() == env_file),
+                       key=lambda x: len(x.parts), default=None)
         if env_path:
             import re as _re
             m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
@@ -336,7 +337,8 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
         # Try to extract conda env name
         env_name = 'myenv'
-        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        env_path = min((f for f in all_files if f.name.lower() == env_file),
+                       key=lambda x: len(x.parts), default=None)
         if env_path:
             import re as _re
             m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
@@ -762,7 +764,8 @@ def _generate_requirements_draft(repo_dir, all_files,
             out.write_text(msg, encoding='utf-8-sig')
             return
     # conda repo — handle environment.yml before generic dep file loop
-    _env_file = next((f for f in all_files if f.name.lower() in {'environment.yml', 'environment.yaml'}), None)
+    _env_file = min((f for f in all_files if f.name.lower() in {'environment.yml', 'environment.yaml'}),
+                    key=lambda x: len(x.parts), default=None)
     if _env_file:
         try:
             import re as _renv
@@ -1048,7 +1051,8 @@ def _generate_requirements_draft(repo_dir, all_files,
     elif 'renv.lock' in all_names or '.r' in all_suffixes:
         # If renv.lock present, extract exact versions
         if 'renv.lock' in all_names:
-            renv_file = next((f for f in all_files if f.name.lower() == 'renv.lock'), None)
+            renv_file = min((f for f in all_files if f.name.lower() == 'renv.lock'),
+                            key=lambda x: len(x.parts), default=None)
             if renv_file:
                 try:
                     import json as _rjson
@@ -1222,7 +1226,8 @@ def _quickstart_step2(all_files, code_files):
     if 'dockerfile' in names:
         import re as _redock
         _img = 'my-analysis'
-        _df = next((f for f in all_files if f.name == 'Dockerfile'), None)
+        _df = min((f for f in all_files if f.name == 'Dockerfile'),
+                  key=lambda x: len(x.parts), default=None)
         if _df:
             try:
                 _dsrc = _df.read_text(encoding='utf-8', errors='ignore')
@@ -1244,7 +1249,8 @@ def _quickstart_step2(all_files, code_files):
     if 'environment.yml' in names or 'environment.yaml' in names:
         env_file = 'environment.yml' if 'environment.yml' in names else 'environment.yaml'
         env_name = 'myenv'
-        env_path = next((f for f in all_files if f.name.lower() == env_file), None)
+        env_path = min((f for f in all_files if f.name.lower() == env_file),
+                       key=lambda x: len(x.parts), default=None)
         if env_path:
             import re as _re
             m = _re.search(r'^name:\s*(\S+)', env_path.read_text(encoding='utf-8', errors='ignore'), _re.MULTILINE)
