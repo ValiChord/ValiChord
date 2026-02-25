@@ -297,6 +297,7 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
         'BW': 'Replace empty stub code files with the actual code, or remove '
               'them and document the omission in your README. '
               'A 1–5 byte file cannot contribute to reproducing your results.',
+        'AK': '',  # handled below — severity determines the action text
     }
 
     modes_found = {f['mode'] for f in findings}
@@ -309,6 +310,19 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
     added = False
 
     for mode, action in action_map.items():
+        if mode == 'AK':
+            if any(f['mode'] == 'AK' and f.get('severity') == 'SIGNIFICANT' for f in findings):
+                lines += ['- **[AK]** Download your Colab notebooks and commit them to '
+                          'the repository (File > Download > Download .ipynb in Colab). '
+                          'An externally hosted notebook that goes offline makes your '
+                          'analysis irreproducible by definition.', '']
+                added = True
+            elif 'AK' in modes_found:
+                lines += ['- **[AK]** Archive any external URLs using the Wayback Machine '
+                          '(web.archive.org) and replace direct links with archived or '
+                          'DOI-resolved URLs where possible.', '']
+                added = True
+            continue
         if mode == 'BM':
             if any(f['mode'] == 'BM' and f.get('severity') == 'SIGNIFICANT' for f in findings):
                 lines += ['- **[BM]** Complete the missing required field(s) in '

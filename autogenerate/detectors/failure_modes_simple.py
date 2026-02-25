@@ -2763,6 +2763,28 @@ def detect_AK_external_urls(repo_dir, all_files):
         matches = url_pattern.findall(content)
         urls_found.update(matches[:3])
 
+    # Colab escalation: if Colab links are the primary analysis and there is no
+    # local code, the repository is irreproducible if those links go dead.
+    _colab_urls = sorted(
+        u for u in urls_found if 'colab.research.google.com' in u.lower()
+    )
+    _has_local_code = any(
+        f.suffix.lower() in CODE_EXTENSIONS | {'.ipynb'} for f in all_files
+    )
+    if _colab_urls and not _has_local_code:
+        findings.append(finding(
+            'AK', 'SIGNIFICANT',
+            'Primary analysis hosted on Google Colab — no local code found',
+            'The repository links to Google Colab notebook(s) but contains no '
+            'local code files. If these links go offline or the notebooks are '
+            'made private, the analysis cannot be reproduced by definition. '
+            'Download the notebooks from Colab and commit them to the repository.',
+            [f'Colab link: {u}' for u in _colab_urls[:3]] +
+            ['Fix: in Colab — File > Download > Download .ipynb — '
+             'then commit the .ipynb file alongside your data']
+        ))
+        urls_found -= set(_colab_urls)   # don't double-report at LOW CONFIDENCE
+
     if urls_found:
         sample = list(urls_found)[:5]
         findings.append(finding(
