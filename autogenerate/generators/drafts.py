@@ -49,15 +49,53 @@ _BIOC_LOWER = frozenset(p.lower() for p in BIOCONDUCTOR_PACKAGES)
 
 # Packages believed to be GitHub-only (not on CRAN or Bioconductor).
 # These need devtools::install_github(); install command must be verified.
-GITHUB_LIKELY_PACKAGES = frozenset({'HTSSIP', 'SIPmg', 'qsip', 'microbiomeutilities'})
+GITHUB_LIKELY_PACKAGES = frozenset({'HTSSIP', 'SIPmg', 'qsip', 'microbiomeutilities',
+                                     'rnaturalearthhires'})
 _GITHUB_LIKELY_LOWER = frozenset(p.lower() for p in GITHUB_LIKELY_PACKAGES)
 
 # Known GitHub repo slugs for common GitHub-only packages
 _GITHUB_KNOWN_SLUGS = {
-    'htssip':              'buckleylab/HTSSIP',
-    'sipmg':               'mcallaghanTU/SIPmg',
-    'qsip':                'bramstone/qsip',
-    'microbiomeutilities': 'microsud/microbiomeutilities',
+    'htssip':               'buckleylab/HTSSIP',
+    'sipmg':                'mcallaghanTU/SIPmg',
+    'qsip':                 'bramstone/qsip',
+    'microbiomeutilities':  'microsud/microbiomeutilities',
+    'rnaturalearthhires':   'ropensci/rnaturalearthhires',
+}
+
+# Packages removed or retired from CRAN — require special handling.
+# Key: lowercase package name. Value: explanation + suggested replacement.
+REMOVED_FROM_CRAN = {
+    'tsoutliers': 'removed from CRAN in 2022 — use forecast::tsoutliers() instead, or install from archive: devtools::install_version("tsoutliers", version="0.1-2")',
+    'reshape':    'superseded — use reshape2 or tidyr instead',
+    'rgdal':      'retired 2023 — use sf or terra instead',
+    'rgeos':      'retired 2023 — use sf or geos instead',
+    'maptools':   'retired 2023 — use sf instead',
+}
+_REMOVED_CRAN_LOWER = {k.lower(): v for k, v in REMOVED_FROM_CRAN.items()}
+
+# Per-package README warning lines for removed-from-CRAN packages
+_REMOVED_CRAN_README_LINES = {
+    'tsoutliers': [
+        '# tsoutliers was removed from CRAN in 2022.',
+        '# Use forecast::tsoutliers() as a replacement, or install from archive:',
+        '# devtools::install_version("tsoutliers", version = "0.1-2", repos = "http://cran.r-project.org")',
+    ],
+    'reshape': [
+        '# reshape was superseded — use reshape2 or tidyr instead:',
+        '# install.packages("reshape2")  # or: install.packages("tidyr")',
+    ],
+    'rgdal': [
+        '# rgdal was retired in 2023 — use sf or terra instead:',
+        '# install.packages("sf")  # or: install.packages("terra")',
+    ],
+    'rgeos': [
+        '# rgeos was retired in 2023 — use sf or geos instead:',
+        '# install.packages("sf")  # or: install.packages("geos")',
+    ],
+    'maptools': [
+        '# maptools was retired in 2023 — use sf instead:',
+        '# install.packages("sf")',
+    ],
 }
 
 # Frontend-directory detection — mirrors the constants in failure_modes_simple.py.
@@ -493,16 +531,21 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
                 'Rscript -e "renv::restore()"',
             ]
         pkgs = r_packages or ['dplyr', 'ggplot2']
-        # Partition packages into CRAN / Bioconductor / GitHub-likely / known-GitHub
+        # Partition packages into CRAN / Bioconductor / GitHub-likely / known-GitHub / removed-from-CRAN
         gh_only      = [p for p in pkgs if p.lower() in github_pkgs]
         gh_likely    = [p for p in pkgs if p.lower() not in github_pkgs
                         and p.lower() in _GITHUB_LIKELY_LOWER]
         bioc_pkgs    = [p for p in pkgs if p.lower() not in github_pkgs
                         and p.lower() not in _GITHUB_LIKELY_LOWER
                         and p.lower() in _BIOC_LOWER]
+        removed_pkgs = [p for p in pkgs if p.lower() not in github_pkgs
+                        and p.lower() not in _GITHUB_LIKELY_LOWER
+                        and p.lower() not in _BIOC_LOWER
+                        and p.lower() in _REMOVED_CRAN_LOWER]
         cran_pkgs    = [p for p in pkgs if p.lower() not in github_pkgs
                         and p.lower() not in _GITHUB_LIKELY_LOWER
-                        and p.lower() not in _BIOC_LOWER]
+                        and p.lower() not in _BIOC_LOWER
+                        and p.lower() not in _REMOVED_CRAN_LOWER]
         block = ['# 1. Clone or download this repository']
         if has_python:
             block += ['# 2. Set up Python environment',
@@ -534,6 +577,14 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             for p in gh_only:
                 repo = github_pkgs.get(p.lower(), p).strip("'").strip('"')
                 block.append(f'Rscript -e "devtools::install_github(\'{repo}\')"')
+        if removed_pkgs:
+            block += ['', '# ⚠️ WARNING: the following packages are no longer on CRAN:']
+            for p in removed_pkgs:
+                hint_lines = _REMOVED_CRAN_README_LINES.get(
+                    p.lower(),
+                    [f'# {p} was removed from CRAN — check for an alternative package.'],
+                )
+                block += hint_lines
         return block
     if '.do' in suffixes or '.ado' in suffixes:
         return [
@@ -1672,15 +1723,20 @@ def _generate_requirements_draft(repo_dir, all_files,
                     pass
         r_libs = r_libs | extra_pkgs
         if r_libs:
-            gh_list      = [p for p in sorted(r_libs) if p.lower() in gh_map]
+            gh_list        = [p for p in sorted(r_libs) if p.lower() in gh_map]
             gh_likely_list = [p for p in sorted(r_libs) if p.lower() not in gh_map
                                and p.lower() in _GITHUB_LIKELY_LOWER]
-            bioc_list    = [p for p in sorted(r_libs) if p.lower() not in gh_map
-                             and p.lower() not in _GITHUB_LIKELY_LOWER
-                             and p.lower() in _BIOC_LOWER]
-            cran_list    = [p for p in sorted(r_libs) if p.lower() not in gh_map
-                             and p.lower() not in _GITHUB_LIKELY_LOWER
-                             and p.lower() not in _BIOC_LOWER]
+            bioc_list      = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                               and p.lower() not in _GITHUB_LIKELY_LOWER
+                               and p.lower() in _BIOC_LOWER]
+            removed_list   = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                               and p.lower() not in _GITHUB_LIKELY_LOWER
+                               and p.lower() not in _BIOC_LOWER
+                               and p.lower() in _REMOVED_CRAN_LOWER]
+            cran_list      = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                               and p.lower() not in _GITHUB_LIKELY_LOWER
+                               and p.lower() not in _BIOC_LOWER
+                               and p.lower() not in _REMOVED_CRAN_LOWER]
             lines += ['# R repository detected.',
                       '# Packages detected from library()/require() calls:',
                       '# Add version numbers before deposit.', '']
@@ -1721,6 +1777,13 @@ def _generate_requirements_draft(repo_dir, all_files,
                 for pkg in gh_list:
                     repo = gh_map.get(pkg.lower(), 'unknown/unknown')
                     lines.append(f'{pkg}  # GitHub: {repo} -- commit unknown')
+            if removed_list:
+                if cran_list or bioc_list or gh_likely_list or gh_list:
+                    lines.append('')
+                lines.append('# ⚠️ Removed or retired packages — require special handling:')
+                for pkg in removed_list:
+                    msg = _REMOVED_CRAN_LOWER.get(pkg.lower(), 'removed from CRAN — check for alternatives')
+                    lines.append(f'{pkg}  # REMOVED FROM CRAN — {msg}')
         else:
             lines += [
                 '# R repository detected.',

@@ -2282,6 +2282,36 @@ def detect_L_large_files_missing(repo_dir, all_files):
             fname = filepath.replace('\\', '/').split('/')[-1].lower()
             if fname and '.' in fname:
                 generated_files.add(fname)
+
+    # Build a line-numbered map of R-script-generated files for output-vs-input annotation.
+    # These patterns are NOT added to generated_files so that files written and then
+    # re-read within the same script still appear in missing_refs and can be annotated
+    # as "will exist after first run" rather than silently suppressed.
+    _WRITE_PATS_R_ANNOT = [
+        re.compile(r'write\.xlsx\s*\([^,]+,\s*["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'write_xlsx\s*\([^,]+,\s*["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'ggsave\s*\(["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'pdf\s*\(["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'png\s*\(["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'write\.csv\s*\([^,]+,\s*["\']([^"\']+)["\']', re.IGNORECASE),
+        re.compile(r'saveRDS\s*\([^,]+,\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    ]
+    # fname_lower → (script_name, line_number)
+    script_output_lines = {}
+    for f in code_files:
+        if f.suffix.lower() not in {'.r', '.rmd', '.qmd'}:
+            continue
+        try:
+            for line_num, line in enumerate(
+                    f.read_text(encoding='utf-8', errors='ignore').splitlines(), 1):
+                for pat in _WRITE_PATS_R_ANNOT:
+                    m = pat.search(line)
+                    if m:
+                        fpath = m.group(1).replace('\\', '/').split('/')[-1].lower()
+                        if fpath and '.' in fpath and fpath not in script_output_lines:
+                            script_output_lines[fpath] = (f.name, line_num)
+        except Exception:
+            pass
     missing_refs = set()
     # Broad scan of R files: any quoted path with data extension
     r_path_pat = re.compile(
@@ -2395,29 +2425,69 @@ def detect_L_large_files_missing(repo_dir, all_files):
         return None
 
     if missing_refs:
-        sample = sorted(missing_refs)[:5]
-        extra = f' (and {len(missing_refs)-5} more)' if len(missing_refs) > 5 else ''
-        evidence = [f'Missing files referenced: {", ".join(sample)}{extra}',
-                    'Add download instructions or data access information to README']
-        # Append similarity hints for any missing file that has a plausible rename.
-        # Only search data files — code files must never match a missing data file.
-        _data_candidates = [f for f in all_files if f.suffix.lower() in DATA_EXTENSIONS]
-        for mf in sorted(missing_refs)[:5]:
-            similar = _similar_file(mf, _data_candidates)
-            if similar:
-                evidence.append(
-                    f'Possible renamed version: `{similar.name}` '
-                    f'(referenced as `{mf}`) — verify this is the correct file '
-                    f'and update the code path if so'
-                )
+        # Split into: genuine missing inputs vs script-generated files read back as inputs.
+        output_reread   = {mf: script_output_lines[mf]
+                           for mf in missing_refs if mf in script_output_lines}
+        genuine_missing = {mf for mf in missing_refs if mf not in script_output_lines}
+
+        evidence = []
+
+        if genuine_missing:
+            sample_g = sorted(genuine_missing)[:5]
+            extra_g = f' (and {len(genuine_missing)-5} more)' if len(genuine_missing) > 5 else ''
+            evidence.append(
+                f'Missing files referenced (inputs not in repository): '
+                f'{", ".join(sample_g)}{extra_g}'
+            )
+            evidence.append('These files must be deposited or download instructions provided.')
+            # Similarity hints for genuine missing files only
+            _data_candidates = [f for f in all_files if f.suffix.lower() in DATA_EXTENSIONS]
+            for mf in sample_g:
+                similar = _similar_file(mf, _data_candidates)
+                if similar:
+                    evidence.append(
+                        f'Possible renamed version: `{similar.name}` '
+                        f'(referenced as `{mf}`) — verify this is the correct file '
+                        f'and update the code path if so'
+                    )
+
+        if output_reread:
+            if genuine_missing:
+                evidence.append('')
+            evidence.append(
+                'Script-generated files read back as inputs '
+                '(will exist after first run — fix absolute paths):'
+            )
+            for mf, (script_name, line_num) in sorted(output_reread.items())[:5]:
+                evidence.append(f'- {mf} — written at line {line_num} in {script_name}, read back later')
+            if len(output_reread) > 5:
+                evidence.append(f'  (and {len(output_reread)-5} more script-generated files)')
+            evidence.append(
+                'These will be generated when the script runs — '
+                'no action needed except fixing absolute paths ([C]).'
+            )
+
+        if not genuine_missing:
+            # All missing refs are script outputs; keep as SIGNIFICANT but soften description
+            description = (
+                'The code reads files that it also writes as intermediate outputs. '
+                'These files do not exist in the repository but will be created on '
+                'first run. Check for absolute paths ([C]) that would prevent the '
+                'script from finding them.'
+            )
+        else:
+            description = (
+                'The code attempts to read files that are not present '
+                'in the repository. These may be large data files that '
+                'were excluded, external downloads, or files that were '
+                'accidentally omitted. Validators cannot run the code '
+                'without these files.'
+            )
+
         findings.append(finding(
             'L', 'SIGNIFICANT',
             f'Code references {len(missing_refs)} file(s) not found in repository',
-            'The code attempts to read files that are not present '
-            'in the repository. These may be large data files that '
-            'were excluded, external downloads, or files that were '
-            'accidentally omitted. Validators cannot run the code '
-            'without these files.',
+            description,
             evidence
         ))
 
