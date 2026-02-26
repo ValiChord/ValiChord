@@ -330,7 +330,13 @@ def _file_notes(f):
         return 'Dependency specification'
     if name == 'dockerfile':
         return 'Container definition'
-    if re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name):
+    _m = re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
+    if _m and ext in _ALL_CODE_EXTENSIONS and len(_m.group(1)) <= 4:
+        # Only flag as numbered script if: (a) it's actually a code file,
+        # and (b) the leading number is ≤4 digits.  A 5+ digit prefix
+        # (e.g. 2026222_, 54720782_) is a date-stamp or dataset ID, not
+        # an execution sequence number.  Data files (.xlsx, .csv, …) with
+        # numeric prefixes are never execution scripts.
         return 'Numbered script — execution order implied'
     if f.suffix.lower() == '.txt' and _is_code_txt(f):
         return 'code stored as plain text — consider renaming to .R, .py, .do etc.'
