@@ -4041,6 +4041,8 @@ def detect_SP_specialist_software(repo_dir, all_files):
     _has_ios_markers = any(
         f.suffix.lower() in {'.swift', '.xcodeproj', '.pbxproj'} for f in all_files
     )
+    sw_files: dict[str, list[str]] = {}
+
     if _has_m and not _has_py_r_jl and not _has_ios_markers:
         _m_files = [f.name for f in all_files if f.suffix.lower() == '.m']
         sw_files['MATLAB'] = _m_files
@@ -4052,8 +4054,6 @@ def detect_SP_specialist_software(repo_dir, all_files):
         (re.compile(r'(?:^|[ \t])import\s+abaqus\b|^from\s+abaqus\b', re.MULTILINE),
          'Abaqus (abaqus Python API)'),
     ]
-
-    sw_files: dict[str, list[str]] = {}
 
     for f in all_files:
         sw = _EXT_SW.get(f.suffix.lower())
