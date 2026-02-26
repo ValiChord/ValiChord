@@ -59,6 +59,18 @@ VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 MINIFIED_FILE_EXTENSIONS = ('.min.js', '.min.css')
 MINIFIED_FILE_STEMS = frozenset({'lib.min', 'vendor.min', 'bundle.min'})
 
+# Frontend-directory detection.
+# A directory is a "frontend dir" if it contains at least one frontend-marker
+# extension AND no analysis-code extension.  We do NOT require all extensions
+# to be in an allowlist — the directory may contain .sb3, .wav, .mp3, .zip,
+# or other assets we haven't enumerated.
+_FRONTEND_MARKERS = frozenset({'.js', '.html', '.css', '.jsx', '.ts', '.tsx', '.vue'})
+_ANALYSIS_CODE_EXTS = frozenset({
+    '.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
+    '.rmd', '.qmd', '.sh', '.bash', '.f90', '.f', '.cpp', '.c',
+    '.java', '.nf', '.smk', '.ado', '.rs', '.go', '.scala', '.sql',
+})
+
 
 def _is_minified(f):
     """Return True if a file appears to be a minified or bundled frontend asset."""
@@ -341,10 +353,9 @@ def detect_B_no_dependencies(repo_dir, all_files):
 
     # Build frontend-dir exclusion set from all_files — immune to zip wrappers
     # and __MACOSX artefacts because all_files is already filtered.
-    _fe_exts_b = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
-                  '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
-    _analysis_exts_b = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
-                        '.rmd', '.qmd', '.sh', '.bash'}
+    # A dir is frontend if it has JS/HTML/CSS marker AND no analysis-code ext.
+    # We do NOT require all extensions to be in an allowlist so that dirs
+    # containing .sb3, .wav, .mp3, etc. are still correctly identified.
     _dir_exts_b: dict = {}
     for _f in all_files:
         for _anc in _f.parents:
@@ -353,7 +364,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
             _dir_exts_b.setdefault(_anc, set()).add(_f.suffix.lower())
     _frontend_dirs_b = {
         d for d, exts in _dir_exts_b.items()
-        if exts and exts.issubset(_fe_exts_b) and not (exts & _analysis_exts_b)
+        if bool(exts & _FRONTEND_MARKERS) and not bool(exts & _ANALYSIS_CODE_EXTS)
     }
 
     code_files = [f for f in all_files
@@ -696,10 +707,7 @@ def detect_D_no_entry_point(repo_dir, all_files):
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     # Build frontend-dir exclusion set from all_files — immune to zip wrappers
     # and __MACOSX artefacts because all_files is already filtered.
-    _fe_exts_d = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
-                  '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
-    _analysis_exts_d = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
-                        '.rmd', '.qmd', '.sh', '.bash'}
+    # A dir is frontend if it has JS/HTML/CSS marker AND no analysis-code ext.
     _dir_exts_d: dict = {}
     for _f in all_files:
         for _anc in _f.parents:
@@ -708,8 +716,12 @@ def detect_D_no_entry_point(repo_dir, all_files):
             _dir_exts_d.setdefault(_anc, set()).add(_f.suffix.lower())
     _frontend_dirs_d = {
         d for d, exts in _dir_exts_d.items()
-        if exts and exts.issubset(_fe_exts_d) and not (exts & _analysis_exts_d)
+        if bool(exts & _FRONTEND_MARKERS) and not bool(exts & _ANALYSIS_CODE_EXTS)
     }
+    import sys as _sys
+    for _fd in sorted(_frontend_dirs_d, key=str):
+        print(f'  [FE-DIR] {_fd.relative_to(repo_dir)}: '
+              f'{sorted(_dir_exts_d[_fd])}', file=_sys.stderr)
     _researcher_code = [
         f for f in all_files
         if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))

@@ -28,6 +28,17 @@ README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 # Vendored / third-party directories excluded from QUICKSTART script listing
 VENDOR_DIRS_QS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 
+# Frontend-directory detection — mirrors the constants in failure_modes_simple.py.
+# A dir is frontend if it has JS/HTML/CSS AND no analysis-code extension.
+# We do NOT require all extensions to be in an allowlist so that dirs with
+# .sb3, .wav, .mp3, etc. are still correctly identified as frontend dirs.
+_FRONTEND_MARKERS_QS = frozenset({'.js', '.html', '.css', '.jsx', '.ts', '.tsx', '.vue'})
+_ANALYSIS_CODE_EXTS_QS = frozenset({
+    '.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
+    '.rmd', '.qmd', '.sh', '.bash', '.f90', '.f', '.cpp', '.c',
+    '.java', '.nf', '.smk', '.ado', '.rs', '.go', '.scala', '.sql',
+})
+
 
 def _is_minified_qs(f):
     """Return True if a file appears to be a minified or bundled frontend asset."""
@@ -38,22 +49,6 @@ def _is_minified_qs(f):
         or stem_lower in {'lib.min', 'vendor.min', 'bundle.min'}
         or stem_lower.startswith('chunk')
     )
-
-
-def _is_frontend_dir_qs(directory):
-    """Return True if a directory contains only frontend assets and no analysis code."""
-    _fe_exts = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
-                '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
-    _analysis_exts = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
-                      '.rmd', '.qmd', '.sh', '.bash'}
-    try:
-        files = [f for f in directory.rglob('*') if f.is_file()]
-    except Exception:
-        return False
-    if not files:
-        return False
-    extensions = {f.suffix.lower() for f in files}
-    return extensions.issubset(_fe_exts) and not (extensions & _analysis_exts)
 
 DEPENDENCY_FILES = {
     'requirements.txt', 'requirements_extra.txt', 'environment.yml', 'environment.yaml',
@@ -2039,10 +2034,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     # Build frontend-dir exclusion set from all_files — immune to zip wrappers
     # and __MACOSX artefacts because all_files is already filtered.
-    _fe_exts_qs = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
-                   '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
-    _analysis_exts_qs = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
-                         '.rmd', '.qmd', '.sh', '.bash'}
+    # Permissive check: has JS/HTML/CSS marker AND no analysis-code extension.
     _dir_exts_qs: dict = {}
     for _f in all_files:
         for _anc in _f.parents:
@@ -2051,7 +2043,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
             _dir_exts_qs.setdefault(_anc, set()).add(_f.suffix.lower())
     _qs_frontend_dirs = {
         d for d, exts in _dir_exts_qs.items()
-        if exts and exts.issubset(_fe_exts_qs) and not (exts & _analysis_exts_qs)
+        if bool(exts & _FRONTEND_MARKERS_QS) and not bool(exts & _ANALYSIS_CODE_EXTS_QS)
     }
     code_files = [
         f for f in all_files
