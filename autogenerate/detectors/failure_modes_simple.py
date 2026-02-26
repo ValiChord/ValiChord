@@ -75,6 +75,44 @@ def read_file_safe(path):
     return ''
 
 
+# Standard-library top-level module names (Python 3.6+).
+# Used to decide whether a script has zero external dependencies.
+_STDLIB_TOPLEVEL = frozenset({
+    'abc', 'ast', 'asyncio', 'base64', 'binascii', 'builtins',
+    'calendar', 'cmath', 'codecs', 'collections', 'concurrent',
+    'contextlib', 'copy', 'csv', 'ctypes', 'dataclasses', 'datetime',
+    'decimal', 'difflib', 'email', 'enum', 'errno', 'faulthandler',
+    'filecmp', 'fnmatch', 'fractions', 'functools', 'gc', 'glob',
+    'gzip', 'hashlib', 'heapq', 'hmac', 'html', 'http', 'imaplib',
+    'importlib', 'inspect', 'io', 'ipaddress', 'itertools', 'json',
+    'keyword', 'linecache', 'locale', 'logging', 'lzma', 'math',
+    'mimetypes', 'multiprocessing', 'numbers', 'operator', 'os',
+    'pathlib', 'pickle', 'platform', 'pprint', 'queue', 'random',
+    're', 'shlex', 'shutil', 'signal', 'socket', 'sqlite3',
+    'ssl', 'stat', 'statistics', 'string', 'struct', 'subprocess',
+    'sys', 'tarfile', 'tempfile', 'textwrap', 'threading', 'time',
+    'timeit', 'tkinter', 'traceback', 'typing', 'unicodedata',
+    'unittest', 'urllib', 'uuid', 'warnings', 'weakref', 'xml',
+    'xmlrpc', 'zipfile', 'zipimport', 'zlib',
+})
+
+_IMPORT_PAT = re.compile(
+    r'^\s*(?:import\s+(\w+)|from\s+(\w+)\s+import)',
+    re.MULTILINE
+)
+
+
+def _has_only_stdlib_imports(f):
+    """Return True if a Python file imports nothing outside the stdlib."""
+    if f.suffix.lower() != '.py':
+        return False
+    modules = [
+        m.group(1) or m.group(2)
+        for m in _IMPORT_PAT.finditer(read_file_safe(f))
+    ]
+    return all(m in _STDLIB_TOPLEVEL for m in modules)
+
+
 _CODE_TXT_STEM_KEYWORDS = frozenset({
     'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
 })
@@ -355,26 +393,28 @@ def detect_B_no_dependencies(repo_dir, all_files):
                  'Recommendation: list SAS version and required modules in README']
             ))
         else:
-            # Downgrade to SIGNIFICANT when the only code is a small (<1 KB)
-            # reader/loader/parser helper — these almost always use only stdlib
-            # and there are no reproducible results that depend on pinned versions.
             _is_trivial_helper = (
                 len(code_files) == 1
                 and code_files[0].stat().st_size < 1024
                 and any(kw in code_files[0].stem.lower()
                         for kw in {'reader', 'loader', 'parser', 'helper'})
             )
-            _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
-            findings.append(finding(
-                'B', _b_severity,
-                'No dependency specification found',
-                'Code files are present but no dependency file was found. '
-                'A requirements_DRAFT.txt will be generated from import '
-                'statements with all versions marked UNKNOWN.',
-                [f'Code files found: {len(code_files)}',
-                 'No requirements.txt, environment.yml, renv.lock, '
-                 'or equivalent found']
-            ))
+            # Suppress entirely when stdlib-only: zero external deps means
+            # no version-pinning risk — informational note added in QUICKSTART.
+            if _is_trivial_helper and _has_only_stdlib_imports(code_files[0]):
+                pass
+            else:
+                _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
+                findings.append(finding(
+                    'B', _b_severity,
+                    'No dependency specification found',
+                    'Code files are present but no dependency file was found. '
+                    'A requirements_DRAFT.txt will be generated from import '
+                    'statements with all versions marked UNKNOWN.',
+                    [f'Code files found: {len(code_files)}',
+                     'No requirements.txt, environment.yml, renv.lock, '
+                     'or equivalent found']
+                ))
     elif has_code and not has_dep_file and not has_draft_only and readme_has_inline_deps:
         findings.append(finding(
             'B', 'SIGNIFICANT',
@@ -1493,6 +1533,16 @@ def detect_K_compute_environment(repo_dir, all_files):
     if not any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files):
         return findings
 
+    # Trivial stdlib-only helpers don't need RAM or runtime documentation
+    _code_files_k = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    _skip_resources = (
+        len(_code_files_k) == 1
+        and _code_files_k[0].stat().st_size < 1024
+        and any(kw in _code_files_k[0].stem.lower()
+                for kw in {'reader', 'loader', 'parser', 'helper'})
+        and _has_only_stdlib_imports(_code_files_k[0])
+    )
+
     readme_file = None
     for f in all_files:
         if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
@@ -1534,9 +1584,9 @@ def detect_K_compute_environment(repo_dir, all_files):
 
     if not any(ind in content for ind in os_indicators):
         missing.append('operating system')
-    if not any(ind in content for ind in ram_indicators):
+    if not _skip_resources and not any(ind in content for ind in ram_indicators):
         missing.append('RAM/memory requirements')
-    if not any(ind in content for ind in runtime_indicators):
+    if not _skip_resources and not any(ind in content for ind in runtime_indicators):
         missing.append('estimated runtime')
 
     # Note documented language/runtime versions so findings acknowledge them

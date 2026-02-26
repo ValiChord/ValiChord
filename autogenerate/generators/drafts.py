@@ -1905,9 +1905,43 @@ def _quickstart_step2(all_files, code_files):
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
 
+_STDLIB_TOPS = frozenset({
+    'abc', 'ast', 'asyncio', 'base64', 'binascii', 'builtins',
+    'calendar', 'cmath', 'codecs', 'collections', 'concurrent',
+    'contextlib', 'copy', 'csv', 'ctypes', 'dataclasses', 'datetime',
+    'decimal', 'difflib', 'email', 'enum', 'errno', 'fnmatch', 'fractions',
+    'functools', 'gc', 'glob', 'gzip', 'hashlib', 'heapq', 'hmac',
+    'html', 'http', 'importlib', 'inspect', 'io', 'ipaddress',
+    'itertools', 'json', 'keyword', 'linecache', 'locale', 'logging',
+    'lzma', 'math', 'multiprocessing', 'numbers', 'operator', 'os',
+    'pathlib', 'pickle', 'platform', 'pprint', 'queue', 'random',
+    're', 'shlex', 'shutil', 'signal', 'socket', 'sqlite3',
+    'ssl', 'stat', 'statistics', 'string', 'struct', 'subprocess',
+    'sys', 'tarfile', 'tempfile', 'textwrap', 'threading', 'time',
+    'timeit', 'traceback', 'typing', 'unicodedata', 'unittest',
+    'urllib', 'uuid', 'warnings', 'weakref', 'xml', 'zipfile', 'zlib',
+})
+
+
 def _install_instructions(code_files, all_files=None):
     """Return language-appropriate install instructions."""
     suffixes = {f.suffix.lower() for f in code_files}
+    # Stdlib-only trivial helper — no install step, just an informational note
+    if len(code_files) == 1 and code_files[0].suffix.lower() == '.py':
+        _cf = code_files[0]
+        if (_cf.stat().st_size < 1024
+                and any(kw in _cf.stem.lower()
+                        for kw in {'reader', 'loader', 'parser', 'helper'})):
+            _src = _cf.read_text(encoding='utf-8', errors='ignore')
+            _mods = {
+                m.group(1) or m.group(2)
+                for m in re.finditer(
+                    r'^\s*(?:import\s+(\w+)|from\s+(\w+)\s+import)',
+                    _src, re.MULTILINE
+                )
+            }
+            if _mods <= _STDLIB_TOPS:
+                return ['3. No external dependencies — standard Python 3.6+ is sufficient.']
     # Docker repo — no separate install step needed
     if all_files and any(f.name == 'Dockerfile' for f in all_files):
         return []
