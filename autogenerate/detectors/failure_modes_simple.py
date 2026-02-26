@@ -2745,21 +2745,33 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
         re.IGNORECASE
     )
 
+    # Matches public/private/protected static final String constants.
+    # Value group captures the string content (8–200 chars).
     _java_const_re = re.compile(
-        r'public\s+static\s+final\s+String\s+(\w+)\s*=\s*["\']([a-zA-Z0-9_\- ]{16,})["\']'
+        r'(?:public|private|protected)\s+static\s+final\s+String\s+(\w+)\s*=\s*["\']([^"\']{8,200})["\']'
     )
+
+    def _java_value_is_safe(value: str) -> bool:
+        """Return True if the string value looks like a descriptor, not a credential."""
+        # No digits at all → human-readable name
+        if not re.search(r'\d', value):
+            return True
+        # Dotted class/property key: letters, digits, dots, hyphens only
+        # e.g. "weka.core.DoNotLoadIfEnvVarNotSet", "log4j.appender.stdout"
+        if re.fullmatch(r'[A-Za-z][A-Za-z0-9.\-]*', value):
+            return True
+        return False
 
     for f in code_files:
         content = read_file_safe(f)
         matches = key_patterns.findall(content)
-        # Java-specific: suppress public static final String constants whose
-        # values contain no digits — these are human-readable descriptive
-        # strings, not tokens, hashes, or UUIDs.
+        # Java-specific: suppress static final String constants whose values
+        # are human-readable descriptive strings, not tokens/hashes/UUIDs.
         if matches and f.suffix.lower() == '.java':
             safe_vars: set = set()
             for line in content.splitlines():
                 cm = _java_const_re.search(line)
-                if cm and not re.search(r'\d', cm.group(2)):
+                if cm and _java_value_is_safe(cm.group(2)):
                     safe_vars.add(cm.group(1))
             if safe_vars:
                 matches = [
