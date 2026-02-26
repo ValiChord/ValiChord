@@ -1049,6 +1049,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_SP_specialist_software(repo_dir, all_files)
     print("  [EP] Data provenance check...")
     all_findings += detect_EP_data_provenance(repo_dir, all_files)
+    print("  [DZ] Double-zipped deposit check...")
+    all_findings += detect_DZ_double_zipped(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -1210,7 +1212,9 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
         '.rdata', '.dta', '.sav', '.mat', '.pkl', '.npy',
         '.npz', '.hdf5', '.h5', '.feather', '.arrow', '.json',
-        '.xml', '.db', '.sqlite', '.dif'
+        '.db', '.sqlite', '.dif'
+        # .xml excluded — too ambiguous (config, markup, tool input);
+        # rarely a research dataset format
     }
 
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
@@ -6232,3 +6236,51 @@ def detect_BW_empty_code_files(repo_dir, all_files):
              for f in empty]
         ))
     return findings
+
+
+def detect_DZ_double_zipped(repo_dir, all_files):
+    """Failure Mode DZ: Repository file tree is duplicated — likely double-zipped archive."""
+    findings = []
+
+    # Pattern: parts[0] == parts[1] in a file's repo-relative path
+    # e.g.  isiKnock v1.0.0/isiKnock v1.0.0/readme.txt
+    # This means the archive was zipped twice: extracting produces a folder that
+    # itself contains a same-named folder with the actual content.
+    doubled_dirs = set()
+    for f in all_files:
+        try:
+            parts = f.relative_to(repo_dir).parts
+        except Exception:
+            continue
+        if len(parts) >= 3 and parts[0] == parts[1]:
+            doubled_dirs.add(parts[0])
+
+    if not doubled_dirs:
+        return findings
+
+    for dname in doubled_dirs:
+        outer = [f for f in all_files
+                 if f.relative_to(repo_dir).parts[0] == dname
+                 and len(f.relative_to(repo_dir).parts) == 2]
+        inner = [f for f in all_files
+                 if len(f.relative_to(repo_dir).parts) >= 3
+                 and f.relative_to(repo_dir).parts[0] == dname
+                 and f.relative_to(repo_dir).parts[1] == dname]
+        if len(inner) < 3:
+            continue
+        findings.append(finding(
+            'DZ', 'SIGNIFICANT',
+            'Repository structure appears duplicated — possible double-zipped archive',
+            f'Files appear at both `{dname}/` and `{dname}/{dname}/`, '
+            'suggesting the deposit archive was zipped twice. Validators will '
+            'find the same content at two different paths, causing confusion '
+            'about which copy is authoritative. Re-create the deposit ZIP '
+            'from the root content directory rather than from inside a '
+            'folder that shares the archive name.',
+            [f'Outer copy: {len(outer)} file(s) under {dname}/',
+             f'Inner (duplicated) copy: {len(inner)} file(s) under {dname}/{dname}/',
+             'Fix: unzip the deposit, enter the top-level folder, and re-zip its contents']
+        ))
+
+    return findings
+

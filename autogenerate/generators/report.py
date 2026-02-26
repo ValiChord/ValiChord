@@ -32,13 +32,15 @@ def _is_code_txt(f):
 
 def _assessment_verification_questions(all_files):
     """Return verification questions appropriate to repo type."""
-    _cad_exts     = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
-    _code_exts    = {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
-    _tabular_exts = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
-                     '.parquet', '.feather', '.arrow', '.dif'}
-    has_cad     = any(f.suffix.lower() in _cad_exts for f in all_files)
-    has_code    = any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} or _is_code_txt(f) for f in all_files)
-    has_tabular = any(f.suffix.lower() in _tabular_exts for f in all_files)
+    _cad_exts      = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
+    _code_exts     = {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
+    _tabular_exts  = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
+                      '.parquet', '.feather', '.arrow', '.dif'}
+    _software_exts = {'.jar', '.exe', '.dll', '.so', '.dylib', '.class', '.app'}
+    has_cad      = any(f.suffix.lower() in _cad_exts for f in all_files)
+    has_code     = any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} or _is_code_txt(f) for f in all_files)
+    has_tabular  = any(f.suffix.lower() in _tabular_exts for f in all_files)
+    has_software = any(f.suffix.lower() in _software_exts for f in all_files) and not has_code
 
     if has_cad and not has_code and not has_tabular:
         return [
@@ -51,6 +53,25 @@ def _assessment_verification_questions(all_files):
             '4. **Intended use:** Have you documented what these files are intended for (e.g. CFD meshing, manufacture, 3D printing, validation)?',
             '',
             '5. **Licence:** Is the licence appropriate for design files? If the geometry derives from a third-party licensed model, does your chosen licence comply?',
+        ]
+
+    if has_software:
+        return [
+            '1. **Runtime requirements:** What Java/runtime version is required? '
+            'Have you tested on Windows, macOS, and Linux? Document any OS-specific behaviour.',
+            '',
+            '2. **Execution:** What is the exact command to run the tool? '
+            'Is there an example input file validators can use to confirm correct output?',
+            '',
+            '3. **Expected output:** What should a validator see when the tool runs correctly? '
+            'Describe expected output files, console messages, or return codes.',
+            '',
+            '4. **Input format:** What input format(s) does the tool accept? '
+            'Provide a minimal working example input file.',
+            '',
+            '5. **Licence:** Is the software licence clearly stated? '
+            'If the tool bundles third-party libraries (e.g. in a fat JAR), '
+            'are their licences compatible with yours?',
         ]
 
     if not has_code:
