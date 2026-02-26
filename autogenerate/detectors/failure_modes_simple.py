@@ -84,15 +84,35 @@ def detect_A_no_readme(repo_dir, all_files):
 
     root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4]
     if not root_readme:
-        # Check for README in a proprietary/non-machine-readable format
-        _PROP_EXTS = {'.pdf', '.pages', '.docx', '.doc'}
+        # .docx README: common pattern deserves its own specific message
+        _README_STEMS = {'readme', 'read me', 'read_me'}
+        _docx_readmes = [
+            f for f in all_files
+            if f.stem.lower() in _README_STEMS
+            and f.suffix.lower() == '.docx'
+            and len(f.relative_to(repo_dir).parts) <= 2
+        ]
+        # Other proprietary/non-machine-readable formats
+        _PROP_EXTS = {'.pdf', '.pages', '.doc'}
         _prop_readmes = [
             f for f in all_files
             if f.stem.lower() == 'readme'
             and f.suffix.lower() in _PROP_EXTS
             and len(f.relative_to(repo_dir).parts) <= 4
         ]
-        if _prop_readmes:
+        if _docx_readmes:
+            _docx = min(_docx_readmes, key=lambda x: len(x.relative_to(repo_dir).parts))
+            findings.append(finding(
+                'A', 'SIGNIFICANT',
+                f'README found as .docx file ({_docx.name})',
+                f'README found as .docx file ({_docx.name}) — consider converting to '
+                'README.md or README.txt for better accessibility and plain-text '
+                'searchability.',
+                [f'Found: {_docx.name}',
+                 'Fix: export content to README.md using a suitable conversion '
+                 'tool or by copy-pasting the text into a Markdown file']
+            ))
+        elif _prop_readmes:
             # Deduplicate by filename: keep shallowest copy of each distinct name
             _seen_names = {}
             for f in sorted(_prop_readmes, key=lambda x: len(x.relative_to(repo_dir).parts)):
@@ -269,10 +289,21 @@ def detect_B_no_dependencies(repo_dir, all_files):
                         readme_has_inline_deps = True
                         break
 
-    # MATLAB has no requirements.txt equivalent — downgrade [B] to SIGNIFICANT
+    # Languages with no standard package-manager equivalent of requirements.txt
+    # — downgrade [B] from CRITICAL to SIGNIFICANT and give language-specific advice.
+    _scripting_only = not any(
+        f.suffix.lower() in {'.py', '.r', '.rmd', '.jl'} for f in all_files
+    )
     _is_matlab_only = (
-        any(f.suffix.lower() == '.m' for f in all_files)
-        and not any(f.suffix.lower() in {'.py', '.r', '.rmd', '.jl'} for f in all_files)
+        any(f.suffix.lower() == '.m' for f in all_files) and _scripting_only
+    )
+    _is_stata_only = (
+        any(f.suffix.lower() == '.do' for f in all_files)
+        and not any(f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m'} for f in all_files)
+    )
+    _is_sas_only = (
+        any(f.suffix.lower() == '.sas' for f in all_files)
+        and not any(f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m', '.do'} for f in all_files)
     )
 
     if has_code and not has_dep_file and not has_draft_only and not readme_has_inline_deps:
@@ -285,6 +316,25 @@ def detect_B_no_dependencies(repo_dir, all_files):
                 'in your README so validators can configure a matching environment.',
                 [f'Code files found: {len(code_files)}',
                  'Recommendation: list MATLAB version and toolboxes in README']
+            ))
+        elif _is_stata_only:
+            findings.append(finding(
+                'B', 'SIGNIFICANT',
+                'No dependency specification found (Stata deposit)',
+                'Stata has no standard equivalent of requirements.txt. '
+                'Document the Stata version and any required packages '
+                '(ssc install) in your README.',
+                [f'Code files found: {len(code_files)}',
+                 'Recommendation: list Stata version and ssc-installed packages in README']
+            ))
+        elif _is_sas_only:
+            findings.append(finding(
+                'B', 'SIGNIFICANT',
+                'No dependency specification found (SAS deposit)',
+                'SAS has no pip-style package manager. Document the SAS version, '
+                'required SAS products/modules, and any SASLIB paths in your README.',
+                [f'Code files found: {len(code_files)}',
+                 'Recommendation: list SAS version and required modules in README']
             ))
         else:
             findings.append(finding(

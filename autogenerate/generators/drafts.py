@@ -144,6 +144,8 @@ def _classify_file(f, is_cad=False):
         return 'Notebook'
     if ext in {'.md', '.txt', '.rst', '.html', '.tex'}:
         return 'Documentation'
+    if ext == '.docx' and f.stem.lower() in {'readme', 'read me', 'read_me'}:
+        return 'Documentation'
     if _is_model_artifact_file(f):
         return 'Model artifact'
     if ext in {'.csv', '.tsv', '.xlsx', '.json', '.parquet',
@@ -176,6 +178,8 @@ def _file_notes(f):
     ext = f.suffix.lower()
     if ext == '.asv':
         return 'MATLAB autosave — consider removing before deposit'
+    if ext == '.docx' and f.stem.lower() in {'readme', 'read me', 'read_me'}:
+        return 'README (Word format)'
     if ext in {'.gpg', '.enc', '.secret', '.age', '.asc'}:
         return '🔴 POSSIBLY ENCRYPTED — may be unusable without key'
     if name == 'citation.cff':

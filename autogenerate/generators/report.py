@@ -338,6 +338,27 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
     added = False
 
     for mode, action in action_map.items():
+        if mode == 'B':
+            if 'B' in modes_found:
+                _b = next((f for f in findings if f.get('mode') == 'B'), None)
+                _b_title = _b.get('title', '') if _b else ''
+                if 'MATLAB' in _b_title:
+                    lines += ['- **[B]** List the MATLAB version and required toolboxes '
+                              'in your README. Run `ver` in MATLAB to see the version, '
+                              'and list any toolboxes used (e.g. Statistics and Machine '
+                              'Learning Toolbox).', '']
+                elif 'Stata' in _b_title:
+                    lines += ['- **[B]** List the Stata version and any packages installed '
+                              'via `ssc install` in your README. Run `version` and '
+                              '`ado describe` in Stata to identify them.', '']
+                elif 'SAS' in _b_title:
+                    lines += ['- **[B]** List the SAS version, required SAS products/modules, '
+                              'and any SASLIB paths in your README. Run `proc product_status;` '
+                              'to identify installed components.', '']
+                else:
+                    lines += [f'- **[B]** {action}', '']
+                added = True
+            continue
         if mode == 'AK':
             if any(f['mode'] == 'AK' and f.get('severity') == 'SIGNIFICANT' for f in findings):
                 lines += ['- **[AK]** Download your Colab notebooks and commit them to '
