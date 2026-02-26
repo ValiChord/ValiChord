@@ -431,13 +431,23 @@ def detect_B_no_dependencies(repo_dir, all_files):
         draft_file = next(f for f in all_files if f.name.lower() == "requirements_draft.txt")
         draft_content = read_file_safe(draft_file)
         has_pinned = any("==" in l for l in draft_content.splitlines() if l.strip() and not l.strip().startswith("#"))
-        findings.append(finding(
-            'B', 'SIGNIFICANT',
-            'requirements_DRAFT.txt found from prior run but not yet finalised',
-            'A requirements_DRAFT.txt exists but has not been completed and renamed '
-            'to requirements.txt. Pin all version numbers and rename before deposit.',
-            ['Action: complete version numbers in requirements_DRAFT.txt and rename to requirements.txt']
-        ))
+        # Suppress entirely if the draft itself reports no external imports
+        # AND this is a trivial reader/loader helper — nothing to pin or finalise.
+        _draft_no_deps = 'no external imports detected' in draft_content.lower()
+        _is_trivial_helper2 = (
+            len(code_files) == 1
+            and code_files[0].stat().st_size < 1024
+            and any(kw in code_files[0].stem.lower()
+                    for kw in {'reader', 'loader', 'parser', 'helper'})
+        )
+        if not (_draft_no_deps and _is_trivial_helper2):
+            findings.append(finding(
+                'B', 'SIGNIFICANT',
+                'requirements_DRAFT.txt found from prior run but not yet finalised',
+                'A requirements_DRAFT.txt exists but has not been completed and renamed '
+                'to requirements.txt. Pin all version numbers and rename before deposit.',
+                ['Action: complete version numbers in requirements_DRAFT.txt and rename to requirements.txt']
+            ))
     elif has_dep_file:
         # check for unpinned dependencies in requirements.txt
         for f in all_files:
@@ -1533,15 +1543,21 @@ def detect_K_compute_environment(repo_dir, all_files):
     if not any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files):
         return findings
 
-    # Trivial stdlib-only helpers don't need RAM or runtime documentation
-    _code_files_k = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
-    _skip_resources = (
-        len(_code_files_k) == 1
-        and _code_files_k[0].stat().st_size < 1024
-        and any(kw in _code_files_k[0].stem.lower()
-                for kw in {'reader', 'loader', 'parser', 'helper'})
-        and _has_only_stdlib_imports(_code_files_k[0])
+    # Trivial stdlib-only helpers don't need RAM or runtime documentation.
+    # Use requirements_DRAFT.txt "No external imports detected" as the canonical
+    # signal — more robust than re-scanning imports when multiple .py files exist.
+    _draft_no_deps_k = any(
+        'no external imports detected' in read_file_safe(f).lower()
+        for f in all_files
+        if f.name.lower() == 'requirements_draft.txt'
     )
+    _has_trivial_helper_k = any(
+        f.suffix.lower() in CODE_EXTENSIONS
+        and f.stat().st_size < 1024
+        and any(kw in f.stem.lower() for kw in {'reader', 'loader', 'parser', 'helper'})
+        for f in all_files
+    )
+    _skip_resources = _draft_no_deps_k and _has_trivial_helper_k
 
     readme_file = None
     for f in all_files:
