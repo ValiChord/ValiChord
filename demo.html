@@ -408,11 +408,16 @@ async function analyse() {
       if (data.job_id) job_id = data.job_id;
     }
 
+    if (!job_id) throw new Error("Upload completed but no job ID was returned — please retry");
+
     // Phase 2: poll /status/<job_id> until done or error
     while (true) {
       await new Promise(r => setTimeout(r, 3000));
       const pollRes = await fetch(API + "/status/" + job_id);
-      if (!pollRes.ok) throw new Error("Status check failed");
+      if (!pollRes.ok) {
+        if (pollRes.status === 404) throw new Error("Job not found — the server may have restarted. Please try uploading again.");
+        throw new Error("Status check failed (HTTP " + pollRes.status + ")");
+      }
       const poll = await pollRes.json();
       if (poll.status === "error") throw new Error(poll.error || "Processing error");
       if (poll.status === "done") break;
