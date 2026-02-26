@@ -1473,6 +1473,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         and not _is_model_artifact(f)
         and f.name.lower() not in _build_config_names
         and not _is_ide_config(f)
+        and not f.name.lower().startswith('readme')
     ]
 
     if not data_files:
@@ -2753,7 +2754,9 @@ def detect_Y_data_source_missing(repo_dir, all_files):
 
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions and not _is_model_artifact(f)
+        if f.suffix.lower() in data_extensions
+        and not _is_model_artifact(f)
+        and not f.name.lower().startswith('readme')
     ]
 
     if not data_files:
@@ -3886,7 +3889,7 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
-    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.tsv', '.parquet', '.xlsx', '.xls', '.dta', '.sav', '.rds', '.rdata', '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc', '.feather', '.arrow', '.dif'}]
+    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.tsv', '.parquet', '.xlsx', '.xls', '.dta', '.sav', '.rds', '.rdata', '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc', '.feather', '.arrow', '.dif'} and not f.name.lower().startswith('readme')]
     if len(data_files) < 2:
         return findings
     has_checksums = any(

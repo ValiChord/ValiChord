@@ -110,6 +110,7 @@ _KNOWN_CRAN = {
     'lme4', 'nlme', 'mgcv', 'MASS', 'car', 'glmnet', 'caret', 'randomForest',
     'survival', 'rms', 'emmeans', 'lmerTest', 'multcomp', 'sandwich', 'lmtest',
     'gam', 'gamm4', 'brms', 'rstanarm', 'bayesplot', 'posterior', 'rstan',
+    'MCMCglmm', 'glmmTMB',
     'arm', 'AER', 'ivreg', 'logistf', 'geepack', 'VGAM',
     # Visualisation
     'scales', 'ggthemes', 'ggrepel', 'cowplot', 'patchwork', 'ggridges',
@@ -312,6 +313,8 @@ def _classify_file(f, is_cad=False):
         return 'Documentation'
     if ext == '.docx' and f.stem.lower() in {'readme', 'read me', 'read_me'}:
         return 'Documentation'
+    if f.name.lower().startswith('readme'):
+        return 'Documentation'
     if _is_model_artifact_file(f):
         return 'Model artifact'
     if ext in {'.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
@@ -352,7 +355,7 @@ def _file_notes(f):
         return 'CITATION.cff — check all required fields are complete'
     if 'codebook' in name or 'data_dictionary' in name or 'data_dict' in name:
         return 'Codebook / data dictionary'
-    if name in README_NAMES:
+    if name.startswith('readme'):
         return 'README'
     if name in {'licence', 'license', 'licence.md',
                 'license.md', 'licence.txt', 'license.txt'}:
@@ -899,7 +902,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if not has_code:
         # data-only deposit — use data-focused template
-        data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet", ".mat", ".npy", ".npz", ".hdf5", ".h5", ".nc", ".feather", ".arrow", ".dif", ".rds", ".rdata"}]
+        data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet", ".mat", ".npy", ".npz", ".hdf5", ".h5", ".nc", ".feather", ".arrow", ".dif", ".rds", ".rdata"} and not f.name.lower().startswith('readme')]
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         lines = [
             '# [TITLE OF DATASET — YOU MUST COMPLETE THIS]',
