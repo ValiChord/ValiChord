@@ -1,0 +1,4 @@
+{
+  "extraPaths": ["autogenerate"],
+  "reportMissingModuleSource": "none"
+}
