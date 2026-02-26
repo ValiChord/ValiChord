@@ -355,8 +355,18 @@ def detect_B_no_dependencies(repo_dir, all_files):
                  'Recommendation: list SAS version and required modules in README']
             ))
         else:
+            # Downgrade to SIGNIFICANT when the only code is a small (<1 KB)
+            # reader/loader/parser helper — these almost always use only stdlib
+            # and there are no reproducible results that depend on pinned versions.
+            _is_trivial_helper = (
+                len(code_files) == 1
+                and code_files[0].stat().st_size < 1024
+                and any(kw in code_files[0].stem.lower()
+                        for kw in {'reader', 'loader', 'parser', 'helper'})
+            )
+            _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
             findings.append(finding(
-                'B', 'CRITICAL',
+                'B', _b_severity,
                 'No dependency specification found',
                 'Code files are present but no dependency file was found. '
                 'A requirements_DRAFT.txt will be generated from import '
@@ -622,6 +632,11 @@ def detect_N_no_licence(repo_dir, all_files):
 def detect_Z_no_commit_hash(repo_dir, all_files):
     """Failure Mode Z: No commit hash or version tag in README."""
     findings = []
+
+    # [Z] only makes sense for git-managed deposits. A static journal archive
+    # has no git history, so asking for a commit hash is inappropriate.
+    if not (repo_dir / '.git').is_dir():
+        return findings
 
     for f in all_files:
         if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
@@ -2744,6 +2759,11 @@ def detect_AD_missing_gitignore(repo_dir, all_files):
     """Failure Mode AD: No .gitignore — sensitive or junk files may be committed."""
     findings = []
 
+    # Only meaningful for git repositories. A static archive has no git history
+    # and no need for a .gitignore.
+    if not (repo_dir / '.git').is_dir():
+        return findings
+
     has_gitignore = any(
         f.name == '.gitignore' for f in all_files
     )
@@ -3108,7 +3128,10 @@ def detect_AK_external_urls(repo_dir, all_files):
 
     url_pattern = re.compile(
         r'https?://(?!github\.com|zenodo\.org|doi\.org|arxiv\.org'
-        r'|pypi\.org|anaconda\.org|conda\.io)[^\s\'")\]>]+',
+        r'|pypi\.org|anaconda\.org|conda\.io'
+        # Author identity / social-profile domains — stable, not data links
+        r'|linkedin\.com|twitter\.com|(?:www\.)?x\.com'
+        r'|orcid\.org|researchgate\.net|academia\.edu)[^\s\'")\]>]+',
         re.IGNORECASE
     )
 
@@ -4304,6 +4327,8 @@ def detect_EP_data_provenance(repo_dir, all_files):
         'extract', 'collect', 'scrap', 'mine', 'generat',
         'methodolog', 'how we', 'how the data', 'data collection',
         'data extraction', 'data generation', 'dataset construction',
+        'study', 'survey', 'annotated', 'labeled', 'labelled',
+        'taxonomy', 'corpus', 'experiment',
     ]
     has_methodology = False
     for readme in readme_files:
