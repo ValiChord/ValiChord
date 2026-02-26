@@ -262,17 +262,34 @@ def detect_B_no_dependencies(repo_dir, all_files):
                         readme_has_inline_deps = True
                         break
 
+    # MATLAB has no requirements.txt equivalent — downgrade [B] to SIGNIFICANT
+    _is_matlab_only = (
+        any(f.suffix.lower() == '.m' for f in all_files)
+        and not any(f.suffix.lower() in {'.py', '.r', '.rmd', '.jl'} for f in all_files)
+    )
+
     if has_code and not has_dep_file and not has_draft_only and not readme_has_inline_deps:
-        findings.append(finding(
-            'B', 'CRITICAL',
-            'No dependency specification found',
-            'Code files are present but no dependency file was found. '
-            'A requirements_DRAFT.txt will be generated from import '
-            'statements with all versions marked UNKNOWN.',
-            [f'Code files found: {len(code_files)}',
-             'No requirements.txt, environment.yml, renv.lock, '
-             'or equivalent found']
-        ))
+        if _is_matlab_only:
+            findings.append(finding(
+                'B', 'SIGNIFICANT',
+                'No dependency specification found (MATLAB deposit)',
+                'MATLAB has no standard equivalent of requirements.txt. '
+                'Document the MATLAB version and any required toolboxes '
+                'in your README so validators can configure a matching environment.',
+                [f'Code files found: {len(code_files)}',
+                 'Recommendation: list MATLAB version and toolboxes in README']
+            ))
+        else:
+            findings.append(finding(
+                'B', 'CRITICAL',
+                'No dependency specification found',
+                'Code files are present but no dependency file was found. '
+                'A requirements_DRAFT.txt will be generated from import '
+                'statements with all versions marked UNKNOWN.',
+                [f'Code files found: {len(code_files)}',
+                 'No requirements.txt, environment.yml, renv.lock, '
+                 'or equivalent found']
+            ))
     elif has_code and not has_dep_file and not has_draft_only and readme_has_inline_deps:
         findings.append(finding(
             'B', 'SIGNIFICANT',
@@ -365,12 +382,21 @@ def detect_C_absolute_paths(repo_dir, all_files):
     )
 
     for f in code_files:
+        ext = f.suffix.lower()
         content_f = read_file_safe(f)
         for i, line in enumerate(content_f.splitlines(), 1):
             stripped = line.strip()
-            if stripped.startswith('#') or stripped.startswith('//') or stripped.startswith('*'):
+            # Skip comment lines — per language
+            if ext == '.m' and stripped.startswith('%'):        # MATLAB
                 continue
-            if stripped.startswith('"""') or stripped.startswith("'''"):
+            if ext in {'.py', '.r', '.rmd', '.qmd', '.sh', '.bash'} \
+                    and stripped.startswith('#'):               # Python / R / shell
+                continue
+            if ext == '.java' and (stripped.startswith('//') or stripped.startswith('*')):
+                continue                                        # Java line/block comment
+            if stripped.startswith('#'):                        # catch-all for other # languages
+                continue
+            if stripped.startswith('"""') or stripped.startswith("'''"):  # Python docstrings
                 continue
             # home-relative and env-var paths are not machine-specific hardcodes
             if '~/' in stripped:
