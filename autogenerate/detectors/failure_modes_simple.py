@@ -49,6 +49,10 @@ LICENCE_NAMES = {
     'licence.txt', 'license.txt'
 }
 
+# Directories that contain third-party / vendored code — excluded from
+# researcher-code detectors (B, U, AC, AI, AJ, AK, AS, AT, AU, AA, BB …)
+VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
+
 
 def finding(mode, severity, title, detail, evidence=None):
     """Create a standardised finding dictionary."""
@@ -180,7 +184,9 @@ def detect_B_no_dependencies(repo_dir, all_files):
     names_lower = {f.name.lower() for f in all_files}
 
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     has_dep_file = bool(names_lower.intersection(DEPENDENCY_FILES))
     # R install scripts are valid dependency specifications
@@ -240,7 +246,8 @@ def detect_B_no_dependencies(repo_dir, all_files):
     readme_has_inline_deps = False
     if not has_dep_file:
         for f in all_files:
-            if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst', 'readme'}:
+            if (f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
+                    and len(f.relative_to(repo_dir).parts) <= 2):
                 readme_content = read_file_safe(f).lower()
                 if any(pat in readme_content for pat in [
                     'install.packages(', 'pip install', 'conda install',
@@ -1022,7 +1029,9 @@ def detect_U_environment_variables(repo_dir, all_files):
     """Failure Mode U: Undocumented environment variables and credentials."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     credential_patterns = re.compile(
         r'os\.environ\.get\s*\(\s*["\']([^"\']*'
@@ -2399,8 +2408,6 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
     """Failure Mode AA: Figures committed but no figure generation code."""
     findings = []
 
-    _vendor_dirs = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
-
     figure_extensions = {'.png', '.jpg', '.jpeg', '.svg', '.eps', '.pdf'}
     figure_files = [
         f for f in all_files
@@ -2409,7 +2416,7 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
             'figures', 'figure', 'figs', 'fig',
             'plots', 'plot', 'images', 'results'
         }
-        and not any(part.lower() in _vendor_dirs
+        and not any(part.lower() in VENDOR_DIRS
                     for part in f.relative_to(repo_dir).parts)
     ]
 
@@ -2583,7 +2590,9 @@ def detect_AC_deprecated_functions(repo_dir, all_files):
     """Failure Mode AC: Use of deprecated functions likely to break."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() == '.py']
+                  if f.suffix.lower() == '.py'
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     deprecated = {
         'np.bool': 'np.bool_',
@@ -2908,7 +2917,9 @@ def detect_AI_print_debugging(repo_dir, all_files):
     """Failure Mode AI: Excessive print debugging suggests unfinished code."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in {'.py', '.ipynb'}]
+                  if f.suffix.lower() in {'.py', '.ipynb'}
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     for f in code_files:
         content = read_file_safe(f)
@@ -2942,7 +2953,9 @@ def detect_AJ_hardcoded_sample_size(repo_dir, all_files):
     """Failure Mode AJ: Sample sizes or thresholds hardcoded without explanation."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in {'.py', '.r', '.rmd'}]
+                  if f.suffix.lower() in {'.py', '.r', '.rmd'}
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     magic_number_pattern = re.compile(
         r'(?:head|sample|nrow|iloc|[:]\s*)\s*\(\s*(\d{3,})\s*\)'
@@ -2977,7 +2990,9 @@ def detect_AK_external_urls(repo_dir, all_files):
     """Failure Mode AK: External URLs that may become unavailable."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS | {'.md', '.txt'}]
+                  if f.suffix.lower() in CODE_EXTENSIONS | {'.md', '.txt'}
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     url_pattern = re.compile(
         r'https?://(?!github\.com|zenodo\.org|doi\.org|arxiv\.org'
@@ -3262,7 +3277,10 @@ def detect_AR_encoding_issues(repo_dir, all_files):
 
 def detect_AS_network_calls(repo_dir, all_files):
     findings = []
-    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
     # urllib.parse is string manipulation, not a network call — exclude it.
     # Only match actual I/O operations: HTTP clients and socket connections.
     net_pattern = re.compile(
@@ -3292,7 +3310,10 @@ def detect_AS_network_calls(repo_dir, all_files):
 
 def detect_AT_database_dependency(repo_dir, all_files):
     findings = []
-    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
     db_pattern = re.compile(r'(psycopg2|pymysql|sqlalchemy|sqlite3\.connect|pymongo|cx_Oracle|pyodbc|ibm_db|snowflake\.connector)', re.IGNORECASE)
     db_files = []
     for f in code_files:
@@ -3310,7 +3331,10 @@ def detect_AT_database_dependency(repo_dir, all_files):
 
 def detect_AU_cloud_storage(repo_dir, all_files):
     findings = []
-    code_files = [f for f in all_files if f.suffix.lower() in CODE_EXTENSIONS]
+    code_files = [f for f in all_files
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
     cloud_pattern = re.compile(r'(boto3|s3fs|gcsfs|azure\.storage|google\.cloud\.storage|gs://|s3://|azure://)', re.IGNORECASE)
     cloud_files = []
     for f in code_files:
@@ -3453,7 +3477,10 @@ def detect_BA_missing_checksums(repo_dir, all_files):
 
 def detect_BB_script_permissions(repo_dir, all_files):
     findings = []
-    shell_files = [f for f in all_files if f.suffix.lower() in {'.sh', '.bash'}]
+    shell_files = [f for f in all_files
+                   if f.suffix.lower() in {'.sh', '.bash'}
+                   and not any(part.lower() in VENDOR_DIRS
+                               for part in f.relative_to(repo_dir).parts)]
     if not shell_files:
         return findings
     import stat as _stat
@@ -4155,7 +4182,10 @@ def detect_EP_data_provenance(repo_dir, all_files):
         return findings
 
     # No README → [A] is already firing; skip [EP] to avoid redundant noise
-    readme_files = [f for f in all_files if f.name.lower() in README_NAMES]
+    # Depth <= 2 prevents deep sub-project READMEs from suppressing the finding
+    readme_files = [f for f in all_files
+                    if f.name.lower() in README_NAMES
+                    and len(f.relative_to(repo_dir).parts) <= 2]
     if not readme_files:
         return findings
     _methodology_keywords = [
