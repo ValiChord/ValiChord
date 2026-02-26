@@ -3700,6 +3700,10 @@ def detect_AU_cloud_storage(repo_dir, all_files):
 
 def detect_AW_missing_doi(repo_dir, all_files):
     findings = []
+    # CITATION.cff is itself a persistent identifier mechanism — suppress [AW]
+    # when one is present (same logic as [BM]).
+    if any(f.name.lower() == 'citation.cff' for f in all_files):
+        return findings
     text_files = [f for f in all_files if f.suffix.lower() in {'.md', '.txt', '.rst'}]
     has_doi = False
     for f in text_files:
@@ -3966,25 +3970,7 @@ def detect_BM_citation_cff(repo_dir, all_files):
             'and is increasingly expected by journals and data archives.',
             ['Recommendation: create CITATION.cff — see https://citation-file-format.github.io/']
         ))
-        return findings
-    # validate required fields
-    try:
-        content_cff = cff_files[0].read_text(encoding='utf-8', errors='ignore')
-        # strip commented lines before checking
-        active_lines = [l for l in content_cff.splitlines() if not l.strip().startswith('#')]
-        active_content = '\n'.join(active_lines)
-        required = ['title:', 'authors:', 'version:', 'date-released:']
-        missing_fields = [f for f in required if f not in active_content]
-        if missing_fields:
-            findings.append(finding(
-                'BM', 'SIGNIFICANT',
-                'CITATION.cff is missing required fields',
-                'CITATION.cff was found but is incomplete. '
-                'Missing fields will prevent automated citation tools from working correctly.',
-                [f'Missing fields: {", ".join(missing_fields)}']
-            ))
-    except Exception:
-        pass
+    # CITATION.cff present — INVENTORY already notes it; no [BM] finding needed.
     return findings
 
 
@@ -4542,6 +4528,10 @@ def detect_EP_data_provenance(repo_dir, all_files):
         'data extraction', 'data generation', 'dataset construction',
         'study', 'survey', 'annotated', 'labeled', 'labelled',
         'taxonomy', 'corpus', 'experiment',
+        # retrieval / download provenance (e.g. iNaturalist exports)
+        'sourced from', 'retrieved', 'downloaded', 'queried',
+        'observations', 'query url', 'retrieval date', 'iNaturalist',
+        'portal', 'data source', 'data sourced',
     ]
     has_methodology = False
     for readme in readme_files:
@@ -5810,6 +5800,28 @@ def detect_CK_conflicting_readmes(repo_dir, all_files):
     all_installs = {k: v['install'] for k, v in readme_info.items() if 'install' in v}
     all_runs = {k: v['run'] for k, v in readme_info.items() if 'run' in v}
     draft_files = [k for k, v in readme_info.items() if v.get('draft')]
+
+    # If no README contains any code instructions (Python version, install method,
+    # or run command), the READMEs are data-only documentation for multiple dataset
+    # versions or snapshots — not conflicting execution guides.  Emit a soft
+    # informational note instead of a SIGNIFICANT conflict finding.
+    _all_data_only = not any(
+        v.get('python') or v.get('install') or v.get('run')
+        for v in readme_info.values()
+    )
+    if _all_data_only:
+        findings.append(finding(
+            'CK', 'LOW CONFIDENCE',
+            f'Multiple README files found ({len(readme_files)}) — confirm which is current',
+            'Multiple README files were detected but none contains code execution instructions, '
+            'suggesting these are data-documentation READMEs for different dataset versions or '
+            'snapshots rather than conflicting setup guides.',
+            [f'{len(readme_files)} README files: ' + ', '.join(readme_info.keys()),
+             'Recommendation: ensure the root README clarifies which dataset version is '
+             'current and how the versions relate to each other']
+        ))
+        return findings
+
     if len(set(all_versions.values())) > 1:
         conflicts.append('Python version: ' + ' / '.join(f'{k} says {v}' for k, v in all_versions.items()))
     if len(set(all_installs.values())) > 1:
