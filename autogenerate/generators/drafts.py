@@ -2037,11 +2037,21 @@ def _generate_quickstart_draft(repo_dir, all_files,
 
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
-    # Identify top-level frontend-only directories to exclude from script listing
+    # Identify frontend-only directories to exclude from script listing.
+    # Check both direct children of repo_dir AND grandchildren, so that zips
+    # with a single top-level wrapper folder (e.g. Replication(1)/Framework/)
+    # are handled correctly.
     _qs_frontend_dirs = set()
     try:
-        for _child in repo_dir.iterdir():
-            if _child.is_dir() and _is_frontend_dir_qs(_child):
+        _top_dirs_qs = [c for c in repo_dir.iterdir() if c.is_dir()]
+        _cands_qs = list(_top_dirs_qs)
+        if len(_top_dirs_qs) == 1:
+            try:
+                _cands_qs.extend(c for c in _top_dirs_qs[0].iterdir() if c.is_dir())
+            except Exception:
+                pass
+        for _child in _cands_qs:
+            if _is_frontend_dir_qs(_child):
                 _qs_frontend_dirs.add(_child)
     except Exception:
         pass

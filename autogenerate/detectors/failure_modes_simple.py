@@ -339,11 +339,27 @@ def detect_B_no_dependencies(repo_dir, all_files):
     findings = []
     names_lower = {f.name.lower() for f in all_files}
 
+    _frontend_dirs_b = set()
+    try:
+        _top_dirs_b = [c for c in repo_dir.iterdir() if c.is_dir()]
+        _cands_b = list(_top_dirs_b)
+        if len(_top_dirs_b) == 1:
+            try:
+                _cands_b.extend(c for c in _top_dirs_b[0].iterdir() if c.is_dir())
+            except Exception:
+                pass
+        for _child in _cands_b:
+            if _is_frontend_dir(_child):
+                _frontend_dirs_b.add(_child)
+    except Exception:
+        pass
+
     code_files = [f for f in all_files
                   if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))
                   and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
-                              for part in f.relative_to(repo_dir).parts)]
+                              for part in f.relative_to(repo_dir).parts)
+                  and not any(fd in f.parents for fd in _frontend_dirs_b)]
 
     has_dep_file = bool(names_lower.intersection(DEPENDENCY_FILES))
     # R install scripts are valid dependency specifications
@@ -676,11 +692,21 @@ def detect_D_no_entry_point(repo_dir, all_files):
     has_makefile = 'makefile' in names_lower
 
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
-    # Identify top-level frontend-only directories to exclude from execution-order analysis
+    # Identify frontend-only directories to exclude from execution-order analysis.
+    # Check both direct children of repo_dir AND grandchildren, so that zips
+    # with a single top-level wrapper folder (e.g. Replication(1)/Framework/)
+    # are handled correctly.
     _frontend_dirs_d = set()
     try:
-        for _child in repo_dir.iterdir():
-            if _child.is_dir() and _is_frontend_dir(_child):
+        _top_dirs_d = [c for c in repo_dir.iterdir() if c.is_dir()]
+        _cands_d = list(_top_dirs_d)
+        if len(_top_dirs_d) == 1:
+            try:
+                _cands_d.extend(c for c in _top_dirs_d[0].iterdir() if c.is_dir())
+            except Exception:
+                pass
+        for _child in _cands_d:
+            if _is_frontend_dir(_child):
                 _frontend_dirs_d.add(_child)
     except Exception:
         pass
@@ -3290,6 +3316,12 @@ def detect_AK_external_urls(repo_dir, all_files):
     # Sort files by name so the same domain always maps to the same
     # representative URL regardless of rglob traversal order.
     _domain_pat = re.compile(r'https?://(?:www\.)?([^/\s\'")\]>]+)')
+    # Valid domain: starts with alphanumeric, has at least one dot-separated
+    # label of 2+ letters.  Rejects artefacts like '....' or bare hostnames.
+    _VALID_DOMAIN_RE = re.compile(
+        r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?'
+        r'(\.[a-zA-Z]{2,})+$'
+    )
     _domain_to_url: dict = {}   # domain -> first URL seen
     for f in sorted(code_files, key=lambda x: x.name):
         content = read_file_safe(f)
@@ -3297,7 +3329,7 @@ def detect_AK_external_urls(repo_dir, all_files):
             m = _domain_pat.match(url)
             if m:
                 domain = m.group(1).lower().strip()
-                if domain and domain not in _domain_to_url:
+                if domain and domain not in _domain_to_url and _VALID_DOMAIN_RE.match(domain):
                     _domain_to_url[domain] = url
 
     urls_found = set(_domain_to_url.values())
