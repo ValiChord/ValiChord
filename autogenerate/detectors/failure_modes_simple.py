@@ -1564,7 +1564,6 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 def detect_G_inadequate_readme(repo_dir, all_files):
     """Failure Mode G: README exists but missing critical sections."""
     findings = []
-    # skip installation/execution checks for data-only repos
     has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
 
     readme_file = None
@@ -1573,15 +1572,53 @@ def detect_G_inadequate_readme(repo_dir, all_files):
             readme_file = f
             break
 
-    if not readme_file:
-        return findings  # A detector handles missing README
+    # Read README content once (may be None if no README found).
+    content = None
+    content_lower = ''
+    if readme_file:
+        try:
+            content = readme_file.read_text(encoding='utf-8', errors='ignore')
+            content_lower = content.lower()
+        except Exception:
+            pass
 
-    try:
-        content = readme_file.read_text(encoding='utf-8', errors='ignore')
-    except Exception:
-        return findings
+    # ── Data-only deposit: data-quality criteria check ───────────────────────
+    # Runs regardless of README presence so it fires even when [A] fires.
+    if not has_code:
+        data_extensions = {
+            '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
+            '.rdata', '.dta', '.sav', '.mat', '.hdf5', '.h5',
+            '.feather', '.arrow', '.json', '.db', '.sqlite',
+        }
+        has_data = any(f.suffix.lower() in data_extensions for f in all_files)
+        if has_data:
+            _data_quality_kws = [
+                'row', 'rows', 'record', 'records', 'observation', 'observations',
+                'n =', 'n=', 'sample size', 'total of', 'contains',
+                'date range', 'collected between', 'period',
+                'complete', 'completeness', 'missing', 'excluded',
+                'expect', 'should contain', 'threshold', 'coverage',
+                'total', 'count', 'entries',
+            ]
+            _quality_hits = sum(1 for kw in _data_quality_kws if kw in content_lower)
+            if _quality_hits < 3:
+                findings.append(finding(
+                    'G', 'LOW CONFIDENCE',
+                    'No data quality criteria documented',
+                    'This is a data deposit — validators need to know what '
+                    'a correct version of the data should look like. '
+                    'Without an expected row count, date range, or completeness '
+                    'threshold, there is no way to verify the download is complete.',
+                    [
+                        'Recommendation: document expected row count per file',
+                        'Recommendation: document date range or collection period',
+                        'Recommendation: document any exclusion criteria or known missing values',
+                    ]
+                ))
 
-    content_lower = content.lower()
+    # ── No README: nothing more to check (section checks require content) ────
+    if not readme_file or content is None:
+        return findings  # [A] detector handles the missing-README finding
 
     # sections we expect in a reproducible research README
     if has_code:
@@ -1689,34 +1726,8 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                  'Required: expected values, tolerance bands, or '
                  'explicit comparison criteria']
             ))
-    else:
-        # Data-only deposit — check for data quality / completeness criteria
-        # instead of "successful reproduction" (a code-execution concept).
-        # Threshold ≥3 so that passing mentions of common words ('from', 'period')
-        # don't suppress the finding; the README must commit to multiple indicators.
-        _data_quality_kws = [
-            'row', 'rows', 'record', 'records', 'observation', 'observations',
-            'n =', 'n=', 'sample size', 'total of', 'contains',
-            'date range', 'collected between', 'period',
-            'complete', 'completeness', 'missing', 'excluded',
-            'expect', 'should contain', 'threshold', 'coverage',
-            'total', 'count', 'entries',
-        ]
-        _quality_hits = sum(1 for kw in _data_quality_kws if kw in content_lower)
-        if _quality_hits < 3 and len(content) > 200:
-            findings.append(finding(
-                'G', 'LOW CONFIDENCE',
-                'No data quality criteria documented',
-                'This is a data deposit — validators need to know what '
-                'a correct version of the data should look like. '
-                'Without an expected row count, date range, or completeness '
-                'threshold, there is no way to verify the download is complete.',
-                [
-                    'Recommendation: document expected row count per file',
-                    'Recommendation: document date range or collection period',
-                    'Recommendation: document any exclusion criteria or known missing values',
-                ]
-            ))
+    # (Data-quality check for data-only deposits is handled at the top of this
+    # function so it fires even when there is no README.)
 
     # If SIGNIFICANT fires, suppress LOW CONFIDENCE to avoid double-reporting [G]
     if any(f['severity'] == 'SIGNIFICANT' for f in findings):
