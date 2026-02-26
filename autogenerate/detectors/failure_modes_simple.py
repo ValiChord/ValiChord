@@ -1084,9 +1084,18 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             return has_model_name or in_model_dir
         return False
 
+    # Build system files share extensions (.xml) but are not research data.
+    _build_config_names = {
+        'pom.xml', 'build.gradle', 'build.gradle.kts', 'build.xml',
+        'ivy.xml', 'settings.xml', 'settings.gradle', 'settings.gradle.kts',
+        'ant.xml', 'maven.xml', 'project.xml', 'assembly.xml',
+    }
+
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions and not _is_model_artifact(f)
+        if f.suffix.lower() in data_extensions
+        and not _is_model_artifact(f)
+        and f.name.lower() not in _build_config_names
     ]
 
     if not data_files:
@@ -3341,6 +3350,14 @@ def detect_BB_script_permissions(repo_dir, all_files):
                 non_executable.append(f.name)
         except Exception:
             pass
+    # deduplicate by filename — same script at multiple depths counts once
+    _seen: set = set()
+    _unique_ne: list = []
+    for _n in non_executable:
+        if _n not in _seen:
+            _seen.add(_n)
+            _unique_ne.append(_n)
+    non_executable = _unique_ne
     if non_executable:
         findings.append(finding('BB', 'SIGNIFICANT',
             f'Shell scripts not marked executable: {", ".join(non_executable[:5])}',
