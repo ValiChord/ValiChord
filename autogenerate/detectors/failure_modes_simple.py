@@ -2370,9 +2370,11 @@ def detect_L_large_files_missing(repo_dir, all_files):
         extra = f' (and {len(missing_refs)-5} more)' if len(missing_refs) > 5 else ''
         evidence = [f'Missing files referenced: {", ".join(sample)}{extra}',
                     'Add download instructions or data access information to README']
-        # Append similarity hints for any missing file that has a plausible rename
+        # Append similarity hints for any missing file that has a plausible rename.
+        # Only search data files — code files must never match a missing data file.
+        _data_candidates = [f for f in all_files if f.suffix.lower() in DATA_EXTENSIONS]
         for mf in sorted(missing_refs)[:5]:
-            similar = _similar_file(mf, all_files)
+            similar = _similar_file(mf, _data_candidates)
             if similar:
                 evidence.append(
                     f'Possible renamed version: `{similar.name}` '
