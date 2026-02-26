@@ -1263,6 +1263,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_EP_data_provenance(repo_dir, all_files)
     print("  [DZ] Double-zipped deposit check...")
     all_findings += detect_DZ_double_zipped(repo_dir, all_files)
+    print("  [DUP] Duplicate data file check...")
+    all_findings += detect_DUP(repo_dir, all_files)
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):
@@ -6694,6 +6696,66 @@ def detect_BW_empty_code_files(repo_dir, all_files):
             [f'{f.name} ({f.stat().st_size} byte{"s" if f.stat().st_size != 1 else ""})'
              for f in empty]
         ))
+    return findings
+
+
+def detect_DUP(repo_dir, all_files):
+    """Failure Mode DUP: Data files with identical content — likely accidental duplicates."""
+    from collections import defaultdict
+    import hashlib
+
+    findings = []
+
+    # Only check data files — code duplicates are usually intentional copies / templates.
+    candidates = [f for f in all_files if f.suffix.lower() in DATA_EXTENSIONS]
+
+    # Size-based first pass: only hash-compare files that share an exact byte count.
+    size_groups = defaultdict(list)
+    for f in candidates:
+        try:
+            size_groups[f.stat().st_size].append(f)
+        except Exception:
+            pass
+
+    duplicate_groups = []
+    for size, files in size_groups.items():
+        if len(files) < 2:
+            continue
+        if size == 0:
+            continue  # Empty files aren't meaningful duplicates
+        hash_groups = defaultdict(list)
+        for f in files:
+            try:
+                h = hashlib.md5(f.read_bytes()).hexdigest()
+                hash_groups[h].append(f)
+            except Exception:
+                pass
+        for dupes in hash_groups.values():
+            if len(dupes) > 1:
+                duplicate_groups.append(dupes)
+
+    if not duplicate_groups:
+        return findings
+
+    evidence = []
+    for group in duplicate_groups:
+        names = ', '.join(f.name for f in group)
+        evidence.append(f'Identical files: {names}')
+        evidence.append(
+            'Confirm these are intentional — if one is a previous version, '
+            'remove it or document the difference'
+        )
+
+    n_extra = sum(len(g) - 1 for g in duplicate_groups)
+    file_word = 'file' if n_extra == 1 else 'files'
+    findings.append(finding(
+        'DUP', 'SIGNIFICANT',
+        f'{n_extra} duplicate data {file_word} detected',
+        'Two or more data files have identical content. This may indicate '
+        'an accidental duplicate deposit, or files that were intended to '
+        'differ but do not. Validators cannot know which file to use.',
+        evidence
+    ))
     return findings
 
 
