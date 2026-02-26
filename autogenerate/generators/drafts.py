@@ -2037,24 +2037,22 @@ def _generate_quickstart_draft(repo_dir, all_files,
 
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
-    # Identify frontend-only directories to exclude from script listing.
-    # Check both direct children of repo_dir AND grandchildren, so that zips
-    # with a single top-level wrapper folder (e.g. Replication(1)/Framework/)
-    # are handled correctly.
-    _qs_frontend_dirs = set()
-    try:
-        _top_dirs_qs = [c for c in repo_dir.iterdir() if c.is_dir()]
-        _cands_qs = list(_top_dirs_qs)
-        if len(_top_dirs_qs) == 1:
-            try:
-                _cands_qs.extend(c for c in _top_dirs_qs[0].iterdir() if c.is_dir())
-            except Exception:
-                pass
-        for _child in _cands_qs:
-            if _is_frontend_dir_qs(_child):
-                _qs_frontend_dirs.add(_child)
-    except Exception:
-        pass
+    # Build frontend-dir exclusion set from all_files — immune to zip wrappers
+    # and __MACOSX artefacts because all_files is already filtered.
+    _fe_exts_qs = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
+                   '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
+    _analysis_exts_qs = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
+                         '.rmd', '.qmd', '.sh', '.bash'}
+    _dir_exts_qs: dict = {}
+    for _f in all_files:
+        for _anc in _f.parents:
+            if _anc == repo_dir:
+                break
+            _dir_exts_qs.setdefault(_anc, set()).add(_f.suffix.lower())
+    _qs_frontend_dirs = {
+        d for d, exts in _dir_exts_qs.items()
+        if exts and exts.issubset(_fe_exts_qs) and not (exts & _analysis_exts_qs)
+    }
     code_files = [
         f for f in all_files
         if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' or _is_code_txt(f))
