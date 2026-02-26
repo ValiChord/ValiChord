@@ -7,6 +7,9 @@ Produces all _DRAFT output files per ValiChord Specification v15
 from pathlib import Path
 import re
 from datetime import datetime
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+from detectors.failure_modes_simple import DATA_EXTENSIONS as _DATA_EXTENSIONS
 
 
 CODE_EXTENSIONS = {
@@ -368,9 +371,7 @@ def _classify_file(f, is_cad=False):
         return 'Documentation'
     if _is_model_artifact_file(f):
         return 'Model artifact'
-    if ext in {'.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
-               '.rds', '.rdata', '.dta', '.sav', '.mat',
-               '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.gdt'}:
+    if ext in _DATA_EXTENSIONS:
         return 'Data'
     if is_cad and ext == '.pdf':
         return 'Engineering Drawing'

@@ -1423,15 +1423,9 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
     """Failure Mode E: Data files present but no data documentation."""
     findings = []
 
-    data_extensions = {
-        '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
-        '.rdata', '.dta', '.sav', '.mat', '.pkl', '.npy',
-        '.npz', '.hdf5', '.h5', '.feather', '.arrow',
-        '.json', '.jsonl', '.ndjson',
-        '.db', '.sqlite', '.dif'
-        # .xml excluded — too ambiguous (config, markup, tool input);
-        # rarely a research dataset format
-    }
+    # Use module-level DATA_EXTENSIONS plus a few extras that [E] specifically
+    # cares about (.db/.sqlite as data stores; .xml excluded intentionally).
+    data_extensions = DATA_EXTENSIONS | {'.db', '.sqlite'}
 
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
 
@@ -1588,12 +1582,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     # ── Data-only deposit: data-quality criteria check ───────────────────────
     # Runs regardless of README presence so it fires even when [A] fires.
     if not has_code:
-        data_extensions = {
-            '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
-            '.rdata', '.dta', '.sav', '.mat', '.hdf5', '.h5',
-            '.feather', '.arrow', '.json', '.db', '.sqlite',
-        }
-        has_data = any(f.suffix.lower() in data_extensions for f in all_files)
+        has_data = any(f.suffix.lower() in DATA_EXTENSIONS for f in all_files)
         if has_data:
             _data_quality_kws = [
                 'row', 'rows', 'record', 'records', 'observation', 'observations',
@@ -4006,7 +3995,9 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
-    data_files = [f for f in all_files if f.suffix.lower() in {'.csv', '.tsv', '.parquet', '.xlsx', '.xls', '.dta', '.sav', '.rds', '.rdata', '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc', '.feather', '.arrow', '.dif'} and not f.name.lower().startswith('readme')]
+    data_files = [f for f in all_files
+                  if f.suffix.lower() in DATA_EXTENSIONS
+                  and not f.name.lower().startswith('readme')]
     if len(data_files) < 2:
         return findings
     has_checksums = any(
