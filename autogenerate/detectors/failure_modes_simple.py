@@ -1084,18 +1084,35 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             return has_model_name or in_model_dir
         return False
 
-    # Build system files share extensions (.xml) but are not research data.
+    # Build/IDE config files share extensions (.xml) but are not research data.
     _build_config_names = {
         'pom.xml', 'build.gradle', 'build.gradle.kts', 'build.xml',
         'ivy.xml', 'settings.xml', 'settings.gradle', 'settings.gradle.kts',
         'ant.xml', 'maven.xml', 'project.xml', 'assembly.xml',
+        '.classpath', '.project', 'gradlew', 'gradlew.bat',
     }
+
+    def _is_ide_config(f):
+        name = f.name.lower()
+        ext = f.suffix.lower()
+        parts_lower = [p.lower() for p in f.parts]
+        if ext == '.xml':
+            if name.endswith('-style.xml'):        # e.g. intellij-java-google-style.xml
+                return True
+            if 'checkstyle' in name:               # e.g. checkstyle.xml, checkstyle-config.xml
+                return True
+            if '.settings' in parts_lower:         # Eclipse .settings/*.xml
+                return True
+        if ext == '.launch':                       # Eclipse/IntelliJ launch configs
+            return True
+        return False
 
     data_files = [
         f for f in all_files
         if f.suffix.lower() in data_extensions
         and not _is_model_artifact(f)
         and f.name.lower() not in _build_config_names
+        and not _is_ide_config(f)
     ]
 
     if not data_files:
