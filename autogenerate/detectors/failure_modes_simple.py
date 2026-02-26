@@ -53,6 +53,43 @@ LICENCE_NAMES = {
 # researcher-code detectors (B, U, AC, AI, AJ, AK, AS, AT, AU, AA, BB …)
 VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 
+# Minified / bundled frontend assets — excluded from all researcher-code detectors.
+# .min.js / .min.css are double-suffix patterns; MINIFIED_FILE_STEMS covers
+# common webpack chunk/bundle stems.
+MINIFIED_FILE_EXTENSIONS = ('.min.js', '.min.css')
+MINIFIED_FILE_STEMS = frozenset({'lib.min', 'vendor.min', 'bundle.min'})
+
+
+def _is_minified(f):
+    """Return True if a file appears to be a minified or bundled frontend asset."""
+    name_lower = f.name.lower()
+    stem_lower = f.stem.lower()
+    return (
+        any(name_lower.endswith(ext) for ext in MINIFIED_FILE_EXTENSIONS)
+        or stem_lower in MINIFIED_FILE_STEMS
+        or stem_lower.startswith('chunk')
+    )
+
+
+def _is_frontend_dir(directory):
+    """Return True if a directory contains only frontend assets and no analysis code.
+
+    Used to exclude bundled framework directories (React, Scratch, etc.) from
+    execution-order and config-file detectors.
+    """
+    _fe_exts = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
+                '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
+    _analysis_exts = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
+                      '.rmd', '.qmd', '.sh', '.bash'}
+    try:
+        files = [f for f in directory.rglob('*') if f.is_file()]
+    except Exception:
+        return False
+    if not files:
+        return False
+    extensions = {f.suffix.lower() for f in files}
+    return extensions.issubset(_fe_exts) and not (extensions & _analysis_exts)
+
 
 def finding(mode, severity, title, detail, evidence=None):
     """Create a standardised finding dictionary."""
@@ -304,6 +341,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
 
     code_files = [f for f in all_files
                   if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -523,6 +561,7 @@ def detect_C_absolute_paths(repo_dir, all_files):
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
                   and not ('ado' in f.parts
                            and any(p in _stata_lib_dirs for p in f.parts))]
 
@@ -637,10 +676,20 @@ def detect_D_no_entry_point(repo_dir, all_files):
     has_makefile = 'makefile' in names_lower
 
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
+    # Identify top-level frontend-only directories to exclude from execution-order analysis
+    _frontend_dirs_d = set()
+    try:
+        for _child in repo_dir.iterdir():
+            if _child.is_dir() and _is_frontend_dir(_child):
+                _frontend_dirs_d.add(_child)
+    except Exception:
+        pass
     _researcher_code = [
         f for f in all_files
         if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))
+        and not _is_minified(f)
         and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
+        and not any(fd in f.parents for fd in _frontend_dirs_d)
     ]
 
     _part_counts = {}
@@ -1237,6 +1286,7 @@ def detect_U_environment_variables(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -2322,7 +2372,10 @@ def detect_Q_config_files(repo_dir, all_files):
     """Failure Mode Q: Configuration files missing or undocumented."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     config_file_pattern = re.compile(
         r'["\']([^"\']+\.(?:yaml|yml|json|toml|ini|cfg|conf))["\']',
@@ -2809,6 +2862,7 @@ def detect_AC_deprecated_functions(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() == '.py'
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -3019,7 +3073,10 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
     """Failure Mode AG: API keys or tokens hardcoded in source files."""
     findings = []
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS]
+                  if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
+                  and not any(part.lower() in VENDOR_DIRS
+                              for part in f.relative_to(repo_dir).parts)]
 
     key_patterns = re.compile(
         r'[A-Z_]*(?:KEY|SECRET|TOKEN|PASSWORD|AUTH|CREDENTIAL|API)[A-Z_]*'
@@ -3141,6 +3198,7 @@ def detect_AI_print_debugging(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in {'.py', '.ipynb'}
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -3177,6 +3235,7 @@ def detect_AJ_hardcoded_sample_size(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in {'.py', '.r', '.rmd'}
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -3214,6 +3273,7 @@ def detect_AK_external_urls(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS | {'.md', '.txt'}
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -3241,6 +3301,22 @@ def detect_AK_external_urls(repo_dir, all_files):
                     _domain_to_url[domain] = url
 
     urls_found = set(_domain_to_url.values())
+
+    # Guard: > 20 unique domains almost always means a minified file was scanned
+    # despite the exclusion filters — suppress entirely with a LOW CONFIDENCE note.
+    if len(_domain_to_url) > 20:
+        findings.append(finding(
+            'AK', 'LOW CONFIDENCE',
+            'URL detection skipped — unusually high domain count',
+            f'{len(_domain_to_url)} unique domains were detected after vendor/minified '
+            'exclusions. This strongly suggests that a bundled or generated file was '
+            'scanned. Manual review recommended — check for framework JS not in a '
+            'standard vendor directory.',
+            [f'Domain count: {len(_domain_to_url)}',
+             'Likely cause: minified JavaScript or generated frontend code not '
+             'in a recognised vendor directory']
+        ))
+        return findings
 
     # Colab escalation: if Colab links are the primary analysis and there is no
     # local code, the repository is irreproducible if those links go dead.
@@ -3505,6 +3581,7 @@ def detect_AS_network_calls(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
     # urllib.parse is string manipulation, not a network call — exclude it.
@@ -3559,6 +3636,7 @@ def detect_AU_cloud_storage(repo_dir, all_files):
     findings = []
     code_files = [f for f in all_files
                   if f.suffix.lower() in CODE_EXTENSIONS
+                  and not _is_minified(f)
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
     cloud_pattern = re.compile(r'(boto3|s3fs|gcsfs|azure\.storage|google\.cloud\.storage|gs://|s3://|azure://)', re.IGNORECASE)

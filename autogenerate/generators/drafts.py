@@ -25,6 +25,36 @@ _ALL_CODE_EXTENSIONS = CODE_EXTENSIONS | GRETL_EXTENSIONS
 
 README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 
+# Vendored / third-party directories excluded from QUICKSTART script listing
+VENDOR_DIRS_QS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
+
+
+def _is_minified_qs(f):
+    """Return True if a file appears to be a minified or bundled frontend asset."""
+    name_lower = f.name.lower()
+    stem_lower = f.stem.lower()
+    return (
+        name_lower.endswith('.min.js') or name_lower.endswith('.min.css')
+        or stem_lower in {'lib.min', 'vendor.min', 'bundle.min'}
+        or stem_lower.startswith('chunk')
+    )
+
+
+def _is_frontend_dir_qs(directory):
+    """Return True if a directory contains only frontend assets and no analysis code."""
+    _fe_exts = {'.js', '.html', '.css', '.json', '.svg', '.png', '.gif',
+                '.woff', '.ttf', '.woff2', '.eot', '.ico', '.webp'}
+    _analysis_exts = {'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb',
+                      '.rmd', '.qmd', '.sh', '.bash'}
+    try:
+        files = [f for f in directory.rglob('*') if f.is_file()]
+    except Exception:
+        return False
+    if not files:
+        return False
+    extensions = {f.suffix.lower() for f in files}
+    return extensions.issubset(_fe_exts) and not (extensions & _analysis_exts)
+
 DEPENDENCY_FILES = {
     'requirements.txt', 'requirements_extra.txt', 'environment.yml', 'environment.yaml',
     'pipfile.lock', 'poetry.lock', 'setup.py', 'pyproject.toml',
@@ -2007,11 +2037,22 @@ def _generate_quickstart_draft(repo_dir, all_files,
 
     archive_dirs = {"old", "archive", "deprecated", "unused", "backup", "old_versions"}
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
+    # Identify top-level frontend-only directories to exclude from script listing
+    _qs_frontend_dirs = set()
+    try:
+        for _child in repo_dir.iterdir():
+            if _child.is_dir() and _is_frontend_dir_qs(_child):
+                _qs_frontend_dirs.add(_child)
+    except Exception:
+        pass
     code_files = [
         f for f in all_files
         if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' or _is_code_txt(f))
         and f.name not in {"__init__.py", "__main__.py"}
+        and not _is_minified_qs(f)
         and not any(p.name.lower() in archive_dirs for p in f.parents)
+        and not any(p.name.lower() in VENDOR_DIRS_QS for p in f.parents)
+        and not any(fd in f.parents for fd in _qs_frontend_dirs)
         and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
     ]
 
