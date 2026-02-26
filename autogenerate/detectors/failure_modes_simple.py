@@ -594,7 +594,8 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
                 r'(?:^|\s|commit[:\s]+|tag[:\s]+|release[:\s]+|version[:\s]+)v\d+\.\d+[\d.]*(?:\s|$)',
                 content, re.IGNORECASE | re.MULTILINE
             ))
-            if not has_hash and not has_tag:
+            has_doi = bool(re.search(r'\b10\.\d{4}/', content))
+            if not has_hash and not has_tag and not has_doi:
                 findings.append(finding(
                     'Z', 'SIGNIFICANT',
                     'No commit hash or version tag in README',
@@ -3423,7 +3424,7 @@ def detect_AW_missing_doi(repo_dir, all_files):
     has_doi = False
     for f in text_files:
         content = read_file_safe(f).lower()
-        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content or 'zenodo.org/badge' in content or 'doi.org/10.5281' in content:
+        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content or 'zenodo.org/badge' in content or 'doi.org/10.5281' in content or bool(re.search(r'10\.\d{4}/', content)):
             has_doi = True
             break
     if not has_doi:
