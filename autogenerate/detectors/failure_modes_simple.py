@@ -484,7 +484,7 @@ def detect_Z_no_commit_hash(repo_dir, all_files):
     findings = []
 
     for f in all_files:
-        if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4:
+        if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 2:
             content = read_file_safe(f)
             # look for commit hash (40 hex chars) or version tag
             has_hash = bool(re.search(r'\b[0-9a-f]{40}\b', content))
@@ -2745,9 +2745,27 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
         re.IGNORECASE
     )
 
+    _java_const_re = re.compile(
+        r'public\s+static\s+final\s+String\s+(\w+)\s*=\s*["\']([a-zA-Z0-9_\- ]{16,})["\']'
+    )
+
     for f in code_files:
         content = read_file_safe(f)
         matches = key_patterns.findall(content)
+        # Java-specific: suppress public static final String constants whose
+        # values contain no digits — these are human-readable descriptive
+        # strings, not tokens, hashes, or UUIDs.
+        if matches and f.suffix.lower() == '.java':
+            safe_vars: set = set()
+            for line in content.splitlines():
+                cm = _java_const_re.search(line)
+                if cm and not re.search(r'\d', cm.group(2)):
+                    safe_vars.add(cm.group(1))
+            if safe_vars:
+                matches = [
+                    m for m in matches
+                    if m.split('=')[0].strip().split('\n')[-1].strip() not in safe_vars
+                ]
         if matches:
             # Extract variable names from matches for evidence
             var_names = []
