@@ -2848,6 +2848,8 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
                 var = m.split('=')[0].strip().split('\n')[-1].strip()
                 if var and var not in var_names:
                     var_names.append(var)
+            if not var_names:
+                continue  # parsing yielded no variable names — suppress vacuous finding
             evidence_lines = [f'Hardcoded credential: {v}' for v in var_names[:5]]
             evidence_lines.append('Action required: rotate these credentials immediately if real')
             findings.append(finding(
