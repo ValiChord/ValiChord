@@ -113,6 +113,49 @@ def _has_only_stdlib_imports(f):
     return all(m in _STDLIB_TOPLEVEL for m in modules)
 
 
+_TRIVIAL_NAMES = frozenset({'reader', 'loader', 'parser', 'helper'})
+
+
+def _is_zero_dep_reader(all_files):
+    """Return True when the deposit is a zero-dependency reader/loader helper.
+
+    Conditions (both must hold):
+    1. Every non-vendored code file is either <1 KB or named *reader/loader/
+       parser/helper* — i.e. there are no substantial analysis scripts.
+    2. No external (non-stdlib) imports — checked via requirements_DRAFT.txt
+       (authoritative, already computed) when present, or by direct import
+       scan for pure-Python deposits on first run.
+    """
+    code_files = [
+        f for f in all_files
+        if f.suffix.lower() in CODE_EXTENSIONS
+        and not any(p.name.lower() in VENDOR_DIRS for p in f.parents)
+    ]
+    if not code_files:
+        return False
+
+    # Condition 1: every code file is small OR trivially named
+    if not all(
+        f.stat().st_size < 1024
+        or any(kw in f.stem.lower() for kw in _TRIVIAL_NAMES)
+        for f in code_files
+    ):
+        return False
+
+    # Condition 2: no external imports
+    # Fast path: requirements_DRAFT.txt from a prior run is authoritative
+    for f in all_files:
+        if f.name.lower() == 'requirements_draft.txt':
+            return 'no external imports detected' in read_file_safe(f).lower()
+
+    # Fallback: scan Python files directly (only valid for pure-Python deposits)
+    non_py = [f for f in code_files if f.suffix.lower() != '.py']
+    if non_py:
+        return False  # non-Python code present; can't determine stdlib-only
+    py_files = [f for f in code_files if f.suffix.lower() == '.py']
+    return bool(py_files) and all(_has_only_stdlib_imports(f) for f in py_files)
+
+
 _CODE_TXT_STEM_KEYWORDS = frozenset({
     'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
 })
@@ -393,17 +436,14 @@ def detect_B_no_dependencies(repo_dir, all_files):
                  'Recommendation: list SAS version and required modules in README']
             ))
         else:
-            _is_trivial_helper = (
-                len(code_files) == 1
-                and code_files[0].stat().st_size < 1024
-                and any(kw in code_files[0].stem.lower()
-                        for kw in {'reader', 'loader', 'parser', 'helper'})
-            )
-            # Suppress entirely when stdlib-only: zero external deps means
-            # no version-pinning risk — informational note added in QUICKSTART.
-            if _is_trivial_helper and _has_only_stdlib_imports(code_files[0]):
-                pass
-            else:
+            # Suppress entirely for zero-dep readers — nothing to pin.
+            if not _is_zero_dep_reader(all_files):
+                _is_trivial_helper = (
+                    len(code_files) == 1
+                    and code_files[0].stat().st_size < 1024
+                    and any(kw in code_files[0].stem.lower()
+                            for kw in _TRIVIAL_NAMES)
+                )
                 _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
                 findings.append(finding(
                     'B', _b_severity,
@@ -431,16 +471,8 @@ def detect_B_no_dependencies(repo_dir, all_files):
         draft_file = next(f for f in all_files if f.name.lower() == "requirements_draft.txt")
         draft_content = read_file_safe(draft_file)
         has_pinned = any("==" in l for l in draft_content.splitlines() if l.strip() and not l.strip().startswith("#"))
-        # Suppress entirely if the draft itself reports no external imports
-        # AND this is a trivial reader/loader helper — nothing to pin or finalise.
-        _draft_no_deps = 'no external imports detected' in draft_content.lower()
-        _is_trivial_helper2 = (
-            len(code_files) == 1
-            and code_files[0].stat().st_size < 1024
-            and any(kw in code_files[0].stem.lower()
-                    for kw in {'reader', 'loader', 'parser', 'helper'})
-        )
-        if not (_draft_no_deps and _is_trivial_helper2):
+        # Suppress entirely for zero-dep readers — draft is empty and nothing to finalise.
+        if not _is_zero_dep_reader(all_files):
             findings.append(finding(
                 'B', 'SIGNIFICANT',
                 'requirements_DRAFT.txt found from prior run but not yet finalised',
@@ -1544,20 +1576,7 @@ def detect_K_compute_environment(repo_dir, all_files):
         return findings
 
     # Trivial stdlib-only helpers don't need RAM or runtime documentation.
-    # Use requirements_DRAFT.txt "No external imports detected" as the canonical
-    # signal — more robust than re-scanning imports when multiple .py files exist.
-    _draft_no_deps_k = any(
-        'no external imports detected' in read_file_safe(f).lower()
-        for f in all_files
-        if f.name.lower() == 'requirements_draft.txt'
-    )
-    _has_trivial_helper_k = any(
-        f.suffix.lower() in CODE_EXTENSIONS
-        and f.stat().st_size < 1024
-        and any(kw in f.stem.lower() for kw in {'reader', 'loader', 'parser', 'helper'})
-        for f in all_files
-    )
-    _skip_resources = _draft_no_deps_k and _has_trivial_helper_k
+    _skip_resources = _is_zero_dep_reader(all_files)
 
     readme_file = None
     for f in all_files:
@@ -1744,6 +1763,10 @@ def detect_V_virtual_environment(repo_dir, all_files, existing_findings=None):
     )
 
     if not has_python:
+        return findings
+
+    # Zero-dep readers don't need a virtual environment — suppress entirely
+    if _is_zero_dep_reader(all_files):
         return findings
 
     if not has_venv_spec and not has_requirements:
@@ -2507,6 +2530,8 @@ def detect_X_no_container(repo_dir, all_files):
     has_python = any(f.suffix.lower() == '.py' for f in all_files)
 
     if has_python and not has_container and not has_environment_yml:
+        if _is_zero_dep_reader(all_files):
+            return findings
         findings.append(finding(
             'X', 'LOW CONFIDENCE',
             'No containerisation or conda environment found',
