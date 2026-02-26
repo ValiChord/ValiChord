@@ -1263,6 +1263,8 @@ def run_simple_detectors(repo_dir, all_files):
     all_findings += detect_EP_data_provenance(repo_dir, all_files)
     print("  [DZ] Double-zipped deposit check...")
     all_findings += detect_DZ_double_zipped(repo_dir, all_files)
+    print("  [NZ] Nested zip check...")
+    all_findings += detect_NZ(repo_dir, all_files)
     print("  [DUP] Duplicate data file check...")
     all_findings += detect_DUP(repo_dir, all_files)
     return all_findings
@@ -6731,4 +6733,27 @@ def detect_DZ_double_zipped(repo_dir, all_files):
     ))
 
     return findings
+
+
+def detect_NZ(repo_dir, all_files):
+    """Failure Mode NZ: Zip files nested inside the deposit — packaging anti-pattern."""
+    nested_zips = sorted(
+        (f for f in all_files if f.suffix.lower() == '.zip'),
+        key=lambda f: f.name
+    )
+    if not nested_zips:
+        return []
+
+    n = len(nested_zips)
+    return [finding(
+        'NZ', 'SIGNIFICANT',
+        f'{n} nested zip file{"s" if n != 1 else ""} inside the deposit',
+        'Zip files inside a repository require validators to manually unzip '
+        'additional archives before running the code. '
+        'Extract the contents and deposit files directly in a subdirectory.',
+        [
+            f'`{z.relative_to(repo_dir)}` ({z.stat().st_size // 1024} KB)'
+            for z in nested_zips
+        ]
+    )]
 

@@ -1510,13 +1510,19 @@ def _generate_requirements_draft(repo_dir, all_files,
     # Merge Julia imports after Python stdlib filter so CSV etc. aren't excluded
     external = sorted(set(external) | {pkg for pkg in julia_imports if not pkg.startswith('_')})
 
-    # Second-pass: any name whose lowercase form matches the stem of a .py file
-    # in the repository is a local module, not a PyPI package.  This catches
-    # modules that are not imported by the scanned files (so they didn't appear
-    # in the first-pass local_modules check) and also filters any Julia imports
-    # that happen to share a name with a local Python file.
-    _py_stems = {f.stem.lower() for f in all_files if f.suffix.lower() == '.py'}
-    external = [pkg for pkg in external if pkg.lower() not in _py_stems]
+    # Second-pass: any name whose lowercase form matches the stem of a file
+    # in the repository is treated as a local module.  Checking all files
+    # (not just .py) catches data/script filenames with date suffixes or
+    # unusual capitalisation that appear as import names (e.g.
+    # Training_geometries_Amazonia_20040401_20050401).  The valid-identifier
+    # guard avoids false suppression from data files whose names contain
+    # spaces, hyphens, or other characters that can't be Python identifiers.
+    import re as _re_mod
+    _all_stems = {
+        f.stem.lower() for f in all_files
+        if _re_mod.match(r'^[A-Za-z_][A-Za-z0-9_]*$', f.stem)
+    }
+    external = [pkg for pkg in external if pkg.lower() not in _all_stems]
 
     # Known import aliases and proprietary API handles that are NOT PyPI packages.
     # These appear as top-level import names but resolve to sub-modules of an
@@ -1524,6 +1530,7 @@ def _generate_requirements_draft(repo_dir, all_files,
     _import_false_positives = {
         'cmap',         # matplotlib.cm aliased at call site (e.g. import matplotlib.cm as cmap)
         'func_module',  # COMSOL Python API internal module, not on PyPI
+        'mpl_toolkits', # part of matplotlib — no separate pip install needed
     }
     external = [pkg for pkg in external if pkg.lower() not in _import_false_positives]
 
@@ -1602,6 +1609,9 @@ def _generate_requirements_draft(repo_dir, all_files,
         'bs4':                   'beautifulsoup4',
         'umap':                  'umap-learn',
         'sentence_transformers': 'sentence-transformers',
+        # Google Earth Engine / Google API
+        'ee':                    'earthengine-api',
+        'apiclient':             'google-api-python-client',
     }
 
     # Well-known PyPI packages where import name == install name.
@@ -1613,15 +1623,18 @@ def _generate_requirements_draft(repo_dir, all_files,
         # ML / deep learning
         'tensorflow', 'torch', 'torchvision', 'torchaudio', 'keras',
         'transformers', 'xgboost', 'lightgbm', 'catboost', 'pymc', 'arviz',
-        'hdbscan',
+        'hdbscan', 'shap', 'hyperopt',
         # data / IO
         'sqlalchemy', 'pymongo', 'redis', 'h5py', 'tables', 'xlrd', 'openpyxl',
         'pyarrow', 'fastparquet',
+        # scientific data formats
+        'xarray', 'rioxarray', 'netcdf4',
         # image / vision
         'imageio',
         # web / networking / scraping
         'requests', 'flask', 'django', 'fastapi', 'aiohttp', 'httpx', 'urllib3',
         'google_play_scraper', 'app_store_scraper', 'scrapy', 'mechanize',
+        'httplib2', 'oauth2client',
         # text / NLP
         'nltk', 'spacy', 'gensim', 'textblob', 'langdetect',
         # common utilities
@@ -1632,8 +1645,12 @@ def _generate_requirements_draft(repo_dir, all_files,
         'toml',
         # geo / spatial
         'geopandas', 'shapely', 'pyproj', 'rasterio', 'fiona',
+        'cartopy', 'rioxarray', 'rasterstats', 'pyogrio', 'geemap',
         # visualisation extras
         'holoviews', 'hvplot', 'altair',
+        'adjusttext', 'distinctipy',
+        # stats / analysis
+        'pymannkendall',
     }
 
     if external:
@@ -1660,6 +1677,12 @@ def _generate_requirements_draft(repo_dir, all_files,
                         f'  # WARNING: "google" is an ambiguous namespace — could be'
                         f' google-cloud, google-auth, google-api-python-client, etc.'
                         f' Check which google.* sub-package you import and list it explicitly.'
+                    )
+                elif _pkg_lower in ('osgeo', 'osgeo_utils'):
+                    # GDAL Python bindings — not on PyPI under the import name
+                    lines.append(
+                        f'# {pkg}  # installed via GDAL:'
+                        f' pip install gdal  (or: conda install -c conda-forge gdal)'
                     )
                 else:
                     lines.append(
