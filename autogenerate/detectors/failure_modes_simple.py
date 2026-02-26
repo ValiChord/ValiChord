@@ -1474,6 +1474,13 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             has_data_doc = True
 
     readme_mentions_data = False
+    has_inline_col_doc = False
+    # Pattern: backtick-quoted identifier followed by colon/dash — inline column docs
+    # e.g. `column_name`: description  or  `col_name` - description
+    _inline_col_pat = re.compile(
+        r'`[a-zA-Z_]\w*`\s*[:\-—]|\*\*[a-zA-Z_]\w*\*\*\s*:',
+        re.MULTILINE
+    )
     for f in all_files:
         if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
             try:
@@ -1482,9 +1489,12 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
                 if any(phrase in content_lower for phrase in [
                     'data source', 'dataset', 'data description',
                     'variables', 'data dictionary', 'codebook',
-                    'data collection', 'data format'
+                    'data collection', 'data format', 'column', 'field'
                 ]):
                     readme_mentions_data = True
+                # ≥3 inline column-doc patterns = README functions as codebook
+                if len(_inline_col_pat.findall(content)) >= 3:
+                    has_inline_col_doc = True
             except Exception:
                 pass
 
@@ -1500,7 +1510,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             [f'Data files: {", ".join(data_names)}{extra}',
              'Missing: codebook, data dictionary, or README data section']
         ))
-    elif data_files and not has_data_doc:
+    elif data_files and not has_data_doc and not has_inline_col_doc:
         findings.append(finding(
             'E', 'LOW CONFIDENCE',
             'No dedicated data documentation file found',
@@ -1595,29 +1605,51 @@ def detect_G_inadequate_readme(repo_dir, all_files):
             [f'Possibly missing: {", ".join(missing)}']
         ))
 
-    # check for definition of successful reproduction
-    success_indicators = [
-        'successful reproduction', 'reproduction is successful',
-        'expected result', 'should produce', 'should see',
-        'tolerance', 'within', 'match', 'identical'
-    ]
-    has_success_definition = any(
-        ind in content_lower for ind in success_indicators
-    )
-
-    if not has_success_definition and len(content) > 200:
-        findings.append(finding(
-            'G', 'SIGNIFICANT',
-            'README does not define what successful reproduction looks like',
-            'Without a definition of successful reproduction, '
-            'validators cannot determine whether their results '
-            'match the original. This is the single most important '
-            'missing element in most research READMEs. '
-            'What should a validator see when they have succeeded?',
-            ['Missing: definition of successful reproduction',
-             'Required: expected values, tolerance bands, or '
-             'explicit comparison criteria']
-        ))
+    if has_code:
+        # Code deposit — check for definition of successful reproduction
+        success_indicators = [
+            'successful reproduction', 'reproduction is successful',
+            'expected result', 'should produce', 'should see',
+            'tolerance', 'within', 'match', 'identical'
+        ]
+        has_success_definition = any(
+            ind in content_lower for ind in success_indicators
+        )
+        if not has_success_definition and len(content) > 200:
+            findings.append(finding(
+                'G', 'SIGNIFICANT',
+                'README does not define what successful reproduction looks like',
+                'Without a definition of successful reproduction, '
+                'validators cannot determine whether their results '
+                'match the original. This is the single most important '
+                'missing element in most research READMEs. '
+                'What should a validator see when they have succeeded?',
+                ['Missing: definition of successful reproduction',
+                 'Required: expected values, tolerance bands, or '
+                 'explicit comparison criteria']
+            ))
+    else:
+        # Data-only deposit — check for data quality / completeness criteria
+        # instead of "successful reproduction" (a code-execution concept).
+        _data_quality_kws = [
+            'row', 'record', 'observation', 'expect', 'should contain',
+            'completeness', 'threshold', 'date range', 'coverage',
+            'total', 'count', 'n =', 'n=', 'entries',
+        ]
+        _has_quality_criteria = any(kw in content_lower for kw in _data_quality_kws)
+        if not _has_quality_criteria and len(content) > 200:
+            findings.append(finding(
+                'G', 'LOW CONFIDENCE',
+                'No data quality criteria documented',
+                'This is a data deposit — validators need to know what '
+                'a correct version of the data should look like. '
+                'Without an expected row count, date range, or completeness '
+                'threshold, there is no way to verify the download is complete.',
+                ['Missing: expected row count, date range, or completeness '
+                 'threshold',
+                 'Recommendation: add a note such as "The dataset contains '
+                 'N observations covering YYYY-MM-DD to YYYY-MM-DD"']
+            ))
 
     # If SIGNIFICANT fires, suppress LOW CONFIDENCE to avoid double-reporting [G]
     if any(f['severity'] == 'SIGNIFICANT' for f in findings):
