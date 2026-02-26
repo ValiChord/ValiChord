@@ -1716,15 +1716,35 @@ def detect_J_notebook_order(repo_dir, all_files):
                         exec_counts.append(ec)
 
             if not exec_counts:
-                findings.append(finding(
-                    'J', 'SIGNIFICANT',
-                    f'Notebook has no execution counts: {nb.name}',
-                    'This notebook has never been run top-to-bottom '
-                    'with saved outputs, or outputs were cleared before '
-                    'sharing. Validators cannot verify what the original '
-                    'outputs looked like.',
-                    [f'Evidence: {nb.name} — all execution counts null']
-                ))
+                # Distinguish "cleared before sharing" (outputs present → [CF]
+                # would also fire) from "never run" (no outputs at all).
+                has_outputs = any(
+                    cell.get('outputs')
+                    for cell in cells
+                    if cell.get('cell_type') == 'code'
+                )
+                if has_outputs:
+                    findings.append(finding(
+                        'J', 'SIGNIFICANT',
+                        f'Execution counts cleared before sharing: {nb.name}',
+                        'Execution counts were cleared before sharing. '
+                        'Cell outputs are present but the original run '
+                        'order cannot be verified. Re-run from scratch '
+                        '(Kernel > Restart & Run All) to confirm outputs '
+                        'are reproducible.',
+                        [f'Evidence: {nb.name} — execution counts null, '
+                         'cell outputs present']
+                    ))
+                else:
+                    findings.append(finding(
+                        'J', 'SIGNIFICANT',
+                        f'Notebook has no execution counts: {nb.name}',
+                        'This notebook has never been run top-to-bottom '
+                        'with saved outputs, or outputs were cleared before '
+                        'sharing. Validators cannot verify what the original '
+                        'outputs looked like.',
+                        [f'Evidence: {nb.name} — all execution counts null']
+                    ))
             else:
                 # check for non-linear execution
                 non_none = [e for e in exec_counts if e is not None]
@@ -2973,8 +2993,8 @@ def detect_AK_external_urls(repo_dir, all_files):
         for url in url_pattern.findall(content):
             m = _domain_pat.match(url)
             if m:
-                domain = m.group(1).lower()
-                if domain not in _domain_to_url:
+                domain = m.group(1).lower().strip()
+                if domain and domain not in _domain_to_url:
                     _domain_to_url[domain] = url
 
     urls_found = set(_domain_to_url.values())
@@ -3026,8 +3046,11 @@ def detect_AK_external_urls(repo_dir, all_files):
         MAX_DOMAINS = 10
         _reported_urls = set(_colab_urls) | set(_datacamp_urls)
         _remaining_domains = sorted(
-            d for d, u in _domain_to_url.items() if u not in _reported_urls
+            d for d, u in _domain_to_url.items()
+            if u not in _reported_urls and d.strip()
         )
+        if not _remaining_domains:
+            return findings
         shown = _remaining_domains[:MAX_DOMAINS]
         rest = len(_remaining_domains) - len(shown)
         evidence_str = ', '.join(shown)
@@ -4129,8 +4152,10 @@ def detect_EP_data_provenance(repo_dir, all_files):
     if len(code_files) >= 3 or not data_files:
         return findings
 
-    # Check README for methodology / provenance keywords
+    # No README → [A] is already firing; skip [EP] to avoid redundant noise
     readme_files = [f for f in all_files if f.name.lower() in README_NAMES]
+    if not readme_files:
+        return findings
     _methodology_keywords = [
         'extract', 'collect', 'scrap', 'mine', 'generat',
         'methodolog', 'how we', 'how the data', 'data collection',
