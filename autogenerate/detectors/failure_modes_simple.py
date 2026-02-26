@@ -2753,14 +2753,21 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
 
     def _java_value_is_safe(value: str) -> bool:
         """Return True if the string value looks like a descriptor, not a credential."""
-        # No digits at all → human-readable name
+        # No digits at all → human-readable name (e.g. "DefaultAuthenticationKey")
         if not re.search(r'\d', value):
             return True
-        # Dotted class/property key: letters, digits, dots, hyphens only
-        # e.g. "weka.core.DoNotLoadIfEnvVarNotSet", "log4j.appender.stdout"
-        if re.fullmatch(r'[A-Za-z][A-Za-z0-9.\-]*', value):
+        # Dotted qualified name WITH at least one dot: letters, digits, dots, hyphens only.
+        # Requiring a dot prevents bare alphanumeric strings with digits (e.g. AWS keys)
+        # from being falsely suppressed.
+        # e.g. "weka.core.DoNotLoadIfEnvVarNotSet", "log4j2.appender.A1"
+        if '.' in value and re.fullmatch(r'[A-Za-z][A-Za-z0-9.\-]*', value):
             return True
         return False
+
+    def _java_match_value(m: str):
+        """Extract the string literal value from a key_patterns match."""
+        vm = re.search(r'["\']([^"\']+)["\']', m)
+        return vm.group(1) if vm else ''
 
     for f in code_files:
         content = read_file_safe(f)
@@ -2768,16 +2775,22 @@ def detect_AG_api_keys_in_code(repo_dir, all_files):
         # Java-specific: suppress static final String constants whose values
         # are human-readable descriptive strings, not tokens/hashes/UUIDs.
         if matches and f.suffix.lower() == '.java':
+            # Pass 1 — declaration-based: scan every line for a static final
+            # String declaration; if the value looks safe, note the var name.
             safe_vars: set = set()
             for line in content.splitlines():
                 cm = _java_const_re.search(line)
                 if cm and _java_value_is_safe(cm.group(2)):
                     safe_vars.add(cm.group(1))
-            if safe_vars:
-                matches = [
-                    m for m in matches
-                    if m.split('=')[0].strip().split('\n')[-1].strip() not in safe_vars
-                ]
+            # Pass 2 — value-direct: even if the declaration wasn't caught
+            # (multi-line decl, inherited constant, non-static-final local),
+            # suppress matches whose own value looks safe.  This closes the
+            # gap between declaration-scanning and actual match sites.
+            matches = [
+                m for m in matches
+                if m.split('=')[0].strip().split('\n')[-1].strip() not in safe_vars
+                and not _java_value_is_safe(_java_match_value(m))
+            ]
         if matches:
             # Extract variable names from matches for evidence
             var_names = []
