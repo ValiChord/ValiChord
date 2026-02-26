@@ -2353,6 +2353,8 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
     """Failure Mode AA: Figures committed but no figure generation code."""
     findings = []
 
+    _vendor_dirs = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
+
     figure_extensions = {'.png', '.jpg', '.jpeg', '.svg', '.eps', '.pdf'}
     figure_files = [
         f for f in all_files
@@ -2361,6 +2363,8 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
             'figures', 'figure', 'figs', 'fig',
             'plots', 'plot', 'images', 'results'
         }
+        and not any(part.lower() in _vendor_dirs
+                    for part in f.relative_to(repo_dir).parts)
     ]
 
     if not figure_files:
