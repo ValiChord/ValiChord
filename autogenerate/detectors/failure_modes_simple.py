@@ -544,10 +544,32 @@ def detect_D_no_entry_point(repo_dir, all_files):
         or len(_part_counts) >= 2  # ≥2 distinct _PartN numbers = ordered sequence
     )
 
+    # Numbered directory sequences (01_foo/, 02_bar/) imply execution order
+    _dir_numbers = set()
+    for _f in all_files:
+        for _part in _f.relative_to(repo_dir).parts[:-1]:
+            _dm = re.match(r'^(\d{1,3})[_\-\.]', _part)
+            if _dm:
+                _dir_numbers.add(int(_dm.group(1)))
+    has_numbered_dirs = len(_dir_numbers) >= 2
+
+    # README explicitly names a master/entry-point file
+    _MASTER_RE = re.compile(
+        r'master\s+file|master\s+do.file|execute\s+first|run\s+first',
+        re.IGNORECASE
+    )
+    has_master_phrase = False
+    for _f in all_files:
+        if _f.name.lower() in README_NAMES and len(_f.relative_to(repo_dir).parts) <= 2:
+            if _MASTER_RE.search(read_file_safe(_f)):
+                has_master_phrase = True
+                break
+
     code_count = len(_researcher_code)
 
     if code_count > 1 and not has_run_all \
-            and not has_makefile and not has_numbered:
+            and not has_makefile and not has_numbered \
+            and not has_numbered_dirs and not has_master_phrase:
         findings.append(finding(
             'D', 'SIGNIFICANT',
             'No clear execution entry point or order',
