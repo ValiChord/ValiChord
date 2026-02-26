@@ -1178,38 +1178,48 @@ def _generate_requirements_draft(repo_dir, all_files,
                         pluto_compat[vm.group(1).lower()] = vm.group(2).lstrip('~^')
             except Exception:
                 pass
-    # Well-known PyPI packages (by import name).  Entries here get a clean
-    # "pkg==UNKNOWN" line.  Anything NOT in this set — or matching the
-    # short-underscore heuristic — gets a warning comment so the depositor
-    # can verify it before submission.
+    # Maps import name (lowercase) → PyPI install name when they differ.
+    # Packages listed here will appear in requirements_DRAFT.txt with the
+    # correct pip-installable name rather than the import name.
+    _import_to_pypi = {
+        'sklearn':               'scikit-learn',
+        'skimage':               'scikit-image',
+        'cv2':                   'opencv-python',
+        'pil':                   'Pillow',
+        'yaml':                  'PyYAML',
+        'dotenv':                'python-dotenv',
+        'dateutil':              'python-dateutil',
+        'bs4':                   'beautifulsoup4',
+        'umap':                  'umap-learn',
+        'sentence_transformers': 'sentence-transformers',
+    }
+
+    # Well-known PyPI packages where import name == install name.
+    # Entries here get a clean "pkg==UNKNOWN" line without a warning.
     _known_pypi = {
         # scientific core
         'numpy', 'scipy', 'pandas', 'matplotlib', 'seaborn', 'plotly', 'bokeh',
-        'statsmodels', 'sympy', 'networkx', 'sklearn', 'skimage',
+        'statsmodels', 'sympy', 'networkx',
         # ML / deep learning
         'tensorflow', 'torch', 'torchvision', 'torchaudio', 'keras',
         'transformers', 'xgboost', 'lightgbm', 'catboost', 'pymc', 'arviz',
+        'hdbscan',
         # data / IO
         'sqlalchemy', 'pymongo', 'redis', 'h5py', 'tables', 'xlrd', 'openpyxl',
         'pyarrow', 'fastparquet',
-        # image / vision (import names differ from package names)
-        'cv2',      # opencv-python
-        'PIL',      # Pillow
-        'imageio', 'skimage',
+        # image / vision
+        'imageio',
         # web / networking / scraping
         'requests', 'flask', 'django', 'fastapi', 'aiohttp', 'httpx', 'urllib3',
         'google_play_scraper', 'app_store_scraper', 'scrapy', 'mechanize',
         # text / NLP
         'nltk', 'spacy', 'gensim', 'textblob', 'langdetect',
         # common utilities
-        'click', 'rich', 'tqdm', 'pydantic', 'attrs', 'pytest', 'joblib',
-        'psutil', 'dask', 'numba', 'lxml', 'bs4', 'cryptography', 'paramiko',
+        'click', 'rich', 'tqdm', 'tabulate', 'pydantic', 'attrs', 'pytest', 'joblib',
+        'psutil', 'dask', 'numba', 'lxml', 'cryptography', 'paramiko',
         'celery', 'packaging', 'six',
-        # serialisation / config (import names)
-        'yaml',     # pyyaml
+        # serialisation / config
         'toml',
-        'dotenv',   # python-dotenv
-        'dateutil', # python-dateutil
         # geo / spatial
         'geopandas', 'shapely', 'pyproj', 'rasterio', 'fiona',
         # visualisation extras
@@ -1225,17 +1235,27 @@ def _generate_requirements_draft(repo_dir, all_files,
             elif _is_julia_repo:
                 lines.append(f'{pkg}  # Julia package — add to Project.toml instead of pinning here')
             else:
-                # Only warn if the package is genuinely absent from the known-valid
-                # allowlist. Be conservative — a missed warning is better than
-                # a false positive on a real package.
-                _suspicious = pkg.lower() not in _known_pypi
-                if _suspicious:
+                _pkg_lower = pkg.lower()
+                _pypi_name = _import_to_pypi.get(_pkg_lower)
+                if _pypi_name:
+                    # Known alias: emit the correct pip-installable name
+                    lines.append(f'{_pypi_name}==UNKNOWN')
+                elif _pkg_lower in _known_pypi:
+                    # Import name == PyPI name
+                    lines.append(f'{pkg}==UNKNOWN')
+                elif _pkg_lower == 'google':
+                    # Ambiguous top-level namespace — many google.* packages exist
+                    lines.append(
+                        f'# google.*==UNKNOWN'
+                        f'  # WARNING: "google" is an ambiguous namespace — could be'
+                        f' google-cloud, google-auth, google-api-python-client, etc.'
+                        f' Check which google.* sub-package you import and list it explicitly.'
+                    )
+                else:
                     lines.append(
                         f'{pkg}==UNKNOWN'
                         f'  # WARNING: not found on PyPI — verify this is a real dependency'
                     )
-                else:
-                    lines.append(f'{pkg}==UNKNOWN')
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
         lines += [
             '# Julia repository detected.',
@@ -2164,22 +2184,29 @@ def _generate_quickstart_draft(repo_dir, all_files,
         notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
         # build sets of notebook filenames by [J] sub-case
         _j_nonlinear = set()
-        _j_null_counts = set()
+        _j_counts_cleared = set()  # null counts but outputs present
+        _j_never_run = set()       # null counts and no outputs
         for fi in findings:
             if not isinstance(fi, dict) or fi.get('mode') != 'J':
                 continue
             _nb_name = fi['title'].rsplit(': ', 1)[-1]
             if fi['title'].startswith('Notebook cells executed out of order'):
                 _j_nonlinear.add(_nb_name)
+            elif fi['title'].startswith('Execution counts cleared'):
+                _j_counts_cleared.add(_nb_name)
             else:
-                _j_null_counts.add(_nb_name)
+                _j_never_run.add(_nb_name)
         for f in sorted(notebook_files, key=lambda x: x.name):
             rel = f.relative_to(repo_dir)
             if f.name in _j_nonlinear:
                 lines.append(f'- `{rel}` ⚠️ WARNING: non-linear execution order detected — '
                              f'do NOT run top-to-bottom until execution order is resolved '
                              f'and documented (see [J] finding).')
-            elif f.name in _j_null_counts:
+            elif f.name in _j_counts_cleared:
+                lines.append(f'- `{rel}` ⚠️ WARNING: execution counts cleared before sharing — '
+                             f're-run top-to-bottom (Kernel > Restart & Run All) to verify '
+                             f'outputs are reproducible (see [J] finding).')
+            elif f.name in _j_never_run:
                 lines.append(f'- `{rel}` ⚠️ WARNING: notebook has never been run — '
                              f'outputs are not saved. Run from scratch and verify results '
                              f'before sharing (see [J] finding).')
