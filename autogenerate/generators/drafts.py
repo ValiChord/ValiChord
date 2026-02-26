@@ -90,6 +90,8 @@ _KNOWN_CRAN = {
     'zoo', 'xts', 'forecast', 'tseries', 'fable', 'feasts', 'tsibble',
     # Short legitimate names
     'ks', 'mvtnorm', 'AUC',
+    # Tables / reporting
+    'xtable',
 }
 _KNOWN_CRAN_LOWER = {p.lower() for p in _KNOWN_CRAN}
 
@@ -1384,17 +1386,7 @@ def _generate_requirements_draft(repo_dir, all_files,
             src = rf.read_text(encoding='utf-8', errors='ignore')
             for m in lib_pat.finditer(src):
                 pkg = m.group(1)
-                # Only add quoted names — unquoted single tokens are likely
-                # variable names (e.g. library(pkg) inside a for-loop).
-                # Heuristic: if the match consumed quotes, keep it.
-                _raw = m.group(0)
-                if '"' in _raw or "'" in _raw:
-                    r_libs.add(pkg)
-                else:
-                    # Unquoted — keep only if it looks like a real package name
-                    # (starts with uppercase or matches a known package)
-                    if pkg[0].isupper() or pkg.lower() in _KNOWN_CRAN_LOWER:
-                        r_libs.add(pkg)
+                r_libs.add(pkg)
             for m in vec_pkg_pat.finditer(src):
                 for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
                     r_libs.add(pkg)
