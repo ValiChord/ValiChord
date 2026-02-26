@@ -1504,12 +1504,19 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 
     readme_mentions_data = False
     has_inline_col_doc = False
-    # Pattern: backtick-quoted identifier followed by colon/dash — inline column docs
-    # e.g. `column_name`: description  or  `col_name` - description
-    _inline_col_pat = re.compile(
-        r'`[a-zA-Z_]\w*`\s*[:\-—]|\*\*[a-zA-Z_]\w*\*\*\s*:',
-        re.MULTILINE
-    )
+    # Patterns that indicate inline column/variable documentation in a README.
+    # Any line matching one of these patterns counts toward the threshold.
+    # Threshold ≥5 to avoid noise from prose that happens to contain backticks.
+    _COLUMN_DOC_PATTERNS = [
+        re.compile(r'`[a-zA-Z_][a-zA-Z0-9_\s\(\)\.\/\-]*`\s*[:\-—]',
+                   re.MULTILINE),                                    # `col_name`: desc
+        re.compile(r'^\s*-\s*[A-Za-z_][A-Za-z0-9_\s\(\)\.\/\-]*\s*[\(:–\-]',
+                   re.MULTILINE),                                    # - ColumnName: desc
+        re.compile(r'^\s*\*\s*[A-Za-z_][A-Za-z0-9_\s\(\)\.\/\-]*\s*[\(:–\-]',
+                   re.MULTILINE),                                    # * ColumnName: desc
+        re.compile(r'\*\*[a-zA-Z_]\w*\*\*\s*:',
+                   re.MULTILINE),                                    # **col_name**: desc
+    ]
     for f in all_files:
         if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
             try:
@@ -1521,8 +1528,11 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
                     'data collection', 'data format', 'column', 'field'
                 ]):
                     readme_mentions_data = True
-                # ≥3 inline column-doc patterns = README functions as codebook
-                if len(_inline_col_pat.findall(content)) >= 3:
+                # ≥5 matches across all patterns = README functions as codebook
+                total_matches = sum(
+                    len(pat.findall(content)) for pat in _COLUMN_DOC_PATTERNS
+                )
+                if total_matches >= 5:
                     has_inline_col_doc = True
             except Exception:
                 pass
@@ -1612,6 +1622,28 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     for section, keywords in required_sections.items():
         if not any(kw in content_lower for kw in keywords):
             missing.append(section)
+
+    # Post-filter: suppress sub-items where richer content-level evidence is present.
+    # 'execution' — description-style narrative can substitute for an explicit section.
+    _EXECUTION_INDICATORS = [
+        'each section', 'in this order', 'run the script', 'execute',
+        'to reproduce', 'step 1', 'step 2', 'first run', 'then run',
+        'script is for', 'section of the script', 'analysis are present',
+    ]
+    if 'execution' in missing:
+        if sum(1 for ind in _EXECUTION_INDICATORS if ind in content_lower) >= 2:
+            missing.remove('execution')
+
+    # 'expected outputs' — if README describes what each section produces (plots,
+    # models, statistics), treat it as documenting expected outputs.
+    _OUTPUT_INDICATORS = [
+        'plot', 'figure', 'model', 'statistic', 'output', 'produces',
+        'saves', 'generates', 'results in', 'table', 'coefficient',
+        'regression', 'correlation', 'estimate',
+    ]
+    if 'expected outputs' in missing:
+        if sum(1 for ind in _OUTPUT_INDICATORS if ind in content_lower) >= 2:
+            missing.remove('expected outputs')
 
     if len(missing) >= 3:
         findings.append(finding(

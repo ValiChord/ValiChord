@@ -65,11 +65,13 @@ _GITHUB_KNOWN_SLUGS = {
 # Packages removed or retired from CRAN — require special handling.
 # Key: lowercase package name. Value: explanation + suggested replacement.
 REMOVED_FROM_CRAN = {
-    'tsoutliers': 'removed from CRAN in 2022 — use forecast::tsoutliers() instead, or install from archive: devtools::install_version("tsoutliers", version="0.1-2")',
-    'reshape':    'superseded — use reshape2 or tidyr instead',
-    'rgdal':      'retired 2023 — use sf or terra instead',
-    'rgeos':      'retired 2023 — use sf or geos instead',
-    'maptools':   'retired 2023 — use sf instead',
+    'tsoutliers':         'removed from CRAN in 2022 — use forecast::tsoutliers() instead, or install from archive: devtools::install_version("tsoutliers", version="0.1-2")',
+    'reshape':            'superseded — use reshape2 or tidyr instead',
+    'rgdal':              'retired 2023 — use sf or terra instead',
+    'rgeos':              'retired 2023 — use sf or geos instead',
+    'maptools':           'retired 2023 — use sf instead',
+    'userfriendlyscience':'superseded around 2019 — split into rosetta, psych, and other packages; may only be available from archive',
+    'lsmeans':            'superseded by emmeans — still on CRAN as a thin wrapper but generates deprecation warnings; use emmeans instead',
 }
 _REMOVED_CRAN_LOWER = {k.lower(): v for k, v in REMOVED_FROM_CRAN.items()}
 
@@ -95,6 +97,15 @@ _REMOVED_CRAN_README_LINES = {
     'maptools': [
         '# maptools was retired in 2023 — use sf instead:',
         '# install.packages("sf")',
+    ],
+    'userfriendlyscience': [
+        '# userfriendlyscience was superseded around 2019 — split into multiple packages.',
+        '# Use rosetta or psych as replacements, or install from archive:',
+        '# devtools::install_version("userfriendlyscience", repos = "http://cran.r-project.org")',
+    ],
+    'lsmeans': [
+        '# lsmeans is superseded by emmeans (still on CRAN as wrapper but deprecated):',
+        '# install.packages("emmeans")  # recommended replacement',
     ],
 }
 
@@ -165,7 +176,7 @@ _KNOWN_CRAN = {
     'xgboost', 'lightgbm', 'keras', 'reticulate', 'ranger', 'e1071', 'kernlab',
     'nnet', 'neuralnet', 'parsnip', 'tune', 'recipes', 'workflows', 'stacks',
     # Spatial
-    'sf', 'sp', 'raster', 'terra', 'leaflet', 'rgdal', 'rgeos',
+    'sf', 'sp', 'raster', 'terra', 'leaflet',
     'tmap', 'ggmap', 'maps', 'mapdata', 'spdep', 'spatstat',
     # Text / NLP
     'tm', 'tidytext', 'quanteda', 'text2vec', 'wordcloud', 'topicmodels',
@@ -188,6 +199,8 @@ _KNOWN_CRAN = {
     'ks', 'mvtnorm', 'AUC',
     # Tables / reporting
     'xtable',
+    # Post-hoc / non-parametric tests
+    'PMCMRplus',
 }
 _KNOWN_CRAN_LOWER = {p.lower() for p in _KNOWN_CRAN}
 
