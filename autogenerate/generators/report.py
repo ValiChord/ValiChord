@@ -295,7 +295,7 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
         'D':  'Verify the execution order in QUICKSTART_DRAFT.md '
               'matches your actual pipeline.',
         'N':  'Choose a licence for your code and data and complete '
-              'LICENCE_DRAFT.txt.',
+              'LICENCE_DRAFT.txt.',  # may be overridden below for CAD deposits
         'Z':  'Add the commit hash or version tag for this exact '
               'deposit to your README.',
         'W':  'Run `git lfs pull` before creating your deposit ZIP '
@@ -315,6 +315,18 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
               'A 1–5 byte file cannot contribute to reproducing your results.',
         'AK': '',  # handled below — severity determines the action text
     }
+
+    _cad_exts     = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
+    _tabular_exts = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
+                     '.parquet', '.feather', '.arrow', '.dif'}
+    _code_exts    = {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
+    _is_cad = (
+        any(f.suffix.lower() in _cad_exts for f in all_files)
+        and not any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} for f in all_files)
+        and not any(f.suffix.lower() in _tabular_exts for f in all_files)
+    )
+    if _is_cad:
+        action_map['N'] = 'Choose a licence for your design files and complete LICENCE_DRAFT.txt.'
 
     modes_found = {f['mode'] for f in findings}
     # BM has two sub-types: LOW CONFIDENCE (no cff) and SIGNIFICANT (missing fields)
