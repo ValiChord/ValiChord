@@ -1692,13 +1692,18 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     else:
         # Data-only deposit — check for data quality / completeness criteria
         # instead of "successful reproduction" (a code-execution concept).
+        # Threshold ≥3 so that passing mentions of common words ('from', 'period')
+        # don't suppress the finding; the README must commit to multiple indicators.
         _data_quality_kws = [
-            'row', 'record', 'observation', 'expect', 'should contain',
-            'completeness', 'threshold', 'date range', 'coverage',
-            'total', 'count', 'n =', 'n=', 'entries',
+            'row', 'rows', 'record', 'records', 'observation', 'observations',
+            'n =', 'n=', 'sample size', 'total of', 'contains',
+            'date range', 'collected between', 'period',
+            'complete', 'completeness', 'missing', 'excluded',
+            'expect', 'should contain', 'threshold', 'coverage',
+            'total', 'count', 'entries',
         ]
-        _has_quality_criteria = any(kw in content_lower for kw in _data_quality_kws)
-        if not _has_quality_criteria and len(content) > 200:
+        _quality_hits = sum(1 for kw in _data_quality_kws if kw in content_lower)
+        if _quality_hits < 3 and len(content) > 200:
             findings.append(finding(
                 'G', 'LOW CONFIDENCE',
                 'No data quality criteria documented',
@@ -1706,10 +1711,11 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                 'a correct version of the data should look like. '
                 'Without an expected row count, date range, or completeness '
                 'threshold, there is no way to verify the download is complete.',
-                ['Missing: expected row count, date range, or completeness '
-                 'threshold',
-                 'Recommendation: add a note such as "The dataset contains '
-                 'N observations covering YYYY-MM-DD to YYYY-MM-DD"']
+                [
+                    'Recommendation: document expected row count per file',
+                    'Recommendation: document date range or collection period',
+                    'Recommendation: document any exclusion criteria or known missing values',
+                ]
             ))
 
     # If SIGNIFICANT fires, suppress LOW CONFIDENCE to avoid double-reporting [G]
