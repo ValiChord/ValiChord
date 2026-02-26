@@ -388,6 +388,8 @@ def detect_C_absolute_paths(repo_dir, all_files):
         r'|([A-Z]:/[A-Za-z][A-Za-z0-9_\- ]{1,}/)'
     )
 
+    # Collect hits grouped by file: {Path: [(line_no, snippet), ...]}
+    _hits: dict = {}
     for f in code_files:
         ext = f.suffix.lower()
         content_f = read_file_safe(f)
@@ -416,31 +418,46 @@ def detect_C_absolute_paths(repo_dir, all_files):
             if re.match(r'(?:source|\.)\s+', stripped):
                 continue  # shell source commands expand env vars at runtime
             if abs_pattern.search(line):
-                snippet = stripped[:80]
-                findings.append(finding(
-                    'C', 'SIGNIFICANT',
-                    f'Absolute path detected in {f.name}',
-                    'Absolute paths break reproducibility — they only '
-                    "work on the researcher's machine. A corrected "
-                    "copy with relative paths will be generated in "
-                    '/proposed_corrections/.',
-                    [f'Evidence: {f.name} line {i}: {snippet}']
-                ))
-    # Scan notebook cell sources for absolute paths
+                _hits.setdefault(f, []).append((i, stripped[:80]))
+
+    # Collect notebook hits grouped by notebook file
+    _nb_hits: dict = {}
     for nb, src in notebook_sources:
         for i, line in enumerate(src.splitlines(), 1):
             stripped = line.strip()
             if stripped.startswith('#'):
                 continue
             if abs_pattern.search(line):
-                snippet = stripped[:80]
-                findings.append(finding(
-                    'C', 'SIGNIFICANT',
-                    f'Absolute path detected in notebook cell: {nb.name}',
-                    'Absolute paths in notebook cells break reproducibility — '
-                    "they only work on the researcher's machine.",
-                    [f'Evidence: {nb.name} cell line {i}: {snippet}']
-                ))
+                _nb_hits.setdefault(nb, []).append((i, stripped[:80]))
+
+    # Emit one finding per affected code file
+    for f, hits in _hits.items():
+        count = len(hits)
+        first_line, first_snippet = hits[0]
+        findings.append(finding(
+            'C', 'SIGNIFICANT',
+            f'Absolute path(s) detected in {f.name}',
+            'Absolute paths break reproducibility — they only '
+            "work on the researcher's machine. A corrected "
+            "copy with relative paths will be generated in "
+            '/proposed_corrections/.',
+            [f'{count} absolute path(s) detected — first occurrence: '
+             f'{f.name} line {first_line}: {first_snippet}']
+        ))
+
+    # Emit one finding per affected notebook
+    for nb, hits in _nb_hits.items():
+        count = len(hits)
+        first_line, first_snippet = hits[0]
+        findings.append(finding(
+            'C', 'SIGNIFICANT',
+            f'Absolute path(s) in notebook cells: {nb.name}',
+            'Absolute paths in notebook cells break reproducibility — '
+            "they only work on the researcher's machine.",
+            [f'{count} absolute path(s) in notebook cells — first occurrence: '
+             f'{nb.name} cell line {first_line}: {first_snippet}']
+        ))
+
     return findings
 
 
@@ -4716,6 +4733,7 @@ def detect_CZ_eol_docker_base_image(repo_dir, all_files):
             src = f.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             continue
+        eol_images = []
         for m in from_pat.finditer(src):
             image = m.group(1)
             vm = version_pat.search(image)
@@ -4723,21 +4741,32 @@ def detect_CZ_eol_docker_base_image(repo_dir, all_files):
                 continue
             ver = vm.group(1)
             if ver in _EOL_PYTHON_VERSIONS:
-                eol_date = _EOL_PYTHON_VERSIONS[ver]
-                findings.append(finding(
-                    'CZ', 'SIGNIFICANT',
-                    f'Dockerfile uses end-of-life Python {ver} base image',
-                    f'The base image {image} uses Python {ver}, which reached '
-                    f'end-of-life in {eol_date}. EOL images receive no security '
-                    f'patches and may become unavailable or broken as registries '
-                    f'phase out old versions. Validators pulling this image may '
-                    f'encounter errors or security warnings.',
-                    [f'Dockerfile: FROM {image}',
-                     f'Python {ver} EOL: {eol_date}',
-                     f'Fix: update to FROM python:{_CURRENT_PYTHON}-slim',
-                     'Test that requirements.txt packages are compatible with '
-                     f'Python {_CURRENT_PYTHON}']
-                ))
+                eol_images.append((image, ver, _EOL_PYTHON_VERSIONS[ver]))
+        if eol_images:
+            image, ver, eol_date = eol_images[0]
+            evidence = [
+                f'Dockerfile: FROM {image}',
+                f'Python {ver} EOL: {eol_date}',
+                f'Fix: update to FROM python:{_CURRENT_PYTHON}-slim',
+                'Test that requirements.txt packages are compatible with '
+                f'Python {_CURRENT_PYTHON}',
+            ]
+            if len(eol_images) > 1:
+                evidence.append(
+                    'Also EOL: ' + ', '.join(
+                        f'{img} (Python {v}, EOL {d})' for img, v, d in eol_images[1:]
+                    )
+                )
+            findings.append(finding(
+                'CZ', 'SIGNIFICANT',
+                f'Dockerfile uses end-of-life Python {ver} base image',
+                f'The base image {image} uses Python {ver}, which reached '
+                f'end-of-life in {eol_date}. EOL images receive no security '
+                f'patches and may become unavailable or broken as registries '
+                f'phase out old versions. Validators pulling this image may '
+                f'encounter errors or security warnings.',
+                evidence
+            ))
     return findings
 
 
@@ -5367,6 +5396,7 @@ def detect_CL_bioconductor_unpinned(repo_dir, all_files):
     for f in r_files:
         try:
             src = f.read_text(encoding='utf-8', errors='ignore')
+            unversioned = []
             for m in bioc_pat.finditer(src):
                 # Find the full call using paren depth
                 start = m.start()
@@ -5381,23 +5411,26 @@ def detect_CL_bioconductor_unpinned(repo_dir, all_files):
                             break
                 call_text = src[start:call_end+1]
                 if not version_pat.search(call_text):
-                    evidence = [
-                        f'File: {f.name} — BiocManager::install() has no version= argument',
-                        'Without version=, installs current Bioconductor release (may differ from original)',
-                    ]
-                    if stated_version:
-                        evidence.append(f'README states Bioconductor {stated_version} — add version="{stated_version}" to enforce this')
-                        evidence.append(f'Fix: BiocManager::install(c(...), version="{stated_version}")')
-                    else:
-                        evidence.append('Fix: add version="X.YY" matching the Bioconductor release used')
-                    findings.append(finding(
-                        'CL', 'SIGNIFICANT',
-                        f'Bioconductor packages installed without version pin in {f.name}',
-                        'BiocManager::install() without version= installs the current Bioconductor '
-                        'release, not the one used in the original analysis. Package APIs and '
-                        'default parameters change between releases.',
-                        evidence
-                    ))
+                    unversioned.append(call_text[:60].replace('\n', ' '))
+            if unversioned:
+                count = len(unversioned)
+                evidence = [
+                    f'File: {f.name} — {count} BiocManager::install() call(s) without version=',
+                    'Without version=, installs current Bioconductor release (may differ from original)',
+                ]
+                if stated_version:
+                    evidence.append(f'README states Bioconductor {stated_version} — add version="{stated_version}" to enforce this')
+                    evidence.append(f'Fix: BiocManager::install(c(...), version="{stated_version}")')
+                else:
+                    evidence.append('Fix: add version="X.YY" matching the Bioconductor release used')
+                findings.append(finding(
+                    'CL', 'SIGNIFICANT',
+                    f'Bioconductor packages installed without version pin in {f.name}',
+                    'BiocManager::install() without version= installs the current Bioconductor '
+                    'release, not the one used in the original analysis. Package APIs and '
+                    'default parameters change between releases.',
+                    evidence
+                ))
         except Exception:
             pass
     return findings
