@@ -2434,7 +2434,8 @@ def detect_L_large_files_missing(repo_dir, all_files):
 
         if genuine_missing:
             sample_g = sorted(genuine_missing)[:5]
-            extra_g = f' (and {len(genuine_missing)-5} more)' if len(genuine_missing) > 5 else ''
+            _ng = len(genuine_missing) - 5
+            extra_g = f' (and {_ng} more {"file" if _ng == 1 else "files"})' if len(genuine_missing) > 5 else ''
             evidence.append(
                 f'Missing files referenced (inputs not in repository): '
                 f'{", ".join(sample_g)}{extra_g}'
@@ -2452,8 +2453,6 @@ def detect_L_large_files_missing(repo_dir, all_files):
                     )
 
         if output_reread:
-            if genuine_missing:
-                evidence.append('')
             evidence.append(
                 'Script-generated files read back as inputs '
                 '(will exist after first run — fix absolute paths):'
@@ -2461,7 +2460,8 @@ def detect_L_large_files_missing(repo_dir, all_files):
             for mf, (script_name, line_num) in sorted(output_reread.items())[:5]:
                 evidence.append(f'- {mf} — written at line {line_num} in {script_name}, read back later')
             if len(output_reread) > 5:
-                evidence.append(f'  (and {len(output_reread)-5} more script-generated files)')
+                _n = len(output_reread) - 5
+                evidence.append(f'  (and {_n} more script-generated {"file" if _n == 1 else "files"})')
             evidence.append(
                 'These will be generated when the script runs — '
                 'no action needed except fixing absolute paths ([C]).'
