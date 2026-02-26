@@ -6736,24 +6736,38 @@ def detect_DZ_double_zipped(repo_dir, all_files):
 
 
 def detect_NZ(repo_dir, all_files):
-    """Failure Mode NZ: Zip files nested inside the deposit — packaging anti-pattern."""
-    nested_zips = sorted(
-        (f for f in all_files if f.suffix.lower() == '.zip'),
-        key=lambda f: f.name
-    )
-    if not nested_zips:
+    """Failure Mode NZ: Zip files nested inside the deposit — packaging anti-pattern.
+
+    Entry points extract-and-delete nested zips before building all_files, so we
+    read from the .valichord_nested_zips.json sidecar they write before deleting.
+    Falls back to scanning all_files directly (e.g. test environments where no
+    extraction occurred).
+    """
+    import json as _json
+
+    sidecar = repo_dir / '.valichord_nested_zips.json'
+    if sidecar.exists():
+        try:
+            records = _json.loads(sidecar.read_text(encoding='utf-8'))
+        except Exception:
+            records = []
+    else:
+        # Fallback: zips not yet extracted (e.g. test environments)
+        records = [
+            {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
+            for f in all_files if f.suffix.lower() == '.zip'
+        ]
+
+    if not records:
         return []
 
-    n = len(nested_zips)
+    n = len(records)
     return [finding(
         'NZ', 'SIGNIFICANT',
         f'{n} nested zip file{"s" if n != 1 else ""} inside the deposit',
         'Zip files inside a repository require validators to manually unzip '
         'additional archives before running the code. '
         'Extract the contents and deposit files directly in a subdirectory.',
-        [
-            f'`{z.relative_to(repo_dir)}` ({z.stat().st_size // 1024} KB)'
-            for z in nested_zips
-        ]
+        [f'`{r["path"]}` ({r["size"] // 1024} KB)' for r in records]
     )]
 

@@ -71,6 +71,9 @@ def main():
               f"but not fully analysed.")
 
     # ── recursively extract nested zips ────────────────────────────
+    # Track extracted zips so detect_NZ can report them even after deletion.
+    _nested_zip_records = []
+
     def extract_nested_zips(directory, depth=0):
         if depth > 3:
             return
@@ -82,6 +85,10 @@ def main():
                 dest.mkdir(exist_ok=True)
                 with zipfile.ZipFile(nested, "r") as zf:
                     zf.extractall(dest)
+                _nested_zip_records.append({
+                    'path': str(nested.relative_to(repo_dir)),
+                    'size': nested.stat().st_size,
+                })
                 nested.unlink()
                 print(f"  Extracted nested: {nested.name}")
                 extract_nested_zips(dest, depth + 1)
@@ -89,6 +96,12 @@ def main():
                 pass
 
     extract_nested_zips(repo_dir)
+
+    if _nested_zip_records:
+        import json as _json
+        (repo_dir / '.valichord_nested_zips.json').write_text(
+            _json.dumps(_nested_zip_records), encoding='utf-8'
+        )
 
     print(f"  Repository size: {total_size_mb:.1f}MB")
 
@@ -100,7 +113,8 @@ def main():
         and '__pycache__' not in f.parts
         and '__MACOSX' not in f.parts       # macOS zip metadata directory
         and not f.name.startswith('._')     # macOS resource-fork sidecar files
-        and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
+        and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
+                            '.valichord_nested_zips.json'}
     ]
 
     print(f"  Files found: {len(all_files)}")

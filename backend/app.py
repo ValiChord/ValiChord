@@ -42,6 +42,8 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         with zipfile.ZipFile(upload_path, 'r') as zf:
             zf.extractall(repo_dir)
 
+        _nested_zip_records = []
+
         def extract_nested(directory, depth=0):
             if depth > 3:
                 return
@@ -53,12 +55,22 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
                     dest.mkdir(exist_ok=True)
                     with zipfile.ZipFile(nested, 'r') as zf:
                         zf.extractall(dest)
+                    _nested_zip_records.append({
+                        'path': str(nested.relative_to(repo_dir)),
+                        'size': nested.stat().st_size,
+                    })
                     nested.unlink()
                     extract_nested(dest, depth + 1)
                 except Exception:
                     pass
 
         extract_nested(repo_dir)
+
+        if _nested_zip_records:
+            import json as _json
+            (repo_dir / '.valichord_nested_zips.json').write_text(
+                _json.dumps(_nested_zip_records), encoding='utf-8'
+            )
 
         all_files = [
             f for f in repo_dir.rglob('*')
@@ -67,7 +79,8 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
             and '__pycache__' not in f.parts
             and '__MACOSX' not in f.parts
             and not f.name.startswith('._')
-            and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini'}
+            and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
+                                '.valichord_nested_zips.json'}
         ]
 
         findings = run_simple_detectors(repo_dir, all_files)

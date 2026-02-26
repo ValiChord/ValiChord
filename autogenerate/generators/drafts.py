@@ -1524,6 +1524,19 @@ def _generate_requirements_draft(repo_dir, all_files,
     }
     external = [pkg for pkg in external if pkg.lower() not in _all_stems]
 
+    # Third-pass: heuristic patterns for local module names that may not have
+    # a matching file in the deposit (e.g. the file lives on the researcher's
+    # machine but was imported in a notebook shipped without it).  Any import
+    # whose name matches these patterns is almost certainly a local script, not
+    # a PyPI package — real packages never carry 8-digit date suffixes.
+    _LOCAL_MODULE_PATTERNS = [
+        r'.*_\d{8}_\d{8}$',  # e.g. Training_geometries_Amazonia_20040401_20050401
+        r'.*_\d{8}$',         # e.g. Training_geometries_Amazonia_20040401
+        r'.*_\d{6,}$',        # any trailing 6+-digit run (YYYYMM, YYYYMMDD…)
+    ]
+    _local_pat = _re_mod.compile('|'.join(f'(?:{p})' for p in _LOCAL_MODULE_PATTERNS))
+    external = [pkg for pkg in external if not _local_pat.match(pkg)]
+
     # Known import aliases and proprietary API handles that are NOT PyPI packages.
     # These appear as top-level import names but resolve to sub-modules of an
     # existing package or to a vendor/tool-specific API that cannot be pip-installed.
