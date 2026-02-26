@@ -967,7 +967,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if not has_code:
         # data-only deposit — use data-focused template
-        data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet", ".mat", ".npy", ".npz", ".hdf5", ".h5", ".nc", ".feather", ".arrow", ".dif", ".rds", ".rdata"} and not f.name.lower().startswith('readme')]
+        data_files = [f for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS and not f.name.lower().startswith('readme')]
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         lines = [
             '# [TITLE OF DATASET — YOU MUST COMPLETE THIS]',
