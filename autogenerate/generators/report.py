@@ -4,9 +4,30 @@ Cleaning Report Generator
 Produces CLEANING_REPORT.md and ASSESSMENT.md
 """
 
+import re
 from pathlib import Path
 from datetime import datetime
 
+
+_CODE_TXT_STEM_KW = frozenset({
+    'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
+})
+_CODE_TXT_PAT = re.compile(
+    r'library\s*\(|import\s+\w|^\s*def\s+\w|\bfunction\s*\(|\bcd\s+|\buse\s+',
+    re.MULTILINE
+)
+
+
+def _is_code_txt(f):
+    """Return True if a .txt file's stem and content suggest it is actually code."""
+    if f.suffix.lower() != '.txt':
+        return False
+    if not any(kw in f.stem.lower() for kw in _CODE_TXT_STEM_KW):
+        return False
+    try:
+        return bool(_CODE_TXT_PAT.search(f.read_text(encoding='utf-8', errors='ignore')))
+    except Exception:
+        return False
 
 
 def _assessment_verification_questions(all_files):
@@ -16,7 +37,7 @@ def _assessment_verification_questions(all_files):
     _tabular_exts = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
                      '.parquet', '.feather', '.arrow', '.dif'}
     has_cad     = any(f.suffix.lower() in _cad_exts for f in all_files)
-    has_code    = any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} for f in all_files)
+    has_code    = any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} or _is_code_txt(f) for f in all_files)
     has_tabular = any(f.suffix.lower() in _tabular_exts for f in all_files)
 
     if has_cad and not has_code and not has_tabular:
