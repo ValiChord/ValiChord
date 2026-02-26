@@ -28,6 +28,38 @@ README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 # Vendored / third-party directories excluded from QUICKSTART script listing
 VENDOR_DIRS_QS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 
+# Bioconductor packages — must be installed via BiocManager::install(), NOT install.packages().
+# Putting these inside install.packages() silently fails.
+BIOCONDUCTOR_PACKAGES = frozenset({
+    'DESeq2', 'edgeR', 'limma', 'BiocGenerics', 'GenomicRanges',
+    'GenomicFeatures', 'Biostrings', 'IRanges', 'S4Vectors',
+    'SummarizedExperiment', 'SingleCellExperiment', 'scran', 'scater',
+    'phyloseq', 'microbiome', 'metagenomeSeq',
+    'DADA2', 'dada2',
+    'clusterProfiler', 'fgsea', 'enrichplot', 'pathview',
+    'VariantAnnotation', 'BSgenome', 'AnnotationDbi',
+    'org.Hs.eg.db', 'org.Mm.eg.db', 'biomaRt', 'GEOquery',
+    'mzR', 'xcms', 'MSnbase', 'mixOmics', 'WGCNA',
+    'ComplexHeatmap', 'EnhancedVolcano', 'ggbio', 'Gviz',
+    'tximport', 'DEXSeq', 'sva', 'ChIPseeker', 'DiffBind',
+    'Rsamtools', 'GenomicAlignments', 'ShortRead',
+})
+# Case-insensitive lookup set
+_BIOC_LOWER = frozenset(p.lower() for p in BIOCONDUCTOR_PACKAGES)
+
+# Packages believed to be GitHub-only (not on CRAN or Bioconductor).
+# These need devtools::install_github(); install command must be verified.
+GITHUB_LIKELY_PACKAGES = frozenset({'HTSSIP', 'SIPmg', 'qsip', 'microbiomeutilities'})
+_GITHUB_LIKELY_LOWER = frozenset(p.lower() for p in GITHUB_LIKELY_PACKAGES)
+
+# Known GitHub repo slugs for common GitHub-only packages
+_GITHUB_KNOWN_SLUGS = {
+    'htssip':              'buckleylab/HTSSIP',
+    'sipmg':               'mcallaghanTU/SIPmg',
+    'qsip':                'bramstone/qsip',
+    'microbiomeutilities': 'microsud/microbiomeutilities',
+}
+
 # Frontend-directory detection — mirrors the constants in failure_modes_simple.py.
 # A dir is frontend if it has JS/HTML/CSS AND no analysis-code extension.
 # We do NOT require all extensions to be in an allowlist so that dirs with
@@ -282,7 +314,7 @@ def _classify_file(f, is_cad=False):
         return 'Documentation'
     if _is_model_artifact_file(f):
         return 'Model artifact'
-    if ext in {'.csv', '.tsv', '.xlsx', '.json', '.parquet',
+    if ext in {'.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
                '.rds', '.rdata', '.dta', '.sav', '.mat',
                '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.gdt'}:
         return 'Data'
@@ -458,10 +490,16 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
                 'Rscript -e "renv::restore()"',
             ]
         pkgs = r_packages or ['dplyr', 'ggplot2']
-        cran_pkgs = [p for p in pkgs if p.lower() not in github_pkgs]
-        gh_only = [p for p in pkgs if p.lower() in github_pkgs]
-        pkg_str = ', '.join("'" + p + "'" for p in cran_pkgs) if cran_pkgs else None
-        gh_lines = [f"Rscript -e \"devtools::install_github('{github_pkgs.get(p.lower(), p).strip(chr(39)).strip(chr(34))}')\"" for p in gh_only]
+        # Partition packages into CRAN / Bioconductor / GitHub-likely / known-GitHub
+        gh_only      = [p for p in pkgs if p.lower() in github_pkgs]
+        gh_likely    = [p for p in pkgs if p.lower() not in github_pkgs
+                        and p.lower() in _GITHUB_LIKELY_LOWER]
+        bioc_pkgs    = [p for p in pkgs if p.lower() not in github_pkgs
+                        and p.lower() not in _GITHUB_LIKELY_LOWER
+                        and p.lower() in _BIOC_LOWER]
+        cran_pkgs    = [p for p in pkgs if p.lower() not in github_pkgs
+                        and p.lower() not in _GITHUB_LIKELY_LOWER
+                        and p.lower() not in _BIOC_LOWER]
         block = ['# 1. Clone or download this repository']
         if has_python:
             block += ['# 2. Set up Python environment',
@@ -471,13 +509,28 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
             step = 3
         else:
             step = 2
-        if pkg_str:
+        if cran_pkgs:
+            pkg_str = ', '.join("'" + p + "'" for p in cran_pkgs)
             block.append(f'# {step}. Install CRAN packages')
             block.append(f'Rscript -e "install.packages(c({pkg_str}))"')
             step += 1
-        if gh_lines:
+        if bioc_pkgs:
+            bioc_str = ', '.join("'" + p + "'" for p in bioc_pkgs)
+            block.append(f'# {step}. Install Bioconductor packages')
+            block.append('Rscript -e "if (!require(\'BiocManager\', quietly=TRUE)) install.packages(\'BiocManager\')"')
+            block.append(f'Rscript -e "BiocManager::install(c({bioc_str}))"')
+            step += 1
+        if gh_likely:
+            block.append(f'# {step}. Install possible GitHub-only packages (verify sources before running)')
+            for p in gh_likely:
+                slug = _GITHUB_KNOWN_SLUGS.get(p.lower(), f'.../{p}')
+                block.append(f'# Rscript -e "devtools::install_github(\'{slug}\')"  # verify this is correct')
+            step += 1
+        if gh_only:
             block.append(f'# {step}. Install GitHub packages')
-            block += gh_lines
+            for p in gh_only:
+                repo = github_pkgs.get(p.lower(), p).strip("'").strip('"')
+                block.append(f'Rscript -e "devtools::install_github(\'{repo}\')"')
         return block
     if '.do' in suffixes or '.ado' in suffixes:
         return [
@@ -1612,13 +1665,20 @@ def _generate_requirements_draft(repo_dir, all_files,
                     pass
         r_libs = r_libs | extra_pkgs
         if r_libs:
-            cran_list = [p for p in sorted(r_libs) if p.lower() not in gh_map]
-            gh_list = [p for p in sorted(r_libs) if p.lower() in gh_map]
+            gh_list      = [p for p in sorted(r_libs) if p.lower() in gh_map]
+            gh_likely_list = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                               and p.lower() in _GITHUB_LIKELY_LOWER]
+            bioc_list    = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                             and p.lower() not in _GITHUB_LIKELY_LOWER
+                             and p.lower() in _BIOC_LOWER]
+            cran_list    = [p for p in sorted(r_libs) if p.lower() not in gh_map
+                             and p.lower() not in _GITHUB_LIKELY_LOWER
+                             and p.lower() not in _BIOC_LOWER]
             lines += ['# R repository detected.',
                       '# Packages detected from library()/require() calls:',
                       '# Add version numbers before deposit.', '']
             if cran_list:
-                lines.append('# CRAN packages:')
+                lines.append('# CRAN packages — install with install.packages():')
                 for pkg in cran_list:
                     if pkg.lower() in _KNOWN_CRAN_LOWER or not _r_pkg_suspicious(pkg):
                         lines.append(f'{pkg}  # version unknown')
@@ -1627,8 +1687,28 @@ def _generate_requirements_draft(repo_dir, all_files,
                             f'{pkg}  # WARNING: \'{pkg}\' not found on CRAN'
                             f' — verify this package name is correct'
                         )
-            if gh_list:
+            if bioc_list:
                 if cran_list:
+                    lines.append('')
+                lines += [
+                    '# Bioconductor packages — install with BiocManager::install():',
+                    '# First run: install.packages("BiocManager")',
+                ]
+                for pkg in bioc_list:
+                    lines.append(f'{pkg}  # version unknown')
+            if gh_likely_list:
+                if cran_list or bioc_list:
+                    lines.append('')
+                lines += [
+                    '# Possible GitHub-only packages — verify install method:',
+                    '# These may not be on CRAN or Bioconductor.',
+                    '# Check package documentation for the correct install command.',
+                ]
+                for pkg in gh_likely_list:
+                    slug = _GITHUB_KNOWN_SLUGS.get(pkg.lower(), f'.../{pkg}')
+                    lines.append(f'{pkg}  # version unknown — possibly: devtools::install_github("{slug}")')
+            if gh_list:
+                if cran_list or bioc_list or gh_likely_list:
                     lines.append('')
                 lines.append('# GitHub packages (no CRAN release -- pinning required):')
                 for pkg in gh_list:

@@ -2349,9 +2349,36 @@ def detect_L_large_files_missing(repo_dir, all_files):
                         and not filepath.startswith(('http', 'ftp', '$', '{'))):
                     missing_refs.add(fname)
 
+    def _similar_file(missing_name, candidates):
+        """Return a present file that looks like a renamed version of missing_name."""
+        _ver_pat = re.compile(r'[_\-]?(final\d*|v\d+|\d{8})$', re.IGNORECASE)
+        m_stem = _ver_pat.sub('', re.sub(r'\.[^.]+$', '', missing_name)).lower()
+        m_tokens = set(re.split(r'[_\-]', m_stem)) - {''}
+        for f in candidates:
+            f_stem = _ver_pat.sub('', f.stem).lower()
+            f_tokens = set(re.split(r'[_\-]', f_stem)) - {''}
+            if m_stem == f_stem or m_stem in f_stem or f_stem in m_stem:
+                return f
+            # token-set equality handles word-reorder renames
+            # (e.g. vsip_coverages_ag → vsip_ag_coverages)
+            if len(m_tokens) >= 2 and m_tokens == f_tokens:
+                return f
+        return None
+
     if missing_refs:
         sample = sorted(missing_refs)[:5]
         extra = f' (and {len(missing_refs)-5} more)' if len(missing_refs) > 5 else ''
+        evidence = [f'Missing files referenced: {", ".join(sample)}{extra}',
+                    'Add download instructions or data access information to README']
+        # Append similarity hints for any missing file that has a plausible rename
+        for mf in sorted(missing_refs)[:5]:
+            similar = _similar_file(mf, all_files)
+            if similar:
+                evidence.append(
+                    f'Possible renamed version: `{similar.name}` '
+                    f'(referenced as `{mf}`) — verify this is the correct file '
+                    f'and update the code path if so'
+                )
         findings.append(finding(
             'L', 'SIGNIFICANT',
             f'Code references {len(missing_refs)} file(s) not found in repository',
@@ -2360,9 +2387,7 @@ def detect_L_large_files_missing(repo_dir, all_files):
             'were excluded, external downloads, or files that were '
             'accidentally omitted. Validators cannot run the code '
             'without these files.',
-            [f'Missing files referenced: {", ".join(sample)}{extra}',
-             'Add download instructions or data access information '
-             'to README']
+            evidence
         ))
 
     return findings
