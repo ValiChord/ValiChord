@@ -1170,7 +1170,6 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [BI] Unicode paths check...")
     all_findings += detect_BI_unicode_in_paths(repo_dir, all_files)
     all_findings += detect_BM_citation_cff(repo_dir, all_files)
-    all_findings += detect_BO_codebook_reference_mismatch(repo_dir, all_files)
     all_findings += detect_BP_licence_in_readme_only(repo_dir, all_files)
     all_findings += detect_BR_credentials_exposed(repo_dir, all_files)
     all_findings += detect_BS_archive_code_present(repo_dir, all_files)
@@ -4202,7 +4201,7 @@ def detect_BN_codebook_reference_mismatch(repo_dir, all_files):
     for ref in codebook_refs:
         if ref not in all_names:
             findings.append(finding(
-                'BO', 'LOW CONFIDENCE',
+                'BN', 'LOW CONFIDENCE',
                 f'README references {ref} but file not found',
                 'The README mentions a codebook or data dictionary file '
                 'that does not appear to be present in the repository.',
@@ -4241,65 +4240,6 @@ def detect_BP_licence_in_readme_only(repo_dir, all_files):
             'exists. A separate LICENCE file is standard practice and '
             'required by many repositories and journals.',
             ['Recommendation: create a LICENCE file with the full licence text']
-        ))
-    return findings
-
-
-def detect_BO_codebook_reference_mismatch(repo_dir, all_files):
-    """Check if README references a codebook file that does not exist."""
-    findings = []
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {"readme.md", "readme.txt", "readme.rst"}:
-            readme_file = f
-            break
-    if not readme_file:
-        return findings
-    try:
-        content = readme_file.read_text(encoding="utf-8", errors="ignore").lower()
-    except Exception:
-        return findings
-    import re as _re
-    codebook_refs = _re.findall(r"codebook[\w\-]*\.\w+", content)
-    all_names = {f.name.lower() for f in all_files}
-    for ref in codebook_refs:
-        if ref not in all_names:
-            findings.append(finding(
-                "BO", "LOW CONFIDENCE",
-                f"README references {ref} but file not found",
-                "The README mentions a codebook file that is not present.",
-                [f"Referenced: {ref}"]
-            ))
-    return findings
-
-
-def detect_BP_licence_in_readme_only(repo_dir, all_files):
-    """Check if licence stated in README but no LICENCE file exists."""
-    findings = []
-    has_licence_file = any(
-        f.name.lower() in {"licence", "license", "licence.md",
-                           "license.md", "licence.txt", "license.txt"}
-        for f in all_files
-    )
-    if has_licence_file:
-        return findings
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {"readme.md", "readme.txt", "readme.rst"}:
-            readme_file = f
-            break
-    if not readme_file:
-        return findings
-    try:
-        content = readme_file.read_text(encoding="utf-8", errors="ignore").lower()
-    except Exception:
-        return findings
-    if any(t in content for t in ["cc by", "cc-by", "mit license", "apache 2", "gpl", "creative commons"]):
-        findings.append(finding(
-            "BP", "LOW CONFIDENCE",
-            "Licence stated in README but no LICENCE file found",
-            "The README mentions a licence but no dedicated LICENCE file exists.",
-            ["Recommendation: create a LICENCE file with the full licence text"]
         ))
     return findings
 
