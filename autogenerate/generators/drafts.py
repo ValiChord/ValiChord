@@ -723,7 +723,13 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         and not has_code
     )
     if is_software_deposit:
-        _sw_files = [f for f in all_files if f.suffix.lower() in _SOFTWARE_EXTS]
+        # Deduplicate by filename — keep shallowest copy (double-zip produces dupes)
+        _sw_seen: set = set()
+        _sw_files = []
+        for _f in sorted(all_files, key=lambda x: len(x.parts)):
+            if _f.suffix.lower() in _SOFTWARE_EXTS and _f.name not in _sw_seen:
+                _sw_seen.add(_f.name)
+                _sw_files.append(_f)
         _has_jar = any(f.suffix.lower() == '.jar' for f in all_files)
         _has_exe = any(f.suffix.lower() in {'.exe', '.app'} for f in all_files)
         _run_example = (
