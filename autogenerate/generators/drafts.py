@@ -166,12 +166,16 @@ def _classify_file(f, is_cad=False):
         return '⚠️ POSSIBLY ENCRYPTED'
     if f.name == 'Snakefile' or f.suffix.lower() == '.smk':
         return 'Workflow'
+    if ext == '.asv':
+        return 'MATLAB autosave artefact'
     return 'Other'
 
 
 def _file_notes(f):
     name = f.name.lower()
     ext = f.suffix.lower()
+    if ext == '.asv':
+        return 'MATLAB autosave — consider removing before deposit'
     if ext in {'.gpg', '.enc', '.secret', '.age', '.asc'}:
         return '🔴 POSSIBLY ENCRYPTED — may be unusable without key'
     if name == 'citation.cff':
