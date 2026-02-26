@@ -389,7 +389,7 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
     # data-only deposit — no code present
     has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk", ".ipynb", ".nf", ".groovy"}) or any(_is_code_txt(f) for f in all_files)
     if not has_code:
-        codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
+        codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         return [
             "# This is a data-only deposit. No code execution is required.",
             "# Files are provided in standard formats (CSV, Excel, etc.)",
@@ -900,7 +900,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     if not has_code:
         # data-only deposit — use data-focused template
         data_files = [f for f in all_files if f.suffix.lower() in {".csv", ".tsv", ".xlsx", ".xls", ".dta", ".sav", ".json", ".parquet", ".mat", ".npy", ".npz", ".hdf5", ".h5", ".nc", ".feather", ".arrow", ".dif", ".rds", ".rdata"}]
-        codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
+        codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         lines = [
             '# [TITLE OF DATASET — YOU MUST COMPLETE THIS]',
             '',
@@ -968,6 +968,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         out.write_text("\n".join(lines), encoding="utf-8-sig")
         print("  → README_DRAFT.md (data-only template)")
         return
+    _variables_file = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
     lines = [
         '# [TITLE OF PAPER — YOU MUST COMPLETE THIS]',
         '',
@@ -1040,6 +1041,9 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         'exact version/date of any external dataset]',
         '- **Anonymised/synthetic:** [Yes/No — if yes, '
         'describe transformation]',
+        *([f'- **Variable definitions:** See `{_variables_file}` for variable descriptions.']
+          if _variables_file else
+          ['- **Variable definitions:** [reference your codebook or list key variables]']),
         '',
         '---',
         '',

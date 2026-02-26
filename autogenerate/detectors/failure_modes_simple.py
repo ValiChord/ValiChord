@@ -305,29 +305,57 @@ def detect_A_no_readme(repo_dir, all_files):
                      for f in companion_txt]
                 ))
             else:
-                _sub_readme = next(
-                    (f for f in all_files if f.name.lower() in README_NAMES), None
-                )
-                if _sub_readme:
-                    _sub_rel = _sub_readme.relative_to(repo_dir)
+                # Check for partial README: any file starting with 'readme' that
+                # isn't a standard README name (e.g. README_variables.md).
+                _readme_prefix = [
+                    f for f in all_files
+                    if f.name.lower().startswith('readme')
+                    and f.name.lower() not in README_NAMES
+                    and f.suffix.lower() not in {'.docx', '.pdf', '.doc', '.pages'}
+                    and len(f.relative_to(repo_dir).parts) <= 2
+                ]
+                if _readme_prefix:
+                    _rp_names = ', '.join(
+                        f.name for f in sorted(_readme_prefix, key=lambda x: x.name.lower())
+                    )
                     findings.append(finding(
-                        'A', 'CRITICAL',
-                        'No README at repository root — README found in subdirectory',
-                        f'No README at repository root. A README was found at {_sub_rel} '
-                        '— move it to the repository root so validators can find it '
-                        'immediately on download. Validators typically look only at the '
-                        'root level. README_DRAFT.md will be generated.',
-                        [f'README found at: {_sub_rel} — move to repository root',
-                         'No README.md, README.txt, or README.rst at root level']
+                        'A', 'SIGNIFICANT',
+                        f'No standard README found — README-like file detected ({_rp_names})',
+                        f'No README.md, README.txt, or README.rst was found, but a '
+                        f'README-like file ({_rp_names}) is present. This may cover '
+                        f'partial documentation but validators typically look for standard '
+                        f'README filenames. Create README.md at the repository root '
+                        f'covering a study overview and reproduction instructions (it may '
+                        f'reference this file). README_DRAFT.md will be generated.',
+                        [f'Found: {_rp_names}',
+                         'Fix: create README.md at repository root covering study overview, '
+                         'requirements, and reproduction steps',
+                         'Validators may not recognise non-standard README filenames']
                     ))
                 else:
-                    findings.append(finding(
-                        'A', 'CRITICAL',
-                        'No README file found',
-                        'Every research repository requires a README. '
-                        'README_DRAFT.md will be generated.',
-                        ['No README.md, README.txt, or README.rst found at repository root level']
-                    ))
+                    _sub_readme = next(
+                        (f for f in all_files if f.name.lower() in README_NAMES), None
+                    )
+                    if _sub_readme:
+                        _sub_rel = _sub_readme.relative_to(repo_dir)
+                        findings.append(finding(
+                            'A', 'CRITICAL',
+                            'No README at repository root — README found in subdirectory',
+                            f'No README at repository root. A README was found at {_sub_rel} '
+                            '— move it to the repository root so validators can find it '
+                            'immediately on download. Validators typically look only at the '
+                            'root level. README_DRAFT.md will be generated.',
+                            [f'README found at: {_sub_rel} — move to repository root',
+                             'No README.md, README.txt, or README.rst at root level']
+                        ))
+                    else:
+                        findings.append(finding(
+                            'A', 'CRITICAL',
+                            'No README file found',
+                            'Every research repository requires a README. '
+                            'README_DRAFT.md will be generated.',
+                            ['No README.md, README.txt, or README.rst found at repository root level']
+                        ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
