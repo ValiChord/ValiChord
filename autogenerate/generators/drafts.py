@@ -1121,6 +1121,27 @@ def _generate_requirements_draft(repo_dir, all_files,
                         return
             except Exception:
                 pass
+    # Identify .txt files that contain code and classify their language
+    _ctxt_r_pat = re.compile(r'library\s*\(|require\s*\(', re.IGNORECASE)
+    _ctxt_stata_pat = re.compile(r'^\s*(?:use|cd|ssc\s+install|insheet|infile)\s', re.MULTILINE)
+    _ctxt_py_pat = re.compile(r'^(?:import|from)\s+\w', re.MULTILINE)
+    _code_txt_langs = {}
+    for _ctf in all_files:
+        if not _is_code_txt(_ctf):
+            continue
+        try:
+            _ctf_src = _ctf.read_text(encoding='utf-8', errors='ignore')
+            if _ctxt_r_pat.search(_ctf_src):
+                _code_txt_langs[_ctf] = 'r'
+            elif _ctxt_stata_pat.search(_ctf_src):
+                _code_txt_langs[_ctf] = 'stata'
+            elif _ctxt_py_pat.search(_ctf_src):
+                _code_txt_langs[_ctf] = 'python'
+            else:
+                _code_txt_langs[_ctf] = 'unknown'
+        except Exception:
+            _code_txt_langs[_ctf] = 'unknown'
+
     imports = set()
 
     import ast as _ast
@@ -1165,6 +1186,20 @@ def _generate_requirements_draft(repo_dir, all_files,
                             imports.add(m.group(1))
             except Exception:
                 pass
+    # also scan .txt code files detected as Python
+    for _ctf in [f for f, lang in _code_txt_langs.items() if lang == 'python']:
+        try:
+            src = _ctf.read_text(encoding='utf-8', errors='ignore')
+            for line in src.splitlines():
+                line = line.strip()
+                m = re.match(r'^import\s+([\w]+)', line)
+                if m:
+                    imports.add(m.group(1))
+                m = re.match(r'^from\s+([\w]+)', line)
+                if m:
+                    imports.add(m.group(1))
+        except Exception:
+            pass
 
     # scan .jl / Pluto notebooks for 'using' statements
     julia_stdlib = {'Random', 'Statistics', 'LinearAlgebra', 'Dates', 'Printf',
@@ -1267,6 +1302,14 @@ def _generate_requirements_draft(repo_dir, all_files,
     all_suffixes = {f.suffix.lower() for f in all_files}
     if any(f.name == 'Snakefile' for f in all_files):
         all_suffixes.add('.smk')
+    # augment with virtual suffixes from code-txt language detection
+    for _ctf, _lang in _code_txt_langs.items():
+        if _lang == 'r':
+            all_suffixes.add('.r')
+        elif _lang == 'stata':
+            all_suffixes.add('.do')
+        elif _lang == 'python':
+            all_suffixes.add('.py')
     all_names = {f.name.lower() for f in all_files}
 
     # Extract version bounds from Project.toml [compat] or embedded Pluto TOML
@@ -1406,6 +1449,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                 except Exception:
                     pass
         r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+        r_files += [f for f, lang in _code_txt_langs.items() if lang == 'r']
         r_libs = set()
         lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
         vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
@@ -1835,7 +1879,7 @@ def _generate_quickstart_draft(repo_dir, all_files,
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     code_files = [
         f for f in all_files
-        if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile')
+        if (f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' or _is_code_txt(f))
         and f.name not in {"__init__.py", "__main__.py"}
         and not any(p.name.lower() in archive_dirs for p in f.parents)
         and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
@@ -1918,6 +1962,16 @@ def _generate_quickstart_draft(repo_dir, all_files,
             return str(rel), f'matlab -batch "run(\'{rel}\')"'
         elif ext == '.ipynb':
             return str(rel), f'jupyter nbconvert --to notebook --execute {rel}'
+        elif ext == '.txt' and _is_code_txt(f):
+            _ctxt_src = f.read_text(encoding='utf-8', errors='ignore')
+            if re.search(r'library\s*\(|require\s*\(', _ctxt_src, re.IGNORECASE):
+                return str(rel), f'Rscript {rel}  # rename to .R first'
+            elif re.search(r'^\s*(?:use|cd|ssc\s+install|insheet|infile)\s', _ctxt_src, re.MULTILINE):
+                return str(rel), f'stata -b do {rel}  # rename to .do first'
+            elif re.search(r'^(?:import|from)\s+\w', _ctxt_src, re.MULTILINE):
+                return str(rel), f'python {rel}  # rename to .py first'
+            else:
+                return str(rel), f'# {rel}  # code stored as .txt — rename with correct extension before running'
         else:
             return str(rel), f'./{rel}'
 
@@ -2304,7 +2358,10 @@ def _generate_quickstart_draft(repo_dir, all_files,
             if f.suffix.lower() in notebook_extensions:
                 continue  # notebooks listed separately below
             rel = f.relative_to(repo_dir)
-            lines.append(f'- `{rel}`')
+            if f.suffix.lower() == '.txt' and _is_code_txt(f):
+                lines.append(f'- `{rel}` _(code stored as plain text — consider renaming to .R, .py, .do etc.)_')
+            else:
+                lines.append(f'- `{rel}`')
         # also list notebooks
         notebook_files = [f for f in all_files if f.suffix.lower() in NOTEBOOK_EXTENSIONS]
         # build sets of notebook filenames by [J] sub-case
