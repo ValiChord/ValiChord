@@ -31,6 +31,88 @@ DEPENDENCY_FILES = {
     'renv.lock', 'cargo.toml', 'package.json'
 }
 
+# Base-R packages that ship with every R installation — silently excluded from
+# requirements_DRAFT.txt (they are not CRAN packages to be installed).
+_BASE_R_PACKAGES = {
+    'base', 'methods', 'utils', 'stats', 'graphics', 'grDevices', 'datasets',
+    'tools', 'grid', 'parallel', 'splines', 'tcltk', 'compiler',
+    'translations', 'Matrix',
+}
+
+# Well-known CRAN packages (case-sensitive as registered on CRAN).
+# Packages here get a clean '  # version unknown' line; others are checked
+# against the suspicious-name heuristic.
+_KNOWN_CRAN = {
+    # Core tidyverse
+    'ggplot2', 'dplyr', 'tidyr', 'readr', 'purrr', 'tibble', 'stringr', 'forcats',
+    'lubridate', 'hms', 'glue', 'rlang', 'vctrs', 'pillar', 'cli', 'crayon',
+    'tidyverse', 'tidyselect', 'broom', 'tidymodels', 'tidylog',
+    # Data manipulation
+    'data.table', 'reshape2', 'plyr', 'dtplyr', 'dbplyr', 'janitor', 'skimr',
+    # Modelling
+    'lme4', 'nlme', 'mgcv', 'MASS', 'car', 'glmnet', 'caret', 'randomForest',
+    'survival', 'rms', 'emmeans', 'lmerTest', 'multcomp', 'sandwich', 'lmtest',
+    'gam', 'gamm4', 'brms', 'rstanarm', 'bayesplot', 'posterior', 'rstan',
+    'arm', 'AER', 'ivreg', 'logistf', 'geepack', 'VGAM',
+    # Visualisation
+    'scales', 'ggthemes', 'ggrepel', 'cowplot', 'patchwork', 'ggridges',
+    'lattice', 'gridExtra', 'RColorBrewer', 'viridis', 'viridisLite', 'colorspace',
+    'plotly', 'ggpubr', 'ggcorrplot', 'corrplot', 'GGally', 'pheatmap',
+    # IO
+    'readxl', 'writexl', 'haven', 'foreign', 'jsonlite', 'xml2', 'httr', 'httr2',
+    'curl', 'openxlsx', 'DBI', 'RSQLite', 'RPostgres', 'RMySQL',
+    # Statistics
+    'psych', 'DescTools', 'Hmisc', 'PerformanceAnalytics', 'effectsize',
+    'rstatix', 'coin', 'boot', 'rsample', 'yardstick', 'pwr', 'ROCR', 'pROC',
+    'irr', 'vcd', 'exact2x2', 'BayesFactor', 'MCMCpack',
+    # ML / predictive modelling
+    'xgboost', 'lightgbm', 'keras', 'reticulate', 'ranger', 'e1071', 'kernlab',
+    'nnet', 'neuralnet', 'parsnip', 'tune', 'recipes', 'workflows', 'stacks',
+    # Spatial
+    'sf', 'sp', 'raster', 'terra', 'leaflet', 'rgdal', 'rgeos',
+    'tmap', 'ggmap', 'maps', 'mapdata', 'spdep', 'spatstat',
+    # Text / NLP
+    'tm', 'tidytext', 'quanteda', 'text2vec', 'wordcloud', 'topicmodels',
+    'stm', 'textrank', 'udpipe', 'sentimentr', 'tokenizers',
+    # Bioinformatics (Bioconductor)
+    'DESeq2', 'edgeR', 'limma', 'Biobase', 'BiocGenerics', 'GenomicRanges',
+    'ggbio', 'clusterProfiler', 'enrichplot', 'pathview', 'ComplexHeatmap',
+    'Seurat', 'scater', 'SingleCellExperiment', 'scran', 'scuttle',
+    # Reporting / Shiny
+    'knitr', 'rmarkdown', 'shiny', 'shinydashboard', 'DT', 'reactable',
+    'flexdashboard', 'bookdown', 'distill', 'gt', 'flextable', 'kableExtra',
+    'htmltools', 'htmlwidgets', 'crosstalk',
+    # Utilities
+    'here', 'fs', 'withr', 'usethis', 'devtools', 'remotes', 'renv', 'pak',
+    'doParallel', 'foreach', 'future', 'furrr', 'progressr', 'R.utils',
+    'R6', 'proto', 'magrittr', 'zeallot', 'assertthat', 'checkmate',
+    # Time series
+    'zoo', 'xts', 'forecast', 'tseries', 'fable', 'feasts', 'tsibble',
+    # Short legitimate names
+    'ks', 'mvtnorm', 'AUC',
+}
+_KNOWN_CRAN_LOWER = {p.lower() for p in _KNOWN_CRAN}
+
+
+def _r_pkg_suspicious(name: str) -> bool:
+    """Return True if an R package name looks garbled or non-real.
+
+    Two heuristics:
+    1. Five or more consecutive non-vowel letters (treating y as a vowel)
+       catches random strings like 'sfgtrehet' (run: sfgtr = 5).
+    2. Fewer than 3 characters and not in any known-good set — single or
+       two-letter package names are almost always variable names extracted
+       from unquoted library() calls.
+    """
+    letters = re.sub(r'[0-9._\-]', '', name)
+    if not letters:
+        return False
+    if re.search(r'[^aeiouyAEIOUY]{5,}', letters):
+        return True
+    if len(name) < 3 and name.lower() not in _KNOWN_CRAN_LOWER:
+        return True
+    return False
+
 
 def generate_all_drafts(repo_dir, all_files, findings, output_dir):
     """Generate all _DRAFT files."""
@@ -1301,10 +1383,23 @@ def _generate_requirements_draft(repo_dir, all_files,
         for rf in r_files:
             src = rf.read_text(encoding='utf-8', errors='ignore')
             for m in lib_pat.finditer(src):
-                r_libs.add(m.group(1))
+                pkg = m.group(1)
+                # Only add quoted names — unquoted single tokens are likely
+                # variable names (e.g. library(pkg) inside a for-loop).
+                # Heuristic: if the match consumed quotes, keep it.
+                _raw = m.group(0)
+                if '"' in _raw or "'" in _raw:
+                    r_libs.add(pkg)
+                else:
+                    # Unquoted — keep only if it looks like a real package name
+                    # (starts with uppercase or matches a known package)
+                    if pkg[0].isupper() or pkg.lower() in _KNOWN_CRAN_LOWER:
+                        r_libs.add(pkg)
             for m in vec_pkg_pat.finditer(src):
                 for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
                     r_libs.add(pkg)
+        # Exclude base-R packages — they ship with R and need no installation
+        r_libs -= {p for p in r_libs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
         # Build github_pkgs map and collect BiocManager/install.packages from install*.R
         _ghpat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
         _biocpat = re.compile(r'BiocManager::install\s*\(\s*c\s*\(([^)]+)\)', re.IGNORECASE)
@@ -1334,7 +1429,14 @@ def _generate_requirements_draft(repo_dir, all_files,
                       '# Add version numbers before deposit.', '']
             if cran_list:
                 lines.append('# CRAN packages:')
-                lines += [f'{pkg}  # version unknown' for pkg in cran_list]
+                for pkg in cran_list:
+                    if pkg.lower() in _KNOWN_CRAN_LOWER or not _r_pkg_suspicious(pkg):
+                        lines.append(f'{pkg}  # version unknown')
+                    else:
+                        lines.append(
+                            f'{pkg}  # WARNING: \'{pkg}\' not found on CRAN'
+                            f' — verify this package name is correct'
+                        )
             if gh_list:
                 if cran_list:
                     lines.append('')
