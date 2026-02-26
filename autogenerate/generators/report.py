@@ -11,11 +11,27 @@ from datetime import datetime
 
 def _assessment_verification_questions(all_files):
     """Return verification questions appropriate to repo type."""
-    has_code = any(
-        f.suffix.lower() in {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
-        or f.name in {'Snakefile', 'main.nf'}
-        for f in all_files
-    )
+    _cad_exts     = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
+    _code_exts    = {'.py', '.r', '.jl', '.do', '.m', '.rmd', '.ipynb', '.smk', '.nf', '.groovy'}
+    _tabular_exts = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
+                     '.parquet', '.feather', '.arrow', '.dif'}
+    has_cad     = any(f.suffix.lower() in _cad_exts for f in all_files)
+    has_code    = any(f.suffix.lower() in _code_exts or f.name in {'Snakefile', 'main.nf'} for f in all_files)
+    has_tabular = any(f.suffix.lower() in _tabular_exts for f in all_files)
+
+    if has_cad and not has_code and not has_tabular:
+        return [
+            '1. **File integrity:** Do all STEP and STL files open without errors in your CAD software?',
+            '',
+            '2. **Drawing consistency:** Do the engineering drawings (PDF) match the 3D geometry in revision number and dimensions?',
+            '',
+            '3. **Design provenance:** Is the origin of this design documented? If it derives from or modifies a prior design, is that prior work cited?',
+            '',
+            '4. **Intended use:** Have you documented what these files are intended for (e.g. CFD meshing, manufacture, 3D printing, validation)?',
+            '',
+            '5. **Licence:** Is the licence appropriate for design files? If the geometry derives from a third-party licensed model, does your chosen licence comply?',
+        ]
+
     if not has_code:
         return [
             '1. **Data completeness:** Are all variables and cases '
