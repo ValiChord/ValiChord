@@ -75,6 +75,24 @@ def read_file_safe(path):
     return ''
 
 
+_CODE_TXT_STEM_KEYWORDS = frozenset({
+    'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
+})
+_CODE_TXT_CONTENT_RE = re.compile(
+    r'library\s*\(|import\s+\w|^\s*def\s+\w|\bfunction\s*\(|\bcd\s+|\buse\s+',
+    re.MULTILINE
+)
+
+
+def _is_code_txt(f):
+    """Return True if a .txt file's stem and content suggest it is actually code."""
+    if f.suffix.lower() != '.txt':
+        return False
+    if not any(kw in f.stem.lower() for kw in _CODE_TXT_STEM_KEYWORDS):
+        return False
+    return bool(_CODE_TXT_CONTENT_RE.search(read_file_safe(f)))
+
+
 # ── individual detectors ─────────────────────────────────────────────────────
 
 def detect_A_no_readme(repo_dir, all_files):
@@ -204,7 +222,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
     names_lower = {f.name.lower() for f in all_files}
 
     code_files = [f for f in all_files
-                  if f.suffix.lower() in CODE_EXTENSIONS
+                  if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))
                   and not any(part.lower() in VENDOR_DIRS
                               for part in f.relative_to(repo_dir).parts)]
 
@@ -529,7 +547,7 @@ def detect_D_no_entry_point(repo_dir, all_files):
     _stata_lib_dirs = {'plus', 'personal', 'stbplus'}
     _researcher_code = [
         f for f in all_files
-        if f.suffix.lower() in CODE_EXTENSIONS
+        if (f.suffix.lower() in CODE_EXTENSIONS or _is_code_txt(f))
         and not ('ado' in f.parts and any(p in _stata_lib_dirs for p in f.parts))
     ]
 

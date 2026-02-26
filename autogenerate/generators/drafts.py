@@ -121,7 +121,7 @@ def generate_all_drafts(repo_dir, all_files, findings, output_dir):
 
     modes_found = {f['mode'] for f in findings}
 
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() in {'.ipynb', '.nf'} for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() in {'.ipynb', '.nf'} or _is_code_txt(f) for f in all_files)
     _cad_exts     = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
     _tabular_exts = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
                      '.parquet', '.feather', '.arrow', '.dif'}
@@ -158,6 +158,7 @@ def _generate_inventory(repo_dir, all_files, output_dir):
         and not any(f.suffix.lower() in CODE_EXTENSIONS
                     or f.suffix.lower() in {'.ipynb', '.nf'}
                     or f.name in {'Snakefile', 'main.nf'}
+                    or _is_code_txt(f)
                     for f in all_files)
         and not any(f.suffix.lower() in _tabular_exts for f in all_files)
     )
@@ -220,12 +221,36 @@ def _is_model_artifact_file(f):
     return False
 
 
+_CODE_TXT_STEM_KEYWORDS = frozenset({
+    'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
+})
+_CODE_TXT_CONTENT_RE = re.compile(
+    r'library\s*\(|import\s+\w|^\s*def\s+\w|\bfunction\s*\(|\bcd\s+|\buse\s+',
+    re.MULTILINE
+)
+
+
+def _is_code_txt(f):
+    """Return True if a .txt file's stem and content suggest it is actually code."""
+    if f.suffix.lower() != '.txt':
+        return False
+    if not any(kw in f.stem.lower() for kw in _CODE_TXT_STEM_KEYWORDS):
+        return False
+    try:
+        content = f.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return False
+    return bool(_CODE_TXT_CONTENT_RE.search(content))
+
+
 def _classify_file(f, is_cad=False):
     ext = f.suffix.lower()
     if ext in _ALL_CODE_EXTENSIONS:
         return 'Code'
     if ext in NOTEBOOK_EXTENSIONS:
         return 'Notebook'
+    if ext == '.txt' and _is_code_txt(f):
+        return 'Code'
     if ext in {'.md', '.txt', '.rst', '.html', '.tex'}:
         return 'Documentation'
     if ext == '.docx' and f.stem.lower() in {'readme', 'read me', 'read_me'}:
@@ -282,6 +307,8 @@ def _file_notes(f):
         return 'Container definition'
     if re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name):
         return 'Numbered script — execution order implied'
+    if f.suffix.lower() == '.txt' and _is_code_txt(f):
+        return 'code stored as plain text — consider renaming to .R, .py, .do etc.'
     return ''
 
 
@@ -297,7 +324,7 @@ def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
         suffixes.add('.smk')
     names = {f.name.lower() for f in all_files}
     # data-only deposit — no code present
-    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk", ".ipynb", ".nf", ".groovy"})
+    has_code = any(s in suffixes for s in {".py", ".r", ".jl", ".do", ".m", ".rmd", ".smk", ".ipynb", ".nf", ".groovy"}) or any(_is_code_txt(f) for f in all_files)
     if not has_code:
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower()), None)
         return [
@@ -583,7 +610,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
                     github_pkgs[m.group(2).lower()] = m.group(1)
             except Exception:
                 pass
-    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() in {'.ipynb', '.nf'} or f.name in {'Snakefile', 'main.nf'} for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.suffix.lower() in {'.ipynb', '.nf'} or f.name in {'Snakefile', 'main.nf'} or _is_code_txt(f) for f in all_files)
 
     _CAD_EXTENSIONS = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
     _TABULAR_EXTENSIONS = {'.csv', '.tsv', '.xlsx', '.xls', '.dta', '.sav',
