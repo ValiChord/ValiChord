@@ -19,8 +19,9 @@ CODE_EXTENSIONS = {
 NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 
 DATA_EXTENSIONS = {
-    '.csv', '.tsv', '.xlsx', '.xls', '.json', '.parquet',
-    '.feather', '.rds', '.rdata', '.dta', '.sav', '.sas7bdat',
+    '.csv', '.tsv', '.xlsx', '.xls', '.json', '.jsonl', '.ndjson',
+    '.parquet', '.feather', '.arrow',
+    '.rds', '.rdata', '.dta', '.sav', '.sas7bdat',
     '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
     '.dif', '.gdt'
 }
@@ -1426,7 +1427,8 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
     data_extensions = {
         '.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.rds',
         '.rdata', '.dta', '.sav', '.mat', '.pkl', '.npy',
-        '.npz', '.hdf5', '.h5', '.feather', '.arrow', '.json',
+        '.npz', '.hdf5', '.h5', '.feather', '.arrow',
+        '.json', '.jsonl', '.ndjson',
         '.db', '.sqlite', '.dif'
         # .xml excluded — too ambiguous (config, markup, tool input);
         # rarely a research dataset format
@@ -2852,13 +2854,8 @@ def detect_Y_data_source_missing(repo_dir, all_files):
     """Failure Mode Y: Data files present but no source or provenance."""
     findings = []
 
-    data_extensions = {
-        '.csv', '.tsv', '.xlsx', '.xls', '.parquet',
-        '.dta', '.sav', '.rds', '.rdata',
-        '.mat', '.npy', '.npz', '.hdf5', '.h5', '.nc',
-        '.feather', '.arrow', '.dif'
-    }
-
+    # Use the module-level DATA_EXTENSIONS constant so any future additions
+    # are automatically reflected here (avoids the previous local-copy drift).
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
 
     def _is_model_artifact(f):
@@ -2869,13 +2866,13 @@ def detect_Y_data_source_missing(repo_dir, all_files):
         has_model_name = any(ind in name_lower for ind in _model_name_indicators)
         if ext in {'.pkl', '.pickle', '.pt', '.pth', '.onnx', '.safetensors', '.bin'}:
             return has_model_name or in_model_dir
-        if ext == '.json':
+        if ext in {'.json', '.jsonl', '.ndjson'}:
             return has_model_name or in_model_dir
         return False
 
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions
+        if f.suffix.lower() in DATA_EXTENSIONS
         and not _is_model_artifact(f)
         and not f.name.lower().startswith('readme')
     ]
