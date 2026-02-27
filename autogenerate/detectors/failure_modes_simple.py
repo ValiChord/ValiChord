@@ -92,6 +92,336 @@ def _looks_like_codebook(path) -> bool:
         return False
 
 
+CODEBOOK_SHEET_NAMES = {
+    'variables', 'variable list', 'list of variables', 'data dictionary',
+    'codebook', 'code book', 'metadata', 'column descriptions',
+    'variable descriptions', 'field descriptions', 'legend',
+}
+
+
+def _xlsx_has_codebook_sheet(path) -> str | None:
+    """Return the sheet name if any sheet in an xlsx file looks like a variable codebook, else None."""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
+        for sheet_name in wb.sheetnames:
+            if sheet_name.lower().strip() in CODEBOOK_SHEET_NAMES:
+                wb.close()
+                return sheet_name
+            ws = wb[sheet_name]
+            headers = [
+                str(c).lower().strip() for c in
+                next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])
+                if c is not None
+            ]
+            if 'variable' in headers and any(
+                kw in headers for kw in ('description', 'abbr', 'label', 'definition')
+            ):
+                wb.close()
+                return sheet_name
+        wb.close()
+    except Exception:
+        pass
+    return None
+
+
+# ── centralised content inspection ───────────────────────────────────────────
+
+
+class FileInspectionResult:
+    """Structured result of inspecting the content of an opaque file format.
+
+    Fields
+    ------
+    extracted_text : str | None
+        Full text extracted from the file (docx paragraphs, PDF pages, …).
+    variable_labels : dict | None
+        Mapping varname → label string (stat files, netCDF, HDF5).
+    sheet_names : list | None
+        Ordered list of sheet names (xlsx only).
+    has_codebook : bool
+        True when inspection evidence indicates a variable codebook or
+        sufficient variable labels to suppress [E].
+    inspection_note : str | None
+        Human-readable note for CLEANING_REPORT positive observations,
+        or a brief failure message if reading failed.
+    """
+    __slots__ = ('extracted_text', 'variable_labels', 'sheet_names',
+                 'has_codebook', 'inspection_note')
+
+    def __init__(self, *, extracted_text=None, variable_labels=None,
+                 sheet_names=None, has_codebook=False, inspection_note=None):
+        self.extracted_text = extracted_text
+        self.variable_labels = variable_labels
+        self.sheet_names = sheet_names
+        self.has_codebook = has_codebook
+        self.inspection_note = inspection_note
+
+
+# Cache keyed on resolved absolute path — shared across all detector calls
+# within a single run so each file is opened at most once.
+_file_inspection_cache: dict = {}
+
+
+def _inspect_file_content(path) -> FileInspectionResult:
+    """Return a FileInspectionResult for the given file, with per-run caching.
+
+    Dispatches to a format-specific inspector based on suffix. Any format
+    that cannot be read falls back gracefully — has_codebook=False and
+    inspection_note records why. Callers must NOT suppress findings based
+    on a failed read.
+    """
+    key = path.resolve()
+    cached = _file_inspection_cache.get(key)
+    if cached is not None:
+        return cached
+    ext = path.suffix.lower()
+    if ext == '.docx':
+        result = _inspect_docx(path)
+    elif ext in {'.xlsx', '.xls'}:
+        result = _inspect_xlsx_content(path)
+    elif ext in {'.dta', '.sav', '.zsav', '.sas7bdat', '.xpt'}:
+        result = _inspect_stat_file(path)
+    elif ext == '.pdf':
+        result = _inspect_pdf_file(path)
+    elif ext == '.nc':
+        result = _inspect_netcdf_file(path)
+    elif ext in {'.h5', '.hdf5'}:
+        result = _inspect_hdf5_file(path)
+    elif ext in {'.sqlite', '.db', '.sqlite3'}:
+        result = _inspect_sqlite_file(path)
+    else:
+        result = FileInspectionResult()
+    _file_inspection_cache[key] = result
+    return result
+
+
+def _inspect_docx(path) -> FileInspectionResult:
+    """Extract text and detect codebook structure from a .docx file."""
+    try:
+        import docx as _docx
+        doc = _docx.Document(str(path))
+        parts = [p.text for p in doc.paragraphs if p.text.strip()]
+        # Inspect tables for variable+description structure
+        has_var_desc_table = False
+        for tbl in doc.tables:
+            if tbl.rows:
+                hdrs = [cell.text.lower().strip() for cell in tbl.rows[0].cells]
+                if 'variable' in hdrs and any(
+                    kw in hdrs for kw in ('description', 'label', 'definition', 'abbr')
+                ):
+                    has_var_desc_table = True
+                for row in tbl.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            parts.append(cell.text)
+        full_text = '\n'.join(parts)
+        lower = full_text.lower()
+        _CB_PHRASES = {'variables', 'variable list', 'codebook', 'data dictionary',
+                       'column descriptions', 'variable descriptions', 'field descriptions'}
+        has_codebook = has_var_desc_table or any(ph in lower for ph in _CB_PHRASES)
+        return FileInspectionResult(
+            extracted_text=full_text,
+            has_codebook=has_codebook,
+            inspection_note=(
+                f'Variable codebook content detected in: {path.name}' if has_codebook else None
+            ),
+        )
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'docx read failed ({type(e).__name__}: {e})'
+        )
+
+
+def _inspect_xlsx_content(path) -> FileInspectionResult:
+    """Inspect xlsx/xls for codebook sheets (delegates to _xlsx_has_codebook_sheet)."""
+    sheet = _xlsx_has_codebook_sheet(path)
+    if sheet is not None:
+        return FileInspectionResult(
+            has_codebook=True,
+            inspection_note=f'Variable codebook detected in: {path.name} (sheet: "{sheet}")',
+        )
+    # Try to return sheet names even when no codebook detected
+    try:
+        import openpyxl as _opxl
+        wb = _opxl.load_workbook(str(path), read_only=True, data_only=True)
+        snames = list(wb.sheetnames)
+        wb.close()
+        return FileInspectionResult(sheet_names=snames)
+    except Exception:
+        return FileInspectionResult()
+
+
+def _inspect_stat_file(path) -> FileInspectionResult:
+    """Read variable labels from Stata / SPSS / SAS files via pyreadstat."""
+    try:
+        import pyreadstat as _prs
+        _READERS = {
+            '.dta':      _prs.read_dta,
+            '.sav':      _prs.read_sav,
+            '.zsav':     _prs.read_sav,
+            '.sas7bdat': _prs.read_sas7bdat,
+            '.xpt':      _prs.read_xport,
+        }
+        reader = _READERS.get(path.suffix.lower())
+        if reader is None:
+            return FileInspectionResult()
+        _, meta = reader(str(path), metadataonly=True)
+        col_names  = list(getattr(meta, 'column_names',  []) or [])
+        col_labels = list(getattr(meta, 'column_labels', []) or [])
+        labels = {
+            col: str(lbl).strip()
+            for col, lbl in zip(col_names, col_labels)
+            if lbl and str(lbl).strip()
+        }
+        n_vars     = len(col_names)
+        n_labelled = len(labels)
+        has_codebook = n_vars > 0 and (n_labelled / n_vars) > 0.5
+        note = (
+            f'Variable labels found in {path.name}: '
+            f'{n_labelled} of {n_vars} variables labelled'
+        ) if n_vars > 0 else None
+        return FileInspectionResult(
+            variable_labels=labels or None,
+            has_codebook=has_codebook,
+            inspection_note=note,
+        )
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'stat file read failed ({type(e).__name__}: {e})'
+        )
+
+
+def _inspect_pdf_file(path) -> FileInspectionResult:
+    """Extract text from a PDF via pdfplumber; skip gracefully if image-only."""
+    try:
+        import pdfplumber as _pp
+        parts = []
+        with _pp.open(str(path)) as pdf:
+            for page in pdf.pages[:20]:   # cap at 20 pages for performance
+                t = page.extract_text()
+                if t:
+                    parts.append(t)
+        full_text = '\n'.join(parts)
+        if not full_text.strip():
+            return FileInspectionResult(
+                inspection_note=f'PDF appears image-only (no extractable text): {path.name}'
+            )
+        lower = full_text.lower()
+        _CB_PHRASES = {'variables', 'variable list', 'codebook', 'data dictionary',
+                       'column descriptions', 'variable descriptions', 'field descriptions'}
+        has_codebook = any(ph in lower for ph in _CB_PHRASES)
+        return FileInspectionResult(
+            extracted_text=full_text,
+            has_codebook=has_codebook,
+            inspection_note=(
+                f'Variable codebook content detected in: {path.name}' if has_codebook else None
+            ),
+        )
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'PDF read failed ({type(e).__name__}: {e})'
+        )
+
+
+def _inspect_netcdf_file(path) -> FileInspectionResult:
+    """Read long_name / units variable metadata from a netCDF4 file."""
+    try:
+        import netCDF4 as _nc4
+        labels: dict = {}
+        with _nc4.Dataset(str(path), 'r') as ds:
+            for vname, var in ds.variables.items():
+                ln = getattr(var, 'long_name', None)
+                if ln and str(ln).strip():
+                    labels[vname] = str(ln).strip()
+            n_vars = len(ds.variables)
+        n_labelled = len(labels)
+        has_codebook = n_vars > 0 and (n_labelled / n_vars) > 0.5
+        note = (
+            f'Variable metadata found in {path.name}: '
+            f'{n_labelled} of {n_vars} variables with long_name'
+        ) if n_vars > 0 else None
+        return FileInspectionResult(
+            variable_labels=labels or None,
+            has_codebook=has_codebook,
+            inspection_note=note,
+        )
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'netCDF read failed ({type(e).__name__}: {e})'
+        )
+
+
+def _inspect_hdf5_file(path) -> FileInspectionResult:
+    """Read long_name attributes from HDF5 datasets via h5py."""
+    try:
+        import h5py as _h5
+        labels: dict = {}
+
+        def _visit(name, obj):
+            if isinstance(obj, _h5.Dataset):
+                ln = obj.attrs.get('long_name')
+                if ln is not None:
+                    labels[name] = str(ln)
+
+        with _h5.File(str(path), 'r') as hf:
+            hf.visititems(_visit)
+            n_top = len(hf)
+        n_labelled = len(labels)
+        has_codebook = n_labelled > 0 and (n_labelled >= 0.5 * n_top if n_top else False)
+        note = (
+            f'Variable metadata found in {path.name}: '
+            f'{n_labelled} datasets with long_name attribute'
+        ) if n_labelled > 0 else None
+        return FileInspectionResult(
+            variable_labels=labels or None,
+            has_codebook=has_codebook,
+            inspection_note=note,
+        )
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'HDF5 read failed ({type(e).__name__}: {e})'
+        )
+
+
+def _inspect_sqlite_file(path) -> FileInspectionResult:
+    """Check SQLite DBs for codebook tables or meaningful (non-generic) column names."""
+    try:
+        import sqlite3 as _sql3
+        _CB_TABLES = frozenset({
+            'metadata', 'codebook', 'variables', 'data_dictionary',
+            'column_descriptions', 'field_descriptions', 'variable_descriptions',
+        })
+        _GENERIC_COL = re.compile(r'^(col|field|column|f)\d+$', re.IGNORECASE)
+        with _sql3.connect(str(path)) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cur.fetchall()]
+        if not tables:
+            return FileInspectionResult()
+        has_codebook_table = bool({t.lower().replace(' ', '_') for t in tables} & _CB_TABLES)
+        all_meaningful = True
+        with _sql3.connect(str(path)) as conn:
+            cur = conn.cursor()
+            for tbl in tables:
+                cur.execute(f'PRAGMA table_info("{tbl}")')
+                cols = [row[1] for row in cur.fetchall()]
+                if not cols or all(_GENERIC_COL.match(c) for c in cols):
+                    all_meaningful = False
+                    break
+        has_codebook = has_codebook_table or (bool(tables) and all_meaningful)
+        note = None
+        if has_codebook_table:
+            note = f'Codebook table detected in {path.name} (tables: {", ".join(tables)})'
+        elif has_codebook:
+            note = f'Meaningful column names in {path.name} (tables: {", ".join(tables)})'
+        return FileInspectionResult(has_codebook=has_codebook, inspection_note=note)
+    except Exception as e:
+        return FileInspectionResult(
+            inspection_note=f'SQLite read failed ({type(e).__name__}: {e})'
+        )
+
+
 LICENCE_NAMES = {
     'licence', 'license', 'licence.md', 'license.md',
     'licence.txt', 'license.txt'
@@ -511,13 +841,45 @@ def detect_A_no_readme(repo_dir, all_files):
                                  'No README.md, README.txt, or README.rst at root level']
                             ))
                         else:
-                            findings.append(finding(
-                                'A', 'CRITICAL',
-                                'No README file found',
-                                'Every research repository requires a README. '
-                                'README_DRAFT.md will be generated.',
-                                ['No README.md, README.txt, or README.rst found at repository root level']
-                            ))
+                            # Before firing CRITICAL, check for readable PDF/docx
+                            # with README-like or methods/protocol names that the
+                            # filename-only checks above would have missed.
+                            _README_LIKE_A = {
+                                'readme', 'read_me', 'methods', 'protocol',
+                                'documentation', 'instructions',
+                            }
+                            _readable_doc_a = None
+                            for _f in sorted(
+                                all_files,
+                                key=lambda x: len(x.relative_to(repo_dir).parts)
+                            ):
+                                if (_f.suffix.lower() in {'.pdf', '.docx'}
+                                        and _f.stem.lower() in _README_LIKE_A
+                                        and len(_f.relative_to(repo_dir).parts) <= 3):
+                                    _res = _inspect_file_content(_f)
+                                    if _res.extracted_text and len(_res.extracted_text.strip()) >= 300:
+                                        _readable_doc_a = _f
+                                        break
+                            if _readable_doc_a:
+                                findings.append(finding(
+                                    'A', 'SIGNIFICANT',
+                                    f'README found in proprietary format ({_readable_doc_a.name}) — convert to README.md',
+                                    f'A readable {_readable_doc_a.suffix.lower()} document '
+                                    f'({_readable_doc_a.name}) was found and may serve as the '
+                                    'repository README. This format is not machine-readable by '
+                                    'automated validators. Convert to README.md for best '
+                                    'accessibility. README_DRAFT.md will be generated.',
+                                    [f'Found: {_readable_doc_a.name}',
+                                     'Fix: export content to README.md']
+                                ))
+                            else:
+                                findings.append(finding(
+                                    'A', 'CRITICAL',
+                                    'No README file found',
+                                    'Every research repository requires a README. '
+                                    'README_DRAFT.md will be generated.',
+                                    ['No README.md, README.txt, or README.rst found at repository root level']
+                                ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
@@ -1677,6 +2039,28 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             if f.suffix.lower() in {'.csv', '.tsv'} and _looks_like_codebook(f):
                 has_data_doc = True
                 break
+    # Content-based: opaque format inspection via _inspect_file_content
+    # Covers .xlsx/.xls, .docx, .pdf, stat files, netCDF, HDF5, SQLite
+    _opaque_codebook_finding = None
+    if not has_data_doc:
+        _INSPECTABLE_E = {
+            '.xlsx', '.xls', '.docx', '.pdf',
+            '.dta', '.sav', '.zsav', '.sas7bdat', '.xpt',
+            '.nc', '.h5', '.hdf5', '.sqlite', '.db', '.sqlite3',
+        }
+        for f in all_files:
+            if f.suffix.lower() in _INSPECTABLE_E:
+                res = _inspect_file_content(f)
+                if res.has_codebook:
+                    has_data_doc = True
+                    _opaque_codebook_finding = finding(
+                        'E', 'INFO',
+                        res.inspection_note or f'Codebook content detected in: {f.name}',
+                        f'Content inspection of {f.name} found variable documentation — '
+                        '[E] suppressed.',
+                        [f'File: {f.name}', f'Format: {f.suffix.lower()}']
+                    )
+                    break
     # Also treat same-named .txt files as potential data documentation
     # e.g. GDP_FDI_Dataset.txt alongside GDP_FDI_Dataset.csv
     if not has_data_doc:
@@ -1744,6 +2128,8 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             'data dictionary file was found.',
             [f'Data files found: {len(data_files)}']
         ))
+    elif _opaque_codebook_finding:
+        findings.append(_opaque_codebook_finding)
 
     return findings
 
@@ -3104,6 +3490,20 @@ def detect_Y_data_source_missing(repo_dir, all_files):
             readme_content = readme_file.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             pass
+
+    # If no plain-text README was found, try to extract text from .docx/.pdf
+    # README-like files so that [Y] can check their content for source indicators.
+    if readme_content is None:
+        _README_LIKE_Y = {'readme', 'read_me', 'read me', 'methods', 'protocol'}
+        for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
+            if (f.suffix.lower() in {'.docx', '.pdf'}
+                    and (f.stem.lower() in _README_LIKE_Y
+                         or 'readme' in f.name.lower())
+                    and len(f.relative_to(repo_dir).parts) <= 4):
+                res = _inspect_file_content(f)
+                if res.extracted_text:
+                    readme_content = res.extracted_text
+                    break
 
     has_access_restriction = readme_content is not None and any(
         re.search(p, readme_content, re.IGNORECASE)
@@ -4599,12 +4999,16 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
             _seen_bt[f.name] = f
     problem_files = list(_seen_bt.values())
     if problem_files:
+        if len(problem_files) <= 3:
+            bt_title = f'Spaces in filenames: {", ".join(f.name for f in problem_files)}'
+        else:
+            bt_title = f'Spaces in {len(problem_files)} filenames'
         findings.append(finding(
             'BT', 'LOW CONFIDENCE',
-            f'Spaces in filenames: {", ".join(f.name for f in problem_files[:3])}',
+            bt_title,
             'Filenames with spaces cause shell execution failures unless quoted. '
             'Replace spaces with underscores before deposit.',
-            [f'Problem file: {f.name}' for f in problem_files[:5]]
+            [f'Problem file: {f.name}' for f in problem_files]
         ))
     return findings
 

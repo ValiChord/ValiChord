@@ -144,6 +144,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
     critical   = [f for f in findings if f['severity'] == 'CRITICAL']
     significant = [f for f in findings if f['severity'] == 'SIGNIFICANT']
     low        = [f for f in findings if f['severity'] == 'LOW CONFIDENCE']
+    info       = [f for f in findings if f['severity'] == 'INFO']
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
 
@@ -229,6 +230,15 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
             '> on a clean machine remains the only reliable test.',
             '',
         ]
+
+    # ── positive observations (INFO) ─────────────────────────────────
+    if info:
+        lines += ['---', '', '## ✅ Positive Observations', '']
+        for f in info:
+            lines.append(f'- **[{f["mode"]}]** {f["title"]}')
+            for e in f.get('evidence', []):
+                lines.append(f'  - `{e}`')
+        lines.append('')
 
     # ── findings by severity ─────────────────────────────────────────
     for severity, group in [

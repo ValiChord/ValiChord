@@ -3,3 +3,6 @@ flask-cors==4.0.0
 gunicorn==21.2.0
 rarfile>=4.0
 py7zr>=0.20
+python-docx>=1.0.0
+pyreadstat>=1.2.0
+pdfplumber>=0.10.0
