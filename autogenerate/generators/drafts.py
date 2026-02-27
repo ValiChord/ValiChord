@@ -434,12 +434,9 @@ def _file_notes(f):
     if f.suffix.lower() == '.txt' and _is_code_txt(f):
         return 'code stored as plain text — consider renaming to .R, .py, .do etc.'
     if ext in _ARCHIVE_EXTENSIONS:
-        count, data_exts = _inspect_archive(f)
-        if count is not None and data_exts:
-            ext_labels = ', '.join(sorted(e.lstrip('.').upper() for e in data_exts))
-            return f'Archive — contains {count} files ({ext_labels}) — extract contents before deposit'
-        elif count is not None:
-            return f'Archive — contains {count} files — extract contents before deposit'
+        note = _inspect_archive(f)
+        if note and 'not inspectable' not in note:
+            return f'Archive{note} — extract contents before deposit'
         return 'Archive — extract contents before deposit'
     return ''
 
@@ -479,13 +476,11 @@ def _data_file_format(f):
     if ext == '.shp':
         return 'Shapefile'
     if ext in _ARCHIVE_EXTENSIONS:
-        count, data_exts = _inspect_archive(f)
-        if count is not None and data_exts:
-            ext_labels = '/'.join(sorted(e.lstrip('.').upper() for e in data_exts))
-            return f'Archive ({count} files — {ext_labels})'
-        elif count is not None:
-            return f'Archive ({count} files)'
-        return f'{ext.upper().lstrip(".")} archive'
+        note = _inspect_archive(f)
+        base = ext.upper().lstrip('.')
+        if note and 'not inspectable' not in note:
+            return f'{base} archive{note}'
+        return f'{base} archive'
     return ext.upper().lstrip('.')
 
 

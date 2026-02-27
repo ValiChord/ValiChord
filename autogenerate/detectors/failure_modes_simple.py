@@ -112,51 +112,46 @@ def _is_frontend_dir(directory):
 
 
 def _inspect_archive(path):
-    """Return (file_count, data_exts_frozenset) for files inside an archive.
+    """Return a content-summary string for an archive file.
 
-    Returns (None, None) if inspection fails (missing library, corrupt file, etc.).
-    Supports .zip (stdlib), .tar/.gz/.tgz/.bz2 (stdlib), .rar (rarfile), .7z (py7zr).
+    Returns a string starting with ' — ', e.g.:
+      ' — 123 files (csv, xlsx)'
+      ' — contents not inspectable (BadRarName: ...)'
+    Uses path.resolve() to ensure an absolute path is passed to archive libs.
+    Supports .zip/.tar/.gz/.tgz/.bz2 (stdlib) and .rar (rarfile) / .7z (py7zr).
     """
+    ext = path.suffix.lower()
     try:
-        ext = path.suffix.lower()
-        names = []
+        abs_path = str(path.resolve())
         if ext == '.zip':
             import zipfile as _zf
-            with _zf.ZipFile(str(path)) as zf:
+            with _zf.ZipFile(abs_path) as zf:
                 names = [n for n in zf.namelist() if not n.endswith('/')]
         elif ext == '.rar':
             import rarfile as _rf  # pip install rarfile; also needs unrar binary
-            with _rf.RarFile(str(path)) as rf:
+            with _rf.RarFile(abs_path) as rf:
                 names = [n for n in rf.namelist() if not n.endswith('/')]
         elif ext in ('.tar', '.gz', '.tgz', '.bz2'):
             import tarfile as _tf
-            with _tf.open(str(path)) as tf:
+            with _tf.open(abs_path) as tf:
                 names = [m.name for m in tf.getmembers() if m.isfile()]
         elif ext == '.7z':
             import py7zr as _7z  # pip install py7zr
-            with _7z.SevenZipFile(str(path), mode='r') as zf:
+            with _7z.SevenZipFile(abs_path, mode='r') as zf:
                 names = zf.getnames()
         else:
-            return None, None
-        from pathlib import PurePath as _PP
-        data_exts = frozenset(
-            _PP(n).suffix.lower() for n in names
-            if _PP(n).suffix.lower() in DATA_EXTENSIONS
-        )
-        return len(names), data_exts
-    except Exception:
-        return None, None
+            return ''
+        exts = sorted({n.rsplit('.', 1)[-1].lower() for n in names if '.' in n})
+        ext_str = f' ({", ".join(exts)})' if exts else ''
+        return f' — {len(names)} files{ext_str}'
+    except Exception as e:
+        return f' — contents not inspectable ({type(e).__name__}: {e})'
 
 
 def _archive_contents_note(path):
-    """Return a human-readable note about archive contents, or empty string."""
-    count, data_exts = _inspect_archive(path)
-    if count is None:
-        return ' — contents not inspectable'
-    if data_exts:
-        ext_labels = ', '.join(sorted(e.lstrip('.').upper() for e in data_exts))
-        return f' — {count} files ({ext_labels})'
-    return f' — {count} files'
+    """Thin wrapper — returns _inspect_archive string, defaulting to not-inspectable."""
+    note = _inspect_archive(path)
+    return note if note else ' — contents not inspectable'
 
 
 def finding(mode, severity, title, detail, evidence=None):
