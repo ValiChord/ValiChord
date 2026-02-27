@@ -9,7 +9,11 @@ import re
 from datetime import datetime
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
-from detectors.failure_modes_simple import DATA_EXTENSIONS as _DATA_EXTENSIONS
+from detectors.failure_modes_simple import (
+    DATA_EXTENSIONS as _DATA_EXTENSIONS,
+    ARCHIVE_EXTENSIONS as _ARCHIVE_EXTENSIONS,
+    _inspect_archive,
+)
 
 
 CODE_EXTENSIONS = {
@@ -391,6 +395,8 @@ def _classify_file(f, is_cad=False):
         return 'Workflow'
     if ext == '.asv':
         return 'MATLAB autosave artefact'
+    if ext in _ARCHIVE_EXTENSIONS:
+        return 'Archive'
     return 'Other'
 
 
@@ -427,6 +433,14 @@ def _file_notes(f):
         return 'Numbered script — execution order implied'
     if f.suffix.lower() == '.txt' and _is_code_txt(f):
         return 'code stored as plain text — consider renaming to .R, .py, .do etc.'
+    if ext in _ARCHIVE_EXTENSIONS:
+        count, data_exts = _inspect_archive(f)
+        if count is not None and data_exts:
+            ext_labels = ', '.join(sorted(e.lstrip('.').upper() for e in data_exts))
+            return f'Archive — contains {count} files ({ext_labels}) — extract contents before deposit'
+        elif count is not None:
+            return f'Archive — contains {count} files — extract contents before deposit'
+        return 'Archive — extract contents before deposit'
     return ''
 
 
@@ -461,9 +475,18 @@ def _group_shapefiles(data_files):
 
 def _data_file_format(f):
     """Human-readable format label for a data file in README tables."""
-    if f.suffix.lower() == '.shp':
+    ext = f.suffix.lower()
+    if ext == '.shp':
         return 'Shapefile'
-    return f.suffix.upper().lstrip('.')
+    if ext in _ARCHIVE_EXTENSIONS:
+        count, data_exts = _inspect_archive(f)
+        if count is not None and data_exts:
+            ext_labels = '/'.join(sorted(e.lstrip('.').upper() for e in data_exts))
+            return f'Archive ({count} files — {ext_labels})'
+        elif count is not None:
+            return f'Archive ({count} files)'
+        return f'{ext.upper().lstrip(".")} archive'
+    return ext.upper().lstrip('.')
 
 
 def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
@@ -1000,7 +1023,10 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if not has_code:
         # data-only deposit — use data-focused template
-        _raw_data_files = [f for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS and not f.name.lower().startswith('readme')]
+        _raw_data_files = [f for f in all_files
+                           if (f.suffix.lower() in _DATA_EXTENSIONS
+                               or f.suffix.lower() in _ARCHIVE_EXTENSIONS)
+                           and not f.name.lower().startswith('readme')]
         data_files = _group_shapefiles(_raw_data_files)
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         lines = [

@@ -31,6 +31,8 @@ DATA_EXTENSIONS = {
     # .gdb is an ESRI directory format — won't match f.is_file() but included for completeness
 }
 
+ARCHIVE_EXTENSIONS = {'.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'}
+
 ENCRYPTED_EXTENSIONS = {'.gpg', '.enc', '.secret', '.age', '.asc'}
 
 DEPENDENCY_FILES = {
@@ -107,6 +109,54 @@ def _is_frontend_dir(directory):
         return False
     extensions = {f.suffix.lower() for f in files}
     return extensions.issubset(_fe_exts) and not (extensions & _analysis_exts)
+
+
+def _inspect_archive(path):
+    """Return (file_count, data_exts_frozenset) for files inside an archive.
+
+    Returns (None, None) if inspection fails (missing library, corrupt file, etc.).
+    Supports .zip (stdlib), .tar/.gz/.tgz/.bz2 (stdlib), .rar (rarfile), .7z (py7zr).
+    """
+    try:
+        ext = path.suffix.lower()
+        names = []
+        if ext == '.zip':
+            import zipfile as _zf
+            with _zf.ZipFile(str(path)) as zf:
+                names = [n for n in zf.namelist() if not n.endswith('/')]
+        elif ext == '.rar':
+            import rarfile as _rf  # pip install rarfile; also needs unrar binary
+            with _rf.RarFile(str(path)) as rf:
+                names = [n for n in rf.namelist() if not n.endswith('/')]
+        elif ext in ('.tar', '.gz', '.tgz', '.bz2'):
+            import tarfile as _tf
+            with _tf.open(str(path)) as tf:
+                names = [m.name for m in tf.getmembers() if m.isfile()]
+        elif ext == '.7z':
+            import py7zr as _7z  # pip install py7zr
+            with _7z.SevenZipFile(str(path), mode='r') as zf:
+                names = zf.getnames()
+        else:
+            return None, None
+        from pathlib import PurePath as _PP
+        data_exts = frozenset(
+            _PP(n).suffix.lower() for n in names
+            if _PP(n).suffix.lower() in DATA_EXTENSIONS
+        )
+        return len(names), data_exts
+    except Exception:
+        return None, None
+
+
+def _archive_contents_note(path):
+    """Return a human-readable note about archive contents, or empty string."""
+    count, data_exts = _inspect_archive(path)
+    if count is None:
+        return ' — contents not inspectable'
+    if data_exts:
+        ext_labels = ', '.join(sorted(e.lstrip('.').upper() for e in data_exts))
+        return f' — {count} files ({ext_labels})'
+    return f' — {count} files'
 
 
 def finding(mode, severity, title, detail, evidence=None):
@@ -1473,7 +1523,8 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in data_extensions
+        if (f.suffix.lower() in data_extensions
+            or f.suffix.lower() in ARCHIVE_EXTENSIONS)
         and not _is_model_artifact(f)
         and f.name.lower() not in _build_config_names
         and not _is_ide_config(f)
@@ -2867,7 +2918,8 @@ def detect_Y_data_source_missing(repo_dir, all_files):
 
     data_files = [
         f for f in all_files
-        if f.suffix.lower() in DATA_EXTENSIONS
+        if (f.suffix.lower() in DATA_EXTENSIONS
+            or f.suffix.lower() in ARCHIVE_EXTENSIONS)
         and not _is_model_artifact(f)
         and not f.name.lower().startswith('readme')
     ]
@@ -4003,7 +4055,8 @@ def detect_AZ_figure_format(repo_dir, all_files):
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
     data_files = [f for f in all_files
-                  if f.suffix.lower() in DATA_EXTENSIONS
+                  if (f.suffix.lower() in DATA_EXTENSIONS
+                      or f.suffix.lower() in ARCHIVE_EXTENSIONS)
                   and not f.name.lower().startswith('readme')]
     if len(data_files) < 2:
         return findings
@@ -6741,38 +6794,50 @@ def detect_DZ_double_zipped(repo_dir, all_files):
 
 
 def detect_NZ(repo_dir, all_files):
-    """Failure Mode NZ: Zip files nested inside the deposit — packaging anti-pattern.
+    """Failure Mode NZ: Archive files nested inside the deposit — packaging anti-pattern.
 
-    Entry points extract-and-delete nested zips before building all_files, so we
-    read from the .valichord_nested_zips.json sidecar they write before deleting.
-    Falls back to scanning all_files directly (e.g. test environments where no
-    extraction occurred).
+    Entry points write a .valichord_nested_archives.json sidecar capturing all
+    archive files (including .zip files that will later be extracted and deleted).
+    Falls back to scanning all_files for archives when no sidecar exists (tests).
     """
     import json as _json
 
-    sidecar = repo_dir / '.valichord_nested_zips.json'
+    sidecar = repo_dir / '.valichord_nested_archives.json'
     if sidecar.exists():
         try:
             records = _json.loads(sidecar.read_text(encoding='utf-8'))
         except Exception:
             records = []
     else:
-        # Fallback: zips not yet extracted (e.g. test environments)
+        # Fallback: scan all_files directly (e.g. test environments)
         records = [
             {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
-            for f in all_files if f.suffix.lower() == '.zip'
+            for f in all_files if f.suffix.lower() in ARCHIVE_EXTENSIONS
         ]
 
     if not records:
         return []
 
+    # Build a lookup so we can inspect archives still present on disk
+    _files_by_relpath = {str(f.relative_to(repo_dir)): f for f in all_files}
+
+    evidence = []
+    for r in records:
+        size_kb = r['size'] // 1024
+        note = ''
+        f = _files_by_relpath.get(r['path'])
+        if f is not None:
+            note = _archive_contents_note(f)
+        evidence.append(f'`{r["path"]}` ({size_kb:,} KB){note}')
+
     n = len(records)
+    word = 'archive' if n == 1 else 'archives'
     return [finding(
         'NZ', 'SIGNIFICANT',
-        f'{n} nested zip file{"s" if n != 1 else ""} inside the deposit',
-        'Zip files inside a repository require validators to manually unzip '
-        'additional archives before running the code. '
+        f'{n} nested {word} inside the deposit',
+        'Archive files inside a repository require validators to manually '
+        'extract additional archives before running the code. '
         'Extract the contents and deposit files directly in a subdirectory.',
-        [f'`{r["path"]}` ({r["size"] // 1024} KB)' for r in records]
+        evidence
     )]
 

@@ -70,17 +70,20 @@ def main():
               f"(limit 50MB). Data files will be inventoried "
               f"but not fully analysed.")
 
-    # ── record nested zips BEFORE extraction (they will be deleted) ──
+    # ── record nested archives BEFORE extraction (zips will be deleted) ──
     # Scan first while the files definitely exist, write sidecar for detect_NZ.
     import json as _json
-    _nested_zip_records = [
+    _archive_exts = {'.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'}
+    _nested_archive_records = [
         {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
-        for f in repo_dir.rglob('*.zip')
-        if f.is_file() and f.stat().st_size <= 100 * 1024 * 1024
+        for f in repo_dir.rglob('*')
+        if f.is_file()
+        and f.suffix.lower() in _archive_exts
+        and f.stat().st_size <= 100 * 1024 * 1024
     ]
-    if _nested_zip_records:
-        (repo_dir / '.valichord_nested_zips.json').write_text(
-            _json.dumps(_nested_zip_records), encoding='utf-8'
+    if _nested_archive_records:
+        (repo_dir / '.valichord_nested_archives.json').write_text(
+            _json.dumps(_nested_archive_records), encoding='utf-8'
         )
 
     # ── recursively extract nested zips ────────────────────────────
@@ -114,7 +117,7 @@ def main():
         and '__MACOSX' not in f.parts       # macOS zip metadata directory
         and not f.name.startswith('._')     # macOS resource-fork sidecar files
         and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
-                            '.valichord_nested_zips.json'}
+                            '.valichord_nested_archives.json'}
     ]
 
     print(f"  Files found: {len(all_files)}")
