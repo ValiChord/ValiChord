@@ -111,6 +111,48 @@ def _is_frontend_dir(directory):
     return extensions.issubset(_fe_exts) and not (extensions & _analysis_exts)
 
 
+def _inspect_rar(abs_path):
+    """Return list of file entry names from a RAR archive, or None on total failure.
+
+    Tries rarfile package first; falls back to the unrar binary via subprocess.
+    """
+    # Method 1: rarfile package (preferred)
+    try:
+        import rarfile as _rf
+        with _rf.RarFile(abs_path) as rf:
+            return [n for n in rf.namelist() if not n.endswith('/')]
+    except ImportError:
+        pass
+    except Exception:
+        return []  # file exists but is unreadable — stop here
+
+    # Method 2: unrar binary fallback
+    try:
+        import subprocess as _sp
+        result = _sp.run(
+            ['unrar', 'l', '-p-', abs_path],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            # Parse "unrar l" output: file lines contain size + date + name columns
+            names = []
+            in_list = False
+            for line in result.stdout.splitlines():
+                if line.startswith('----'):
+                    in_list = not in_list
+                    continue
+                if in_list and line.strip():
+                    # Last field is filename; skip directory entries (end with /)
+                    parts = line.split()
+                    if parts and not parts[-1].endswith('/'):
+                        names.append(parts[-1])
+            return names
+    except (FileNotFoundError, Exception):
+        pass
+
+    return None  # both methods failed
+
+
 def _inspect_archive(path):
     """Return a content-summary string for an archive file.
 
@@ -128,9 +170,9 @@ def _inspect_archive(path):
             with _zf.ZipFile(abs_path) as zf:
                 names = [n for n in zf.namelist() if not n.endswith('/')]
         elif ext == '.rar':
-            import rarfile as _rf  # pip install rarfile; also needs unrar binary
-            with _rf.RarFile(abs_path) as rf:
-                names = [n for n in rf.namelist() if not n.endswith('/')]
+            names = _inspect_rar(abs_path)
+            if names is None:
+                raise ImportError('rarfile not available and unrar binary not found')
         elif ext in ('.tar', '.gz', '.tgz', '.bz2'):
             import tarfile as _tf
             with _tf.open(abs_path) as tf:
