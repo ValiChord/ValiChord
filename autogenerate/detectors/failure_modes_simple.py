@@ -247,8 +247,8 @@ def _inspect_docx(path) -> FileInspectionResult:
 
 def _inspect_xlsx_content(path) -> FileInspectionResult:
     """Inspect xlsx/xls for codebook sheets (delegates to _xlsx_has_codebook_sheet)."""
-    sheet = _xlsx_has_codebook_sheet(path)
-    if sheet is not None:
+    sheet = _xlsx_has_codebook_sheet(path)  # str (matched name) or None
+    if sheet:
         return FileInspectionResult(
             has_codebook=True,
             inspection_note=f'Variable codebook detected in: {path.name} (sheet: "{sheet}")',
