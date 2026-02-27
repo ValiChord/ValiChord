@@ -1563,6 +1563,10 @@ def detect_W_git_lfs(repo_dir, all_files):
 def run_simple_detectors(repo_dir, all_files):
     """Run all simple pattern-matching detectors. Return list of findings."""
 
+    # Clear the per-run content inspection cache so each deposit starts fresh.
+    # (The module-level dict persists across calls in long-running processes.)
+    _file_inspection_cache.clear()
+
     print("  [A]  README check...")
     print("  [B]  Dependency check...")
     print("  [C]  Absolute path check...")
