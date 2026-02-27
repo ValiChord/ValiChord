@@ -88,7 +88,13 @@ def _looks_like_codebook(path) -> bool:
             return False
         avg_len = sum(len(c) for c in col2) / len(col2)
         return avg_len > 12
-    except Exception:
+    except Exception as e:
+        import sys
+        print(
+            f'[ValiChord WARNING] _looks_like_codebook failed on '
+            f'{path.name!r}: {type(e).__name__}: {e}',
+            file=sys.stderr,
+        )
         return False
 
 
@@ -120,8 +126,14 @@ def _xlsx_has_codebook_sheet(path) -> str | None:
                 wb.close()
                 return sheet_name
         wb.close()
-    except Exception:
-        pass
+    except Exception as e:
+        import sys
+        print(
+            f'[ValiChord WARNING] _xlsx_has_codebook_sheet failed on '
+            f'{path.name!r}: {type(e).__name__}: {e}',
+            file=sys.stderr,
+        )
+        return False
     return None
 
 
@@ -248,7 +260,13 @@ def _inspect_xlsx_content(path) -> FileInspectionResult:
         snames = list(wb.sheetnames)
         wb.close()
         return FileInspectionResult(sheet_names=snames)
-    except Exception:
+    except Exception as e:
+        import sys
+        print(
+            f'[ValiChord WARNING] _inspect_xlsx_content (sheet names) failed on '
+            f'{path.name!r}: {type(e).__name__}: {e}',
+            file=sys.stderr,
+        )
         return FileInspectionResult()
 
 
