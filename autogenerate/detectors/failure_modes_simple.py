@@ -133,7 +133,7 @@ def _xlsx_has_codebook_sheet(path) -> str | None:
             f'{path.name!r}: {type(e).__name__}: {e}',
             file=sys.stderr,
         )
-        return False
+        return None
     return None
 
 
