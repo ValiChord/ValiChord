@@ -811,6 +811,8 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
         for m in vec_pkg_pat.finditer(src):
             for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
                 r_pkgs.add(pkg)
+    # Exclude base-R packages — they ship with R and need no installation
+    r_pkgs -= {p for p in r_pkgs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
     for rf in all_files:
         if re.match(r'(install|setup).*\.r$', rf.name.lower()):
             try:
