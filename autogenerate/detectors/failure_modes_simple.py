@@ -574,14 +574,28 @@ def _inspect_archive(path):
         exts = sorted({n.rsplit('.', 1)[-1].lower() for n in names if '.' in n})
         ext_str = f' ({", ".join(exts)})' if exts else ''
         return f' — {len(names)} files{ext_str}'
-    except Exception as e:
-        return f' — contents not inspectable ({type(e).__name__}: {e})'
+    except Exception:
+        return ' — contents not inspectable (not a valid archive)'
 
 
 def _archive_contents_note(path):
     """Thin wrapper — returns _inspect_archive string, defaulting to not-inspectable."""
     note = _inspect_archive(path)
     return note if note else ' — contents not inspectable'
+
+
+def _is_single_file_compressed(path) -> bool:
+    """Return True for single-file compressed formats like .csv.gz, .jsonl.gz.
+
+    Excludes .tar.gz, .tar.bz2 (true nested archives).
+    Works on any Path-like object without filesystem access.
+    """
+    from pathlib import Path as _Path
+    p = _Path(path) if not hasattr(path, 'suffix') else path
+    if p.suffix.lower() not in {'.gz', '.bz2', '.xz', '.zst'}:
+        return False
+    inner = _Path(p.stem)   # strip outer compression extension
+    return inner.suffix.lower() not in {'.tar', ''}
 
 
 def finding(mode, severity, title, detail, evidence=None):
@@ -4173,7 +4187,10 @@ def detect_AK_external_urls(repo_dir, all_files):
         r'|pypi\.org|anaconda\.org|conda\.io'
         # Author identity / social-profile domains — stable, not data links
         r'|linkedin\.com|twitter\.com|(?:www\.)?x\.com'
-        r'|orcid\.org|researchgate\.net|academia\.edu)[^\s\'")\]>]+',
+        r'|orcid\.org|researchgate\.net|academia\.edu'
+        # Licence reference domains — stable, not external data dependencies
+        r'|creativecommons\.org|gnu\.org|apache\.org|opensource\.org|spdx\.org'
+        r')[^\s\'")\]>]+',
         re.IGNORECASE
     )
 
@@ -4734,6 +4751,15 @@ def detect_BD_missing_contact(repo_dir, all_files):
     content = read_file_safe(readme_file).lower()
     has_contact = any(term in content for term in ['contact', 'author', 'email', 'correspondence', 'maintainer', '@'])
     if not has_contact:
+        # Check CITATION.cff as a fallback source of contact info
+        citation_path = next((f for f in all_files if f.name == 'CITATION.cff'), None)
+        if citation_path:
+            try:
+                cff_content = citation_path.read_text(errors='ignore')
+                if 'email:' in cff_content:
+                    return findings  # contact info found in CITATION.cff
+            except Exception:
+                pass
         findings.append(finding('BD', 'LOW CONFIDENCE',
             'No contact information found in README',
             'No author contact information was found. Validators who encounter problems have no way to reach the researcher for clarification.',
@@ -4800,7 +4826,11 @@ def detect_BG_missing_acknowledgements(repo_dir, all_files):
 
 def detect_BH_zip_bomb_risk(repo_dir, all_files):
     findings = []
-    zip_files = [f for f in all_files if f.suffix.lower() in {'.zip', '.gz', '.tar', '.bz2', '.7z'}]
+    zip_files = [
+        f for f in all_files
+        if f.suffix.lower() in {'.zip', '.gz', '.tar', '.bz2', '.7z'}
+        and not _is_single_file_compressed(f)
+    ]
     if zip_files:
         findings.append(finding('BH', 'LOW CONFIDENCE',
             f'{len(zip_files)} compressed archive(s) committed',
@@ -7426,6 +7456,16 @@ def detect_NZ(repo_dir, all_files):
             for f in all_files if f.suffix.lower() in ARCHIVE_EXTENSIONS
         ]
 
+    if not records:
+        return []
+
+    # Drop single-file compressed files (.csv.gz etc) — they are a data delivery
+    # format, not nested archives.  [BH] also skips these.
+    from pathlib import Path as _Path
+    records = [
+        r for r in records
+        if not _is_single_file_compressed(_Path(r['path']))
+    ]
     if not records:
         return []
 
