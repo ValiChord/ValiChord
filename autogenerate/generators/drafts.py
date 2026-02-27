@@ -13,6 +13,7 @@ from detectors.failure_modes_simple import (
     DATA_EXTENSIONS as _DATA_EXTENSIONS,
     ARCHIVE_EXTENSIONS as _ARCHIVE_EXTENSIONS,
     _inspect_archive,
+    _is_single_file_compressed,
     CODEBOOK_FILENAMES as _CODEBOOK_FILENAMES,
     _looks_like_codebook,
 )
@@ -402,6 +403,8 @@ def _classify_file(f, is_cad=False):
     if ext == '.asv':
         return 'MATLAB autosave artefact'
     if ext in _ARCHIVE_EXTENSIONS:
+        if _is_single_file_compressed(f):
+            return 'Data'
         return 'Archive'
     return 'Other'
 
@@ -440,6 +443,9 @@ def _file_notes(f):
     if f.suffix.lower() == '.txt' and _is_code_txt(f):
         return 'code stored as plain text — consider renaming to .R, .py, .do etc.'
     if ext in _ARCHIVE_EXTENSIONS:
+        if _is_single_file_compressed(f):
+            inner_name = Path(f.stem).name
+            return f'Compressed data file — contains {inner_name}'
         note = _inspect_archive(f)
         if note and 'not inspectable' not in note:
             return f'Archive{note} — extract contents before deposit'
