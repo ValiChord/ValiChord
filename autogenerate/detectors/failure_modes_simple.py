@@ -1282,32 +1282,32 @@ def detect_C_absolute_paths(repo_dir, all_files):
             if abs_pattern.search(line):
                 _nb_hits.setdefault(nb, []).append((i, stripped[:80]))
 
-    # Emit one finding per affected code file
+    # Emit a single grouped [C] finding across all affected files and notebooks.
+    # proposed_corrections/ still has one file per affected script — the grouped
+    # finding just prevents 14 individual [C] lines from dominating the report.
+    _path_hits = []
     for f, hits in _hits.items():
-        count = len(hits)
         first_line, first_snippet = hits[0]
-        findings.append(finding(
-            'C', 'SIGNIFICANT',
-            f'Absolute path(s) detected in {f.name}',
-            'Absolute paths break reproducibility — they only '
-            "work on the researcher's machine. A corrected "
-            "copy with relative paths will be generated in "
-            '/proposed_corrections/.',
-            [f'{count} absolute path(s) detected — first occurrence: '
-             f'{f.name} line {first_line}: {first_snippet}']
-        ))
-
-    # Emit one finding per affected notebook
+        _path_hits.append((f.name, first_line, first_snippet))
     for nb, hits in _nb_hits.items():
-        count = len(hits)
         first_line, first_snippet = hits[0]
+        _path_hits.append((nb.name, first_line, first_snippet))
+
+    if _path_hits:
+        total = len(_path_hits)
+        files_str = ', '.join(name for name, _, _ in _path_hits[:5])
+        if total > 5:
+            files_str += f' (and {total - 5} more files)'
         findings.append(finding(
             'C', 'SIGNIFICANT',
-            f'Absolute path(s) in notebook cells: {nb.name}',
-            'Absolute paths in notebook cells break reproducibility — '
-            "they only work on the researcher's machine.",
-            [f'{count} absolute path(s) in notebook cells — first occurrence: '
-             f'{nb.name} cell line {first_line}: {first_snippet}']
+            f'Absolute paths detected in {total} file{"s" if total != 1 else ""}',
+            'Absolute paths break reproducibility — they only '
+            "work on the researcher's machine. Corrected copies "
+            "with relative paths will be generated in "
+            '/proposed_corrections/.',
+            [f'Files: {files_str}',
+             f'First occurrence: {_path_hits[0][0]} line {_path_hits[0][1]}: '
+             f'{_path_hits[0][2]}']
         ))
 
     return findings

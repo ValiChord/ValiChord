@@ -1616,7 +1616,47 @@ def _generate_requirements_draft(repo_dir, all_files,
     }
     external = [pkg for pkg in external if pkg.lower() not in _import_false_positives]
 
+    # Scan .py files for inline version comments, e.g.:
+    #   import numpy as np  # Package version: 1.21.6
+    #   import pandas        # version: 1.4.3
+    _INLINE_VERSION_RE = re.compile(
+        r'(?:import|from)\s+([\w.]+).*#\s*(?:Package\s+)?[Vv]ersion[:\s]+(\d[\d.]+)',
+        re.IGNORECASE
+    )
+    _inline_versions: dict = {}
+    for _ivf in all_files:
+        if _ivf.suffix.lower() == '.py':
+            try:
+                _iv_src = _ivf.read_text(encoding='utf-8', errors='ignore')
+                for _ivm in _INLINE_VERSION_RE.finditer(_iv_src):
+                    _iv_name = _ivm.group(1).split('.')[0].lower()
+                    if _iv_name not in _inline_versions:
+                        _inline_versions[_iv_name] = _ivm.group(2)
+            except Exception:
+                pass
+
+    # Determine whether all externally-detected packages have inline versions.
+    # (Uses import name for lookup; also tries the PyPI alias if present.)
+    _all_have_inline = bool(external) and all(
+        pkg.lower() in _inline_versions
+        or _import_to_pypi.get(pkg.lower(), '').lower() in _inline_versions
+        for pkg in external
+    )
+
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    if _all_have_inline:
+        _version_notice = [
+            '# - Version numbers sourced from inline comments in code files',
+            '#   Verify these match your actual environment before deposit.',
+            '#   Generate a formal requirements.txt for long-term reproducibility.',
+        ]
+    else:
+        _version_notice = [
+            '# - ALL VERSION NUMBERS ARE UNKNOWN',
+            '#   You must supply exact versions before this file',
+            '#   can be used for reproduction',
+        ]
 
     lines = [
         '# ============================================================',
@@ -1628,9 +1668,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         '#',
         '# - Local module names have been excluded',
         '# - Standard library modules have been excluded',
-        '# - ALL VERSION NUMBERS ARE UNKNOWN',
-        '#   You must supply exact versions before this file',
-        '#   can be used for reproduction',
+    ] + _version_notice + [
         '# - This list may include optional or unused packages',
         '# - This list may miss dynamically imported packages',
         '#',
@@ -1746,12 +1784,19 @@ def _generate_requirements_draft(repo_dir, all_files,
             else:
                 _pkg_lower = pkg.lower()
                 _pypi_name = _import_to_pypi.get(_pkg_lower)
+                # Inline version: check by import name first, then by PyPI alias
+                _inline_ver = (
+                    _inline_versions.get(_pkg_lower)
+                    or (_pypi_name and _inline_versions.get(_pypi_name.lower().replace('-', '_')))
+                    or None
+                )
+                _ver = _inline_ver or 'UNKNOWN'
                 if _pypi_name:
                     # Known alias: emit the correct pip-installable name
-                    lines.append(f'{_pypi_name}==UNKNOWN')
+                    lines.append(f'{_pypi_name}=={_ver}')
                 elif _pkg_lower in _known_pypi:
                     # Import name == PyPI name
-                    lines.append(f'{pkg}==UNKNOWN')
+                    lines.append(f'{pkg}=={_ver}')
                 elif _pkg_lower == 'google':
                     # Ambiguous top-level namespace — many google.* packages exist
                     lines.append(
@@ -1768,7 +1813,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                     )
                 else:
                     lines.append(
-                        f'{pkg}==UNKNOWN'
+                        f'{pkg}=={_ver}'
                         f'  # WARNING: not found on PyPI — verify this is a real dependency'
                     )
     elif 'project.toml' in all_names and '.jl' in all_suffixes:
