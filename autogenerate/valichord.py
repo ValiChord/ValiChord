@@ -70,10 +70,20 @@ def main():
               f"(limit 50MB). Data files will be inventoried "
               f"but not fully analysed.")
 
-    # ── recursively extract nested zips ────────────────────────────
-    # Track extracted zips so detect_NZ can report them even after deletion.
-    _nested_zip_records = []
+    # ── record nested zips BEFORE extraction (they will be deleted) ──
+    # Scan first while the files definitely exist, write sidecar for detect_NZ.
+    import json as _json
+    _nested_zip_records = [
+        {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
+        for f in repo_dir.rglob('*.zip')
+        if f.is_file() and f.stat().st_size <= 100 * 1024 * 1024
+    ]
+    if _nested_zip_records:
+        (repo_dir / '.valichord_nested_zips.json').write_text(
+            _json.dumps(_nested_zip_records), encoding='utf-8'
+        )
 
+    # ── recursively extract nested zips ────────────────────────────
     def extract_nested_zips(directory, depth=0):
         if depth > 3:
             return
@@ -85,10 +95,6 @@ def main():
                 dest.mkdir(exist_ok=True)
                 with zipfile.ZipFile(nested, "r") as zf:
                     zf.extractall(dest)
-                _nested_zip_records.append({
-                    'path': str(nested.relative_to(repo_dir)),
-                    'size': nested.stat().st_size,
-                })
                 nested.unlink()
                 print(f"  Extracted nested: {nested.name}")
                 extract_nested_zips(dest, depth + 1)
@@ -96,12 +102,6 @@ def main():
                 pass
 
     extract_nested_zips(repo_dir)
-
-    if _nested_zip_records:
-        import json as _json
-        (repo_dir / '.valichord_nested_zips.json').write_text(
-            _json.dumps(_nested_zip_records), encoding='utf-8'
-        )
 
     print(f"  Repository size: {total_size_mb:.1f}MB")
 

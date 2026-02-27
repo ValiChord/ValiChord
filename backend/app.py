@@ -42,7 +42,17 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         with zipfile.ZipFile(upload_path, 'r') as zf:
             zf.extractall(repo_dir)
 
-        _nested_zip_records = []
+        # Record nested zips BEFORE extraction (files are deleted by extract_nested).
+        import json as _json
+        _nested_zip_records = [
+            {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
+            for f in repo_dir.rglob('*.zip')
+            if f.is_file() and f.stat().st_size <= 100 * 1024 * 1024
+        ]
+        if _nested_zip_records:
+            (repo_dir / '.valichord_nested_zips.json').write_text(
+                _json.dumps(_nested_zip_records), encoding='utf-8'
+            )
 
         def extract_nested(directory, depth=0):
             if depth > 3:
@@ -55,22 +65,12 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
                     dest.mkdir(exist_ok=True)
                     with zipfile.ZipFile(nested, 'r') as zf:
                         zf.extractall(dest)
-                    _nested_zip_records.append({
-                        'path': str(nested.relative_to(repo_dir)),
-                        'size': nested.stat().st_size,
-                    })
                     nested.unlink()
                     extract_nested(dest, depth + 1)
                 except Exception:
                     pass
 
         extract_nested(repo_dir)
-
-        if _nested_zip_records:
-            import json as _json
-            (repo_dir / '.valichord_nested_zips.json').write_text(
-                _json.dumps(_nested_zip_records), encoding='utf-8'
-            )
 
         all_files = [
             f for f in repo_dir.rglob('*')
