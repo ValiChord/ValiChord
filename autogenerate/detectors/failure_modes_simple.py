@@ -1097,17 +1097,41 @@ def detect_B_no_dependencies(repo_dir, all_files):
                     and any(kw in code_files[0].stem.lower()
                             for kw in _TRIVIAL_NAMES)
                 )
-                _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
-                findings.append(finding(
-                    'B', _b_severity,
-                    'No dependency specification found',
-                    'Code files are present but no dependency file was found. '
-                    'A requirements_DRAFT.txt will be generated from import '
-                    'statements with all versions marked UNKNOWN.',
-                    [f'Code files found: {len(code_files)}',
-                     'No requirements.txt, environment.yml, renv.lock, '
-                     'or equivalent found']
-                ))
+                # Check for inline version comments (e.g. # Package version: 3.5.3)
+                # If found, downgrade: the author has documented versions, just not
+                # in a standard file. LOW CONFIDENCE with a targeted recommendation.
+                _INLINE_VERSION_RE = re.compile(
+                    r'(?:import|from)\s+[\w.]+.*#.*(?:version|v)[:\s]+(\d[\d.]+)',
+                    re.IGNORECASE
+                )
+                _has_inline_versions = any(
+                    _INLINE_VERSION_RE.search(read_file_safe(f))
+                    for f in code_files
+                    if f.suffix.lower() == '.py'
+                )
+                if _has_inline_versions:
+                    findings.append(finding(
+                        'B', 'LOW CONFIDENCE',
+                        'Version numbers found as inline comments — no requirements.txt',
+                        'Package versions are documented as inline comments on import '
+                        'statements rather than in a requirements.txt or environment.yml. '
+                        'This is better than nothing but a dedicated dependency file '
+                        'ensures reproducibility.',
+                        [f'Code files found: {len(code_files)}',
+                         'Recommendation: generate requirements.txt from inline version comments']
+                    ))
+                else:
+                    _b_severity = 'SIGNIFICANT' if _is_trivial_helper else 'CRITICAL'
+                    findings.append(finding(
+                        'B', _b_severity,
+                        'No dependency specification found',
+                        'Code files are present but no dependency file was found. '
+                        'A requirements_DRAFT.txt will be generated from import '
+                        'statements with all versions marked UNKNOWN.',
+                        [f'Code files found: {len(code_files)}',
+                         'No requirements.txt, environment.yml, renv.lock, '
+                         'or equivalent found']
+                    ))
     elif has_code and not has_dep_file and not has_draft_only and readme_has_inline_deps:
         if _inline_deps_from_readme:
             _b_inline_title = 'Dependencies documented inline in README but no dependency file found'
@@ -1211,8 +1235,9 @@ def detect_C_absolute_paths(repo_dir, all_files):
         r'(/Users/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
         r'|(/home/[a-zA-Z][a-zA-Z0-9_\-]{1,}/)'
         r'|(/root/[a-zA-Z])'
-        r'|([A-Z]:\\[A-Za-z][A-Za-z0-9_\- ]{1,}\\)'
-        r'|([A-Z]:/[A-Za-z][A-Za-z0-9_\- ]{1,}/)'
+        r'|(/mnt/[a-zA-Z0-9_\-]{1,}/)'
+        r'|([A-Z]:\\[A-Za-z][A-Za-z0-9_. -]{1,}\\)'
+        r'|([A-Z]:/[A-Za-z][A-Za-z0-9_. -]{1,}/)'
     )
 
     # Collect hits grouped by file: {Path: [(line_no, snippet), ...]}
@@ -2143,6 +2168,28 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
             except Exception:
                 pass
             break  # use only the shallowest README
+
+    # Check ALL README files for explicit variable listings.
+    # Patterns that indicate the README itself serves as a codebook:
+    #   1. Numbered list with parenthesized variable name: "1. Forest coverage rate (forest_coverage_rate)"
+    #   2. Markdown table with column headers: "| col | desc |"
+    #   3. Explicit "Variables:" section header
+    if not has_data_doc:
+        _VARIABLE_SECTION_PATTERNS = [
+            re.compile(r'\d+\.\s+\w.*\([\w_]+\)', re.MULTILINE),
+            re.compile(r'\|\s*\w+\s*\|\s*\w+.*\|', re.MULTILINE),
+            re.compile(r'variables?\s*:\s*\n', re.IGNORECASE | re.MULTILINE),
+        ]
+        for f in all_files:
+            nl = f.name.lower()
+            if nl in README_NAMES or ('readme' in nl and f.suffix.lower() in {'.md', '.txt', '.rst', ''}):
+                try:
+                    content = f.read_text(encoding='utf-8', errors='ignore')
+                    if any(pat.search(content) for pat in _VARIABLE_SECTION_PATTERNS):
+                        has_data_doc = True
+                        break
+                except Exception:
+                    pass
 
     if not has_data_doc and not readme_mentions_data:
         data_names = [f.name for f in data_files[:5]]
@@ -4741,15 +4788,25 @@ def detect_BC_mixed_line_endings(repo_dir, all_files):
 
 def detect_BD_missing_contact(repo_dir, all_files):
     findings = []
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt'}:
-            readme_file = f
-            break
-    if not readme_file:
+    # Collect all README-like files (any depth, any case variant such as ReadMe.txt)
+    readme_files = [
+        f for f in all_files
+        if f.name.lower() in README_NAMES
+        or ('readme' in f.name.lower() and f.suffix.lower() in {'.md', '.txt', '.rst', ''})
+    ]
+    if not readme_files:
         return findings
-    content = read_file_safe(readme_file).lower()
-    has_contact = any(term in content for term in ['contact', 'author', 'email', 'correspondence', 'maintainer', '@'])
+    _email_re = re.compile(r'[\w.+-]+@[\w-]+\.[a-z]{2,}', re.IGNORECASE)
+    has_contact = False
+    for readme_file in readme_files:
+        content = read_file_safe(readme_file)
+        content_lower = content.lower()
+        if any(term in content_lower for term in ['contact', 'author', 'email', 'correspondence', 'maintainer', '@']):
+            has_contact = True
+            break
+        if _email_re.search(content):
+            has_contact = True
+            break
     if not has_contact:
         # Check CITATION.cff as a fallback source of contact info
         citation_path = next((f for f in all_files if f.name == 'CITATION.cff'), None)
