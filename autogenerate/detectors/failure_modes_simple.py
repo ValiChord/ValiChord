@@ -580,6 +580,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
     # e.g. install.packages(...) or pip install ... — these are informal
     # but valid dependency specs; downgrade from CRITICAL to SIGNIFICANT
     readme_has_inline_deps = False
+    _inline_deps_from_readme = False  # True when the source was a README file
     if not has_dep_file:
         for f in all_files:
             if (f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
@@ -590,6 +591,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
                     'install_packages(', 'pkg.add(', 'pkg.instantiate('
                 ]):
                     readme_has_inline_deps = True
+                    _inline_deps_from_readme = True
                     break
         # Also check R source files for library()/require() calls or
         # vector package assignments (packages <- c(...) / pkgs <- c(...))
@@ -603,7 +605,7 @@ def detect_B_no_dependencies(repo_dir, all_files):
                 if f.suffix.lower() in {'.r', '.rmd', '.qmd'}:
                     if _r_inline_pat.search(read_file_safe(f)):
                         readme_has_inline_deps = True
-                        break
+                        break  # _inline_deps_from_readme stays False
 
     # Languages with no standard package-manager equivalent of requirements.txt
     # — downgrade [B] from CRITICAL to SIGNIFICANT and give language-specific advice.
@@ -673,13 +675,26 @@ def detect_B_no_dependencies(repo_dir, all_files):
                      'or equivalent found']
                 ))
     elif has_code and not has_dep_file and not has_draft_only and readme_has_inline_deps:
+        if _inline_deps_from_readme:
+            _b_inline_title = 'Dependencies documented inline in README but no dependency file found'
+            _b_inline_detail = (
+                'Install instructions were found in the README but no requirements.txt, '
+                'renv.lock, or equivalent file exists. Inline instructions are better '
+                'than nothing but a dedicated dependency file ensures reproducibility. '
+                'A requirements_DRAFT.txt will be generated.'
+            )
+        else:
+            _b_inline_title = 'No dependency file found — packages detected in code files'
+            _b_inline_detail = (
+                'No requirements.txt, renv.lock, or equivalent dependency file was found. '
+                'Packages were detected from library()/require() calls in the code. '
+                'A requirements_DRAFT.txt will be generated from these imports — '
+                'add version numbers and rename to requirements.txt before deposit.'
+            )
         findings.append(finding(
             'B', 'SIGNIFICANT',
-            'Dependencies documented inline in README but no dependency file found',
-            'Install instructions were found in the README but no requirements.txt, '
-            'renv.lock, or equivalent file exists. Inline instructions are better '
-            'than nothing but a dedicated dependency file ensures reproducibility. '
-            'A requirements_DRAFT.txt will be generated.',
+            _b_inline_title,
+            _b_inline_detail,
             [f'Code files found: {len(code_files)}',
              'Recommendation: extract install instructions to requirements.txt or renv.lock']
         ))
@@ -1603,8 +1618,50 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
     doc_indicators = [
         'codebook', 'data_dictionary', 'data-dictionary',
         'metadata', 'data_readme', 'data-readme',
-        'variables', 'schema'
+        'variables', 'schema', 'column_description', 'field_description',
     ]
+
+    # Exact filenames that unambiguously serve as codebooks/data dictionaries
+    _CODEBOOK_FILENAMES = {
+        'metadata.csv', 'metadata.xlsx', 'metadata.txt',
+        'data_dictionary.csv', 'data_dictionary.xlsx',
+        'codebook.csv', 'codebook.xlsx', 'codebook.txt',
+        'variables.csv', 'variables.txt',
+        'column_descriptions.csv', 'field_descriptions.csv',
+    }
+
+    def _looks_like_codebook(path):
+        """Return True if a CSV/TSV file is structured as a variable codebook.
+
+        Heuristic: second column contains description-like text
+        (average length > 15 characters), suggesting variable-name + description
+        rows rather than raw data.
+        """
+        import csv as _csv
+        try:
+            raw = path.read_text(encoding='utf-8', errors='ignore')
+            # Sniff delimiter from first 2 KB
+            sample = raw[:2048]
+            try:
+                dialect = _csv.Sniffer().sniff(sample, delimiters=',;\t|')
+                delim = dialect.delimiter
+            except Exception:
+                delim = ','
+            rows = []
+            for row in _csv.reader(raw.splitlines(), delimiter=delim):
+                if any(c.strip() for c in row):
+                    rows.append(row)
+                if len(rows) >= 10:
+                    break
+            if len(rows) < 3:
+                return False
+            col2 = [r[1].strip() for r in rows[1:] if len(r) > 1]
+            if not col2:
+                return False
+            avg_len = sum(len(c) for c in col2) / len(col2)
+            return avg_len > 15
+        except Exception:
+            return False
 
     all_names_lower = [f.name.lower() for f in all_files]
     all_stems_lower = [f.stem.lower() for f in all_files]
@@ -1613,6 +1670,15 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         any(ind in name for ind in doc_indicators)
         for name in all_names_lower + all_stems_lower
     )
+    # Exact codebook filename match
+    if not has_data_doc:
+        has_data_doc = any(f.name.lower() in _CODEBOOK_FILENAMES for f in all_files)
+    # Content-based: CSV/TSV that looks like a variable dictionary
+    if not has_data_doc:
+        for f in all_files:
+            if f.suffix.lower() in {'.csv', '.tsv'} and _looks_like_codebook(f):
+                has_data_doc = True
+                break
     # Also treat same-named .txt files as potential data documentation
     # e.g. GDP_FDI_Dataset.txt alongside GDP_FDI_Dataset.csv
     if not has_data_doc:
@@ -1638,8 +1704,9 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         re.compile(r'\*\*[a-zA-Z_]\w*\*\*\s*:',
                    re.MULTILINE),                                    # **col_name**: desc
     ]
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+    for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
+        nl = f.name.lower()
+        if nl in README_NAMES or ('readme' in nl and f.suffix.lower() in {'.md', '.txt', '.rst', ''}):
             try:
                 content = f.read_text(encoding='utf-8', errors='ignore')
                 content_lower = content.lower()
@@ -1657,6 +1724,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
                     has_inline_col_doc = True
             except Exception:
                 pass
+            break  # use only the shallowest README
 
     if not has_data_doc and not readme_mentions_data:
         data_names = [f.name for f in data_files[:5]]

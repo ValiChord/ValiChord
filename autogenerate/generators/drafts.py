@@ -1827,6 +1827,10 @@ def _generate_requirements_draft(repo_dir, all_files,
                 except Exception:
                     pass
         r_libs = r_libs | extra_pkgs
+        # Re-apply base-R exclusion after merging install-script packages —
+        # install*.R files may explicitly install base packages that were
+        # already removed from r_libs above.
+        r_libs -= {p for p in r_libs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
         if r_libs:
             gh_list        = [p for p in sorted(r_libs) if p.lower() in gh_map]
             gh_likely_list = [p for p in sorted(r_libs) if p.lower() not in gh_map
