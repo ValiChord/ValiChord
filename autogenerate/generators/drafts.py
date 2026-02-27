@@ -1636,11 +1636,9 @@ def _generate_requirements_draft(repo_dir, all_files,
                 pass
 
     # Determine whether all externally-detected packages have inline versions.
-    # (Uses import name for lookup; also tries the PyPI alias if present.)
+    # _inline_versions is keyed by import name — no PyPI alias lookup needed.
     _all_have_inline = bool(external) and all(
-        pkg.lower() in _inline_versions
-        or _import_to_pypi.get(pkg.lower(), '').lower() in _inline_versions
-        for pkg in external
+        pkg.lower() in _inline_versions for pkg in external
     )
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M')
