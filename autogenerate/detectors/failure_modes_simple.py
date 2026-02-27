@@ -3013,50 +3013,67 @@ def detect_Y_data_source_missing(repo_dir, all_files):
             readme_file = f
             break
 
-    _ACCESS_RESTRICTION_PATTERNS = re.compile(
-        r'(not publicly available|upon request|available on request|'
-        r'contact .{0,30}author|restricted access|request access|'
-        r'available upon reasonable request|data.{0,30}available.{0,30}request|'
-        r'embargo|data availability statement|available from the .{0,30}author)',
-        re.IGNORECASE
-    )
+    # Patterns that indicate the author has documented restricted/controlled access.
+    # These are checked FIRST — access restriction language is itself a form of
+    # provenance documentation and downgrades [Y] to LOW CONFIDENCE.
+    _ACCESS_RESTRICTION_PATTERNS = [
+        r'not publicly available',
+        r'data use agreement',
+        r'upon request',
+        r'contact .{0,40}author',
+        r'restricted access',
+        r'available on request',
+        r'requests? .{0,40}should be directed',
+        r'subject to .{0,40}agreement',
+        r'provided with permission',
+        r'available upon reasonable request',
+        r'available from the .{0,40}author',
+        r'embargo',
+        r'data availability statement',
+    ]
 
-    has_source = False
-    has_access_restriction = False
+    readme_content = None
     if readme_file:
         try:
-            content = readme_file.read_text(encoding='utf-8', errors='ignore')
-            has_source = any(ind in content.lower() for ind in source_indicators)
-            has_access_restriction = bool(_ACCESS_RESTRICTION_PATTERNS.search(content))
+            readme_content = readme_file.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             pass
 
-    if not has_source:
-        if has_access_restriction:
-            findings.append(finding(
-                'Y', 'LOW CONFIDENCE',
-                'Data files present — access restrictions documented in README',
-                'Data files are present and the README documents access '
-                'conditions (e.g. data available on request). Validators '
-                'should confirm that the README includes enough detail for '
-                'a reader to understand how to obtain the data.',
-                [f'Data files: {", ".join(f.name for f in data_files[:5])}',
-                 f'README: {readme_file.name if readme_file else "unknown"}',
-                 'Confirm: access instructions are clear and sufficient']
-            ))
-        else:
-            findings.append(finding(
-                'Y', 'SIGNIFICANT',
-                'Data files present but no data source documented',
-                'Data files are present but no information about where '
-                'the data came from was found in the README. Validators '
-                'cannot verify data provenance, check for updates, or '
-                'understand data access restrictions without this '
-                'information.',
-                [f'Data files: '
-                 f'{", ".join(f.name for f in data_files[:5])}',
-                 'Required: data source, URL, DOI, or access instructions']
-            ))
+    has_access_restriction = readme_content is not None and any(
+        re.search(p, readme_content, re.IGNORECASE)
+        for p in _ACCESS_RESTRICTION_PATTERNS
+    )
+    has_source = readme_content is not None and any(
+        ind in readme_content.lower() for ind in source_indicators
+    )
+
+    # Priority: access restriction > source documented > neither
+    if has_access_restriction:
+        findings.append(finding(
+            'Y', 'LOW CONFIDENCE',
+            'Data files present — access conditions documented in README',
+            'Data files are present and the README documents access '
+            'conditions (e.g. data not publicly available, available on '
+            'request, or subject to a data use agreement). Validators '
+            'should confirm that the README includes enough detail for '
+            'a reader to understand how to obtain the data.',
+            [f'Data files: {", ".join(f.name for f in data_files[:5])}',
+             f'README: {readme_file.name if readme_file else "unknown"}',
+             'Confirm: access instructions are clear and sufficient']
+        ))
+    elif not has_source:
+        findings.append(finding(
+            'Y', 'SIGNIFICANT',
+            'Data files present but no data source documented',
+            'Data files are present but no information about where '
+            'the data came from was found in the README. Validators '
+            'cannot verify data provenance, check for updates, or '
+            'understand data access restrictions without this '
+            'information.',
+            [f'Data files: '
+             f'{", ".join(f.name for f in data_files[:5])}',
+             'Required: data source, URL, DOI, or access instructions']
+        ))
 
     return findings
 
