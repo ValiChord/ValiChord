@@ -426,29 +426,58 @@ def detect_A_no_readme(repo_dir, all_files):
                          'Validators may not recognise non-standard README filenames']
                     ))
                 else:
-                    _sub_readme = next(
-                        (f for f in all_files if f.name.lower() in README_NAMES), None
-                    )
-                    if _sub_readme:
-                        _sub_rel = _sub_readme.relative_to(repo_dir)
+                    # Check for filenames that CONTAIN 'readme' but don't start with it
+                    # (e.g. 61622524_README_RTMS.txt, Study_README_v2.txt)
+                    _readme_contains = [
+                        f for f in all_files
+                        if 'readme' in f.name.lower()
+                        and not f.name.lower().startswith('readme')
+                        and f.name.lower() not in README_NAMES
+                        and f.suffix.lower() not in {'.docx', '.pdf', '.doc', '.pages'}
+                        and len(f.relative_to(repo_dir).parts) <= 2
+                    ]
+                    if _readme_contains:
+                        _rc_names = ', '.join(
+                            f.name for f in sorted(_readme_contains, key=lambda x: x.name.lower())
+                        )
                         findings.append(finding(
-                            'A', 'CRITICAL',
-                            'No README at repository root — README found in subdirectory',
-                            f'No README at repository root. A README was found at {_sub_rel} '
-                            '— move it to the repository root so validators can find it '
-                            'immediately on download. Validators typically look only at the '
-                            'root level. README_DRAFT.md will be generated.',
-                            [f'README found at: {_sub_rel} — move to repository root',
-                             'No README.md, README.txt, or README.rst at root level']
+                            'A', 'SIGNIFICANT',
+                            f'No standard README found — README-like file detected ({_rc_names})',
+                            f'No README.md, README.txt, or README.rst was found, but a '
+                            f'file whose name contains "README" ({_rc_names}) is present. '
+                            f'Validators typically look for standard README filenames. '
+                            f'Create README.md at the repository root covering a study overview '
+                            f'and reproduction instructions (it may reference this file). '
+                            f'README_DRAFT.md will be generated.',
+                            [f'Found: {_rc_names}',
+                             'Fix: create README.md at repository root covering study overview, '
+                             'requirements, and reproduction steps',
+                             'Validators may not recognise non-standard README filenames']
                         ))
                     else:
-                        findings.append(finding(
-                            'A', 'CRITICAL',
-                            'No README file found',
-                            'Every research repository requires a README. '
-                            'README_DRAFT.md will be generated.',
-                            ['No README.md, README.txt, or README.rst found at repository root level']
-                        ))
+                        _sub_readme = next(
+                            (f for f in all_files if f.name.lower() in README_NAMES), None
+                        )
+                        if _sub_readme:
+                            _sub_rel = _sub_readme.relative_to(repo_dir)
+                            findings.append(finding(
+                                'A', 'CRITICAL',
+                                'No README at repository root — README found in subdirectory',
+                                f'No README at repository root. A README was found at {_sub_rel} '
+                                '— move it to the repository root so validators can find it '
+                                'immediately on download. Validators typically look only at the '
+                                'root level. README_DRAFT.md will be generated.',
+                                [f'README found at: {_sub_rel} — move to repository root',
+                                 'No README.md, README.txt, or README.rst at root level']
+                            ))
+                        else:
+                            findings.append(finding(
+                                'A', 'CRITICAL',
+                                'No README file found',
+                                'Every research repository requires a README. '
+                                'README_DRAFT.md will be generated.',
+                                ['No README.md, README.txt, or README.rst found at repository root level']
+                            ))
     else:
         # check if readme is too short to be useful
         for f in all_files:
@@ -2972,35 +3001,62 @@ def detect_Y_data_source_missing(repo_dir, all_files):
         'data availability', 'data access'
     ]
 
+    # Broaden README lookup: accept any file containing 'readme' in name
+    # (catches prefixed names like 61622524_README_RTMS.txt)
     readme_file = None
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+    for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
+        nl = f.name.lower()
+        if nl in README_NAMES or (
+            'readme' in nl
+            and f.suffix.lower() in {'.md', '.txt', '.rst', ''}
+        ):
             readme_file = f
             break
 
+    _ACCESS_RESTRICTION_PATTERNS = re.compile(
+        r'(not publicly available|upon request|available on request|'
+        r'contact .{0,30}author|restricted access|request access|'
+        r'available upon reasonable request|data.{0,30}available.{0,30}request|'
+        r'embargo|data availability statement|available from the .{0,30}author)',
+        re.IGNORECASE
+    )
+
     has_source = False
+    has_access_restriction = False
     if readme_file:
         try:
-            content = readme_file.read_text(
-                encoding='utf-8', errors='ignore'
-            ).lower()
-            has_source = any(ind in content for ind in source_indicators)
+            content = readme_file.read_text(encoding='utf-8', errors='ignore')
+            has_source = any(ind in content.lower() for ind in source_indicators)
+            has_access_restriction = bool(_ACCESS_RESTRICTION_PATTERNS.search(content))
         except Exception:
             pass
 
     if not has_source:
-        findings.append(finding(
-            'Y', 'SIGNIFICANT',
-            f'Data files present but no data source documented',
-            'Data files are present but no information about where '
-            'the data came from was found in the README. Validators '
-            'cannot verify data provenance, check for updates, or '
-            'understand data access restrictions without this '
-            'information.',
-            [f'Data files: '
-             f'{", ".join(f.name for f in data_files[:5])}',
-             'Required: data source, URL, DOI, or access instructions']
-        ))
+        if has_access_restriction:
+            findings.append(finding(
+                'Y', 'LOW CONFIDENCE',
+                'Data files present — access restrictions documented in README',
+                'Data files are present and the README documents access '
+                'conditions (e.g. data available on request). Validators '
+                'should confirm that the README includes enough detail for '
+                'a reader to understand how to obtain the data.',
+                [f'Data files: {", ".join(f.name for f in data_files[:5])}',
+                 f'README: {readme_file.name if readme_file else "unknown"}',
+                 'Confirm: access instructions are clear and sufficient']
+            ))
+        else:
+            findings.append(finding(
+                'Y', 'SIGNIFICANT',
+                'Data files present but no data source documented',
+                'Data files are present but no information about where '
+                'the data came from was found in the README. Validators '
+                'cannot verify data provenance, check for updates, or '
+                'understand data access restrictions without this '
+                'information.',
+                [f'Data files: '
+                 f'{", ".join(f.name for f in data_files[:5])}',
+                 'Required: data source, URL, DOI, or access instructions']
+            ))
 
     return findings
 
@@ -4450,6 +4506,12 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
         f for f in all_files
         if ' ' in f.name and f.suffix.lower() in CODE_EXTENSIONS | {'.csv', '.tsv', '.xlsx'}
     ]
+    # Deduplicate by basename (same logical filename appearing in multiple zip copies)
+    _seen_bt: dict = {}
+    for f in problem_files:
+        if f.name not in _seen_bt:
+            _seen_bt[f.name] = f
+    problem_files = list(_seen_bt.values())
     if problem_files:
         findings.append(finding(
             'BT', 'LOW CONFIDENCE',
@@ -6764,7 +6826,7 @@ def detect_DUP(repo_dir, all_files):
 
     evidence = []
     for group in duplicate_groups:
-        names = ', '.join(f.name for f in group)
+        names = ', '.join(str(f.relative_to(repo_dir)) for f in group)
         evidence.append(f'Identical files: {names}')
         evidence.append(
             'Confirm these are intentional — if one is a previous version, '
@@ -6861,10 +6923,12 @@ def detect_NZ(repo_dir, all_files):
     evidence = []
     for r in records:
         size_kb = r['size'] // 1024
-        note = ''
         f = _files_by_relpath.get(r['path'])
         if f is not None:
             note = _archive_contents_note(f)
+        else:
+            # File was extracted and deleted; use pre-scan contents_note if available
+            note = r.get('contents_note', '')
         evidence.append(f'`{r["path"]}` ({size_kb:,} KB){note}')
 
     n = len(records)

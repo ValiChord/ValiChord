@@ -74,13 +74,26 @@ def main():
     # Scan first while the files definitely exist, write sidecar for detect_NZ.
     import json as _json
     _archive_exts = {'.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2'}
-    _nested_archive_records = [
-        {'path': str(f.relative_to(repo_dir)), 'size': f.stat().st_size}
-        for f in repo_dir.rglob('*')
-        if f.is_file()
-        and f.suffix.lower() in _archive_exts
-        and f.stat().st_size <= 100 * 1024 * 1024
-    ]
+    _nested_archive_records = []
+    for _af in repo_dir.rglob('*'):
+        if not (_af.is_file() and _af.suffix.lower() in _archive_exts
+                and _af.stat().st_size <= 100 * 1024 * 1024):
+            continue
+        _rec = {'path': str(_af.relative_to(repo_dir)), 'size': _af.stat().st_size}
+        if _af.suffix.lower() == '.zip':
+            try:
+                with zipfile.ZipFile(_af, 'r') as _z:
+                    _znames = [n for n in _z.namelist() if not n.endswith('/')]
+                    _zcount = len(_znames)
+                    _zexts = sorted({Path(n).suffix.lower().lstrip('.')
+                                     for n in _znames if Path(n).suffix})[:3]
+                    _rec['contents_note'] = (
+                        f' — {_zcount} files'
+                        + (f' ({", ".join(_zexts)})' if _zexts else '')
+                    )
+            except Exception:
+                pass
+        _nested_archive_records.append(_rec)
     if _nested_archive_records:
         (repo_dir / '.valichord_nested_archives.json').write_text(
             _json.dumps(_nested_archive_records), encoding='utf-8'
