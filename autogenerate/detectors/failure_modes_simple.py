@@ -52,6 +52,46 @@ DEPENDENCY_FILES = {
 
 README_NAMES = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
 
+# Exact filenames that unambiguously function as codebooks / data dictionaries.
+# Used by detect_E (suppression), detect_BA (exclusion), and INVENTORY (type).
+CODEBOOK_FILENAMES = {
+    'metadata.csv', 'metadata.xlsx', 'metadata.txt',
+    'data_dictionary.csv', 'data_dictionary.xlsx',
+    'codebook.csv', 'codebook.xlsx', 'codebook.txt',
+    'variables.csv', 'variables.txt',
+    'column_descriptions.csv', 'field_descriptions.csv',
+}
+
+
+def _looks_like_codebook(path) -> bool:
+    """Return True if a CSV/TSV file is structured as a variable codebook.
+
+    Detects delimiter by counting occurrences in the first line (semicolons
+    and tabs before comma), then checks that the second column contains
+    description-like text (average length > 12 chars).
+    """
+    try:
+        content = path.read_text(encoding='utf-8', errors='ignore')
+        lines = [ln for ln in content.split('\n') if ln.strip()][:10]
+        if len(lines) < 3:
+            return False
+        first = lines[0]
+        if first.count(';') > first.count(','):
+            delim = ';'
+        elif first.count('\t') > first.count(','):
+            delim = '\t'
+        else:
+            delim = ','
+        rows = [ln.split(delim) for ln in lines]
+        col2 = [r[1].strip() for r in rows[1:] if len(r) > 1 and r[1].strip()]
+        if not col2:
+            return False
+        avg_len = sum(len(c) for c in col2) / len(col2)
+        return avg_len > 12
+    except Exception:
+        return False
+
+
 LICENCE_NAMES = {
     'licence', 'license', 'licence.md', 'license.md',
     'licence.txt', 'license.txt'
@@ -1621,48 +1661,6 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         'variables', 'schema', 'column_description', 'field_description',
     ]
 
-    # Exact filenames that unambiguously serve as codebooks/data dictionaries
-    _CODEBOOK_FILENAMES = {
-        'metadata.csv', 'metadata.xlsx', 'metadata.txt',
-        'data_dictionary.csv', 'data_dictionary.xlsx',
-        'codebook.csv', 'codebook.xlsx', 'codebook.txt',
-        'variables.csv', 'variables.txt',
-        'column_descriptions.csv', 'field_descriptions.csv',
-    }
-
-    def _looks_like_codebook(path):
-        """Return True if a CSV/TSV file is structured as a variable codebook.
-
-        Heuristic: second column contains description-like text
-        (average length > 15 characters), suggesting variable-name + description
-        rows rather than raw data.
-        """
-        import csv as _csv
-        try:
-            raw = path.read_text(encoding='utf-8', errors='ignore')
-            # Sniff delimiter from first 2 KB
-            sample = raw[:2048]
-            try:
-                dialect = _csv.Sniffer().sniff(sample, delimiters=',;\t|')
-                delim = dialect.delimiter
-            except Exception:
-                delim = ','
-            rows = []
-            for row in _csv.reader(raw.splitlines(), delimiter=delim):
-                if any(c.strip() for c in row):
-                    rows.append(row)
-                if len(rows) >= 10:
-                    break
-            if len(rows) < 3:
-                return False
-            col2 = [r[1].strip() for r in rows[1:] if len(r) > 1]
-            if not col2:
-                return False
-            avg_len = sum(len(c) for c in col2) / len(col2)
-            return avg_len > 15
-        except Exception:
-            return False
-
     all_names_lower = [f.name.lower() for f in all_files]
     all_stems_lower = [f.stem.lower() for f in all_files]
 
@@ -1672,7 +1670,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
     )
     # Exact codebook filename match
     if not has_data_doc:
-        has_data_doc = any(f.name.lower() in _CODEBOOK_FILENAMES for f in all_files)
+        has_data_doc = any(f.name.lower() in CODEBOOK_FILENAMES for f in all_files)
     # Content-based: CSV/TSV that looks like a variable dictionary
     if not has_data_doc:
         for f in all_files:
@@ -4235,7 +4233,10 @@ def detect_BA_missing_checksums(repo_dir, all_files):
     data_files = [f for f in all_files
                   if (f.suffix.lower() in DATA_EXTENSIONS
                       or f.suffix.lower() in ARCHIVE_EXTENSIONS)
-                  and not f.name.lower().startswith('readme')]
+                  and not f.name.lower().startswith('readme')
+                  and f.name.lower() not in CODEBOOK_FILENAMES
+                  and not (f.suffix.lower() in {'.csv', '.tsv'}
+                           and _looks_like_codebook(f))]
     if len(data_files) < 2:
         return findings
     has_checksums = any(

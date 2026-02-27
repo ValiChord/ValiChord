@@ -13,6 +13,8 @@ from detectors.failure_modes_simple import (
     DATA_EXTENSIONS as _DATA_EXTENSIONS,
     ARCHIVE_EXTENSIONS as _ARCHIVE_EXTENSIONS,
     _inspect_archive,
+    CODEBOOK_FILENAMES as _CODEBOOK_FILENAMES,
+    _looks_like_codebook,
 )
 
 
@@ -375,6 +377,10 @@ def _classify_file(f, is_cad=False):
         return 'Documentation'
     if _is_model_artifact_file(f):
         return 'Model artifact'
+    if f.name.lower() in _CODEBOOK_FILENAMES:
+        return 'Documentation'
+    if ext in {'.csv', '.tsv'} and _looks_like_codebook(f):
+        return 'Documentation'
     if ext in _DATA_EXTENSIONS:
         return 'Data'
     if is_cad and ext == '.pdf':
