@@ -432,6 +432,39 @@ def _file_notes(f):
 
 # ── README_DRAFT.md ──────────────────────────────────────────────────────────
 
+_SHP_EXTENSIONS = {'.shp', '.dbf', '.shx', '.prj', '.cpg', '.sbn', '.sbx'}
+
+
+def _group_shapefiles(data_files):
+    """Group shapefile components sharing a stem into a single representative entry.
+
+    e.g. FRA_adm2.shp + .dbf + .shx + .prj → one row for FRA_adm2.shp
+    Non-shapefile files are returned unchanged.
+    """
+    from collections import defaultdict as _dd
+    shp_groups = _dd(list)
+    non_shp = []
+    for f in data_files:
+        if f.suffix.lower() in _SHP_EXTENSIONS:
+            shp_groups[f.parent / f.stem].append(f)
+        else:
+            non_shp.append(f)
+    representatives = []
+    for _base, files in sorted(shp_groups.items(), key=lambda x: str(x[0])):
+        # Prefer the actual .shp file as representative; fall back to synthetic path
+        rep = next((f for f in files if f.suffix.lower() == '.shp'), None)
+        if rep is None:
+            rep = files[0].with_suffix('.shp')
+        representatives.append(rep)
+    return representatives + non_shp
+
+
+def _data_file_format(f):
+    """Human-readable format label for a data file in README tables."""
+    if f.suffix.lower() == '.shp':
+        return 'Shapefile'
+    return f.suffix.upper().lstrip('.')
+
 
 def _readme_install_block(all_files, r_packages=None, github_pkgs=None):
     """Return language-appropriate installation instructions for README_DRAFT."""
@@ -967,7 +1000,8 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
 
     if not has_code:
         # data-only deposit — use data-focused template
-        data_files = [f for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS and not f.name.lower().startswith('readme')]
+        _raw_data_files = [f for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS and not f.name.lower().startswith('readme')]
+        data_files = _group_shapefiles(_raw_data_files)
         codebook = next((f.name for f in all_files if "codebook" in f.name.lower() or "data_dict" in f.name.lower() or "readme_variable" in f.name.lower()), None)
         lines = [
             '# [TITLE OF DATASET — YOU MUST COMPLETE THIS]',
@@ -996,7 +1030,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
             '',
             '| File | Format | Description | Rows | Variables |',
             '|---|---|---|---|---|',
-            *[f'| `{f.relative_to(repo_dir)}` | {f.suffix.upper().lstrip(".")} | [YOU MUST COMPLETE THIS] | | |' for f in data_files],
+            *[f'| `{f.relative_to(repo_dir)}` | {_data_file_format(f)} | [YOU MUST COMPLETE THIS] | | |' for f in data_files],
             '',
             '---',
             '',

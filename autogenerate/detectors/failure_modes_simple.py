@@ -21,9 +21,14 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 DATA_EXTENSIONS = {
     '.csv', '.tsv', '.xlsx', '.xls', '.json', '.jsonl', '.ndjson',
     '.parquet', '.feather', '.arrow',
-    '.rds', '.rdata', '.dta', '.sav', '.sas7bdat',
+    '.rds', '.rdata', '.dta', '.sav', '.zsav', '.sas7bdat', '.xpt',
     '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
-    '.dif', '.gdt'
+    '.dif', '.gdt',
+    # Shapefile components
+    '.shp', '.dbf', '.shx', '.prj', '.cpg', '.sbn', '.sbx',
+    # Geospatial
+    '.geojson', '.gpkg', '.kml', '.kmz',
+    # .gdb is an ESRI directory format — won't match f.is_file() but included for completeness
 }
 
 ENCRYPTED_EXTENSIONS = {'.gpg', '.enc', '.secret', '.age', '.asc'}
