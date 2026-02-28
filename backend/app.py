@@ -97,6 +97,10 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
             and not f.name.startswith('._')
             and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
                                 '.valichord_nested_archives.json'}
+            # Exclude ValiChord-generated output files so they don't confuse
+            # detectors when a previous output zip is re-uploaded as input.
+            and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
+            and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
         ]
 
         findings = run_simple_detectors(repo_dir, all_files, zip_name=original_filename)

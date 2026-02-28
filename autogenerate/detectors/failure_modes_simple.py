@@ -4648,7 +4648,7 @@ def detect_AU_cloud_storage(repo_dir, all_files):
 _DRYAD_FILENAME_RE = re.compile(
     r'doi_(\d+)_(\d+)_([^_].+?)(?:__v\d+)?(?:\.zip)?$', re.IGNORECASE
 )
-_DOI_RE = re.compile(r'10\.\d{4,}/\S+', re.IGNORECASE)
+_DOI_RE = re.compile(r'\b10\.\d{4,9}/\S+', re.IGNORECASE)
 
 
 def _extract_doi_from_filename(zip_name: str):
@@ -4679,11 +4679,22 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
         if doi_from_filename:
             return findings
     # Scan text files for any DOI pattern (doi:, doi.org, bare 10.XXXX/...).
-    text_files = [f for f in all_files if f.suffix.lower() in {'.md', '.txt', '.rst'}]
+    # Exclude ValiChord-generated output files — they contain "zenodo", "doi:",
+    # and real DOI strings injected by the tool itself, which would cause false
+    # suppression on a re-run of a ValiChord output zip.
+    _GENERATED_NAMES = {
+        'ASSESSMENT.md', 'CLEANING_REPORT.md',
+    }
+    text_files = [
+        f for f in all_files
+        if f.suffix.lower() in {'.md', '.txt', '.rst'}
+        and f.name not in _GENERATED_NAMES
+        and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
+    ]
     has_doi = False
     for f in text_files:
         content = read_file_safe(f).lower()
-        if ('doi:' in content or 'doi.org' in content or 'zenodo' in content
+        if ('doi.org' in content or 'zenodo' in content
                 or bool(_DOI_RE.search(content))):
             has_doi = True
             break

@@ -131,6 +131,10 @@ def main():
         and not f.name.startswith('._')     # macOS resource-fork sidecar files
         and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
                             '.valichord_nested_archives.json'}
+        # Exclude ValiChord-generated output files so they don't confuse
+        # detectors when a previous output zip is re-uploaded as input.
+        and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
+        and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
     ]
 
     print(f"  Files found: {len(all_files)}")
