@@ -4855,15 +4855,20 @@ def detect_BD_missing_contact(repo_dir, all_files):
     ]
     if not readme_files:
         return findings
+    # Suppression requires a genuinely reachable contact mechanism — not just
+    # the word "contact" or an author name.  Accepted mechanisms:
+    #   1. Email address  (user@domain.tld)
+    #   2. ORCiD URL      (orcid.org/XXXX-XXXX-XXXX-XXXX)
+    #   3. GitHub issues  (github.com/owner/repo/issues)  — acceptable route for support
     _email_re = re.compile(r'[\w.+-]+@[\w-]+\.[a-z]{2,}', re.IGNORECASE)
+    _orcid_re = re.compile(r'orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dX]', re.IGNORECASE)
+    _gh_issues_re = re.compile(r'github\.com/[^/\s]+/[^/\s]+/issues', re.IGNORECASE)
     has_contact = False
     for readme_file in readme_files:
         content = read_file_safe(readme_file)
-        content_lower = content.lower()
-        if any(term in content_lower for term in ['contact', 'author', 'email', 'correspondence', 'maintainer', '@']):
-            has_contact = True
-            break
-        if _email_re.search(content):
+        if (_email_re.search(content)
+                or _orcid_re.search(content)
+                or _gh_issues_re.search(content)):
             has_contact = True
             break
     if not has_contact:
