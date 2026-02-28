@@ -2146,6 +2146,8 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
                    re.MULTILINE),                                    # * ColumnName: desc
         re.compile(r'\*\*[a-zA-Z_]\w*\*\*\s*:',
                    re.MULTILINE),                                    # **col_name**: desc
+        re.compile(r'^\s*Column\s+\d+\s*:',
+                   re.MULTILINE | re.IGNORECASE),                   # Column 1: desc
     ]
     for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
         nl = f.name.lower()
