@@ -2248,8 +2248,11 @@ def detect_G_inadequate_readme(repo_dir, all_files):
             readme_file = f
             break
 
-    # Read README content once (may be None if no README found).
-    content = None
+    # Read README content once.  When no README is found, both strings are
+    # left empty so that all subsequent keyword checks evaluate to False and
+    # every section is flagged as missing — the correct behaviour because a
+    # missing README means nothing can possibly be documented there.
+    content = ''
     content_lower = ''
     if readme_file:
         try:
@@ -2286,10 +2289,6 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                         'Recommendation: document any exclusion criteria or known missing values',
                     ]
                 ))
-
-    # ── No README: nothing more to check (section checks require content) ────
-    if not readme_file or content is None:
-        return findings  # [A] detector handles the missing-README finding
 
     # sections we expect in a reproducible research README
     if has_code:
@@ -2362,7 +2361,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
             'instructions, execution steps, and expected outputs, '
             'validators cannot proceed systematically.',
             [f'Missing sections: {", ".join(missing)}',
-             f'README length: {len(content)} characters']
+             (f'README length: {len(content)} characters' if content else 'No README found')]
         ))
     elif len(missing) >= 1:
         findings.append(finding(
@@ -2453,15 +2452,16 @@ def detect_K_compute_environment(repo_dir, all_files):
             readme_file = f
             break
 
-    if not readme_file:
-        return findings
-
-    try:
-        content = readme_file.read_text(
-            encoding='utf-8', errors='ignore'
-        ).lower()
-    except Exception:
-        return findings
+    # When no README exists, content stays empty — all environment indicators
+    # evaluate to False, so every missing item is flagged unconditionally.
+    content = ''
+    if readme_file:
+        try:
+            content = readme_file.read_text(
+                encoding='utf-8', errors='ignore'
+            ).lower()
+        except Exception:
+            pass
 
     # check for compute environment documentation
     os_indicators = [
@@ -4821,7 +4821,7 @@ def detect_BA_missing_checksums(repo_dir, all_files):
                   and f.name.lower() not in _NON_DATA_TXT
                   and not (f.suffix.lower() in {'.csv', '.tsv'}
                            and _looks_like_codebook(f))]
-    if len(data_files) < 2:
+    if not data_files:
         return findings
 
     # A dedicated checksum file (md5sums.txt, SHA256SUMS, checksums.md, etc.)
@@ -4915,8 +4915,6 @@ def detect_BD_missing_contact(repo_dir, all_files):
         if f.name.lower() in README_NAMES
         or ('readme' in f.name.lower() and f.suffix.lower() in {'.md', '.txt', '.rst', ''})
     ]
-    if not readme_files:
-        return findings
     # Suppression requires a genuinely reachable contact mechanism — not just
     # the word "contact" or an author name.  Accepted mechanisms:
     #   1. Email address  (user@domain.tld)
