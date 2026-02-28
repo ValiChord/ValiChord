@@ -1,4 +1,8 @@
-# ValiChord Complete
+<div align="center">
+  <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+</div>
+
+# ValiChord 
 ## Vision & Architecture for End-to-End Scientific Reproducibility Infrastructure
 
 **Author:** Ceri John
