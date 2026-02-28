@@ -234,6 +234,24 @@ def _check_cran_package(name: str) -> str:
         return 'unknown'
 
 
+def _make_guard(src_file) -> str:
+    """Return a language-appropriate anti-execution guard line."""
+    ext = src_file.suffix.lower()
+    msg = 'VALICHORD PROPOSED CORRECTION: Remove this after verifying the corrections above.'
+    if ext in {'.r', '.rmd', '.qmd'}:
+        return f'stop("{msg}")\n'
+    elif ext == '.py':
+        return f'raise RuntimeError("{msg}")\n'
+    elif ext == '.jl':
+        return f'error("{msg}")\n'
+    elif ext in {'.do', '.ado'}:
+        return f'display as error "{msg}"\n' + 'exit 1\n'
+    elif ext == '.m':
+        return f'error("{msg}")\n'
+    else:
+        return f'# ERROR: {msg}\n'
+
+
 def _r_pkg_suspicious(name: str) -> bool:
     """Return True if an R package name looks garbled or non-real.
 
@@ -3211,10 +3229,7 @@ def generate_proposed_corrections(repo_dir, all_files, findings, output_dir):
             '# The suggested paths may not match your directory structure.',
             '# ============================================================',
             '',
-            'raise RuntimeError(',
-            '    "VALICHORD PROPOSED CORRECTION: Remove this error block "',
-            '    "after verifying the path corrections above."',
-            ')',
+            _make_guard(src_file).rstrip('\n'),
             '',
             '# ============================================================',
             '',
