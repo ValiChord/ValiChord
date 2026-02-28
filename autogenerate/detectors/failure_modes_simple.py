@@ -4222,6 +4222,27 @@ def detect_AJ_hardcoded_sample_size(repo_dir, all_files):
     return findings
 
 
+def _strip_comment_lines(content: str, suffix: str) -> str:
+    """Replace comment-only lines with blank lines before URL scanning.
+
+    Prevents URLs in boilerplate template comments (e.g. the Shiny
+    '# https://shiny.posit.co/' header) from triggering [AK].
+    Only whole-line comments are stripped; inline trailing comments are kept.
+    """
+    ext = suffix.lower()
+    if ext in {'.r', '.rmd', '.qmd', '.py', '.sh', '.jl',
+               '.yaml', '.yml', '.rb', '.pl', '.perl'}:
+        pfx = '#'
+    elif ext == '.m':
+        pfx = '%'
+    else:
+        return content
+    out = []
+    for line in content.splitlines():
+        out.append('' if line.lstrip().startswith(pfx) else line)
+    return '\n'.join(out)
+
+
 def detect_AK_external_urls(repo_dir, all_files):
     """Failure Mode AK: External URLs that may become unavailable."""
     findings = []
@@ -4255,7 +4276,7 @@ def detect_AK_external_urls(repo_dir, all_files):
     )
     _domain_to_url: dict = {}   # domain -> first URL seen
     for f in sorted(code_files, key=lambda x: x.name):
-        content = read_file_safe(f)
+        content = _strip_comment_lines(read_file_safe(f), f.suffix)
         for url in url_pattern.findall(content):
             m = _domain_pat.match(url)
             if m:

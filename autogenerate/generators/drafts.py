@@ -1771,6 +1771,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         'pymannkendall',
     }
 
+    _draft_pkg_count = len(external)
     if external:
         _is_julia_repo = '.jl' in all_suffixes and '.py' not in all_suffixes
         for pkg in external:
@@ -1888,6 +1889,7 @@ def _generate_requirements_draft(repo_dir, all_files,
         # install*.R files may explicitly install base packages that were
         # already removed from r_libs above.
         r_libs -= {p for p in r_libs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
+        _draft_pkg_count = len(r_libs)
         if r_libs:
             gh_list        = [p for p in sorted(r_libs) if p.lower() in gh_map]
             gh_likely_list = [p for p in sorted(r_libs) if p.lower() not in gh_map
@@ -2024,7 +2026,7 @@ def _generate_requirements_draft(repo_dir, all_files,
     out = output_dir / 'requirements_DRAFT.txt'
     out.write_text('\n'.join(lines), encoding='utf-8-sig')
     print(f"  → requirements_DRAFT.txt "
-          f"({len(external)} packages detected)")
+          f"({_draft_pkg_count} packages detected)")
 
 
 # ── QUICKSTART_DRAFT.md ──────────────────────────────────────────────────────
