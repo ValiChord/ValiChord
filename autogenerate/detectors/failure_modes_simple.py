@@ -1866,6 +1866,13 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_NZ(repo_dir, all_files)
     print("  [DUP] Duplicate data file check...")
     all_findings += detect_DUP(repo_dir, all_files)
+
+    # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
+    # its "expected values for specific input combinations" requirement already
+    # covers [G]'s "define what successful reproduction looks like" ask.
+    if any(f['mode'] == 'DB' for f in all_findings):
+        all_findings = [f for f in all_findings if f['mode'] != 'G']
+
     return all_findings
 
 def detect_F_missing_seeds(repo_dir, all_files):

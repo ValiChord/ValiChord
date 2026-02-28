@@ -215,6 +215,25 @@ _KNOWN_CRAN = {
 _KNOWN_CRAN_LOWER = {p.lower() for p in _KNOWN_CRAN}
 
 
+def _check_cran_package(name: str) -> str:
+    """Return 'found', 'not_found', or 'unknown' for an R package name.
+
+    Queries crandb.r-pkg.org.  Network errors and unexpected status codes
+    return 'unknown' so callers only warn when the package is definitively absent.
+    """
+    try:
+        import requests as _req
+        resp = _req.get(f'https://crandb.r-pkg.org/{name}', timeout=5)
+        if resp.status_code == 200:
+            return 'found'
+        elif resp.status_code == 404:
+            return 'not_found'
+        else:
+            return 'unknown'
+    except Exception:
+        return 'unknown'
+
+
 def _r_pkg_suspicious(name: str) -> bool:
     """Return True if an R package name looks garbled or non-real.
 
@@ -1911,13 +1930,18 @@ def _generate_requirements_draft(repo_dir, all_files,
             if cran_list:
                 lines.append('# CRAN packages — install with install.packages():')
                 for pkg in cran_list:
-                    if pkg.lower() in _KNOWN_CRAN_LOWER or not _r_pkg_suspicious(pkg):
+                    if pkg.lower() in _KNOWN_CRAN_LOWER:
                         lines.append(f'{pkg}  # version unknown')
                     else:
-                        lines.append(
-                            f'{pkg}  # WARNING: \'{pkg}\' not found on CRAN'
-                            f' — verify this package name is correct'
-                        )
+                        _cran_status = _check_cran_package(pkg)
+                        if _cran_status == 'not_found':
+                            lines.append(
+                                f'{pkg}  # WARNING: \'{pkg}\' not found on CRAN'
+                                f' — verify this package name is correct'
+                            )
+                        else:
+                            # 'found' or 'unknown' (network error) — no warning
+                            lines.append(f'{pkg}  # version unknown')
             if bioc_list:
                 if cran_list:
                     lines.append('')
@@ -3100,48 +3124,59 @@ def generate_proposed_corrections(repo_dir, all_files, findings, output_dir):
 
     corrected_files = []
 
+    # [C] findings are now grouped (one finding covering all affected files).
+    # Parse all filenames from evidence[0] which has format 'Files: a.R, b.py'.
+    target_files = []
     for path_finding in path_findings:
-        # extract filename from evidence
         evidence = path_finding.get('evidence', [])
         if not evidence:
             continue
+        ev0 = evidence[0]
+        if ev0.startswith('Files: '):
+            names_part = re.sub(r'\s*\(and \d+ more files?\)', '', ev0[len('Files: '):])
+            file_names = {n.strip() for n in names_part.split(',')}
+            target_files += [f for f in all_files if f.name in file_names]
+        else:
+            # Legacy single-file format: 'Evidence: filename line N: ...'
+            target_files += [f for f in all_files if ev0.startswith(f'Evidence: {f.name}')]
 
-        fname = path_finding['detail']
-        # find the actual file
-        target_files = [
-            f for f in all_files
-            if path_finding['evidence'][0].startswith(
-                f'Evidence: {f.name}'
-            )
-        ]
+    # find and replace absolute paths
+    abs_pattern = re.compile(
+        r'(/Users/[a-zA-Z][a-zA-Z0-9_\-]{1,}/[^\s\'")\]]*)'
+        r'|(/home/[a-zA-Z][a-zA-Z0-9_\-]{1,}/[^\s\'")\]]*)'
+        r'|(/root/[a-zA-Z][^\s\'")\]]*)'
+        r'|([A-Z]:\\\\[A-Za-z][^\s\'")\]]*)'
+        r'|([A-Z]:/[A-Za-z][^\s\'")\]]*)'
+    )
 
-        if not target_files:
-            continue
-
-        src_file = target_files[0]
-
+    for src_file in target_files:
         try:
             content = src_file.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             continue
 
-        # find and replace absolute paths
-        abs_pattern = re.compile(
-            r'(/Users/[a-zA-Z][a-zA-Z0-9_\-]{1,}/[^\s\'")\]]*)'
-            r'|(/home/[a-zA-Z][a-zA-Z0-9_\-]{1,}/[^\s\'")\]]*)'
-            r'|(/root/[a-zA-Z][^\s\'")\]]*)'
-            r'|([A-Z]:\\\\[A-Za-z][^\s\'")\]]*)'
-            r'|([A-Z]:/[A-Za-z][^\s\'")\]]*)'
-        )
-
         # Replace paths line-by-line, skipping ~/  and export PATH= lines
         # (mirrors the detection exclusions in detect_C_absolute_paths)
+        _is_shiny_file = src_file.name.lower() in {'app.r', 'server.r', 'ui.r'}
         corrected_lines = []
         replacements = []
         for _ln in content.splitlines(keepends=True):
             _s = _ln.strip()
             if '~/' in _s or re.match(r'export\s+\w*PATH\s*=', _s):
                 corrected_lines.append(_ln)
+                continue
+            # Shiny: setwd() must be removed entirely, not path-fixed.
+            # Shiny automatically sets the working directory to the app folder,
+            # so file reads relative to app.R work without any setwd() call.
+            if _is_shiny_file and re.match(r'\s*setwd\s*\(', _ln):
+                eol = '\r\n' if _ln.endswith('\r\n') else '\n'
+                corrected_lines.append(
+                    '# REMOVED: setwd() — Shiny sets the working directory to the'
+                    ' app folder automatically.' + eol
+                    + '# If dataset.csv is in the same folder as app.R,'
+                    ' read.table("dataset.csv", ...) already works without setwd().' + eol
+                )
+                replacements.append((_ln.strip(), '# REMOVED: setwd()'))
                 continue
             _line_matches = abs_pattern.findall(_ln)
             _line_flat = [m for grp in _line_matches for m in grp if m]
