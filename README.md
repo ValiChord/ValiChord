@@ -10,17 +10,17 @@
 
 ---
 
-## 📖 [**Primary Entry Point: Vision & Architecture**](docs/ValiChord_Vision_and_Architecture_7_membranes.md)
-*What ValiChord is, why it matters, and how it solves the $200B verification gap.*
+## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture)
+*The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](docs/ValiChord_Governance_Framework_3.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Governance%20Framework)** ]
 
 </div>
 
 ## 🧬 The Mission
-Computational methods now underpin virtually every scientific discipline, yet **70% of researchers** have failed to reproduce another scientist's experiments. 
+Computational methods now underpin virtually every scientific discipline, yet **70% of researchers** have failed to reproduce another scientist's experiments. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
 
 **ValiChord** is a distributed, agent-centric infrastructure designed to automate scientific reproducibility. It provides a tamper-evident audit trail for computational research—replacing binary "Pass/Fail" verdicts with **Harmony Records** that preserve the full texture of scientific disagreement.
 
@@ -40,8 +40,8 @@ Before a study can be validated, it must be "validation-ready." This browser-nat
 ## 🏗️ Technical Specifications & Scaffold
 The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation tasks.
 
-* 🛠️ **[Architecture Scaffold (Rust)](scaffold/valichord_scaffold_5.rs):** The 1,488-line type system and trait specification.
-* 📚 **[Technical Reference](docs/ValiChord_Technical_Reference_7_membranes.md):** Illustrative architecture sketches and data models for engineering discussion.
+* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Architecture%20Scaffold)**
+* 📚 **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference.md)**
 
 | Layer | Component | Technical Function |
 | :--- | :--- | :--- |
@@ -49,7 +49,7 @@ The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cos
 | `1` | **Analysis Intake** | Time-locked analysis plans and cryptographic pre-commitments. |
 | `2` | **Validation Engine** | Blinded **Commit-Reveal** protocol for independent peer verification. |
 | `3` | **Governance** | **"Brutality Commitments"** to prevent institutional capture. |
-| `4` | **Audit Trail** | Immutable event logs and provenance graphs of the validation path. |
+| `4` | **Audit & Provenance** | Immutable event logs and provenance graphs of the validation path. |
 
 ---
 
