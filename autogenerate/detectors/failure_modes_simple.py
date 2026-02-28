@@ -13,7 +13,8 @@ from pathlib import Path
 CODE_EXTENSIONS = {
     '.py', '.r', '.rmd', '.qmd', '.jl', '.m', '.sh', '.bash', '.smk', '.nf', '.groovy',
     '.do', '.sas', '.ado', '.c', '.cpp', '.f', '.f90',
-    '.sql', '.rs', '.go', '.java', '.js', '.ts'
+    '.sql', '.rs', '.go', '.java', '.js', '.ts',
+    '.ipynb',   # Jupyter notebooks — treat as code for has_code checks
 }
 
 NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
@@ -4786,9 +4787,15 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
+    # Broader than DATA_EXTENSIONS: include images and ML binary formats that
+    # appear in large deposits (image datasets, model checkpoints) and need
+    # checksums just as much as tabular data files.
+    _CHECKSUM_WORTHY = DATA_EXTENSIONS | ARCHIVE_EXTENSIONS | {
+        '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp',
+        '.pt', '.pth', '.onnx', '.pb', '.bin', '.safetensors', '.ckpt',
+    }
     data_files = [f for f in all_files
-                  if (f.suffix.lower() in DATA_EXTENSIONS
-                      or f.suffix.lower() in ARCHIVE_EXTENSIONS)
+                  if f.suffix.lower() in _CHECKSUM_WORTHY
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
                   and not (f.suffix.lower() in {'.csv', '.tsv'}
@@ -4796,14 +4803,17 @@ def detect_BA_missing_checksums(repo_dir, all_files):
     if len(data_files) < 2:
         return findings
     has_checksums = any(
-        'checksum' in f.name.lower() or 'hash' in f.name.lower() or 'md5' in f.name.lower()
+        'checksum' in f.name.lower() or 'md5' in f.name.lower()
+        or 'sha256' in f.name.lower() or 'sha1' in f.name.lower()
         for f in all_files
     )
     readme_has_checksums = False
     for f in all_files:
         if f.name.lower() in {'readme.md', 'readme.txt'}:
             content = read_file_safe(f).lower()
-            if any(term in content for term in ['checksum', 'md5', 'sha256', 'hash']):
+            # 'hash' excluded — too common in non-checksum contexts
+            # (hash functions, hash maps, hash-based algorithms)
+            if any(term in content for term in ['checksum', 'md5', 'sha256', 'sha1', 'sha512']):
                 readme_has_checksums = True
     if not has_checksums and not readme_has_checksums:
         _scope_note = (
