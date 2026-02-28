@@ -138,7 +138,7 @@ def main():
 
     # ── run detectors ────────────────────────────────────────────────
     print("Running detectors...")
-    findings = run_simple_detectors(repo_dir, all_files)
+    findings = run_simple_detectors(repo_dir, all_files, zip_name=zip_path.name)
 
     # count by severity
     critical = sum(1 for f in findings if f['severity'] == 'CRITICAL')

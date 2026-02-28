@@ -1617,7 +1617,7 @@ def detect_W_git_lfs(repo_dir, all_files):
 
 # ── main entry point ─────────────────────────────────────────────────────────
 
-def run_simple_detectors(repo_dir, all_files):
+def run_simple_detectors(repo_dir, all_files, zip_name=None):
     """Run all simple pattern-matching detectors. Return list of findings."""
 
     # Clear the per-run content inspection cache so each deposit starts fresh.
@@ -1743,7 +1743,7 @@ def run_simple_detectors(repo_dir, all_files):
     print("  [AV] Hardcoded dates check...")
     all_findings += detect_AV_hardcoded_dates(repo_dir, all_files)
     print("  [AW] DOI check...")
-    all_findings += detect_AW_missing_doi(repo_dir, all_files)
+    all_findings += detect_AW_missing_doi(repo_dir, all_files, zip_name=zip_name)
     print("  [AX] Container check...")
     all_findings += detect_AX_container_not_tested(repo_dir, all_files)
     print("  [AY] Workflow file check...")
@@ -4617,17 +4617,46 @@ def detect_AU_cloud_storage(repo_dir, all_files):
     return findings
 
 
-def detect_AW_missing_doi(repo_dir, all_files):
+_DRYAD_FILENAME_RE = re.compile(
+    r'doi_(\d+)_(\d+)_([^_].+?)(?:__v\d+)?(?:\.zip)?$', re.IGNORECASE
+)
+_DOI_RE = re.compile(r'10\.\d{4,}/\S+', re.IGNORECASE)
+
+
+def _extract_doi_from_filename(zip_name: str):
+    """Return DOI string extracted from a Dryad-style filename, or None.
+
+    Dryad format: doi_10_5061_dryad_88r38__v20171123.zip
+    Reconstructs: 10.5061/dryad.88r38
+    """
+    m = _DRYAD_FILENAME_RE.search(zip_name)
+    if m:
+        prefix = m.group(1)       # 10
+        registrar = m.group(2)    # 5061
+        suffix = m.group(3)       # dryad_88r38
+        suffix_clean = suffix.replace('_', '.')  # dryad.88r38
+        return f'{prefix}.{registrar}/{suffix_clean}'
+    return None
+
+
+def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
     findings = []
     # CITATION.cff is itself a persistent identifier mechanism — suppress [AW]
     # when one is present (same logic as [BM]).
     if any(f.name.lower() == 'citation.cff' for f in all_files):
         return findings
+    # DOI encoded in the deposit filename (Dryad and similar archives).
+    if zip_name:
+        doi_from_filename = _extract_doi_from_filename(zip_name)
+        if doi_from_filename:
+            return findings
+    # Scan text files for any DOI pattern (doi:, doi.org, bare 10.XXXX/...).
     text_files = [f for f in all_files if f.suffix.lower() in {'.md', '.txt', '.rst'}]
     has_doi = False
     for f in text_files:
         content = read_file_safe(f).lower()
-        if 'doi:' in content or 'doi.org' in content or 'zenodo' in content or 'zenodo.org/badge' in content or 'doi.org/10.5281' in content or bool(re.search(r'10\.\d{4}/', content)):
+        if ('doi:' in content or 'doi.org' in content or 'zenodo' in content
+                or bool(_DOI_RE.search(content))):
             has_doi = True
             break
     if not has_doi:

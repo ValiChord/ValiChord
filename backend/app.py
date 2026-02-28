@@ -99,7 +99,7 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
                                 '.valichord_nested_archives.json'}
         ]
 
-        findings = run_simple_detectors(repo_dir, all_files)
+        findings = run_simple_detectors(repo_dir, all_files, zip_name=original_filename)
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
         generate_cleaning_report(original_filename, repo_dir, all_files, findings, output_dir)
 
