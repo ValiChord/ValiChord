@@ -3,7 +3,6 @@
   <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
-## ValiChord
 # Test Scenario Specification
 
 
