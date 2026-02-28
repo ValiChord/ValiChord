@@ -10,12 +10,12 @@
 
 ---
 
-## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture)
+## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md)
 *The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Governance%20Framework)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Governance%20Framework.md)** ]
 
 </div>
 
@@ -40,7 +40,7 @@ Before a study can be validated, it must be "validation-ready." This browser-nat
 ## 🏗️ Technical Specifications & Scaffold
 The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation tasks.
 
-* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Architecture%20Scaffold)**
+* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Architecture%20Scaffold.rs)**
 * 📚 **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference.md)**
 
 | Layer | Component | Technical Function |
