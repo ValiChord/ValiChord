@@ -2,8 +2,6 @@
 
 <img src="Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 
-# ValiChord
-### **Harmony from Dissonance**
 **Distributed Integrity Infrastructure for Computational Research Reproducibility**
 
 [![Status](https://img.shields.io/badge/Status-Phase_0_Pilot-blue?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
