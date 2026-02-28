@@ -2,7 +2,7 @@
   <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
-# ValiChord Complete — Open Design Questions
+# ValiChord — Open Design Questions
 ## Precedents, Likely Approaches, and Resolution Phases
 
 **Author:** Ceri John
