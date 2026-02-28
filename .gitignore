@@ -1,0 +1,12 @@
+# ValiChord generated output — never commit these
+autogenerate/output/
+autogenerate/tests/
+output/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
