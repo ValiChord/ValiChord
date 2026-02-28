@@ -1,67 +1,71 @@
-ValiChord: Distributed Integrity Infrastructure for Computational Science
+<div align="center">
+  
+# ValiChord
+### **Harmony from Dissonance**
+**Distributed Integrity Infrastructure for Computational Research**
 
-Independent, tamper-evident verification to solve the $200B/year reproducibility crisis.
-🌐 The ValiChord Ecosystem
+[![Status](https://img.shields.io/badge/Status-Phase_0_Pilot-blue?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
+[![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/tree/main/scaffold)
+[![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 
-    Official Project Site: https://topeuph-ai.github.io/ValiChord
+---
 
-    The ValiChord at Home Pilot: https://topeuph-ai.github.io/ValiChord/demo.html
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference.md)** ]
 
-🛠 Repository Readiness Check (Live Demo)
+</div>
 
-The embryo of "ValiChord at Home."
-Before a study can be validated, it must be "validation-ready." We have developed a browser-native diagnostic tool that allows researchers to upload their research repositories and receive an instant, actionable report on how to improve their computational reproducibility.
+## 🧬 The Mission
+Computational science is facing a **$200 billion annual verification gap**. While AI accelerates the *discovery* of new scientific claims, the *validation* of those claims remains stuck in a manual, 17th-century bottleneck. 
 
-    Self-Diagnostic: Check your code against FAIR and Turing Way standards.
+**ValiChord** provides a distributed, tamper-evident infrastructure for the independent reproduction of computational research. It replaces binary "Pass/Fail" verdicts with **Harmony Records**—deep-tissue reports that preserve and highlight methodological disagreements, revealing the specific boundary conditions of scientific truth.
 
-    Privacy-First: Works entirely in your browser. Your code and data are never uploaded to a server.
+---
 
-    Actionable: Identifies documentation gaps, dependency conflicts, and environment friction before you submit for peer review.
-    👉 Try the Repository Readiness Check
+## 🚀 Live Tools for Researchers
 
-What is ValiChord?
+### 🔍 **Repository Readiness Check (Beta)**
+**The embryo of the *ValiChord at Home* suite.**
+Before a study can be validated, it must be "validation-ready." This browser-native diagnostic tool allows you to evaluate your research repository against global standards (`FAIR`, `The Turing Way`).
+* **Zero-Knowledge:** Works entirely in your browser; no code is ever uploaded.
+* **Instant Audit:** Identifies documentation gaps and dependency friction.
+* **Actionable:** Export a Markdown report to improve your study's reproducibility.
+👉 **[Launch the Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)**
 
-ValiChord is an 8-layer distributed framework that coordinates multiple independent validators to reproduce published analyses. Instead of a binary "Pass/Fail," it produces Harmony Records—comprehensive reports that preserve the full texture of agreement and disagreement, revealing the specific boundary conditions where a methodology might be fragile.
-🏗 The 8-Layer Architecture
+---
 
-Built on Holochain, an agent-centric distributed computing framework, ValiChord ensures that data privacy (GDPR) and institutional IP are protected while providing absolute cryptographic proof of results.
-Layer	Component	Purpose
-0	Data Foundation	Content-addressed, tamper-evident snapshots of code and data.
-1	Analysis Intake	Time-locked analysis plans and pre-commitment protocols.
-2	Validation Engine	Distributed coordination using a blinded Commit-Reveal protocol.
-3	Governance	"Brutality Commitments" to resist institutional capture.
-4	Audit Trail	Tamper-evident event logs and provenance graphs for every event.
-5	Certification	Issuance of Harmony Records and reproducibility credentials.
-6	Reputation	Multi-dimensional scoring for validators based on rigor, not status.
-7	Integration	APIs for seamless inclusion in journal and funder workflows.
-📅 Roadmap & Current Status
+## 🏗️ 8-Layer Architectural Scaffold
+ValiChord is built on an **Agent-Centric Distributed System** (Holochain) to ensure GDPR compliance and the protection of institutional IP.
 
-Currently seeking a Principal Investigator and Institutional Home for the UKRI Metascience Round 2 application.
+| Layer | Component | Technical Function |
+| :--- | :--- | :--- |
+| `0` | **Data Foundation** | Content-addressed, tamper-evident snapshots of research artifacts. |
+| `1` | **Analysis Intake** | Time-locked analysis plans and cryptographic pre-commitments. |
+| `2` | **Validation Engine** | Blinded **Commit-Reveal** protocol for independent peer verification. |
+| `3` | **Governance** | **"Brutality Commitments"** to prevent institutional capture. |
+| `4` | **Audit & Provenance** | Immutable event logs and provenance graphs of the validation path. |
+| `5` | **Certification** | Issuance of machine-readable **Harmony Records**. |
+| `6` | **Reputation** | Multi-dimensional validator scoring based on methodological rigor. |
+| `7` | **Integration** | Secure APIs for journal, funder, and institutional repository workflows. |
 
-    Phase 0 (2026): Validation Workload Discovery
+---
 
-        Goal: Empirically measure the time and expertise required to validate 75+ computational studies.
+## 📊 Roadmap: The Path to Scale
 
-        Status: Proposed for UKRI Metascience Round 2 (£150K).
+| Phase | Focus | Status |
+| :--- | :--- | :--- |
+| **Phase 0** | **Workload Discovery:** Quantifying the labor cost of validation. | **[Proposed: UKRI Metascience 2]** |
+| **Phase 1** | **Core Infrastructure:** Building the functional Rust/Holochain MVP. | **[Architecture Validated]** |
+| **Phase 2** | **Discipline Scaling:** Training difficulty prediction models. | [Planned] |
 
-    Phase 1: Core Infrastructure Build
+---
 
-        Goal: Implementation of the 8-layer Rust scaffold into a functional MVP.
+## 🛠️ Repository Contents
+* `scaffold/valichord_scaffold.rs`: Full **1,488-line Rust type system** defining the architecture.
+* `docs/`: Comprehensive documentation including the **Vision & Architecture** and **Governance Framework**.
+* `at-home.html`: Source for the browser-native Readiness Check tool.
 
-📂 Repository Contents
+> ### *“Every initiative assumes verification is feasible at a reasonable cost. That assumption has never been tested. ValiChord is the test.”*
 
-    /scaffold: The full 1,488-line Rust Type Specification defining the architecture.
-
-    /docs: Technical references, governance frameworks, and project vision.
-
-    ValiChord_Vision.md: The 50,000-word core documentation set.
-
-Contact & Collaboration
-
-Author: Ceri John (Independent Researcher, Originator)
-
-Technical Validation: Holochain Foundation (Jan 2026)
-
-Email: topeuph@gmail.com
-
-"Every initiative assumes verification is feasible at a reasonable cost. That assumption has never been tested. ValiChord is the test."
+---
+**Author:** Ceri John &nbsp;•&nbsp; **Technical Validation:** Holochain Foundation (Jan 2026)  
+**Contact:** [topeuph@gmail.com](mailto:topeuph@gmail.com)
