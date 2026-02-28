@@ -4787,34 +4787,65 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
-    # Broader than DATA_EXTENSIONS: include images and ML binary formats that
-    # appear in large deposits (image datasets, model checkpoints) and need
-    # checksums just as much as tabular data files.
+    # Extensions that represent data/binary payload files requiring checksums.
+    # Includes images and ML formats in addition to standard data formats.
+    # Plain .txt is included because scientific data (EEG, sensor output, etc.)
+    # is frequently stored as tab/space-delimited text files.
     _CHECKSUM_WORTHY = DATA_EXTENSIONS | ARCHIVE_EXTENSIONS | {
         '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp',
         '.pt', '.pth', '.onnx', '.pb', '.bin', '.safetensors', '.ckpt',
+        '.txt',
     }
+    # Well-known non-data .txt files that are never payload data.
+    _NON_DATA_TXT = frozenset({
+        'requirements.txt', 'requirements_extra.txt',
+        'license.txt', 'licence.txt',
+        'changelog.txt', 'changes.txt', 'history.txt',
+        'authors.txt', 'contributors.txt',
+        'notice.txt', 'copying.txt', 'install.txt', 'todo.txt',
+    })
     data_files = [f for f in all_files
                   if f.suffix.lower() in _CHECKSUM_WORTHY
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
+                  and f.name.lower() not in _NON_DATA_TXT
                   and not (f.suffix.lower() in {'.csv', '.tsv'}
                            and _looks_like_codebook(f))]
     if len(data_files) < 2:
         return findings
+
+    # A dedicated checksum file (md5sums.txt, SHA256SUMS, checksums.md, etc.)
     has_checksums = any(
         'checksum' in f.name.lower() or 'md5' in f.name.lower()
         or 'sha256' in f.name.lower() or 'sha1' in f.name.lower()
+        or 'sha512' in f.name.lower()
         for f in all_files
+    )
+
+    # README must *explicitly document* checksums — not merely mention a hash
+    # algorithm in passing (e.g. "we used SHA-256 for signing key material").
+    # Accept:
+    #   • A section heading: ## Checksums / ## File Integrity / ## MD5 / etc.
+    #   • An inline filename+hexhash entry: body_temps.csv: d41d8cd9...
+    #   • The word "checksum" anywhere (unambiguous — not an algorithm name)
+    _CHECKSUM_HEADING_RE = re.compile(
+        r'(?:^|\n)#{1,4}\s*(?:checksum|file\s+integrity|md5\b|sha-?256|sha-?1\b|sha-?512)',
+        re.IGNORECASE | re.MULTILINE,
+    )
+    _CHECKSUM_INLINE_RE = re.compile(
+        r'[\w./\-]+\.\w{2,6}\s*[:\|]\s*[0-9a-f]{32,64}\b',
+        re.IGNORECASE,
     )
     readme_has_checksums = False
     for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt'}:
-            content = read_file_safe(f).lower()
-            # 'hash' excluded — too common in non-checksum contexts
-            # (hash functions, hash maps, hash-based algorithms)
-            if any(term in content for term in ['checksum', 'md5', 'sha256', 'sha1', 'sha512']):
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+            content = read_file_safe(f)
+            if ('checksum' in content.lower()
+                    or _CHECKSUM_HEADING_RE.search(content)
+                    or _CHECKSUM_INLINE_RE.search(content)):
                 readme_has_checksums = True
+                break
+
     if not has_checksums and not readme_has_checksums:
         _scope_note = (
             ' For large deposits, checksums for every file is impractical — '
