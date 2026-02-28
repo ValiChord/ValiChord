@@ -157,6 +157,14 @@ def upload_chunk():
 
     with _uploads_lock:
         if upload_id not in _uploads:
+            if chunk_index > 0:
+                # Session not found for a mid-upload chunk — server must have
+                # restarted since the upload began.  Tell the client explicitly
+                # so it shows a proper "retry" message instead of hanging.
+                return jsonify({
+                    'error': 'Upload session not found — the server restarted '
+                             'during your upload. Please try uploading again.'
+                }), 400
             work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
             (work_dir / 'chunks').mkdir()
             _uploads[upload_id] = {
