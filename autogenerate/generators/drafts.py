@@ -393,7 +393,9 @@ def _is_code_txt(f):
     if not any(kw in f.stem.lower() for kw in _CODE_TXT_STEM_KEYWORDS):
         return False
     try:
-        content = f.read_text(encoding='utf-8', errors='ignore')
+        with f.open('rb') as fh:
+            raw = fh.read(2 * 1024 * 1024)  # 2 MB cap
+        content = raw.decode('utf-8', errors='ignore')
     except Exception:
         return False
     return bool(_CODE_TXT_CONTENT_RE.search(content))

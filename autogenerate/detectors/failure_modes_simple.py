@@ -72,7 +72,8 @@ def _looks_like_codebook(path) -> bool:
     description-like text (average length > 12 chars).
     """
     try:
-        content = path.read_text(encoding='utf-8', errors='ignore')
+        with path.open(encoding='utf-8', errors='ignore') as fh:
+            content = fh.read(8192)  # 8 KB is enough to inspect header rows
         lines = [ln for ln in content.split('\n') if ln.strip()][:10]
         if len(lines) < 3:
             return False
@@ -610,11 +611,20 @@ def finding(mode, severity, title, detail, evidence=None):
     }
 
 
+_MAX_READ_BYTES = 2 * 1024 * 1024  # 2 MB cap — prevents OOM on large data files
+
+
 def read_file_safe(path):
-    """Read a file, trying utf-8 then latin-1. Return empty string on failure."""
+    """Read a file, trying utf-8 then latin-1. Return empty string on failure.
+
+    Capped at 2 MB: READMEs and code files are always smaller; large CSV/binary
+    data files need only their first bytes for pattern-matching purposes.
+    """
     for encoding in ('utf-8', 'latin-1'):
         try:
-            return path.read_text(encoding=encoding)
+            with path.open('rb') as fh:
+                raw = fh.read(_MAX_READ_BYTES)
+            return raw.decode(encoding)
         except Exception:
             pass
     return ''
