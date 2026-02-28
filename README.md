@@ -1,8 +1,8 @@
 <div align="center">
-  
+
 # ValiChord
 ### **Harmony from Dissonance**
-**Distributed Integrity Infrastructure for Computational Research**
+**Distributed Integrity Infrastructure for Computational Research Reproducibility**
 
 [![Status](https://img.shields.io/badge/Status-Phase_0_Pilot-blue?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/tree/main/scaffold)
@@ -10,31 +10,32 @@
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference%207%20membranes.md)** ]
 
 </div>
 
 ## 🧬 The Mission
-Computational science is facing a **$200 billion annual verification gap**. While AI accelerates the *discovery* of new scientific claims, the *validation* of those claims remains stuck in a manual, 17th-century bottleneck. 
+Computational methods now underpin virtually every scientific discipline, yet **70% of researchers** have failed to reproduce another scientist's experiments. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
 
-**ValiChord** provides a distributed, tamper-evident infrastructure for the independent reproduction of computational research. It replaces binary "Pass/Fail" verdicts with **Harmony Records**—deep-tissue reports that preserve and highlight methodological disagreements, revealing the specific boundary conditions of scientific truth.
+**ValiChord** is a distributed, agent-centric infrastructure designed to automate scientific reproducibility. It provides a tamper-evident audit trail for computational research—replacing binary "Pass/Fail" verdicts with **Harmony Records** that preserve the full texture of scientific disagreement.
 
 ---
 
-## 🚀 Live Tools for Researchers
+## 🛠️ Interactive Tools for Researchers
 
-### 🔍 **Repository Readiness Check (Beta)**
-**The embryo of the *ValiChord at Home* suite.**
-Before a study can be validated, it must be "validation-ready." This browser-native diagnostic tool allows you to evaluate your research repository against global standards (`FAIR`, `The Turing Way`).
-* **Zero-Knowledge:** Works entirely in your browser; no code is ever uploaded.
-* **Instant Audit:** Identifies documentation gaps and dependency friction.
-* **Actionable:** Export a Markdown report to improve your study's reproducibility.
+### 🔍 **Repository Readiness Check (Alpha)**
+**Self-diagnostic tool for reproducibility.**
+Before a study can be validated, it must be "validation-ready." This browser-native tool evaluates your research repository against global standards (`FAIR`, `The Turing Way`, `SSI`).
+* **Zero-Knowledge:** Works entirely in your browser; no code or data is ever stored.
+* **Instant Audit:** Identifies documentation gaps, environment friction, and dependency conflicts.
 👉 **[Launch the Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)**
 
 ---
 
 ## 🏗️ 8-Layer Architectural Scaffold
-ValiChord is built on an **Agent-Centric Distributed System** (Holochain) to ensure GDPR compliance and the protection of institutional IP.
+The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation tasks. 
+
+> **View the Specification:** [scaffold/valichord_scaffold.rs](https://github.com/topeuph-ai/ValiChord/tree/main/scaffold)
 
 | Layer | Component | Technical Function |
 | :--- | :--- | :--- |
@@ -45,7 +46,7 @@ ValiChord is built on an **Agent-Centric Distributed System** (Holochain) to ens
 | `4` | **Audit & Provenance** | Immutable event logs and provenance graphs of the validation path. |
 | `5` | **Certification** | Issuance of machine-readable **Harmony Records**. |
 | `6` | **Reputation** | Multi-dimensional validator scoring based on methodological rigor. |
-| `7` | **Integration** | Secure APIs for journal, funder, and institutional repository workflows. |
+| `7` | **Integration** | Secure APIs for journal, funder, and institutional workflows. |
 
 ---
 
@@ -59,10 +60,10 @@ ValiChord is built on an **Agent-Centric Distributed System** (Holochain) to ens
 
 ---
 
-## 🛠️ Repository Contents
-* `scaffold/valichord_scaffold.rs`: Full **1,488-line Rust type system** defining the architecture.
-* `docs/`: Comprehensive documentation including the **Vision & Architecture** and **Governance Framework**.
-* `at-home.html`: Source for the browser-native Readiness Check tool.
+## 📂 Repository Contents
+* `scaffold/`: The full **1,488-line Rust type system** defining the ValiChord architecture.
+* `docs/`: Core documentation including the **Vision & Architecture** and **Governance Framework**.
+* `demo.html`: Source code for the browser-native Readiness Check tool.
 
 > ### *“Every initiative assumes verification is feasible at a reasonable cost. That assumption has never been tested. ValiChord is the test.”*
 
