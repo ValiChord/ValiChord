@@ -44,7 +44,7 @@
 //   - ValiChord Vision & Architecture (system-level design rationale)
 //   - ValiChord Governance Framework (governance mechanics and anti-capture)
 //   - ValiChord Phase 0 Proposal (the empirical study that informs all of this)
-//   - ValiChord Open Design Questions (13 unresolved engineering questions)
+//   - ValiChord Open Design Questions (14 unresolved engineering questions)
 //
 // Author: Ceri John (architecture), with AI assistance (scaffold generation)
 // Date: February 2026
@@ -60,8 +60,13 @@ use std::time::{Duration, SystemTime};
 // COMMON TYPES
 // =============================================================================
 
-/// SHA-256 digest. Content addressing is fundamental to ValiChord — every piece
-/// of data is identified by its hash, not by a database key.
+/// SHA-256 digest — used for research file fingerprints (data, code, protocols).
+/// This is the researcher-facing hash: content-addressed identification of study
+/// materials, compatible with academic repositories (Zenodo, Figshare, etc.).
+///
+/// Note: Holochain uses BLAKE2b internally for addressing Actions and DHT records.
+/// These are separate layers — SHA-256 identifies *what was validated*,
+/// BLAKE2b addresses *the validation actions themselves*.
 pub type Hash = [u8; 32];
 
 /// UTC timestamp. All ValiChord events are timestamped for audit and provenance.
@@ -171,7 +176,10 @@ pub mod layer0_data {
     /// GDPR compliance: sensitive data stays local, only salted hashes
     /// go to the DHT. This is Holochain's killer feature for ValiChord.
     pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> Hash {
-        // TODO: Use proper SHA-256 (ring, sha2, or Holochain's built-in)
+        // TODO: Use proper SHA-256 via an external crate (ring or sha2).
+        // Holochain has no built-in SHA-256 function — its native hashing is
+        // Blake2b-256 (used internally for Actions and DHT addressing).
+        // SHA-256 must come from an external crate compiled into the WASM zome.
         // The salt prevents rainbow table attacks on the hash.
         // Salt is transmitted off-DHT from data custodian to validator.
         let mut combined = data.to_vec();
@@ -689,6 +697,11 @@ pub mod layer2_validation {
         }
 
         /// Check for gaming patterns across a validator's history.
+        /// Called from coordinator zome logic — NOT from validate() callbacks.
+        /// Validation callbacks must be deterministic (no historical queries, no
+        /// time-dependent logic). Gaming detection is inherently statistical and
+        /// time-dependent, so it belongs here in coordinator logic, called
+        /// explicitly before key interactions (e.g. before accepting a commitment).
         pub fn detect_gaming_patterns(
             &self,
             validator_id: ValidatorId,
@@ -699,6 +712,18 @@ pub mod layer2_validation {
             // - Speed: unrealistically fast completion times
             // - Rubber-stamping: always "Reproduced" with minimal time invested
             // - Social distance: co-authorship graph proximity to study authors
+            //
+            // WARRANTS: Holochain's enforcement mechanism (stabilised in v0.7).
+            // When a participant violates the Attestation DNA's validation rules,
+            // any peer detecting the violation creates and signs a warrant —
+            // a cryptographic proof of the bad action — published to the network.
+            // Warrants are permanent and discoverable via get_agent_activity().
+            // Current behaviour: warrants are created, persisted, and queryable.
+            // Automatic network-level blocking of warranted agents is on Holochain's
+            // roadmap but not yet shipped — the application layer (here) is
+            // responsible for gating interactions with warranted validators in the
+            // interim (e.g. reject their commitments in the commit-reveal phase).
+            // GamingFlags detected here are the evidence base for peer-issued warrants.
             Vec::new()
         }
     }
@@ -1252,7 +1277,15 @@ pub mod layer7_integration {
     }
 
     // REST API endpoint definitions (for documentation — actual implementation
-    // depends on the web framework used alongside Holochain)
+    // depends on the web framework used alongside Holochain).
+    //
+    // HTTP GATEWAY: Holochain's HTTP Gateway (released March 2025, v0.2 July 2025)
+    // provides the bridge between these REST endpoints and the running Holochain
+    // application. External systems — journals, funders, institutional platforms —
+    // query ValiChord via standard HTTP without needing to run a Holochain node.
+    // The Governance/Harmony Records DNA is the primary target for external queries
+    // (publicly readable). The Gateway handles translation to Holochain behind the
+    // scenes. This is solved infrastructure, not custom development.
     //
     // POST   /api/v1/protocols                    Submit new protocol
     // GET    /api/v1/protocols/{id}               Get protocol details
@@ -1378,11 +1411,37 @@ pub mod layer8_presentation {
 //   - ValidationTask → Attestation: Link
 //   - Protocol → HarmonyRecord: Link
 //
-// Validation callbacks → Holochain validate() functions
+// Validation callbacks → Holochain validate() functions (integrity zome)
 //   - validate_create_entry: check data integrity, signatures
 //   - validate_update_entry: check modification permissions
 //   - validate_delete_entry: GDPR deletion rights
 //   - validate_create_link: check relationship permissions
+//   - validate_agent_joining: membrane proof validation (can access DHT,
+//       unlike genesis_self_check which runs before network join)
+//
+// CRITICAL CONSTRAINT: validate() callbacks must be fully deterministic.
+//   No time-dependent logic, no historical queries, no statistical patterns.
+//   This means gaming detection, collusion analysis, and reputation scoring
+//   CANNOT live in validate() — they belong in coordinator zome functions,
+//   called explicitly at the right moments (e.g. before accepting a commitment).
+//
+// IMPORTANT: Zomes come in two kinds — keep this distinction in mind at
+// implementation time:
+//
+// INTEGRITY ZOMES: Define entry types and validation rules. Changing these
+//   creates a new DNA hash, requiring migration. Keep small and stable.
+//   ValiChord's entry type definitions (VerifiedDataSnapshot, ValidationAttestation,
+//   HarmonyRecord etc.) and membrane proof logic belong here.
+//
+// COORDINATOR ZOMES: Implement application logic and the public zome function API.
+//   Can be updated on a running network without migration — governance decisions
+//   in Phase 2+ can update thresholds, standards, and business logic without
+//   requiring every participant to reinstall. ValiChord's assignment logic,
+//   gaming detection, agreement analysis, and governance rules belong here
+//   where possible.
+//
+// Getting this split right during MVP design matters. Moving logic from
+// coordinator to integrity later is disruptive; the other direction is easy.
 //
 // Zome functions (public API):
 //   - submit_protocol(protocol: PreRegisteredProtocol) -> ExternResult<Hash>
@@ -1392,17 +1451,156 @@ pub mod layer8_presentation {
 //   - get_harmony_record(protocol_id: Hash) -> ExternResult<HarmonyRecord>
 //   - get_provenance(protocol_id: Hash) -> ExternResult<ProvenanceGraph>
 //
-// Signal handlers (real-time notifications):
-//   - signal_validation_assigned(validator_id, task_id)
-//   - signal_all_committed(validation_id) → triggers reveal phase
-//   - signal_harmony_record_ready(protocol_id)
+// CROSS-DNA CALLS (within the same hApp instance):
+//   Use hdk::p2p::call with CallTargetCell::OtherRole("dna_role_name").
+//   Example: the Attestation DNA's coordinator zome calling the Governance DNA:
+//     call(CallTargetCell::OtherRole("governance"), "governance", "get_standards", None, discipline)
+//   The AUTHOR GRANT applies automatically: when the calling cell and the target
+//   cell belong to the same agent (which is true for all four ValiChord DNAs on
+//   a single node), no capability tokens are required. Cross-DNA coordination
+//   within one researcher's or validator's node is therefore straightforward.
 //
-// DHT queries:
+//   IMPORTANT CONSTRAINT: call_remote() only works between agents within the
+//   SAME DNA's network. You cannot call_remote across different DNAs.
+//   Alice's Attestation DNA can call_remote to Bob's Attestation DNA.
+//   Alice's Attestation DNA CANNOT call_remote to Bob's Researcher Repository DNA.
+//   Data from private DNAs must be passed explicitly by the owning agent — it
+//   cannot be pulled remotely. All peer-to-peer coordination between validators
+//   happens within the Attestation DNA's shared network.
+//
+// IDENTIFIERS — note for implementation:
+//   The scaffold uses `pub type Hash = [u8; 32]` as a simplification.
+//   In the Holochain implementation, distinguish:
+//   - ExternalHash: the correct type for SHA-256 research file fingerprints.
+//     ExternalHash accepts any 32-byte external identifier, serves as a DHT
+//     link anchor without Holochain storing content at the address. Use this
+//     for content_id / sha256_hash fields in VerifiedDataSnapshot.
+//   - EntryHash / ActionHash: for Holochain-native data (attestations, records).
+//   - AgentPubKey: for participant identities (replaces AgentId in the scaffold).
+//
+// TWO DISTINCT ACCESS MODELS — do not conflate:
+//
+//   Model A — LOCAL FRONT END (researcher UI, validator UI):
+//     Connects via AppWebsocket.connect() over a local WebSocket interface.
+//     This interface is ONLY exposed to processes on the same device — it is
+//     not reachable from the network. The UI must be distributed with the hApp
+//     and a Holochain runtime (hc-spin for dev, Kangaroo/p2p Shipyard for prod).
+//     Layer 8 dashboards (ResearcherDashboard, ValidatorDashboard) are served
+//     this way. The front end calls coordinator zome functions directly via
+//     appWs.callZome() and listens to signals via appWs.on("signal", handler).
+//     Security implication: no remote process can reach a participant's conductor
+//     without being on their local device. This is a hard boundary, not policy.
+//
+//   Model B — EXTERNAL HTTP GATEWAY (journals, funders, institutional platforms):
+//     Uses the Holochain HTTP Gateway (v0.2, July 2025) to reach the
+//     Governance/Harmony Records DNA over standard HTTP/REST. External callers
+//     do not run a Holochain node — the Gateway translates HTTP requests into
+//     zome calls behind the scenes. Only publicly readable data in the
+//     Governance DNA is exposed this way. Private DNA data (Researcher Repository,
+//     Validator Workspace) is never reachable via this path.
+//     Layer 7 REST endpoints (/api/v1/protocols, /api/v1/validations/*/harmony
+//     etc.) are served this way.
+//
+//   These two models must be kept architecturally separate. Layer 8 view models
+//   (ResearcherDashboard, ValidatorDashboard) are populated by local zome calls.
+//   Layer 7 integration traits (JournalIntegration, FunderIntegration) are
+//   satisfied by the HTTP Gateway. They do not share a code path.
+//
+// TWO DISTINCT ACCESS MODELS — keep these separate in your mental model:
+//
+//   MODEL A: Participant UIs (researcher dashboard, validator dashboard)
+//     These are LOCAL front ends. They run on the same device as the conductor
+//     and connect via AppWebsocket.connect() over a local WebSocket interface.
+//     Holochain only exposes this interface to processes on the same device —
+//     no remote process can reach it. This is a security guarantee, not just
+//     an implementation choice. The Layer 8 ResearcherDashboard and
+//     ValidatorDashboard views are served to these local front ends only.
+//     Distribution: Kangaroo or p2p Shipyard bundles conductor + UI together.
+//
+//   MODEL B: External systems (journals, funders, institutional platforms)
+//     These are REMOTE HTTP clients. They cannot connect to a participant's
+//     local WebSocket. Instead, they query ValiChord via the HTTP Gateway
+//     (Holochain v0.4+), which translates HTTP requests to zome calls on an
+//     always-on Holochain node running the Governance/Harmony Records DNA.
+//     Only publicly readable data is exposed this way. The Layer 7
+//     JournalIntegration and FunderIntegration traits describe this path.
+//
+//   DO NOT conflate these. A journal cannot call a researcher's local zome
+//   functions directly. A researcher's UI does not go through the HTTP Gateway.
+//   The Governance/Harmony Records DNA is the only DNA that needs to be
+//   reachable externally — keep it on an always-on node for that purpose.
+//
+// Signal handlers (UI notifications only — emit_signal / send_remote_signal):
+//   - signal_validation_assigned(validator_id, task_id)   → notifies validator's UI
+//   - signal_harmony_record_ready(protocol_id)            → notifies researcher's UI
+//
+//   CRITICAL: Signals are SEND-AND-FORGET. No delivery confirmation, no persistence,
+//   no guarantee of receipt if the peer is offline. You CANNOT use a signal to
+//   trigger a protocol phase transition (e.g. moving from commit phase to reveal
+//   phase). If a validator is offline when the signal fires, the transition never
+//   happens for them.
+//
+//   Phase transitions must be driven by COORDINATOR ZOME FUNCTIONS that poll the
+//   DHT for state: check whether all expected validators have written commitment
+//   entries, then proceed. Signals are appropriate for notifying UIs that something
+//   is ready to act on — the protocol machinery underneath must be state-based, not
+//   event-based.
+//
+//   Remote signals (send_remote_signal) also require the target function
+//   recv_remote_signal to have an UNRESTRICTED capability grant, set up in the
+//   init() callback of that cell. See CAPABILITY GRANTS below.
+//
+// CAPABILITY GRANTS — required per cell, set up in init():
+//   Zome functions in a cell are inaccessible to any external caller until the
+//   agent creates explicit capability grants. A grant only covers ONE cell.
+//   ValiChord needs grants set up in the init() callback of each DNA that
+//   receives remote calls or signals:
+//
+//   Unrestricted (anyone can call, no secret):
+//     - recv_remote_signal in Attestation DNA (required for send_remote_signal)
+//     - Any public read functions in Governance/Harmony Records DNA (journals,
+//       funders, HTTP Gateway access to public Harmony Records)
+//
+//   Assigned (specific agents only, requires secret):
+//     - Commit/reveal functions if you want to restrict to credentialed validators
+//
+//   Same-agent calls (all four ValiChord DNAs running on one node) are covered
+//   by the author grant — no explicit capability required.
+//
+//   Without an init() callback creating these grants, remote callers will receive
+//   ZomeCallResponse::Unauthorized even for functions you intend to be public.
+//
+
 //   - get_validators_by_discipline(discipline) → Vec<ValidatorProfile>
 //   - get_active_validations(validator_id) → Vec<ValidationTask>
 //   - get_institution_metrics(institution) → InstitutionalMetrics
 //
-// IMPORTANT: The Holochain HDK API evolves. The exact derive macros,
+// DNA PROPERTIES — per-network constants accessible in validation:
+//   Use the #[dna_properties] macro on a struct to embed configuration into the
+//   DNA hash. These are immutable for the lifetime of a network instance.
+//   ValiChord uses cases:
+//     - authorized_joining_certificate_issuer: AgentPubKey of the institutional
+//       authority whose signatures are valid membrane proofs for this network
+//     - discipline: String identifying the validation domain (e.g. "genomics")
+//     - minimum_validators: u32 threshold baked into this network's rules
+//   Changing properties creates a new DNA hash = a new network. Use for
+//   configuration that must be stable and tamper-evident across the network.
+//
+// TWO-STAGE MEMBRANE PROOF validation for the Attestation DNA:
+//   Stage 1 — genesis_self_check(): runs BEFORE network join, no DHT access.
+//     Check format only: is this a valid-length signature blob? Is it decodable?
+//     Protects the joining agent from accidentally committing a malformed proof.
+//   Stage 2 — validate_agent_joining() in validate(): runs AFTER network join,
+//     has DHT access. Full validation: does the signing authority exist on the
+//     DHT? Is their own credential valid? Is this signature over the agent's key?
+//   Both stages must agree — validate_agent_joining() must cover at least
+//   everything genesis_self_check() covers, and add the DHT-dependent checks.
+//
+//   NOTE: A coordinator zome can currently only safely depend on ONE integrity
+//   zome (known bug in dependency mapping). Always list the dependency explicitly
+//   in dna.yaml even when there is only one integrity zome.
+//
+ The exact derive macros,
 // entry definitions, and zome function signatures should be adapted to
 // the current SDK version at implementation time. This scaffold defines
 // WHAT the system does. The HDK determines HOW it's expressed.
