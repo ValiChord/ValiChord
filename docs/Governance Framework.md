@@ -1,7 +1,8 @@
 <div align="center">
   <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
-# ValiChord Complete — Governance Framework
+
+# ValiChord Complete — Governance Framework 
 ## How the System Resists Corruption, Capture, and Domestication
 
 **Author:** Ceri John
