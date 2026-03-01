@@ -493,11 +493,13 @@ def _is_minified(f):
 def _researcher_r_files(all_files, repo_dir):
     """Return R/Rmd/Qmd files that are researcher-authored scripts.
 
-    Filters out files inside R package library directories (renv/library/,
-    packrat/lib/, packrat/src/) and VENDOR_DIRS.  These directories contain
-    installed third-party package code; scanning them for sessionInfo(),
-    library() calls, source() chains, etc. causes false suppression of
-    findings about researcher practice (same class of bug as [E]/[BA]).
+    Only excludes committed R package library trees (renv/library/,
+    packrat/lib/, packrat/src/) where the top-two directory parts match
+    the known root+subdir pattern.  Does NOT apply VENDOR_DIRS — that
+    set includes 'lib' which is a common name for a researcher's own
+    helper-function folder (e.g. scripts/lib/utils.R), and excluding it
+    would silently drop legitimate code files, breaking the "same traversal
+    as all_files" contract that [E] and [BA] satisfy.
     """
     result = []
     for f in all_files:
@@ -512,9 +514,6 @@ def _researcher_r_files(all_files, repo_dir):
         if (len(parts) >= 2
                 and parts[0].lower() in _R_PKG_LIB_ROOTS
                 and parts[1].lower() in _R_PKG_LIB_SUBDIRS):
-            continue
-        # Skip generic vendor directories
-        if any(part.lower() in VENDOR_DIRS for part in parts):
             continue
         result.append(f)
     return result
@@ -4577,11 +4576,11 @@ _SESSION_INFO_PAT = re.compile(
 
 def detect_AO_r_specific_issues(repo_dir, all_files):
     findings = []
-    # Use _researcher_r_files to exclude renv/library/ and packrat/lib/ —
-    # installed package code in those directories contains sessionInfo(),
-    # library() etc. which would falsely suppress findings about researcher
-    # practice (same class of bug as [E]/[BA] codebook-suppression fixes).
-    r_files = _researcher_r_files(all_files, repo_dir)
+    # Iterate all_files directly — same pattern as [E] and [BA].
+    # Every detector that needs recursive traversal should use all_files,
+    # not its own rglob: all_files is built from repo_dir.rglob('*') in
+    # both entry points and is the single shared recursive file scanner.
+    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
     if not r_files:
         return findings
     has_renv = any(f.name.lower() in {'renv.lock', 'packrat.lock'} for f in all_files)
