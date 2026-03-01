@@ -2111,6 +2111,10 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         and f.name.lower() not in _build_config_names
         and not _is_ide_config(f)
         and not f.name.lower().startswith('readme')
+        # Exclude CSV/TSV files that are themselves structured as codebooks —
+        # they ARE the documentation, not data that needs to be documented.
+        # Mirrors [BA]'s data_files construction exactly.
+        and not (f.suffix.lower() in {'.csv', '.tsv'} and _looks_like_codebook(f))
     ]
 
     if not data_files:
@@ -2137,12 +2141,6 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
     # Exact codebook filename match
     if not has_data_doc:
         has_data_doc = any(f.name.lower() in CODEBOOK_FILENAMES for f in all_files)
-    # Content-based: CSV/TSV that looks like a variable dictionary
-    if not has_data_doc:
-        for f in all_files:
-            if f.suffix.lower() in {'.csv', '.tsv'} and _looks_like_codebook(f):
-                has_data_doc = True
-                break
     # Content-based: opaque format inspection via _inspect_file_content
     # Covers .xlsx/.xls, .docx, .pdf, stat files, netCDF, HDF5, SQLite
     _opaque_codebook_finding = None
