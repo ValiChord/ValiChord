@@ -1864,7 +1864,7 @@ def _generate_requirements_draft(repo_dir, all_files,
             '# No requirements_DRAFT.txt needed.',
             '# To install: julia --project=. -e "using Pkg; Pkg.instantiate()"',
         ]
-    elif 'renv.lock' in all_names or '.r' in all_suffixes:
+    elif 'renv.lock' in all_names or bool(all_suffixes & {'.r', '.rmd', '.qmd'}):
         # If renv.lock present, extract exact versions
         if 'renv.lock' in all_names:
             renv_file = min((f for f in all_files if f.name.lower() == 'renv.lock'),
@@ -1891,7 +1891,8 @@ def _generate_requirements_draft(repo_dir, all_files,
         r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
         r_files += [f for f, lang in _code_txt_langs.items() if lang == 'r']
         r_libs = set()
-        lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
+        # Drop the closing-) requirement — library(ggplot2, quietly=TRUE) must match
+        lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)')
         vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
         for rf in r_files:
             src = rf.read_text(encoding='utf-8', errors='ignore')

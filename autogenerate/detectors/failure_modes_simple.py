@@ -5131,11 +5131,12 @@ def detect_BM_citation_cff(repo_dir, all_files):
 def detect_BN_codebook_reference_mismatch(repo_dir, all_files):
     """Check if README references a codebook file that doesn't exist."""
     findings = []
-    readme_file = None
-    for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
-            readme_file = f
-            break
+    readme_file = min(
+        (f for f in all_files
+         if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}),
+        key=lambda x: len(x.relative_to(repo_dir).parts),
+        default=None,
+    )
     if not readme_file:
         return findings
     try:
