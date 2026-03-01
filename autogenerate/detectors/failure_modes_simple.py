@@ -4698,6 +4698,82 @@ def _extract_doi_from_filename(zip_name: str):
     return None
 
 
+# Regexes for context-aware deposit-DOI detection used by _has_deposit_doi().
+_AW_REF_HEADING_RE = re.compile(
+    r'^(?:#+\s*)?(?:references?|bibliography|works?\s+cited|further\s+reading)\s*:?\s*$',
+    re.IGNORECASE,
+)
+# A numbered citation line: [1], 1., 1) or (1) at the start.
+_AW_CITE_LINE_RE = re.compile(r'^\s*(?:\[\d+\]|\d+[.)]\s+|\(\d+\)\s+)')
+
+
+def _has_deposit_doi(content: str) -> bool:
+    """Return True if *content* contains a DOI that identifies the deposit itself.
+
+    Ignores DOIs that appear inside bibliography / reference sections or on
+    numbered-citation lines — those identify cited papers, not the deposit.
+
+    Suppression signals accepted:
+    - Zenodo badge URL            (zenodo.org/badge/)
+    - Zenodo-prefixed DOI         (10.5281/zenodo.<digits>)
+    - Zenodo DOI redirect         (zenodo.org/doi/)
+    - Any DOI / doi.org link that is NOT inside a reference section and NOT
+      on a numbered-citation line.
+    """
+    lower = content.lower()
+
+    # Fast-path: unambiguous deposit-level Zenodo patterns.
+    if ('zenodo.org/badge/' in lower
+            or 'zenodo.org/doi/' in lower
+            or re.search(r'10\.5281/zenodo\.\d', lower)):
+        return True
+
+    lines = content.splitlines()
+    in_ref_section = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        stripped_lower = stripped.lower()
+
+        # Enter reference section on a matching heading.
+        if _AW_REF_HEADING_RE.match(stripped):
+            in_ref_section = True
+            continue
+
+        # Any other markdown heading resets reference-section state.
+        if re.match(r'^#+\s+\S', stripped) and not _AW_REF_HEADING_RE.match(stripped):
+            in_ref_section = False
+
+        # Does this line mention a DOI or Zenodo at all?
+        has_doi_here = (
+            'doi.org' in stripped_lower
+            or 'zenodo' in stripped_lower
+            or bool(_DOI_RE.search(line))
+        )
+        if not has_doi_here:
+            continue
+
+        # Skip DOIs inside a reference section.
+        if in_ref_section:
+            continue
+
+        # Skip numbered citation lines outside a formal reference section
+        # (e.g. inline "[1] Smith et al. https://doi.org/...").
+        if _AW_CITE_LINE_RE.match(stripped):
+            continue
+
+        # Check the preceding few lines for informal reference markers
+        # (e.g. a "References:" label without a heading character).
+        ctx_before = '\n'.join(lines[max(0, i - 4):i]).lower()
+        if re.search(r'\breferences?\s*:|\bbibliograph|\bworks?\s+cited\b', ctx_before):
+            continue
+
+        # DOI appears in a non-reference context — treat as deposit identifier.
+        return True
+
+    return False
+
+
 def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
     findings = []
     # CITATION.cff is itself a persistent identifier mechanism — suppress [AW]
@@ -4724,9 +4800,7 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
     ]
     has_doi = False
     for f in text_files:
-        content = read_file_safe(f).lower()
-        if ('doi.org' in content or 'zenodo' in content
-                or bool(_DOI_RE.search(content))):
+        if _has_deposit_doi(read_file_safe(f)):
             has_doi = True
             break
     if not has_doi:
