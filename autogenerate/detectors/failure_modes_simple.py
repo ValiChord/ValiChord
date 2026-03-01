@@ -1060,6 +1060,25 @@ def detect_B_no_dependencies(repo_dir, all_files):
     _is_matlab_only = (
         any(f.suffix.lower() == '.m' for f in all_files) and _scripting_only
     )
+
+    # [B] MATLAB suppression: if README already documents both the MATLAB
+    # version AND at least one toolbox, the deposit satisfies [B]'s requirement
+    # for environment documentation — no finding needed.
+    _MATLAB_VERSION_RE = re.compile(r'R\d{4}[ab]\b|matlab\s+\d+\.\d+', re.IGNORECASE)
+    _MATLAB_TOOLBOX_RE = re.compile(r'\btoolbox(?:es)?\b', re.IGNORECASE)
+    _matlab_readme_ok = False
+    if _is_matlab_only:
+        _readme_candidates = [
+            f for f in all_files
+            if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
+        ]
+        _readme_candidates.sort(key=lambda x: len(x.relative_to(repo_dir).parts))
+        for _rf in _readme_candidates:
+            _rc = read_file_safe(_rf)
+            if _MATLAB_VERSION_RE.search(_rc) and _MATLAB_TOOLBOX_RE.search(_rc):
+                _matlab_readme_ok = True
+                break
+
     _is_stata_only = (
         any(f.suffix.lower() == '.do' for f in all_files)
         and not any(f.suffix.lower() in {'.py', '.r', '.rmd', '.jl', '.m'} for f in all_files)
@@ -1071,15 +1090,16 @@ def detect_B_no_dependencies(repo_dir, all_files):
 
     if has_code and not has_dep_file and not has_draft_only and not readme_has_inline_deps:
         if _is_matlab_only:
-            findings.append(finding(
-                'B', 'SIGNIFICANT',
-                'No dependency specification found (MATLAB deposit)',
-                'MATLAB has no standard equivalent of requirements.txt. '
-                'Document the MATLAB version and any required toolboxes '
-                'in your README so validators can configure a matching environment.',
-                [f'Code files found: {len(code_files)}',
-                 'Recommendation: list MATLAB version and toolboxes in README']
-            ))
+            if not _matlab_readme_ok:
+                findings.append(finding(
+                    'B', 'SIGNIFICANT',
+                    'No dependency specification found (MATLAB deposit)',
+                    'MATLAB has no standard equivalent of requirements.txt. '
+                    'Document the MATLAB version and any required toolboxes '
+                    'in your README so validators can configure a matching environment.',
+                    [f'Code files found: {len(code_files)}',
+                     'Recommendation: list MATLAB version and toolboxes in README']
+                ))
         elif _is_stata_only:
             findings.append(finding(
                 'B', 'SIGNIFICANT',
