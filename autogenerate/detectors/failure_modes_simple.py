@@ -451,6 +451,15 @@ LICENCE_NAMES = {
 # researcher-code detectors (B, U, AC, AI, AJ, AK, AS, AT, AU, AA, BB …)
 VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 
+# R package library directories — contain installed third-party package code,
+# not researcher-authored scripts.  When a deposit commits renv/library/ or
+# packrat/lib/, those R files must not be scanned for researcher practices
+# (sessionInfo, library() calls, source() chains, etc.) because the third-party
+# code triggers the same patterns as researcher scripts, causing false suppression.
+# Matches the top-two-parts rule: renv/library/<pkg>/…  packrat/lib/<pkg>/…
+_R_PKG_LIB_ROOTS = frozenset({'renv', 'packrat'})
+_R_PKG_LIB_SUBDIRS = frozenset({'library', 'lib', 'src'})
+
 # Minified / bundled frontend assets — excluded from all researcher-code detectors.
 # .min.js / .min.css are double-suffix patterns; MINIFIED_FILE_STEMS covers
 # common webpack chunk/bundle stems.
@@ -479,6 +488,36 @@ def _is_minified(f):
         or stem_lower in MINIFIED_FILE_STEMS
         or stem_lower.startswith('chunk')
     )
+
+
+def _researcher_r_files(all_files, repo_dir):
+    """Return R/Rmd/Qmd files that are researcher-authored scripts.
+
+    Filters out files inside R package library directories (renv/library/,
+    packrat/lib/, packrat/src/) and VENDOR_DIRS.  These directories contain
+    installed third-party package code; scanning them for sessionInfo(),
+    library() calls, source() chains, etc. causes false suppression of
+    findings about researcher practice (same class of bug as [E]/[BA]).
+    """
+    result = []
+    for f in all_files:
+        if f.suffix.lower() not in {'.r', '.rmd', '.qmd'}:
+            continue
+        try:
+            parts = f.relative_to(repo_dir).parts
+        except ValueError:
+            result.append(f)
+            continue
+        # Skip renv/library/<pkg>/…  and  packrat/lib/<pkg>/…
+        if (len(parts) >= 2
+                and parts[0].lower() in _R_PKG_LIB_ROOTS
+                and parts[1].lower() in _R_PKG_LIB_SUBDIRS):
+            continue
+        # Skip generic vendor directories
+        if any(part.lower() in VENDOR_DIRS for part in parts):
+            continue
+        result.append(f)
+    return result
 
 
 def _is_frontend_dir(directory):
@@ -4529,16 +4568,27 @@ def detect_AN_commented_code(repo_dir, all_files):
     return findings
 
 
+_SESSION_INFO_PAT = re.compile(
+    r'sessionInfo\s*\('                     # base R: sessionInfo()
+    r'|sessioninfo::session_info\s*\('      # sessioninfo pkg (lowercase)
+    r'|devtools::session_info\s*\('         # devtools wrapper
+)
+
+
 def detect_AO_r_specific_issues(repo_dir, all_files):
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    # Use _researcher_r_files to exclude renv/library/ and packrat/lib/ —
+    # installed package code in those directories contains sessionInfo(),
+    # library() etc. which would falsely suppress findings about researcher
+    # practice (same class of bug as [E]/[BA] codebook-suppression fixes).
+    r_files = _researcher_r_files(all_files, repo_dir)
     if not r_files:
         return findings
     has_renv = any(f.name.lower() in {'renv.lock', 'packrat.lock'} for f in all_files)
     session_info_files = {'session_info.txt', 'session_info.log', 'sessioninfo.txt',
                           'r_session_info.txt', 'session-info.txt'}
     has_session_info = (
-        any('sessionInfo()' in read_file_safe(f) for f in r_files) or
+        any(_SESSION_INFO_PAT.search(read_file_safe(f)) for f in r_files) or
         any(f.name.lower() in session_info_files for f in all_files)
     )
     if not has_renv:
@@ -6003,7 +6053,7 @@ def detect_DB_shiny_app(repo_dir, all_files):
     """Failure Mode DB: Repository is a Shiny app — needs interactive verification docs."""
     findings = []
     import re as _re
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd'}]
+    r_files = _researcher_r_files(all_files, repo_dir)
     if not r_files:
         return findings
     shiny_pat = _re.compile(
@@ -6324,7 +6374,7 @@ def detect_CX_system_dependencies(repo_dir, all_files):
 def detect_CW_reticulate_coupling(repo_dir, all_files):
     """Failure Mode CW: R script uses reticulate to call Python at runtime."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    r_files = _researcher_r_files(all_files, repo_dir)
     if not r_files:
         return findings
 
@@ -6810,7 +6860,7 @@ def detect_CM_nextflow_no_container(repo_dir, all_files):
 def detect_CL_bioconductor_unpinned(repo_dir, all_files):
     """Failure Mode CL: BiocManager::install() called without version= argument."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    r_files = _researcher_r_files(all_files, repo_dir)
     bioc_pat = re.compile(r'BiocManager::install\s*\(', re.IGNORECASE)
     version_pat = re.compile(r'version\s*=', re.IGNORECASE)
     # Extract stated Bioconductor version from README
@@ -7094,7 +7144,7 @@ def detect_CI_live_data_no_archive(repo_dir, all_files):
 def detect_CH_broken_source_chain(repo_dir, all_files):
     """Failure Mode CH: R source() calls reference files not in the repository."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    r_files = _researcher_r_files(all_files, repo_dir)
     all_r_names = {f.name.lower() for f in r_files}
     all_r_paths = {str(f.relative_to(repo_dir)).replace('\\', '/').lower() for f in r_files}
     source_pat = re.compile(r'source\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
@@ -7214,7 +7264,7 @@ def detect_CF_notebook_outputs_committed(repo_dir, all_files):
 def detect_CE_unpinned_github_packages(repo_dir, all_files):
     """Failure Mode CE: devtools::install_github() calls without commit/tag pin."""
     findings = []
-    r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+    r_files = _researcher_r_files(all_files, repo_dir)
     github_pattern = re.compile(
         r'(?:devtools|remotes)::install_github\s*\(\s*["\'][^"\']+/([\w.-]+)["\'][^)]*\)',
         re.IGNORECASE

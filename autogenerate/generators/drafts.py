@@ -16,6 +16,7 @@ from detectors.failure_modes_simple import (
     _is_single_file_compressed,
     CODEBOOK_FILENAMES as _CODEBOOK_FILENAMES,
     _looks_like_codebook,
+    _researcher_r_files,
 )
 
 
@@ -849,7 +850,7 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
     vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
     github_pat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
-    for rf in [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]:
+    for rf in _researcher_r_files(all_files, repo_dir):
         src = rf.read_text(encoding='utf-8', errors='ignore')
         for m in lib_pat.finditer(src):
             r_pkgs.add(m.group(1))
@@ -1888,7 +1889,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                     return
                 except Exception:
                     pass
-        r_files = [f for f in all_files if f.suffix.lower() in {'.r', '.rmd', '.qmd'}]
+        r_files = _researcher_r_files(all_files, repo_dir)
         r_files += [f for f, lang in _code_txt_langs.items() if lang == 'r']
         r_libs = set()
         # Drop the closing-) requirement — library(ggplot2, quietly=TRUE) must match
