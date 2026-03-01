@@ -2118,9 +2118,14 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 
     doc_indicators = [
         'codebook', 'data_dictionary', 'data-dictionary',
-        'metadata', 'data_readme', 'data-readme',
-        'variables', 'schema', 'column_description', 'field_description',
+        'data_readme', 'data-readme',
+        'column_description', 'field_description',
     ]
+    # 'metadata', 'variables', 'schema' are intentionally excluded here:
+    # they appear as substrings in ordinary data filenames (e.g.
+    # "site_metadata.csv", "environmental_variables.csv") causing false
+    # positives.  Exact-filename coverage is already provided by
+    # CODEBOOK_FILENAMES below.
 
     all_names_lower = [f.name.lower() for f in all_files]
     all_stems_lower = [f.stem.lower() for f in all_files]
@@ -2310,7 +2315,8 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                     ]
                 ))
 
-    # sections we expect in a reproducible research README
+    # sections we expect in a reproducible research README (code deposits only)
+    # Data-only deposits use the data-quality criteria check above instead.
     if has_code:
         required_sections = {
             'installation': [
@@ -2331,69 +2337,55 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                 'data', 'dataset', 'download', 'source', 'input'
             ],
         }
-    else:
-        required_sections = {
-            'data description': [
-                'data', 'dataset', 'variable', 'column', 'field'
-            ],
-            'access conditions': [
-                'access', 'download', 'licence', 'license', 'embargo',
-                'available', 'request'
-            ],
-            'collection methodology': [
-                'collected', 'survey', 'method', 'source', 'provenance'
-            ],
-        }
 
-    missing = []
-    for section, keywords in required_sections.items():
-        if not any(kw in content_lower for kw in keywords):
-            missing.append(section)
+        missing = []
+        for section, keywords in required_sections.items():
+            if not any(kw in content_lower for kw in keywords):
+                missing.append(section)
 
-    # Post-filter: suppress sub-items where richer content-level evidence is present.
-    # 'execution' — description-style narrative can substitute for an explicit section.
-    _EXECUTION_INDICATORS = [
-        'each section', 'in this order', 'run the script', 'execute',
-        'to reproduce', 'step 1', 'step 2', 'first run', 'then run',
-        'script is for', 'section of the script', 'analysis are present',
-    ]
-    if 'execution' in missing:
-        if sum(1 for ind in _EXECUTION_INDICATORS if ind in content_lower) >= 2:
-            missing.remove('execution')
+        # Post-filter: suppress sub-items where richer content-level evidence is present.
+        # 'execution' — description-style narrative can substitute for an explicit section.
+        _EXECUTION_INDICATORS = [
+            'each section', 'in this order', 'run the script', 'execute',
+            'to reproduce', 'step 1', 'step 2', 'first run', 'then run',
+            'script is for', 'section of the script', 'analysis are present',
+        ]
+        if 'execution' in missing:
+            if sum(1 for ind in _EXECUTION_INDICATORS if ind in content_lower) >= 2:
+                missing.remove('execution')
 
-    # 'expected outputs' — if README describes what each section produces (plots,
-    # models, statistics), treat it as documenting expected outputs.
-    _OUTPUT_INDICATORS = [
-        'plot', 'figure', 'model', 'statistic', 'output', 'produces',
-        'saves', 'generates', 'results in', 'table', 'coefficient',
-        'regression', 'correlation', 'estimate',
-    ]
-    if 'expected outputs' in missing:
-        if sum(1 for ind in _OUTPUT_INDICATORS if ind in content_lower) >= 2:
-            missing.remove('expected outputs')
+        # 'expected outputs' — if README describes what each section produces (plots,
+        # models, statistics), treat it as documenting expected outputs.
+        _OUTPUT_INDICATORS = [
+            'plot', 'figure', 'model', 'statistic', 'output', 'produces',
+            'saves', 'generates', 'results in', 'table', 'coefficient',
+            'regression', 'correlation', 'estimate',
+        ]
+        if 'expected outputs' in missing:
+            if sum(1 for ind in _OUTPUT_INDICATORS if ind in content_lower) >= 2:
+                missing.remove('expected outputs')
 
-    if len(missing) >= 3:
-        findings.append(finding(
-            'G', 'LOW CONFIDENCE',
-            f'README is missing critical sections: {", ".join(missing)}',
-            'A README exists but is missing sections that validators '
-            'need to reproduce the work. Without installation '
-            'instructions, execution steps, and expected outputs, '
-            'validators cannot proceed systematically.',
-            [f'Missing sections: {", ".join(missing)}',
-             (f'README length: {len(content)} characters' if content else 'No README found')]
-        ))
-    elif len(missing) >= 1:
-        findings.append(finding(
-            'G', 'LOW CONFIDENCE',
-            f'README may be missing sections: {", ".join(missing)}',
-            'The README appears to be missing some recommended '
-            'sections. This may be intentional if the information '
-            'is elsewhere, but validators may struggle to find it.',
-            [f'Possibly missing: {", ".join(missing)}']
-        ))
+        if len(missing) >= 3:
+            findings.append(finding(
+                'G', 'LOW CONFIDENCE',
+                f'README is missing critical sections: {", ".join(missing)}',
+                'A README exists but is missing sections that validators '
+                'need to reproduce the work. Without installation '
+                'instructions, execution steps, and expected outputs, '
+                'validators cannot proceed systematically.',
+                [f'Missing sections: {", ".join(missing)}',
+                 (f'README length: {len(content)} characters' if content else 'No README found')]
+            ))
+        elif len(missing) >= 1:
+            findings.append(finding(
+                'G', 'LOW CONFIDENCE',
+                f'README may be missing sections: {", ".join(missing)}',
+                'The README appears to be missing some recommended '
+                'sections. This may be intentional if the information '
+                'is elsewhere, but validators may struggle to find it.',
+                [f'Possibly missing: {", ".join(missing)}']
+            ))
 
-    if has_code:
         # Code deposit — check for definition of successful reproduction
         success_indicators = [
             'successful reproduction', 'reproduction is successful',
