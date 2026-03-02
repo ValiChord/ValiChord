@@ -2120,7 +2120,14 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
 
     # Use module-level DATA_EXTENSIONS plus a few extras that [E] specifically
     # cares about (.db/.sqlite as data stores; .xml excluded intentionally).
-    data_extensions = DATA_EXTENSIONS | {'.db', '.sqlite'}
+    # Image and 3D-mesh formats are primary data in imaging/biology/
+    # palaeontology deposits and must trigger [E] the same way they trigger [BA].
+    data_extensions = DATA_EXTENSIONS | {'.db', '.sqlite'} | {
+        '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp', '.gif',
+        '.webp', '.raw', '.cr2', '.nef', '.dng',
+        '.off', '.ply', '.stl', '.obj', '.vtk', '.vtu', '.mesh',
+        '.wrl', '.dae', '.fbx', '.glb', '.gltf',
+    }
 
     _model_name_indicators = {'model', 'clf', 'classifier', 'regressor', 'estimator', 'pipeline', 'weights', 'tokenizer', 'vocab', 'checkpoint'}
 
@@ -2221,11 +2228,14 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
                     break
     # Also treat same-named .txt files as potential data documentation
     # e.g. GDP_FDI_Dataset.txt alongside GDP_FDI_Dataset.csv
+    # Minimum size threshold: tiny sidecars (< 500 bytes) are filename labels,
+    # not real data documentation, and must not suppress [E].
     if not has_data_doc:
         data_stems = {f.stem.lower() for f in data_files}
         companion_txt = [f for f in all_files
                          if f.suffix.lower() == '.txt'
-                         and f.stem.lower() in data_stems]
+                         and f.stem.lower() in data_stems
+                         and f.stat().st_size >= 500]
         if companion_txt:
             has_data_doc = True
 
@@ -3603,10 +3613,18 @@ def detect_Y_data_source_missing(repo_dir, all_files):
             return has_model_name or in_model_dir
         return False
 
+    # Include image and 3D-mesh formats as data — these are primary data in
+    # imaging/biology/palaeontology deposits and must trigger [Y] the same
+    # way they trigger [BA].
+    _Y_EXTENDED_EXTS = DATA_EXTENSIONS | ARCHIVE_EXTENSIONS | {
+        '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp', '.gif',
+        '.webp', '.raw', '.cr2', '.nef', '.dng',
+        '.off', '.ply', '.stl', '.obj', '.vtk', '.vtu', '.mesh',
+        '.wrl', '.dae', '.fbx', '.glb', '.gltf',
+    }
     data_files = [
         f for f in all_files
-        if (f.suffix.lower() in DATA_EXTENSIONS
-            or f.suffix.lower() in ARCHIVE_EXTENSIONS)
+        if f.suffix.lower() in _Y_EXTENDED_EXTS
         and not _is_model_artifact(f)
         and not f.name.lower().startswith('readme')
     ]
@@ -5898,8 +5916,14 @@ def detect_IC_inconsistent_extension_case(repo_dir, all_files):
     for lo, variants in sorted(inconsistent.items()):
         examples = [ext_examples[lo][v] for v in sorted(variants)
                     if v in ext_examples[lo]]
+        if len(variants) > 1:
+            casing_desc = f'both {" and ".join(sorted(variants))} found'
+        else:
+            # Consistently-uppercase extension with no lowercase sibling —
+            # "both" is wrong here; describe the actual situation clearly.
+            casing_desc = f'only {next(iter(variants))} found (no lowercase {lo} siblings)'
         details.append(
-            f'{lo}: both {" and ".join(sorted(variants))} found '
+            f'{lo}: {casing_desc} '
             f'(e.g. {", ".join(examples[:2])})'
         )
     findings.append(finding(
