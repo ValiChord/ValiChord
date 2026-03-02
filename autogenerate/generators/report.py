@@ -368,6 +368,11 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
               'them and document the omission in your README. '
               'A 1–5 byte file cannot contribute to reproducing your results.',
         'AK': '',  # handled below — severity determines the action text
+        'ND': 'Deposit the underlying data and/or analysis scripts used to '
+              'produce your results. Manuscript files, supplementary documents, '
+              'and figures alone are not a reproducible deposit — validators '
+              'need the raw or processed data (e.g. .csv, .xlsx, .dta) and, '
+              'where possible, the code that analyses it.',
     }
 
     _cad_exts     = {'.step', '.stp', '.stl', '.igs', '.iges', '.f3d', '.obj'}
@@ -449,15 +454,27 @@ def _write_assessment(repo_name, all_files, findings, output_dir):
             '',
         ]
 
-    # standard questions always asked
+    # Standard verification questions — suppressed when [ND] fires because
+    # data-completeness / provenance questions are meaningless for a deposit
+    # that contains no data.
+    lines += ['---', '', '## Standard Verification Questions', '']
+    if 'ND' in modes_found:
+        lines += [
+            '> **This deposit does not appear to contain any data or code files.**',
+            '> The questions below are not applicable until the underlying research',
+            '> materials have been deposited.',
+            '',
+            '1. **Deposit research materials:** Please provide the data files and/or '
+            'analysis scripts used to produce your results. A deposit consisting '
+            'only of manuscript and figure files cannot be validated.',
+        ]
+    else:
+        lines += [
+            'Please answer these regardless of the findings above:',
+            '',
+            *(_assessment_verification_questions(all_files)),
+        ]
     lines += [
-        '---',
-        '',
-        '## Standard Verification Questions',
-        '',
-        'Please answer these regardless of the findings above:',
-        '',
-        *(_assessment_verification_questions(all_files)),
         '',
         '---',
         '',
