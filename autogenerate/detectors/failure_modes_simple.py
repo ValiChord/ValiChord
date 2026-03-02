@@ -1937,6 +1937,10 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_NZ(repo_dir, all_files)
     print("  [DUP] Duplicate data file check...")
     all_findings += detect_DUP(repo_dir, all_files)
+    print("  [ND] No data files check...")
+    all_findings += detect_ND_no_data_files(repo_dir, all_files)
+    print("  [FW] Figures in Word format check...")
+    all_findings += detect_FW_figures_in_word(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -4846,7 +4850,7 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
             break
     if not has_doi:
         # Platform-aware recommendation: Dataverse deposits already have a DOI.
-        _is_dataverse = zip_name and zip_name.lower() == 'dataverse_files.zip'
+        _is_dataverse = zip_name and re.match(r'dataverse_files[\s\S]*\.zip', zip_name, re.IGNORECASE)
         if _is_dataverse:
             _doi_rec = (
                 'This appears to be a Harvard Dataverse deposit — Dataverse '
@@ -5366,7 +5370,7 @@ def detect_BS_archive_code_present(repo_dir, all_files):
 
 
 def detect_BT_spaces_in_filenames(repo_dir, all_files):
-    """Check for spaces in filenames (all extensions — spaces cause shell failures)."""
+    """Check for spaces in filenames (all extensions — spaces cause problems when scripting)."""
     findings = []
     problem_files = [
         f for f in all_files
@@ -5383,11 +5387,21 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
             bt_title = f'Spaces in filenames: {", ".join(f.name for f in problem_files)}'
         else:
             bt_title = f'Spaces in {len(problem_files)} filenames'
+        has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
+        if has_code:
+            _bt_guidance = (
+                'Filenames with spaces cause shell execution failures unless quoted. '
+                'Replace spaces with underscores before deposit.'
+            )
+        else:
+            _bt_guidance = (
+                'Filenames with spaces cause problems when scripting or batch '
+                'processing. Replace spaces with underscores before deposit.'
+            )
         findings.append(finding(
             'BT', 'LOW CONFIDENCE',
             bt_title,
-            'Filenames with spaces cause shell execution failures unless quoted. '
-            'Replace spaces with underscores before deposit.',
+            _bt_guidance,
             [f'Problem file: {f.name}' for f in problem_files]
         ))
     return findings
@@ -5454,6 +5468,88 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
 
 
 
+
+
+def detect_ND_no_data_files(repo_dir, all_files):
+    """Fires CRITICAL when a deposit contains no data or code — only publication
+    materials (manuscript, SI document, figures as Word/PDF/image files).
+
+    A deposit with no underlying data or code is fundamentally misdirected:
+    validators have nothing to reproduce.
+    """
+    findings = []
+    _DATA_EXTS = DATA_EXTENSIONS | {'.tab', '.dat', '.nc', '.mat', '.sav', '.dta'}
+    has_data = any(f.suffix.lower() in _DATA_EXTS for f in all_files)
+    has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
+    if has_data or has_code:
+        return findings
+
+    # Has files at all?
+    if not all_files:
+        return findings
+
+    # Characterise what IS present.
+    _PUB_EXTS = {'.pdf', '.doc', '.docx', '.ppt', '.pptx', '.png', '.jpg',
+                 '.jpeg', '.tif', '.tiff', '.svg', '.eps', '.bmp', '.gif'}
+    pub_files = [f for f in all_files if f.suffix.lower() in _PUB_EXTS]
+    pub_ratio = len(pub_files) / len(all_files) if all_files else 0
+    if pub_ratio < 0.5:
+        # Mostly unrecognised files — don't fire, may be a specialised deposit.
+        return findings
+
+    findings.append(finding(
+        'ND', 'CRITICAL',
+        'No data or code files found — deposit appears to contain only publication materials',
+        'This deposit contains no data files and no code. A reproducibility '
+        'deposit must include the underlying data and/or the scripts used to '
+        'produce the reported results. Manuscript files, supplementary '
+        'documents, and figures alone do not constitute a reproducible deposit.',
+        ['No data files detected (e.g. .csv, .xlsx, .tab, .json, .dta, .sav)',
+         'No code files detected (e.g. .py, .R, .do, .m, .jl)',
+         'Recommendation: deposit the raw or processed data used in the analysis '
+         'and, where possible, the analysis scripts']
+    ))
+    return findings
+
+
+def detect_FW_figures_in_word(repo_dir, all_files):
+    """Fires SIGNIFICANT when figures are stored as Word documents.
+
+    Word files cannot be programmatically rendered, embed figures as
+    non-extractable objects, and may display differently across versions and
+    operating systems. Figures should be in a standard image format.
+    """
+    findings = []
+    _WORD_EXTS = {'.doc', '.docx'}
+    _FIGURE_PATTERNS = re.compile(
+        r'\b(?:fig(?:ure)?|figure)[\s_\-]?\d+\b', re.IGNORECASE
+    )
+    word_figures = [
+        f for f in all_files
+        if f.suffix.lower() in _WORD_EXTS
+        and _FIGURE_PATTERNS.search(f.stem)
+    ]
+    # Deduplicate by name.
+    seen: set = set()
+    unique = []
+    for f in word_figures:
+        if f.name.lower() not in seen:
+            seen.add(f.name.lower())
+            unique.append(f)
+    if not unique:
+        return findings
+    findings.append(finding(
+        'FW', 'SIGNIFICANT',
+        f'{"Figure" if len(unique) == 1 else f"{len(unique)} figures"} stored as Word document{"" if len(unique) == 1 else "s"}',
+        'Word documents (.doc/.docx) cannot be programmatically rendered and '
+        'may display differently across Word versions and operating systems. '
+        'Figures in a research deposit should be in a standard image format '
+        '(PNG, SVG, PDF, or TIFF) so validators can verify them without '
+        'opening proprietary software.',
+        [f'Word figure: {f.name}' for f in unique] +
+        ['Recommended formats: .png, .svg, .pdf, .tiff']
+    ))
+    return findings
 
 
 # Packages that require C/C++ system libraries not installable via pip alone
