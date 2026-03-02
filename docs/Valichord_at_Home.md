@@ -1,4 +1,3 @@
-
 # ValiChord at Home
 
 
