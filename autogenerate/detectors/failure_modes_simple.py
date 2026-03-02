@@ -22,7 +22,7 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 DATA_EXTENSIONS = {
     '.csv', '.tsv', '.xlsx', '.xls', '.json', '.jsonl', '.ndjson',
     '.parquet', '.feather', '.arrow',
-    '.rds', '.rdata', '.dta', '.sav', '.zsav', '.sas7bdat', '.xpt',
+    '.rds', '.rdata', '.dta', '.sav', '.por', '.zsav', '.sas7bdat', '.xpt',
     '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
     '.dif', '.gdt',
     # Shapefile components
@@ -85,11 +85,18 @@ def _looks_like_codebook(path) -> bool:
         else:
             delim = ','
         rows = [ln.split(delim) for ln in lines]
+        col1 = [r[0].strip() for r in rows[1:] if r[0].strip()]
         col2 = [r[1].strip() for r in rows[1:] if len(r) > 1 and r[1].strip()]
-        if not col2:
+        if not col2 or not col1:
             return False
-        avg_len = sum(len(c) for c in col2) / len(col2)
-        return avg_len > 12
+        avg_col1_len = sum(len(c) for c in col1) / len(col1)
+        avg_col2_len = sum(len(c) for c in col2) / len(col2)
+        # A real codebook has short variable names in col1 (< 35 chars avg)
+        # and long descriptions in col2 (> 20 chars avg).  Data CSVs often
+        # have both columns long (e.g. compound names + activity values) or
+        # col2 short (e.g. numeric measurements), so this combination is a
+        # stronger signal than col2 length alone.
+        return avg_col1_len < 35 and avg_col2_len > 20
     except Exception as e:
         import sys
         print(
@@ -1953,6 +1960,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_IC_inconsistent_extension_case(repo_dir, all_files)
     print("  [IC2] Inconsistent filename spacing check...")
     all_findings += detect_IC2_inconsistent_filename_spacing(repo_dir, all_files)
+    print("  [FL]  Long filename check...")
+    all_findings += detect_FL_long_filenames(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -5452,6 +5461,53 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
     return findings
 
 
+def detect_FL_long_filenames(repo_dir, all_files):
+    """Failure Mode FL: Filenames with stems longer than 64 characters.
+
+    Windows default MAX_PATH is 260 characters total — once nested inside
+    any folder structure a long filename can hit this limit. Many tools
+    (git, command-line utilities, certain IDEs) also silently truncate at
+    64 or 80 characters. Long names with spaces compound the problem.
+
+    Fires SIGNIFICANT when any filename stem exceeds 64 characters.
+    """
+    findings = []
+    _FL_STEM_THRESHOLD = 64
+
+    long_files = []
+    seen_names: set = set()
+    for f in all_files:
+        if len(f.stem) > _FL_STEM_THRESHOLD and f.name not in seen_names:
+            seen_names.add(f.name)
+            long_files.append(f)
+
+    if not long_files:
+        return findings
+
+    details = [
+        f'{f.name!r} ({len(f.stem)}-char stem)'
+        for f in long_files[:6]
+    ]
+    if len(long_files) > 6:
+        details.append(f'(+{len(long_files) - 6} more)')
+
+    findings.append(finding(
+        'FL', 'SIGNIFICANT',
+        f'Filename{"s" if len(long_files) != 1 else ""} too long '
+        f'({len(long_files)} file{"s" if len(long_files) != 1 else ""} '
+        f'exceed {_FL_STEM_THRESHOLD}-char stem limit)',
+        'One or more filenames have stems longer than 64 characters. '
+        'Windows has a default 260-character total path limit — once '
+        'nested inside folders, very long names approach this ceiling. '
+        'Many tools also truncate or fail silently at 64–80 characters. '
+        'Long names with spaces require quoting in every command-line '
+        'context. Recommended: shorten to under 64 characters and '
+        'replace spaces with underscores.',
+        details
+    ))
+    return findings
+
+
 def detect_FD_duplicate_format_pairs(repo_dir, all_files):
     """Check for files sharing the same stem but stored in multiple formats.
 
@@ -5507,11 +5563,14 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
             'FD', 'SIGNIFICANT',
             f'Duplicate-format file pairs ({len(pairs)} stem{"s" if len(pairs) != 1 else ""})',
             'Files with the same name but different extensions are present. '
-            'This often happens when a platform (e.g. Harvard Dataverse) '
-            'auto-generates a tab-delimited copy of an uploaded spreadsheet. '
-            'Validators cannot determine which format is canonical or whether '
-            'both copies contain identical data. Clarify in the README which '
-            'format is the authoritative version and whether both are intentional.',
+            'Two common causes require different actions: '
+            '(1) Platform auto-generation — e.g. Harvard Dataverse creates a .tab '
+            'copy of every uploaded spreadsheet. Action: identify the canonical '
+            'format and document or remove the auto-generated copy. '
+            '(2) Deliberate multi-format export — e.g. the same SPSS dataset '
+            'exported as .sav + .por + .csv for cross-software compatibility. '
+            'Action: confirm in the README that all copies are in sync and '
+            'explain why each format is provided.',
             details
         ))
     return findings
@@ -6188,6 +6247,7 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.aprx':     'ArcGIS Pro',
         '.sas7bdat': 'SAS',
         '.sav':      'SPSS',
+        '.por':      'SPSS',        # SPSS Portable format — same tool family
         '.dta':      'Stata',
         '.nb':       'Mathematica',
         '.jmp':      'JMP',
