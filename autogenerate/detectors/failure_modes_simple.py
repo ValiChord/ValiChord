@@ -1842,6 +1842,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_BR_credentials_exposed(repo_dir, all_files)
     all_findings += detect_BS_archive_code_present(repo_dir, all_files)
     all_findings += detect_BT_spaces_in_filenames(repo_dir, all_files)
+    print("  [FD] Duplicate format pairs check...")
+    all_findings += detect_FD_duplicate_format_pairs(repo_dir, all_files)
     print("  [BU] Conda channel priority check...")
     all_findings += detect_BU_conda_channel_priority(repo_dir, all_files)
     print("  [BV] Shell error handling check...")
@@ -4843,10 +4845,21 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
             has_doi = True
             break
     if not has_doi:
+        # Platform-aware recommendation: Dataverse deposits already have a DOI.
+        _is_dataverse = zip_name and zip_name.lower() == 'dataverse_files.zip'
+        if _is_dataverse:
+            _doi_rec = (
+                'This appears to be a Harvard Dataverse deposit — Dataverse '
+                'assigns a DOI automatically (format: 10.7910/DVN/XXXXXX). '
+                'Add your existing Dataverse DOI to the README rather than '
+                'creating a new one elsewhere.'
+            )
+        else:
+            _doi_rec = 'Recommendation: deposit on Zenodo to get a DOI'
         findings.append(finding('AW', 'LOW CONFIDENCE',
             'No DOI or persistent identifier found in documentation',
             'No DOI, Zenodo link, or other persistent identifier was found. A DOI ensures the repository remains citable and accessible long-term.',
-            ['Recommendation: deposit on Zenodo to get a DOI',
+            [_doi_rec,
              'Add DOI badge to README']))
     return findings
 
@@ -5353,11 +5366,11 @@ def detect_BS_archive_code_present(repo_dir, all_files):
 
 
 def detect_BT_spaces_in_filenames(repo_dir, all_files):
-    """Check for spaces in code or data filenames."""
+    """Check for spaces in filenames (all extensions — spaces cause shell failures)."""
     findings = []
     problem_files = [
         f for f in all_files
-        if ' ' in f.name and f.suffix.lower() in CODE_EXTENSIONS | {'.csv', '.tsv', '.xlsx'}
+        if ' ' in f.name
     ]
     # Deduplicate by basename (same logical filename appearing in multiple zip copies)
     _seen_bt: dict = {}
@@ -5376,6 +5389,59 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
             'Filenames with spaces cause shell execution failures unless quoted. '
             'Replace spaces with underscores before deposit.',
             [f'Problem file: {f.name}' for f in problem_files]
+        ))
+    return findings
+
+
+def detect_FD_duplicate_format_pairs(repo_dir, all_files):
+    """Check for files sharing the same stem but stored in multiple formats.
+
+    Common cause: Harvard Dataverse auto-generates a .tab copy of every .xlsx
+    upload. Validators cannot tell which format is canonical or whether they
+    contain identical data.
+    """
+    findings = []
+    # Group files by lower-cased stem, ignoring dot-files and generated output.
+    _GENERATED_NAMES = {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
+    stem_map: dict = {}
+    for f in all_files:
+        if f.name in _GENERATED_NAMES:
+            continue
+        if f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'):
+            continue
+        stem_key = f.stem.lower()
+        stem_map.setdefault(stem_key, []).append(f)
+
+    pairs = []
+    for stem_key, files in stem_map.items():
+        exts = {f.suffix.lower() for f in files}
+        if len(exts) >= 2:
+            # Deduplicate by (name, suffix) — ignore depth duplicates.
+            seen_names: set = set()
+            unique = []
+            for f in files:
+                key = (f.name.lower(), f.suffix.lower())
+                if key not in seen_names:
+                    seen_names.add(key)
+                    unique.append(f)
+            if len({f.suffix.lower() for f in unique}) >= 2:
+                pairs.append(unique)
+
+    if pairs:
+        details = []
+        for group in pairs:
+            names = ', '.join(sorted(f.name for f in group))
+            details.append(f'Duplicate formats: {names}')
+        findings.append(finding(
+            'FD', 'SIGNIFICANT',
+            f'Duplicate-format file pairs ({len(pairs)} stem{"s" if len(pairs) != 1 else ""})',
+            'Files with the same name but different extensions are present. '
+            'This often happens when a platform (e.g. Harvard Dataverse) '
+            'auto-generates a tab-delimited copy of an uploaded spreadsheet. '
+            'Validators cannot determine which format is canonical or whether '
+            'both copies contain identical data. Clarify in the README which '
+            'format is the authoritative version and whether both are intentional.',
+            details
         ))
     return findings
 
