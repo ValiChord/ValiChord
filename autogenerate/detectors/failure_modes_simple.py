@@ -5203,32 +5203,47 @@ def detect_BM_citation_cff(repo_dir, all_files):
 
 
 def detect_BN_codebook_reference_mismatch(repo_dir, all_files):
-    """Check if README references a codebook file that doesn't exist."""
+    """Check if any README references a codebook file that doesn't exist.
+
+    Scans ALL readme files (not just the shallowest) so that sub-directory
+    READMEs that reference a local codebook are also checked.
+    """
     findings = []
-    readme_file = min(
-        (f for f in all_files
-         if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}),
-        key=lambda x: len(x.relative_to(repo_dir).parts),
-        default=None,
-    )
-    if not readme_file:
-        return findings
-    try:
-        content = readme_file.read_text(encoding='utf-8', errors='ignore').lower()
-    except Exception:
-        return findings
     import re as _re
-    codebook_refs = _re.findall(r'codebook[\w\-]*\.\w+', content)
+    _CODEBOOK_REF = _re.compile(r'codebook[\w\-]*\.\w+', _re.IGNORECASE)
     all_names = {f.name.lower() for f in all_files}
-    for ref in codebook_refs:
-        if ref not in all_names:
-            findings.append(finding(
-                'BN', 'LOW CONFIDENCE',
-                f'README references {ref} but file not found',
-                'The README mentions a codebook or data dictionary file '
-                'that does not appear to be present in the repository.',
-                [f'Referenced: {ref}', f'Files present: {", ".join(n for n in all_names if "codebook" in n or "dict" in n) or "none"}']
-            ))
+    readme_files = [
+        f for f in all_files
+        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}
+    ]
+    if not readme_files:
+        return findings
+
+    already_reported: set = set()
+    for readme_file in readme_files:
+        try:
+            content = readme_file.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            continue
+        for ref in _CODEBOOK_REF.findall(content):
+            ref_lower = ref.lower()
+            if ref_lower in already_reported:
+                continue
+            if ref_lower not in all_names:
+                already_reported.add(ref_lower)
+                near = ', '.join(
+                    n for n in all_names
+                    if 'codebook' in n or 'dict' in n
+                ) or 'none'
+                findings.append(finding(
+                    'BN', 'LOW CONFIDENCE',
+                    f'README references {ref} but file not found',
+                    'The README mentions a codebook or data dictionary file '
+                    'that does not appear to be present in the repository.',
+                    [f'Referenced: {ref}',
+                     f'Found in: {readme_file.name}',
+                     f'Files present: {near}']
+                ))
     return findings
 
 
@@ -5563,13 +5578,19 @@ def detect_FW_figures_in_word(repo_dir, all_files):
 def detect_UE_unicode_filenames(repo_dir, all_files):
     """Fires SIGNIFICANT when filenames contain non-ASCII characters.
 
-    Unicode filenames cause silent failures on older Windows systems, some
-    HPC environments, and various command-line tools. Validators on systems
-    with different locale settings may be unable to access the file at all.
+    Em-dash (U+2014, —) is treated as a distinct sub-category because it is
+    almost always a Word/typographic autocorrect substitution for a hyphen,
+    not a deliberate symbol. Other non-ASCII characters (Greek letters,
+    accented characters, etc.) are a separate concern.
     """
     findings = []
+    _EM_DASH = '\u2014'      # —
+    _EN_DASH = '\u2013'      # – (same cause, same fix)
+
     seen_names: set = set()
-    unicode_files = []
+    dash_files = []    # contains em-dash or en-dash only (no other non-ASCII)
+    symbol_files = []  # contains other non-ASCII (may also contain dashes)
+
     for f in all_files:
         if f.name in seen_names:
             continue
@@ -5577,22 +5598,51 @@ def detect_UE_unicode_filenames(repo_dir, all_files):
         try:
             f.name.encode('ascii')
         except UnicodeEncodeError:
-            unicode_files.append(f)
-    if not unicode_files:
+            non_ascii_chars = {c for c in f.name if ord(c) > 127}
+            dash_chars = {_EM_DASH, _EN_DASH}
+            if non_ascii_chars <= dash_chars:
+                # only dashes — no other unicode
+                dash_files.append(f)
+            else:
+                symbol_files.append(f)
+
+    if not dash_files and not symbol_files:
         return findings
-    n = len(unicode_files)
-    findings.append(finding(
-        'UE', 'SIGNIFICANT',
-        f'Non-ASCII characters in {"filename" if n == 1 else f"{n} filenames"}',
-        'Filenames containing non-ASCII characters (e.g. Greek letters, accented '
-        'characters, em-dashes) cause silent failures on older Windows systems, '
-        'some HPC environments, and many command-line tools. Validators on systems '
-        'with different locale settings may be unable to open or reference these '
-        'files. Replace non-ASCII characters with ASCII equivalents before deposit '
-        '(e.g. Ω → Ohm, é → e, — → -).',
-        [f'Non-ASCII filename: {f.name}' for f in unicode_files[:10]] +
-        (['...and more' ] if n > 10 else [])
-    ))
+
+    # Fire one finding per category so the researcher sees the two problems
+    # as distinct rather than a single lump count.
+    if dash_files:
+        nd = len(dash_files)
+        findings.append(finding(
+            'UE', 'SIGNIFICANT',
+            f'Em-dash (—) in {"filename" if nd == 1 else f"{nd} filenames"} '
+            f'— likely Word autocorrect substitution for a hyphen',
+            'The em-dash (—) or en-dash (–) in these filenames is almost always '
+            'inserted automatically by Microsoft Word or similar software when '
+            'typing "--". It is not an ASCII hyphen (-) and will cause failures '
+            'on case-sensitive filesystems and command-line tools. '
+            'Replace — with a hyphen (-) or underscore (_) in all affected filenames.',
+            [f'Em-dash in filename: {f.name}' for f in dash_files[:10]] +
+            (['...and more'] if nd > 10 else [])
+        ))
+
+    if symbol_files:
+        ns = len(symbol_files)
+        findings.append(finding(
+            'UE', 'SIGNIFICANT',
+            f'Non-ASCII symbol{"s" if ns != 1 else ""} in '
+            f'{"filename" if ns == 1 else f"{ns} filenames"}',
+            'Filenames containing non-ASCII characters (Greek letters, accented '
+            'characters, special symbols) cause silent failures on older Windows '
+            'systems, some HPC environments, and many command-line tools. '
+            'Validators on systems with different locale settings may be unable '
+            'to open or reference these files. '
+            'Replace non-ASCII characters with ASCII equivalents '
+            '(e.g. Ω → Ohm, é → e, ñ → n).',
+            [f'Non-ASCII filename: {f.name}' for f in symbol_files[:10]] +
+            (['...and more'] if ns > 10 else [])
+        ))
+
     return findings
 
 
