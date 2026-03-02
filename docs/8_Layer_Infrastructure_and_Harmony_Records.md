@@ -34,6 +34,6 @@ Unlike traditional binary "pass/fail" metrics, the Harmony Record preserves the 
 
 Divergent Findings: The system explicitly acknowledges and documents when findings are divergent, refusing to average away meaningful scientific signals.
 
- Brutality Commitments Applied: To ensure integrity, strict commitments—such as double-blind reviews and commit-reveal protocols—prevent validators from being influenced by author status or peer findings.
+ Brutality Commitments (see Governance framework) Applied: To ensure integrity, strict commitments—such as double-blind reviews and commit-reveal protocols—prevent validators from being influenced by author status or peer findings.
  
  Final Consensus Hash: The result is a permanent, tamper-evident Harmony Record that provides an honest summary of a study's reproducibility status for the entire community.
