@@ -1937,6 +1937,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_NZ(repo_dir, all_files)
     print("  [DUP] Duplicate data file check...")
     all_findings += detect_DUP(repo_dir, all_files)
+    print("  [3D] 3D mesh no viewer check...")
+    all_findings += detect_3D_mesh_no_viewer(repo_dir, all_files)
     print("  [ND] No data files check...")
     all_findings += detect_ND_no_data_files(repo_dir, all_files)
     print("  [FW] Figures in Word format check...")
@@ -1945,6 +1947,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_UE_unicode_filenames(repo_dir, all_files)
     print("  [NX] No-extension files check...")
     all_findings += detect_NX_no_extension(repo_dir, all_files)
+    print("  [NN] Non-sequential numbering check...")
+    all_findings += detect_NN_nonsequential_numbering(repo_dir, all_files)
     print("  [IC] Inconsistent extension casing check...")
     all_findings += detect_IC_inconsistent_extension_case(repo_dir, all_files)
     print("  [IC2] Inconsistent filename spacing check...")
@@ -5461,8 +5465,20 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
                 if key not in seen_names:
                     seen_names.add(key)
                     unique.append(f)
-            if len({f.suffix.lower() for f in unique}) >= 2:
-                pairs.append(unique)
+            if len({f.suffix.lower() for f in unique}) < 2:
+                continue
+            # Skip pairs where file sizes differ by more than 50:1 — these are
+            # a primary data file alongside a small sidecar description, not
+            # genuine duplicate-format exports of the same dataset.
+            try:
+                sizes = [f.stat().st_size for f in unique]
+                max_sz = max(sizes)
+                min_sz = min(s for s in sizes if s > 0)
+                if max_sz / min_sz > 50:
+                    continue
+            except Exception:
+                pass
+            pairs.append(unique)
 
     if pairs:
         details = []
@@ -5493,6 +5509,85 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
 
 
 
+_3D_MESH_EXTS = frozenset({
+    '.off', '.ply', '.stl', '.obj', '.vtk', '.vtu', '.mesh', '.wrl', '.dae',
+})
+
+_3D_SOFTWARE_RE = re.compile(
+    r'\b(?:meshlab|blender|paraview|open3d|pyvista|trimesh|'
+    r'cloudcompare|cloud\s+compare|'
+    r'point\s+cloud\s+library|pcl\b|'
+    r'3[Dd]\s+(?:viewer|software|tool)|'
+    r'mesh\s+(?:viewer|software|tool)|'
+    r'view(?:ing|ed?)?\s+(?:the\s+)?(?:mesh(?:es)?|point\s*cloud|3[Dd]\s+file)|'
+    r'render(?:ing|ed?)?\s+(?:the\s+)?(?:mesh(?:es)?|point\s*cloud)|'
+    r'visuali[sz](?:e|ing|ed?)\s+(?:the\s+)?(?:mesh(?:es)?|point\s*cloud))\b',
+    re.IGNORECASE,
+)
+
+
+def detect_3D_mesh_no_viewer(repo_dir, all_files):
+    """Fires SIGNIFICANT when a deposit contains 3D mesh or point-cloud files
+    but the README does not document any viewer or processing software.
+
+    .off, .ply, .stl, .obj etc. require specific software (MeshLab, Blender,
+    ParaView, Open3D, …) to open and render.  Without documentation validators
+    cannot confirm their rendering matches the published figures.
+    """
+    findings = []
+    mesh_files = [f for f in all_files if f.suffix.lower() in _3D_MESH_EXTS]
+    if not mesh_files:
+        return findings
+
+    # Deduplicate by name.
+    seen: set = set()
+    unique_mesh = []
+    for f in mesh_files:
+        if f.name.lower() not in seen:
+            seen.add(f.name.lower())
+            unique_mesh.append(f)
+
+    # Check README(s) for any 3D software mention (shallowest first).
+    readme_files = sorted(
+        [f for f in all_files
+         if f.name.lower() in README_NAMES
+         or ('readme' in f.name.lower()
+             and f.suffix.lower() in {'.md', '.txt', '.rst', ''})],
+        key=lambda f: len(f.relative_to(repo_dir).parts),
+    )
+    for readme in readme_files:
+        content = read_file_safe(readme)
+        if _3D_SOFTWARE_RE.search(content):
+            return findings  # Suppressed: viewer software is documented
+
+    # Build a compact evidence line grouped by extension.
+    ext_groups: dict = {}
+    for f in unique_mesh:
+        ext_groups.setdefault(f.suffix.lower(), []).append(f.name)
+    ext_summary = '; '.join(
+        f'{len(v)} × {k} '
+        f'({", ".join(v[:2])}{"…" if len(v) > 2 else ""})'
+        for k, v in sorted(ext_groups.items())
+    )
+
+    n = len(unique_mesh)
+    findings.append(finding(
+        '3D', 'SIGNIFICANT',
+        f'3D mesh/point-cloud files with no viewer documented '
+        f'({n} file{"s" if n != 1 else ""})',
+        '3D mesh and point-cloud formats (.off, .ply, .stl, .obj, …) require '
+        'specific software to open and render — MeshLab, Blender, Open3D, '
+        'ParaView, or similar. Without documentation of which software was used '
+        'to generate and view these files, validators cannot confirm that their '
+        'rendering matches the published figures.',
+        [f'3D files present: {ext_summary}',
+         'Recommendation: add a "Software requirements" or "Viewing the data" '
+         'section to the README specifying which tool (e.g. MeshLab 2023.12, '
+         'Blender 4.0) was used and how to load the files.'],
+    ))
+    return findings
+
+
 def detect_ND_no_data_files(repo_dir, all_files):
     """Fires CRITICAL when a deposit contains no data or code — only publication
     materials (manuscript, SI document, figures as Word/PDF/image files).
@@ -5501,7 +5596,18 @@ def detect_ND_no_data_files(repo_dir, all_files):
     validators have nothing to reproduce.
     """
     findings = []
-    _DATA_EXTS = DATA_EXTENSIONS | {'.tab', '.dat', '.nc', '.mat', '.sav', '.dta'}
+    # Image formats are primary data in imaging, microscopy, photography, and
+    # computational biology deposits.  3D mesh / point-cloud formats are primary
+    # data in computational biology, palaeontology, and engineering deposits.
+    _IMAGE_EXTS = {
+        '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp', '.gif',
+        '.webp', '.svg', '.eps', '.raw', '.cr2', '.nef', '.dng',
+    }
+    _MESH_EXTS = {
+        '.off', '.ply', '.stl', '.obj', '.vtk', '.vtu', '.mesh',
+        '.wrl', '.dae', '.fbx', '.glb', '.gltf',
+    }
+    _DATA_EXTS = DATA_EXTENSIONS | {'.tab', '.dat', '.nc', '.mat', '.sav', '.dta'} | _IMAGE_EXTS | _MESH_EXTS
     has_data = any(f.suffix.lower() in _DATA_EXTS for f in all_files)
     has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
     if has_data or has_code:
@@ -5511,9 +5617,10 @@ def detect_ND_no_data_files(repo_dir, all_files):
     if not all_files:
         return findings
 
-    # Characterise what IS present.
-    _PUB_EXTS = {'.pdf', '.doc', '.docx', '.ppt', '.pptx', '.png', '.jpg',
-                 '.jpeg', '.tif', '.tiff', '.svg', '.eps', '.bmp', '.gif'}
+    # Characterise what IS present — only pure document formats count as
+    # "publication materials".  Images and 3D mesh files are already handled
+    # above as recognised data formats and would have returned early.
+    _PUB_EXTS = {'.pdf', '.doc', '.docx', '.ppt', '.pptx'}
     pub_files = [f for f in all_files if f.suffix.lower() in _PUB_EXTS]
     pub_ratio = len(pub_files) / len(all_files) if all_files else 0
     if pub_ratio < 0.5:
@@ -5685,6 +5792,69 @@ def detect_NX_no_extension(repo_dir, all_files):
     return findings
 
 
+_NN_STEM_RE = re.compile(r'^(.*?)(\d+)$')
+
+
+def detect_NN_nonsequential_numbering(repo_dir, all_files):
+    """Fires LOW CONFIDENCE when a numbered filename series contains a
+    non-sequential jump that is likely a typo.
+
+    Example: tapetal001, tapetal002, tapetal003, tapetal004, tapetal2005 —
+    the jump from 004 to 2005 almost certainly means tapetal005 with a digit
+    inserted by mistake.
+
+    Only fires when the series is otherwise strictly sequential (all adjacent
+    gaps are 1) and a single gap exceeds 100.
+    """
+    findings = []
+
+    # Group files by (parent directory, lowercase extension, non-numeric prefix).
+    groups: dict = {}
+    for f in all_files:
+        m = _NN_STEM_RE.match(f.stem)
+        if not m:
+            continue
+        prefix, num_str = m.group(1), m.group(2)
+        key = (f.parent, f.suffix.lower(), prefix)
+        groups.setdefault(key, []).append((int(num_str), f.name))
+
+    suspicious = []
+    for (_parent, _ext, _prefix), entries in groups.items():
+        if len(entries) < 3:
+            continue
+        entries.sort()
+        nums = [e[0] for e in entries]
+        fnames = [e[1] for e in entries]
+
+        gaps = [nums[i + 1] - nums[i] for i in range(len(nums) - 1)]
+
+        # Require the series to be otherwise sequential (at most one bad gap).
+        n_unit = sum(1 for g in gaps if g == 1)
+        if n_unit < len(gaps) - 1:
+            continue
+
+        for i, gap in enumerate(gaps):
+            if gap > 100:
+                suspicious.append(
+                    f'{fnames[i]} → {fnames[i + 1]} '
+                    f'(gap of {gap:,}; expected ~{nums[i] + 1})'
+                )
+
+    if not suspicious:
+        return findings
+    findings.append(finding(
+        'NN', 'LOW CONFIDENCE',
+        f'Non-sequential numbering gap in filename series '
+        f'({len(suspicious)} gap{"s" if len(suspicious) != 1 else ""})',
+        'One or more filename series contain a large non-sequential jump in an '
+        'otherwise sequential run. This may be a numbering typo (e.g. tapetal2005 '
+        'instead of tapetal005) or may indicate a missing file. Verify that the '
+        'sequence is complete and correct the filename if it is a typo.',
+        suspicious,
+    ))
+    return findings
+
+
 def detect_IC_inconsistent_extension_case(repo_dir, all_files):
     """Fires LOW CONFIDENCE when the same extension appears in both upper and
     lower case (e.g. .csv and .CSV).
@@ -5704,6 +5874,23 @@ def detect_IC_inconsistent_extension_case(repo_dir, all_files):
 
     inconsistent = {lo: variants for lo, variants in ext_variants.items()
                     if len(variants) > 1}
+
+    # Also flag extensions that are consistently uppercase when the deposit
+    # predominantly uses lowercase extensions.  E.g. if a deposit has .jpg,
+    # .off, .ply (all lowercase) but .TIF files are uppercase throughout, the
+    # .TIF vs .tif inconsistency with the deposit convention should still fire
+    # even though there are no .tif siblings.
+    _has_lowercase_ext = any(
+        f.suffix and f.suffix == f.suffix.lower() and f.suffix
+        for f in all_files
+    )
+    if _has_lowercase_ext:
+        for lo, variants in ext_variants.items():
+            if lo not in inconsistent and len(variants) == 1:
+                (sole_variant,) = variants
+                if sole_variant != lo:  # this extension is consistently uppercase
+                    inconsistent[lo] = variants
+
     if not inconsistent:
         return findings
 
