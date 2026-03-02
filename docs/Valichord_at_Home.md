@@ -63,4 +63,4 @@ Consistent with the broader ValiChord architecture, the "at Home" tool is design
 
 ---
 
-For more information on the full validation pipeline, see the [ValiChord Vision & Architecture]() and the [Researcher Support Document](https://github.com/topeuph-ai/ValiChord/blob/main/ValiChord_Researcher_Support.md)
+For more information on the full validation pipeline, see the [ValiChord Vision & Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md) and the [Researcher Support Document](https://github.com/topeuph-ai/ValiChord/blob/main/ValiChord_Researcher_Support.md)
