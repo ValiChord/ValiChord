@@ -17,16 +17,13 @@ Not every researcher who produces groundbreaking science thinks in tidy file str
 
 The tool provides **Level 1: Pre-Submission Self-Assessment** through a local, private workflow:
 
-* 
-**Static Analysis Scan:** The tool scans local repositories for "reproducibility failure modes," such as hardcoded absolute paths, missing documentation, or unpinned dependencies.
+* **Static Analysis Scan:** The tool scans local repositories for "reproducibility failure modes," such as hardcoded absolute paths, missing documentation, or unpinned dependencies.
 
 
-* 
-**AI-Assisted Auto-Generation:** It can proactively draft missing components—including `README_DRAFT.md`, `LICENCE_DRAFT.txt`, and dependency requirements—based on the detected code and data structure.
+* **AI-Assisted Auto-Generation:** It can proactively draft missing components—including `README_DRAFT.md`, `LICENCE_DRAFT.txt`, and dependency requirements—based on the detected code and data structure.
 
 
-* 
-**Actionable Triage:** It identifies exactly what a validator would need to find and provides specific guidance on how to fix each gap before submission.
+* **Actionable Triage:** It identifies exactly what a validator would need to find and provides specific guidance on how to fix each gap before submission.
 
 
 
@@ -34,16 +31,13 @@ The tool provides **Level 1: Pre-Submission Self-Assessment** through a local, p
 
 ValiChord at Home operates on a strict **Anti-Authority** principle:
 
-* 
-**Researcher in Control:** The tool only suggests; the researcher is responsible for all final decisions.
+* **Researcher in Control:** The tool only suggests; the researcher is responsible for all final decisions.
 
 
-* 
-**Truth Over Compliance:** If a generated correction contradicts the researcher's knowledge, the tool is considered wrong—the researcher's expertise always takes precedence.
+* **Truth Over Compliance:** If a generated correction contradicts the researcher's knowledge, the tool is considered wrong—the researcher's expertise always takes precedence.
 
 
-* 
-**Manual Verification:** All generated files include a `_DRAFT` suffix, requiring the researcher to verify and approve changes before use.
+* **Manual Verification:** All generated files include a `_DRAFT` suffix, requiring the researcher to verify and approve changes before use.
 
 
 
@@ -51,23 +45,19 @@ ValiChord at Home operates on a strict **Anti-Authority** principle:
 
 Consistent with the broader ValiChord architecture, the "at Home" tool is designed for **absolute data sovereignty**:
 
-* 
-**On-Device Execution:** The tool runs locally on the researcher's machine; it never executes research code or transmits data without explicit consent.
+* **On-Device Execution:** The tool runs locally on the researcher's machine; it never executes research code or transmits data without explicit consent.
 
 
-* 
-**Zero-Knowledge Analysis:** It provides high-level mentorship and "semantic healing" while keeping the researcher's messy first attempts entirely private.
+* **Zero-Knowledge Analysis:** It provides high-level mentorship and "semantic healing" while keeping the researcher's messy first attempts entirely private.
 
 
 
 ### 📅 Development Roadmap
 
-* 
-**Stage A (Early Preview):** A lightweight best-practice checklist to build community engagement and generate ecosystem data.
+* **Stage A (Early Preview):** A lightweight best-practice checklist to build community engagement and generate ecosystem data.
 
 
-* 
-**Stage B (Calibrated Tool):** An advanced version using empirical data from Phase 0 to predict validation difficulty and estimate time ranges.
+* **Stage B (Calibrated Tool):** An advanced version using empirical data from Phase 0 to predict validation difficulty and estimate time ranges.
 
 
 
