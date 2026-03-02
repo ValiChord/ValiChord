@@ -1,5 +1,6 @@
-
+<div align="center">
 # ValiChord at Home
+</div>
 
 ## Your Private Research Companion for Pre-Submission Readiness
 
