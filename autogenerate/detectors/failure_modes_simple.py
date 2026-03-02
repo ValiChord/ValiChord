@@ -8385,7 +8385,7 @@ def detect_DZ_double_zipped(repo_dir, all_files):
                     inner_count += 1
                 break
 
-    if doubled_name is None or inner_count < 3:
+    if doubled_name is None or doubled_depth is None or inner_count < 3:
         return findings
 
     prefix = '/'.join(['…'] * doubled_depth) + ('/' if doubled_depth else '')
