@@ -1941,6 +1941,14 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_ND_no_data_files(repo_dir, all_files)
     print("  [FW] Figures in Word format check...")
     all_findings += detect_FW_figures_in_word(repo_dir, all_files)
+    print("  [UE] Unicode filenames check...")
+    all_findings += detect_UE_unicode_filenames(repo_dir, all_files)
+    print("  [NX] No-extension files check...")
+    all_findings += detect_NX_no_extension(repo_dir, all_files)
+    print("  [IC] Inconsistent extension casing check...")
+    all_findings += detect_IC_inconsistent_extension_case(repo_dir, all_files)
+    print("  [IC2] Inconsistent filename spacing check...")
+    all_findings += detect_IC2_inconsistent_filename_spacing(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -5552,6 +5560,170 @@ def detect_FW_figures_in_word(repo_dir, all_files):
     return findings
 
 
+def detect_UE_unicode_filenames(repo_dir, all_files):
+    """Fires SIGNIFICANT when filenames contain non-ASCII characters.
+
+    Unicode filenames cause silent failures on older Windows systems, some
+    HPC environments, and various command-line tools. Validators on systems
+    with different locale settings may be unable to access the file at all.
+    """
+    findings = []
+    seen_names: set = set()
+    unicode_files = []
+    for f in all_files:
+        if f.name in seen_names:
+            continue
+        seen_names.add(f.name)
+        try:
+            f.name.encode('ascii')
+        except UnicodeEncodeError:
+            unicode_files.append(f)
+    if not unicode_files:
+        return findings
+    n = len(unicode_files)
+    findings.append(finding(
+        'UE', 'SIGNIFICANT',
+        f'Non-ASCII characters in {"filename" if n == 1 else f"{n} filenames"}',
+        'Filenames containing non-ASCII characters (e.g. Greek letters, accented '
+        'characters, em-dashes) cause silent failures on older Windows systems, '
+        'some HPC environments, and many command-line tools. Validators on systems '
+        'with different locale settings may be unable to open or reference these '
+        'files. Replace non-ASCII characters with ASCII equivalents before deposit '
+        '(e.g. Ω → Ohm, é → e, — → -).',
+        [f'Non-ASCII filename: {f.name}' for f in unicode_files[:10]] +
+        (['...and more' ] if n > 10 else [])
+    ))
+    return findings
+
+
+def detect_NX_no_extension(repo_dir, all_files):
+    """Fires SIGNIFICANT when files have no extension and are not known
+    extensionless build/config files (Makefile, Dockerfile, etc.).
+
+    A file with no extension cannot be identified automatically by type.
+    """
+    _KNOWN_EXTENSIONLESS = {
+        'makefile', 'dockerfile', 'readme', 'license', 'licence',
+        'authors', 'changelog', 'contributing', 'manifest', 'snakefile',
+        'procfile', 'gemfile', 'rakefile', 'guardfile', 'pipfile',
+        'cmakelists', 'justfile', 'vagrantfile', 'brewfile',
+    }
+    findings = []
+    seen_names: set = set()
+    no_ext_files = []
+    for f in all_files:
+        if f.name in seen_names:
+            continue
+        seen_names.add(f.name)
+        if (not f.suffix
+                and not f.name.startswith('.')
+                and f.name.lower() not in _KNOWN_EXTENSIONLESS):
+            no_ext_files.append(f)
+    if not no_ext_files:
+        return findings
+    n = len(no_ext_files)
+    findings.append(finding(
+        'NX', 'SIGNIFICANT',
+        f'{"File" if n == 1 else f"{n} files"} with no extension',
+        'Files without a file extension cannot be identified by type automatically. '
+        'Most GUI file managers, command-line tools, and validators will be unable '
+        'to open them without first guessing the format. Add the correct extension '
+        '(e.g. .csv, .png, .pdf) to each file before deposit.',
+        [f'No-extension file: {f.name}' for f in no_ext_files[:10]] +
+        (['...and more'] if n > 10 else [])
+    ))
+    return findings
+
+
+def detect_IC_inconsistent_extension_case(repo_dir, all_files):
+    """Fires LOW CONFIDENCE when the same extension appears in both upper and
+    lower case (e.g. .csv and .CSV).
+
+    On case-sensitive filesystems (Linux, most HPC) these are different
+    extensions. Scripts that glob *.csv on Windows will miss .CSV files on Linux.
+    """
+    findings = []
+    ext_variants: dict = {}   # lower_ext -> set of actual suffixes seen
+    ext_examples: dict = {}   # lower_ext -> {actual_suffix -> first_filename}
+    for f in all_files:
+        if not f.suffix:
+            continue
+        lo = f.suffix.lower()
+        ext_variants.setdefault(lo, set()).add(f.suffix)
+        ext_examples.setdefault(lo, {}).setdefault(f.suffix, f.name)
+
+    inconsistent = {lo: variants for lo, variants in ext_variants.items()
+                    if len(variants) > 1}
+    if not inconsistent:
+        return findings
+
+    details = []
+    for lo, variants in sorted(inconsistent.items()):
+        examples = [ext_examples[lo][v] for v in sorted(variants)
+                    if v in ext_examples[lo]]
+        details.append(
+            f'{lo}: both {" and ".join(sorted(variants))} found '
+            f'(e.g. {", ".join(examples[:2])})'
+        )
+    findings.append(finding(
+        'IC', 'LOW CONFIDENCE',
+        f'Inconsistent extension casing '
+        f'({len(inconsistent)} extension{"s" if len(inconsistent) != 1 else ""})',
+        'The same extension appears in both uppercase and lowercase. '
+        'On case-sensitive filesystems (Linux, most HPC clusters) .csv and .CSV '
+        'are different extensions — scripts that glob *.csv on Windows will miss '
+        '.CSV files when run on Linux. Standardise all extensions to lowercase.',
+        details
+    ))
+    return findings
+
+
+def detect_IC2_inconsistent_filename_spacing(repo_dir, all_files):
+    """Fires LOW CONFIDENCE when file stems that appear to form a matched set
+    differ only in whitespace (e.g. 'FigA' vs 'Fig A').
+
+    Groups files by (stem-with-spaces-removed, lower-extension). If a group
+    contains files with more than one distinct stem, the spacing is inconsistent.
+    """
+    findings = []
+    seen_names: set = set()
+    unique_files = []
+    for f in all_files:
+        if f.name not in seen_names:
+            seen_names.add(f.name)
+            unique_files.append(f)
+
+    # Group by normalised key: spaces removed, lowercased stem + lowercased ext.
+    norm_map: dict = {}
+    for f in unique_files:
+        key = (f.stem.replace(' ', '').lower(), f.suffix.lower())
+        norm_map.setdefault(key, []).append(f)
+
+    inconsistent_groups = [
+        files for files in norm_map.values()
+        if len({f.stem for f in files}) > 1
+    ]
+    if not inconsistent_groups:
+        return findings
+
+    details = []
+    for group in inconsistent_groups:
+        names = ', '.join(sorted(f.name for f in group))
+        details.append(f'Spacing inconsistency: {names}')
+
+    n = len(inconsistent_groups)
+    findings.append(finding(
+        'IC2', 'LOW CONFIDENCE',
+        f'Inconsistent spacing in {"filename" if n == 1 else f"{n} filename pairs"}',
+        'Files that appear to form a matched set differ only in internal spacing '
+        '(e.g. "FigA" vs "Fig A"). This makes scripted pairing by filename '
+        'unreliable and suggests an accidental naming inconsistency. '
+        'Standardise the spacing convention across all related filenames.',
+        details
+    ))
+    return findings
+
+
 # Packages that require C/C++ system libraries not installable via pip alone
 _SYSTEM_DEP_PACKAGES = {
     'geopandas': {'gdal', 'geos', 'proj'},
@@ -5758,6 +5930,7 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.dta':      'Stata',
         '.nb':       'Mathematica',
         '.jmp':      'JMP',
+        '.tsc':      'TINA-TI (Texas Instruments circuit simulation)',
     }
 
     # MATLAB: .m files are the extension, but only flag MATLAB when no
