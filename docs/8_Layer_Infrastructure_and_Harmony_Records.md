@@ -27,13 +27,13 @@ L2: Validation Execution Engine: The core system where independent, anonymous va
 Unlike traditional binary "pass/fail" metrics, the Harmony Record preserves the full texture of scientific evidence:
 
   "Harmony" means the preservation of agreement and disagreement. A record with mixed results is often more informative than a forced consensus.
+  
+ ****Research Artifact Hash (Target): Multiple independent validators assessment is anchored to a single central artifact identified by its unique cryptographic hash.
 
-  ****Research Artifact Hash (Target): Multiple independent validators assessment is anchored to a single central artifact identified by its unique cryptographic hash.
+  Independent Validators: The process utilizes multiple validators (e.g., A, B, and C) who may arrive at different conclusions: Reproduced, Failed to Reproduce, or Inconclusive.
 
-   Independent Validators: The process utilizes multiple validators (e.g., A, B, and C) who may arrive at different conclusions: Reproduced, Failed to Reproduce, or Inconclusive.
+Divergent Findings: The system explicitly acknowledges and documents when findings are divergent, refusing to average away meaningful scientific signals.
 
-   Divergent Findings: The system explicitly acknowledges and documents when findings are divergent, refusing to average away meaningful scientific signals.
-
-   Brutality Commitments Applied: To ensure integrity, strict commitments—such as double-blind reviews and commit-reveal protocols—prevent validators from being influenced by author status or peer findings.
-
-  Final Consensus Hash: The result is a permanent, tamper-evident Harmony Record that provides an honest summary of a study's reproducibility status for the entire community.
+ Brutality Commitments Applied: To ensure integrity, strict commitments—such as double-blind reviews and commit-reveal protocols—prevent validators from being influenced by author status or peer findings.
+ 
+ Final Consensus Hash: The result is a permanent, tamper-evident Harmony Record that provides an honest summary of a study's reproducibility status for the entire community.
