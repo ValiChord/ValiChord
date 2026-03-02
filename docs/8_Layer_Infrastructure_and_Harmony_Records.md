@@ -6,7 +6,7 @@ ValiChord is an end-to-end system designed to address the reproducibility crisis
 
 The system is organized into modular functional layers that manage the lifecycle of a research study from intake to certification:
 
-    ****L0: Content-Addressed Storage (CAS): This foundation stores research artifacts—including data, code, and protocols—identified by unique cryptographic fingerprints (SHA-256) to ensure every validator works from identical materials.
+    L0: Content-Addressed Storage (CAS): This foundation stores research artifacts—including data, code, and protocols—identified by unique cryptographic fingerprints (SHA-256) to ensure every validator works from identical materials.
 
     L1: Data Integrity & Access Control: This layer manages structured intake and pre-registration, ensuring that research questions and analysis plans are committed before results are known.
 
