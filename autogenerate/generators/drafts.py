@@ -848,15 +848,27 @@ def _generate_readme_draft(repo_dir, all_files, findings, output_dir):
     r_pkgs = set()
     github_pkgs = {}  # pkg_name_lower -> 'owner/repo'
     lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)["\']?\s*\)')
-    vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
+    vec_pkg_pat = re.compile(
+        r'(?i)(?:packages?|pkgs?|libs?|required[\w]*|deps?|dep_list)\s*<-\s*c\s*\(([^)]+)\)'
+    )
+    pacman_pat_rd = re.compile(r'(?:pacman::)?p_load\s*\(([^)]+)\)')
     github_pat = re.compile(r'(?:devtools|remotes)::install_github\s*\(\s*["\']([^"\'/]+/([\w.-]+))["\']', re.IGNORECASE)
+    _named_arg_kws = {'package', 'lib.loc', 'quietly', 'warn.conflicts', 'verbose',
+                      'character.only', 'logical.return', 'mask.ok', 'exclude',
+                      'include.only', 'attach.required'}
     for rf in _researcher_r_files(all_files, repo_dir):
         src = rf.read_text(encoding='utf-8', errors='ignore')
         for m in lib_pat.finditer(src):
-            r_pkgs.add(m.group(1))
+            pkg = m.group(1)
+            if pkg.lower() not in _named_arg_kws:
+                r_pkgs.add(pkg)
         for m in vec_pkg_pat.finditer(src):
             for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
                 r_pkgs.add(pkg)
+        for m in pacman_pat_rd.finditer(src):
+            for pkg in re.findall(r'["\']?([\w\.]+)["\']?', m.group(1)):
+                if pkg and not pkg.startswith('#'):
+                    r_pkgs.add(pkg)
     # Exclude base-R packages — they ship with R and need no installation
     r_pkgs -= {p for p in r_pkgs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
     for rf in all_files:
@@ -1894,15 +1906,42 @@ def _generate_requirements_draft(repo_dir, all_files,
         r_libs = set()
         # Drop the closing-) requirement — library(ggplot2, quietly=TRUE) must match
         lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)')
-        vec_pkg_pat = re.compile(r'(?i)(?:packages?|pkgs?)\s*<-\s*c\s*\(([^)]+)\)')
-        for rf in r_files:
-            src = rf.read_text(encoding='utf-8', errors='ignore')
+        # pacman::p_load(pkg1, pkg2, ...) — common alternative to library()
+        pacman_pat = re.compile(r'(?:pacman::)?p_load\s*\(([^)]+)\)')
+        # Any named vector of quoted strings assigned to a variable, then used
+        # with lapply/sapply/for — covers packages/pkgs/libs/required_* etc.
+        vec_pkg_pat = re.compile(
+            r'(?i)(?:packages?|pkgs?|libs?|required[\w]*|deps?|dep_list)\s*<-\s*c\s*\(([^)]+)\)'
+        )
+        # Sources to scan: all researcher R files + README code blocks
+        _readme_src = ''
+        for _rrf in all_files:
+            if _rrf.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'}:
+                try:
+                    _readme_src = _rrf.read_text(encoding='utf-8', errors='ignore')
+                except Exception:
+                    pass
+                break
+        _sources_to_scan = [(rf, rf.read_text(encoding='utf-8', errors='ignore'))
+                            for rf in r_files]
+        if _readme_src:
+            _sources_to_scan.append((None, _readme_src))
+        for _rf, src in _sources_to_scan:
             for m in lib_pat.finditer(src):
                 pkg = m.group(1)
-                r_libs.add(pkg)
+                # Skip named-argument patterns like library(package = "foo")
+                # where group(1) captures the argument name, not the package
+                if pkg.lower() not in {'package', 'lib.loc', 'quietly', 'warn.conflicts',
+                                        'verbose', 'character.only', 'logical.return',
+                                        'mask.ok', 'exclude', 'include.only', 'attach.required'}:
+                    r_libs.add(pkg)
             for m in vec_pkg_pat.finditer(src):
                 for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
                     r_libs.add(pkg)
+            for m in pacman_pat.finditer(src):
+                for pkg in re.findall(r'["\']?([\w\.]+)["\']?', m.group(1)):
+                    if pkg and not pkg.startswith('#'):
+                        r_libs.add(pkg)
         # Exclude base-R packages — they ship with R and need no installation
         r_libs -= {p for p in r_libs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
         # Build github_pkgs map and collect BiocManager/install.packages from install*.R

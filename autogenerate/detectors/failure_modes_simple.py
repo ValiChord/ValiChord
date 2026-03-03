@@ -1436,10 +1436,22 @@ def detect_D_no_entry_point(repo_dir, all_files):
         if _mp:
             _part_counts[int(_mp.group(1))] = _part_counts.get(int(_mp.group(1)), 0) + 1
     has_numbered = (
-        any(re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-]|\.(?!\d))', f.name)
+        any(re.match(r'^(\d+)(?:[.\-](\d+))?(?:[_\-\s]|\.(?!\d))', f.name)
             for f in _researcher_code)
         or len(_part_counts) >= 2  # ≥2 distinct _PartN numbers = ordered sequence
     )
+
+    # README-based execution order: if the README references ≥2 actual code
+    # files by name, the author has documented the order and [D] should not fire.
+    # (QUICKSTART falls back to README order; [D] must honour the same signal.)
+    _code_names = {f.name for f in _researcher_code}
+    _readme_mentions = 0
+    for _rf in all_files:
+        if _rf.name.lower() in README_NAMES and len(_rf.relative_to(repo_dir).parts) <= 2:
+            _rsrc = read_file_safe(_rf)
+            _readme_mentions = sum(1 for n in _code_names if n in _rsrc)
+            break
+    has_readme_order = _readme_mentions >= 2
 
     # Numbered directory sequences (01_foo/, 02_bar/) imply execution order
     _dir_numbers = set()
@@ -1466,7 +1478,8 @@ def detect_D_no_entry_point(repo_dir, all_files):
 
     if code_count > 1 and not has_run_all \
             and not has_makefile and not has_numbered \
-            and not has_numbered_dirs and not has_master_phrase:
+            and not has_numbered_dirs and not has_master_phrase \
+            and not has_readme_order:
         findings.append(finding(
             'D', 'SIGNIFICANT',
             'No clear execution entry point or order',
@@ -1750,6 +1763,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_K_compute_environment(repo_dir, all_files)
     print("  [P]  Pre-registration check...")
     all_findings += detect_P_preregistration(repo_dir, all_files)
+    print("  [PAP] Pre-analysis plan check...")
+    all_findings += detect_PAP_preregistration_document(repo_dir, all_files)
     print("  [V]  Virtual environment check...")
     all_findings += detect_V_virtual_environment(repo_dir, all_files, all_findings)
     print("  [I]  Intermediate files check...")
@@ -1960,6 +1975,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_IC_inconsistent_extension_case(repo_dir, all_files)
     print("  [IC2] Inconsistent filename spacing check...")
     all_findings += detect_IC2_inconsistent_filename_spacing(repo_dir, all_files)
+    print("  [TV]  Numbering padding inconsistency check...")
+    all_findings += detect_TV_numbering_padding_inconsistency(repo_dir, all_files)
     print("  [FL]  Long filename check...")
     all_findings += detect_FL_long_filenames(repo_dir, all_files)
     print("  [HS]  Human subjects data check...")
@@ -2570,10 +2587,23 @@ def detect_K_compute_environment(repo_dir, all_files):
     _java_ver_pat = re.compile(r'java\s+\d')
     jdk_indicators = ['jdk', 'openjdk', 'java se']
 
+    # R version: "R version 4.4.0", "R 4.4", "R (>= 4.0)", session-info reference
+    _r_ver_pat = re.compile(
+        r'\br\s+version\s+\d'               # "R version 4.4.0"
+        r'|\br\s+\d+\.\d+'                  # "R 4.4" / "R 4.4.0"
+        r'|\br\s*\(>=?\s*\d'                # "R (>= 4.0)"
+        r'|session[_\- ]?info',             # session-info.txt / sessionInfo()
+        re.IGNORECASE
+    )
+
     documented = []
     missing = []
 
-    if not any(ind in content for ind in os_indicators):
+    has_r_version = bool(_r_ver_pat.search(content))
+    if has_r_version:
+        documented.append('R version')
+
+    if not any(ind in content for ind in os_indicators) and not has_r_version:
         missing.append('operating system')
     if not _skip_resources and not any(ind in content for ind in ram_indicators):
         missing.append('RAM/memory requirements')
@@ -2680,6 +2710,60 @@ def detect_P_preregistration(repo_dir, all_files):
              'Missing: OSF, AsPredicted, or ClinicalTrials link']
         ))
 
+    return findings
+
+
+def detect_PAP_preregistration_document(repo_dir, all_files):
+    """Positive observation: deposit contains a pre-analysis plan (PAP) or
+    pre-registration document.  This is a reproducibility strength and should
+    be noted in the report.  Also suppresses [E] for the PAP file itself
+    (it is documentation, not a data file requiring a codebook).
+    """
+    findings = []
+    # File-based detection: PDF/DOCX whose name contains pre-registration signals
+    _PAP_NAME_RE = re.compile(
+        r'pre.?anal|pre.?reg|pap[_\- ]|analysis.plan|pre.?spec|study.?plan',
+        re.IGNORECASE
+    )
+    pap_files = [
+        f for f in all_files
+        if f.suffix.lower() in {'.pdf', '.docx', '.doc', '.txt', '.md'}
+        and _PAP_NAME_RE.search(f.stem)
+    ]
+    # README-based detection: README mentions pre-registration AND a link
+    _PREREG_LINK_RE = re.compile(
+        r'osf\.io/[a-z0-9]+|aspredicted\.org|clinicaltrials\.gov'
+        r'|protocols\.io|doi\.org/10\.',
+        re.IGNORECASE
+    )
+    readme_has_prereg_link = False
+    for f in all_files:
+        if f.name.lower() in README_NAMES:
+            content = read_file_safe(f)
+            if _PREREG_LINK_RE.search(content) and any(
+                t in content.lower()
+                for t in ('pre-reg', 'preregist', 'pre-analys', 'preanalys',
+                          'pap', 'registered report')
+            ):
+                readme_has_prereg_link = True
+                break
+
+    if pap_files or readme_has_prereg_link:
+        _evidence = []
+        if pap_files:
+            _evidence.append(f'Pre-registration document: {", ".join(f.name for f in pap_files[:3])}')
+        if readme_has_prereg_link:
+            _evidence.append('README documents pre-registration with a persistent link')
+        findings.append(finding(
+            'PAP', 'LOW CONFIDENCE',
+            'Pre-registration or pre-analysis plan present',
+            'A pre-registration or pre-analysis plan document was found. '
+            'This is a significant reproducibility strength — it allows '
+            'validators to verify that the analyses match the pre-registered '
+            'protocol and identify any unplanned deviations. '
+            'Confirm that the PAP is accessible and linked from the README.',
+            _evidence
+        ))
     return findings
 
 
@@ -6012,6 +6096,50 @@ def detect_IC_inconsistent_extension_case(repo_dir, all_files):
     return findings
 
 
+def detect_TV_numbering_padding_inconsistency(repo_dir, all_files):
+    """LOW CONFIDENCE: numbered scripts in the same series mix zero-padded
+    (01_, 02_) and non-padded (3_, 4_) prefixes.
+
+    Zero-padding matters for alphabetical sort tools (ls, Windows Explorer, R
+    list.files()) that put '10_' before '2_' when padding is absent.
+    Only fires when the series has ≥2 scripts and BOTH padded and unpadded
+    forms are present.
+    """
+    findings = []
+    _NUM_PREFIX_RE = re.compile(r'^(\d+)(?:[_\-\s]|\.(?!\d))')
+    code_files = [
+        f for f in all_files
+        if f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile'
+    ]
+    padded = []    # have leading zero: 01_, 02_, ...
+    unpadded = []  # no leading zero: 3_, 4_, 99_, ...
+    for f in code_files:
+        m = _NUM_PREFIX_RE.match(f.name)
+        if not m:
+            continue
+        num_str = m.group(1)
+        if len(num_str) > 4:
+            continue  # date-stamp, skip
+        if num_str.startswith('0') and len(num_str) > 1:
+            padded.append(f.name)
+        else:
+            unpadded.append(f.name)
+    if padded and unpadded and (len(padded) + len(unpadded)) >= 3:
+        findings.append(finding(
+            'TV', 'LOW CONFIDENCE',
+            'Numbered scripts mix zero-padded and non-padded prefixes',
+            'Some scripts use zero-padded numbers (01_, 02_) while others '
+            'use unpadded numbers (3_, 4_). Alphabetical sort tools — '
+            'including ls, Windows Explorer, and R\'s list.files() — will '
+            'sort 10_ before 2_ when padding is inconsistent. '
+            'Standardise to the same width (e.g. all two-digit padding: '
+            '01_, 02_, 03_, 04_).',
+            [f'Zero-padded: {", ".join(padded[:5])}',
+             f'Unpadded: {", ".join(unpadded[:5])}']
+        ))
+    return findings
+
+
 def detect_IC2_inconsistent_filename_spacing(repo_dir, all_files):
     """Fires LOW CONFIDENCE when file stems that appear to form a matched set
     differ only in whitespace (e.g. 'FigA' vs 'Fig A').
@@ -8117,17 +8245,34 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
     )
     all_file_paths = {str(f.relative_to(repo_dir)).replace('\\', '/') for f in all_files}
     all_file_names = {f.name.lower() for f in all_files}
+    # Build stem→actual-name map for extension-mismatch detection
+    stem_to_names: dict = {}
+    for f in all_files:
+        stem_to_names.setdefault(f.stem.lower(), []).append(f.name)
+
     missing = []
+    ext_mismatches = []   # (referenced_name, actual_name)
     for m in list(script_pattern.finditer(content)) + list(runorder_pattern.finditer(content)):
         ref = m.group(1)
         ref_name = ref.split('/')[-1].lower()
-        # Check if referenced file exists anywhere in repo (exact or fuzzy substring)
-        ref_stem = ref_name.rsplit('.', 1)[0]  # e.g. "rand_hrs" from "rand_hrs.do"
-        found = (ref_name in all_file_names or ref in all_file_paths or
-                 any(ref_stem in fname for fname in all_file_names))
-        if not found:
+        ref_stem = ref_name.rsplit('.', 1)[0]
+        ref_ext  = ref_name.rsplit('.', 1)[1] if '.' in ref_name else ''
+        # Exact match or fuzzy stem match
+        exact_found = ref_name in all_file_names or ref in all_file_paths
+        fuzzy_found = any(ref_stem in fname for fname in all_file_names)
+        if exact_found or fuzzy_found:
+            # Check for extension mismatch: stem matches but extension differs
+            if not exact_found and ref_stem in stem_to_names:
+                actual_names = stem_to_names[ref_stem]
+                for aname in actual_names:
+                    a_ext = aname.rsplit('.', 1)[1] if '.' in aname else ''
+                    if a_ext and a_ext != ref_ext:
+                        ext_mismatches.append((ref.split('/')[-1], aname))
+                        break
+        else:
             if ref not in missing:
                 missing.append(ref)
+
     if missing:
         findings.append(finding(
             'CA', 'SIGNIFICANT',
@@ -8138,6 +8283,19 @@ def detect_CA_readme_script_missing(repo_dir, all_files):
             'the deposit or the README refers to an outdated filename.',
             [f'Missing: {s}' for s in missing] +
             ['Fix: add the missing script(s) to the repository or update the README']
+        ))
+    if ext_mismatches:
+        findings.append(finding(
+            'CA', 'LOW CONFIDENCE',
+            f'README references file(s) with wrong extension: '
+            f'{", ".join(f"{ref} → {act}" for ref, act in ext_mismatches[:3])}',
+            'The README mentions a filename whose stem matches a real file but '
+            'the extension differs (e.g. README says session-info.tex but the '
+            'file is session-info.txt). Validators may not find the file by '
+            'following the README.',
+            [f'README says: {ref}  →  actual file: {act}'
+             for ref, act in ext_mismatches] +
+            ['Fix: update the filename in the README to match the actual extension']
         ))
     return findings
 
