@@ -2359,11 +2359,23 @@ def detect_G_inadequate_readme(repo_dir, all_files):
     findings = []
     has_code = any(f.suffix.lower() in CODE_EXTENSIONS or f.name == 'Snakefile' for f in all_files)
 
+    _README_PLAIN = {'readme.md', 'readme.txt', 'readme.rst', 'readme'}
+    _README_STEM_PREFIXES = ('readme', 'read me', 'read_me')
     readme_file = None
+    readme_is_pdf = False
+    # Prefer plain-text READMEs; fall back to PDF/DOCX if none found.
     for f in all_files:
-        if f.name.lower() in {'readme.md', 'readme.txt', 'readme.rst'} and len(f.relative_to(repo_dir).parts) <= 4:
+        if f.name.lower() in _README_PLAIN and len(f.relative_to(repo_dir).parts) <= 4:
             readme_file = f
             break
+    if not readme_file:
+        for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts)):
+            if (f.stem.lower().startswith(_README_STEM_PREFIXES)
+                    and f.suffix.lower() in {'.pdf', '.docx', '.doc', '.pages'}
+                    and len(f.relative_to(repo_dir).parts) <= 4):
+                readme_file = f
+                readme_is_pdf = True
+                break
 
     # Read README content once.  When no README is found, both strings are
     # left empty so that all subsequent keyword checks evaluate to False and
@@ -2466,7 +2478,10 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                 'instructions, execution steps, and expected outputs, '
                 'validators cannot proceed systematically.',
                 [f'Missing sections: {", ".join(missing)}',
-                 (f'README: {readme_file.name} ({len(content)} chars)' if readme_file else 'No README file present')]
+                 (f'README: {readme_file.name} '
+                  + ('(PDF/binary — sections cannot be auto-checked)'
+                     if readme_is_pdf else f'({len(content)} chars)')
+                  if readme_file else 'No README file present')]
             ))
         elif len(missing) >= 1:
             findings.append(finding(
@@ -8774,9 +8789,12 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
     for f in all_files:
         if (f.suffix.lower() in _DATA_EXTS_HS
                 and not _HS_SYNTHETIC_RE.search(f.stem)
-                and f.name.lower() not in CODEBOOK_FILENAMES
-                and _HS_FILENAME_RE.search(f.stem)):
-            filename_hits.append(f.name)
+                and f.name.lower() not in CODEBOOK_FILENAMES):
+            # Normalise separators (_, -, .) to space so \b works across
+            # separator-joined tokens like bamdetamt_clmt or pca.clmt
+            _stem_norm = re.sub(r'[._\-]', ' ', f.stem)
+            if _HS_FILENAME_RE.search(_stem_norm):
+                filename_hits.append(f.name)
 
     # Tabular files to scan for column headers.
     _SCAN_EXTS = {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
