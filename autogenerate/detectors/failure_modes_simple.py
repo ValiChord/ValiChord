@@ -5048,10 +5048,12 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
                 'automatically (format: 10.5061/dryad.XXXXXXX). '
                 'Add your Dryad DOI to the README.'
             )
-        elif re.search(r'(?:^|[^a-z])osf(?:[^a-z]|$)', _zn):
+        elif re.search(r'osfstorage|(?<![a-z])osf(?![a-z])', _zn):
             _doi_rec = (
-                'This appears to be an OSF deposit — add your OSF DOI or '
-                'persistent URL (format: osf.io/XXXXX) to the README.'
+                'This appears to be an OSF deposit. OSF projects have a persistent URL '
+                'in the format osf.io/XXXXX — find yours on the OSF project page and '
+                'add it to your README. You can also register a DOI for your OSF '
+                'project via the OSF admin panel (under "Identifiers").'
             )
         elif re.search(r'mendeley', _zn):
             _doi_rec = (
@@ -5693,6 +5695,15 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
                     seen_names.add(key)
                     unique.append(f)
             if len({f.suffix.lower() for f in unique}) < 2:
+                continue
+            # Skip pairs where one file is a PDF and the other is a script —
+            # a PDF printout of code is not a duplicate-format data issue.
+            _SCRIPT_EXTS = frozenset({
+                '.r', '.rmd', '.rnw', '.qmd', '.py', '.do', '.sps', '.m',
+                '.jl', '.sql', '.sh', '.bash', '.bat', '.ps1',
+            })
+            _pair_exts = {f.suffix.lower() for f in unique}
+            if '.pdf' in _pair_exts and (_pair_exts - {'.pdf'}) <= _SCRIPT_EXTS:
                 continue
             # Skip pairs where file sizes differ by more than 50:1 — these are
             # a primary data file alongside a small sidecar description, not
@@ -6391,6 +6402,36 @@ def detect_DG_undocumented_gui_steps(repo_dir, all_files):
     if readme_documents_gui:
         return findings
 
+    # Classify the trigger to generate context-appropriate body text.
+    _STATS_SW = {'prism', 'graphpad', 'spss', 'stata', 'excel'}
+    _IMAGE_SW = {
+        'imagej', 'fiji', 'imagej2', 'napari', 'ilastik', 'imaris',
+        'cellprofiler', 'leica', 'zeiss', 'zen', 'nikon', 'photoshop',
+        'illustrator', 'inkscape', 'gimp',
+    }
+    _refs_lower = {r.lower() for r in gui_refs}
+    _has_stats = any(any(s in ref for s in _STATS_SW) for ref in _refs_lower)
+    _has_image = any(any(s in ref for s in _IMAGE_SW) for ref in _refs_lower)
+    _has_dir_only = not gui_refs and not file_refs  # triggered purely by dir structure
+
+    if _has_stats and not _has_image:
+        _context = (
+            'statistical pre-processing steps (data preparation, variable recoding, '
+            'transformation, or model fitting in a GUI environment) that must be '
+            'performed before the main analysis script can run'
+        )
+    elif _has_image or _has_dir_only:
+        _context = (
+            'manual or GUI-based pre-processing steps (e.g. microscopy export, '
+            'image annotation, manual tracing) that must be performed before the '
+            'automated scripts can run'
+        )
+    else:
+        _context = (
+            'manual or GUI-based pre-processing steps that must be performed before '
+            'the automated scripts can run'
+        )
+
     details = gui_evidence[:5] + [
         'README does not document these manual/GUI pre-processing steps',
         'Validators cannot reproduce results without knowing these steps',
@@ -6398,16 +6439,15 @@ def detect_DG_undocumented_gui_steps(repo_dir, all_files):
         '  (1) Which GUI software is required (name, version)',
         '  (2) Exact steps performed (menus, settings, parameters)',
         '  (3) What files are produced and where to place them',
-        '  (4) Any judgment calls made during manual annotation/tracing',
+        '  (4) Any judgment calls made during manual steps',
     ]
     findings.append(finding(
         'DG', 'SIGNIFICANT',
         'Pipeline requires manual/GUI pre-processing steps not documented in README',
-        'The repository contains evidence of manual or GUI-based pre-processing steps '
-        '(microscopy export, image annotation, manual tracing, etc.) that must be '
-        'performed before the automated scripts can run. These steps are not documented '
-        'in the README. Validators will be unable to reproduce the analysis without '
-        'knowing the exact software, settings, and procedures used.',
+        f'The repository contains evidence of {_context}. '
+        'These steps are not documented in the README. Validators will be unable to '
+        'reproduce the analysis without knowing the exact software, settings, and '
+        'procedures used.',
         details
     ))
     return findings
@@ -6425,7 +6465,8 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.mxd':      'ArcMap (ArcGIS)',
         '.aprx':     'ArcGIS Pro',
         '.sas7bdat': 'SAS',
-        '.sav':      'SPSS',
+        '.sps':      'SPSS',        # SPSS syntax file
+        '.sav':      'SPSS',        # SPSS data file
         '.por':      'SPSS',        # SPSS Portable format — same tool family
         '.dta':      'Stata',
         '.nb':       'Mathematica',
@@ -8731,7 +8772,9 @@ _HS_FILENAME_RE = re.compile(
     r'sleep|screen\s*time|actigraph|wearable|fitbit|'
     r'diary|survey|questionnaire|interview|'
     # Common study identifiers
-    r'cohort|longitudinal|followup|follow.?up'
+    r'cohort|longitudinal|followup|follow.?up|'
+    # Clinical / symptom data
+    r'symptoms?|clinical'
     r')\b',
     re.IGNORECASE,
 )
