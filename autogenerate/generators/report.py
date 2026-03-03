@@ -173,6 +173,10 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         f'**ValiChord Spec:** v15',
         f'**Files analysed:** {len(all_files)}',
         '',
+        '> **This report assesses validatability, not truth. A clean report does not '
+        'imply that results are correct — only that an independent validator has a '
+        'reasonable chance of attempting reproduction.**',
+        '',
     ]
 
     # ── researcher warning (Form A) ──────────────────────────────────

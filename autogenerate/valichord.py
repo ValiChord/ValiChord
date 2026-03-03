@@ -22,6 +22,7 @@ from datetime import datetime
 from detectors.failure_modes_simple import run_simple_detectors
 from generators.report import generate_cleaning_report
 from generators.drafts import generate_all_drafts
+from generators.log import generate_valichord_log
 
 
 def main():
@@ -163,6 +164,7 @@ def main():
     generate_cleaning_report(
         zip_path.name, repo_dir, all_files, findings, output_dir
     )
+    generate_valichord_log(zip_path.name, repo_dir, all_files, findings, output_dir)
 
     # ── copy original files to output ────────────────────────────────
     original_copy = output_dir / "original_repository"

@@ -1704,6 +1704,25 @@ def detect_W_git_lfs(repo_dir, all_files):
     return findings
 
 
+# ── DETECTOR ADMISSION POLICY ────────────────────────────────────────────────
+#
+# A detector earns a place in the specification if it predicts validation
+# friction — i.e. it identifies a condition that would cause an independent
+# validator to spend extra time, fail silently, or be unable to reproduce
+# results.
+#
+# Severity assignment rules:
+#   CRITICAL       — validator cannot begin reproduction without resolving this
+#   SIGNIFICANT    — validator will likely fail or produce wrong results
+#   LOW CONFIDENCE — best practice; may predict friction but evidence is weak
+#
+# Detectors that are "good housekeeping" but do not predict friction
+# (e.g. [BM] CITATION.cff, [BD] contact info) must remain LOW CONFIDENCE
+# permanently, regardless of how often they fire.
+#
+# Before adding a new detector, answer: "Would a validator spend measurably
+# more time on a repository where this condition is present?" If no, do not add.
+#
 # ── main entry point ─────────────────────────────────────────────────────────
 
 def run_simple_detectors(repo_dir, all_files, zip_name=None):

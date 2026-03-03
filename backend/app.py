@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'autogenerate')
 from detectors.failure_modes_simple import run_simple_detectors
 from generators.report import generate_cleaning_report
 from generators.drafts import generate_all_drafts
+from generators.log import generate_valichord_log
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024   # 100 MB hard cap
@@ -109,6 +110,7 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         findings = run_simple_detectors(repo_dir, all_files, zip_name=original_filename)
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
         generate_cleaning_report(original_filename, repo_dir, all_files, findings, output_dir)
+        generate_valichord_log(original_filename, repo_dir, all_files, findings, output_dir)
 
         stem = Path(original_filename).stem
         output_zip = work_dir / f'valichord_output_{stem}.zip'
