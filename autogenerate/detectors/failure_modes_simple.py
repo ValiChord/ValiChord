@@ -1962,6 +1962,8 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_IC2_inconsistent_filename_spacing(repo_dir, all_files)
     print("  [FL]  Long filename check...")
     all_findings += detect_FL_long_filenames(repo_dir, all_files)
+    print("  [HS]  Human subjects data check...")
+    all_findings += detect_HS_human_subjects_data(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -4888,14 +4890,42 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
             has_doi = True
             break
     if not has_doi:
-        # Platform-aware recommendation: Dataverse deposits already have a DOI.
-        _is_dataverse = zip_name and re.match(r'dataverse_files[\s\S]*\.zip', zip_name, re.IGNORECASE)
-        if _is_dataverse:
+        # Platform-aware recommendation based on zip filename.
+        _zn = (zip_name or '').lower()
+        if re.search(r'dataverse_files', _zn, re.IGNORECASE):
             _doi_rec = (
                 'This appears to be a Harvard Dataverse deposit — Dataverse '
                 'assigns a DOI automatically (format: 10.7910/DVN/XXXXXX). '
                 'Add your existing Dataverse DOI to the README rather than '
                 'creating a new one elsewhere.'
+            )
+        elif re.search(r'zenodo', _zn):
+            _doi_rec = (
+                'This appears to be a Zenodo deposit — Zenodo assigns a DOI '
+                'automatically (format: 10.5281/zenodo.XXXXXXX). '
+                'Add your Zenodo DOI to the README.'
+            )
+        elif re.search(r'figshare', _zn):
+            _doi_rec = (
+                'This appears to be a Figshare deposit — Figshare assigns a '
+                'DOI automatically. Add your Figshare DOI to the README.'
+            )
+        elif re.search(r'dryad|datadryad', _zn):
+            _doi_rec = (
+                'This appears to be a Dryad deposit — Dryad assigns a DOI '
+                'automatically (format: 10.5061/dryad.XXXXXXX). '
+                'Add your Dryad DOI to the README.'
+            )
+        elif re.search(r'(?<![a-z])osf(?![a-z])', _zn):
+            _doi_rec = (
+                'This appears to be an OSF deposit — add your OSF DOI or '
+                'persistent URL (format: osf.io/XXXXX) to the README.'
+            )
+        elif re.search(r'mendeley', _zn):
+            _doi_rec = (
+                'This appears to be a Mendeley Data deposit — Mendeley Data '
+                'assigns a DOI automatically. Add your Mendeley Data DOI to '
+                'the README.'
             )
         else:
             _doi_rec = 'Recommendation: deposit on Zenodo to get a DOI'
@@ -5007,9 +5037,7 @@ def detect_BA_missing_checksums(repo_dir, all_files):
                   if f.suffix.lower() in _CHECKSUM_WORTHY
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
-                  and f.name.lower() not in _NON_DATA_TXT
-                  and not (f.suffix.lower() in {'.csv', '.tsv'}
-                           and _looks_like_codebook(f))]
+                  and f.name.lower() not in _NON_DATA_TXT]
     if not data_files:
         return findings
 
@@ -8464,4 +8492,155 @@ def detect_NZ(repo_dir, all_files):
         'Extract the contents and deposit files directly in a subdirectory.',
         evidence
     )]
+
+
+# ── [HS] Human subjects data ─────────────────────────────────────────────────
+
+# Direct personal identifiers — each alone is a strong signal.
+_HS_STRONG_RE = re.compile(
+    r'\b('
+    r'patient_?id|participant_?id|subject_?id|respondent_?id|'
+    r'date_?of_?birth|dob|birth_?date|'
+    r'\bname\b|surname|first_?name|last_?name|full_?name|'
+    r'postcode|zip_?code|'
+    r'diagnosis|condition|medication|treatment|'
+    r'nhs_?number|ssn|national_?insurance|passport_?number|'
+    r'email|phone_?number|telephone'
+    r')\b',
+    re.IGNORECASE,
+)
+
+# Weaker signals — demographic, location, or partial identifiers.
+_HS_WEAK_RE = re.compile(
+    r'\b('
+    r'\bage\b|gender|\bsex\b|'
+    r'ethnicity|\brace\b|'
+    r'\baddress\b|\blocation\b'
+    r')\b',
+    re.IGNORECASE,
+)
+
+# README terms that suppress the finding.
+# No trailing \b — stems like 'anonymis' must match 'anonymised', 'anonymization' etc.
+_HS_SUPPRESS_RE = re.compile(
+    r'(?:'
+    r'anonymis|anonymiz|de.?identified|deidentified|'
+    r'ethics\s+approval|ethical\s+approval|'
+    r'\birb\b|'
+    r'rec\s+approval|'
+    r'\bgdpr\b|'
+    r'\bconsent\b'
+    r')',
+    re.IGNORECASE,
+)
+
+# File stems suggesting synthetic/example data — suppress finding.
+_HS_SYNTHETIC_RE = re.compile(
+    r'\b(synthetic|simulated|dummy|fake|example|sample|mock)\b',
+    re.IGNORECASE,
+)
+
+
+def _hs_read_headers(f) -> list:
+    """Return column header strings from a tabular file, or [] on failure."""
+    ext = f.suffix.lower()
+    try:
+        if ext in {'.csv', '.tsv', '.tab', '.txt'}:
+            with f.open(encoding='utf-8', errors='ignore') as fh:
+                first_line = fh.readline()
+            delim = '\t' if (ext in {'.tsv', '.tab'}
+                             or first_line.count('\t') > first_line.count(',')) else ','
+            return [h.strip().strip('"').strip("'")
+                    for h in first_line.split(delim) if h.strip()]
+        if ext in {'.xlsx', '.xls'}:
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+                ws = wb.active
+                if ws is not None:
+                    row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+                    wb.close()
+                    if row:
+                        return [str(c).strip() for c in row if c is not None]
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return []
+
+
+def detect_HS_human_subjects_data(repo_dir, all_files):
+    """Failure Mode HS: Data files may contain human subjects data without
+    documented anonymisation or ethics approval.
+
+    Scans column headers in readable tabular files (.csv, .tsv, .tab, .xlsx)
+    for personal or clinical identifier patterns.
+
+    Severity:
+      SIGNIFICANT — 2+ strong signals, or 1 strong + 1 weak signal
+      LOW CONFIDENCE — 1 strong signal only, or 2+ weak signals only
+    Suppressed when any README documents anonymisation/ethics/IRB, or when
+    data file names suggest synthetic or example data.
+    """
+    findings = []
+
+    # Suppress if README mentions anonymisation or ethics — check first (cheap).
+    readme_candidates = sorted(
+        [f for f in all_files if f.name.lower() in README_NAMES],
+        key=lambda x: len(x.parts),
+    )
+    for rf in readme_candidates:
+        if _HS_SUPPRESS_RE.search(read_file_safe(rf)):
+            return findings
+
+    # Tabular files to scan.
+    _SCAN_EXTS = {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
+    candidates = [
+        f for f in all_files
+        if f.suffix.lower() in _SCAN_EXTS
+        and not _HS_SYNTHETIC_RE.search(f.stem)
+        and not f.name.lower().startswith('readme')
+        and f.name.lower() not in CODEBOOK_FILENAMES
+    ]
+
+    strong_hits: list = []
+    weak_hits: list = []
+
+    for f in candidates:
+        for h in _hs_read_headers(f):
+            if _HS_STRONG_RE.search(h) and h not in strong_hits:
+                strong_hits.append(h)
+            elif _HS_WEAK_RE.search(h) and h not in weak_hits:
+                weak_hits.append(h)
+
+    n_strong = len(strong_hits)
+    n_weak = len(weak_hits)
+
+    if n_strong == 0 and n_weak < 2:
+        return findings
+
+    severity = ('SIGNIFICANT'
+                if n_strong >= 2 or (n_strong >= 1 and n_weak >= 1)
+                else 'LOW CONFIDENCE')
+
+    detected = (strong_hits[:5] + weak_hits[:3])[:6]
+    detected_str = ', '.join(f'`{h}`' for h in detected)
+
+    findings.append(finding(
+        'HS', severity,
+        'Data file(s) may contain human subjects data — anonymisation not documented',
+        'Column headers suggest this deposit may contain personal or clinical data. '
+        'Before depositing openly, confirm that: '
+        '(1) data has been fully anonymised or de-identified; '
+        '(2) you have ethics/IRB approval to share this data; '
+        '(3) the anonymisation process is documented in the README; '
+        '(4) sharing complies with your institution\'s data governance policy. '
+        'If data cannot be fully anonymised, consider a managed-access repository '
+        'such as Vivli (clinical trial data) rather than open deposit.',
+        [f'Sensitive headers detected: {detected_str}',
+         'README does not mention anonymisation or ethics approval',
+         'Action: add anonymisation statement to README, or restrict '
+         'access if data cannot be shared openly']
+    ))
+    return findings
 
