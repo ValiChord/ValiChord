@@ -784,10 +784,10 @@ def detect_A_no_readme(repo_dir, all_files):
     root_readme = [f for f in all_files if f.name.lower() in README_NAMES and len(f.relative_to(repo_dir).parts) <= 4]
     if not root_readme:
         # .docx README: common pattern deserves its own specific message
-        _README_STEMS = {'readme', 'read me', 'read_me'}
+        _README_STEMS = ('readme', 'read me', 'read_me')
         _docx_readmes = [
             f for f in all_files
-            if f.stem.lower() in _README_STEMS
+            if f.stem.lower().startswith(_README_STEMS)
             and f.suffix.lower() == '.docx'
             and len(f.relative_to(repo_dir).parts) <= 2
         ]
@@ -795,7 +795,7 @@ def detect_A_no_readme(repo_dir, all_files):
         _PROP_EXTS = {'.pdf', '.pages', '.doc'}
         _prop_readmes = [
             f for f in all_files
-            if f.stem.lower() == 'readme'
+            if f.stem.lower().startswith(_README_STEMS)
             and f.suffix.lower() in _PROP_EXTS
             and len(f.relative_to(repo_dir).parts) <= 4
         ]
@@ -5586,17 +5586,10 @@ def detect_BT_spaces_in_filenames(repo_dir, all_files):
             bt_title = f'Spaces in filenames: {", ".join(f.name for f in problem_files)}'
         else:
             bt_title = f'Spaces in {len(problem_files)} filenames'
-        has_code = any(f.suffix.lower() in CODE_EXTENSIONS for f in all_files)
-        if has_code:
-            _bt_guidance = (
-                'Filenames with spaces cause shell execution failures unless quoted. '
-                'Replace spaces with underscores before deposit.'
-            )
-        else:
-            _bt_guidance = (
-                'Filenames with spaces cause problems when scripting or batch '
-                'processing. Replace spaces with underscores before deposit.'
-            )
+        _bt_guidance = (
+            'Filenames with spaces cause problems when scripting or batch '
+            'processing. Replace spaces with underscores before deposit.'
+        )
         findings.append(finding(
             'BT', 'LOW CONFIDENCE',
             bt_title,
@@ -8707,6 +8700,14 @@ _HS_SUPPRESS_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Filename stems that strongly suggest human subjects data (without reading content).
+# Catches administrative data conventions: clmt = claimant (US DoL), etc.
+_HS_FILENAME_RE = re.compile(
+    r'\b(clmt|claimant|applicant|beneficiar|respondent|participant|'
+    r'patient|subject|enrollee|member_?id|client_?id)\b',
+    re.IGNORECASE,
+)
+
 # File stems suggesting synthetic/example data — suppress finding.
 _HS_SYNTHETIC_RE = re.compile(
     r'\b(synthetic|simulated|dummy|fake|example|sample|mock)\b',
@@ -8766,7 +8767,18 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
         if _HS_SUPPRESS_RE.search(read_file_safe(rf)):
             return findings
 
-    # Tabular files to scan.
+    # Filename-level signals — catches binary/proprietary data files (.dta, .sav, etc.)
+    # whose headers cannot be read but whose names suggest human subjects content.
+    _DATA_EXTS_HS = DATA_EXTENSIONS | {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
+    filename_hits: list = []
+    for f in all_files:
+        if (f.suffix.lower() in _DATA_EXTS_HS
+                and not _HS_SYNTHETIC_RE.search(f.stem)
+                and f.name.lower() not in CODEBOOK_FILENAMES
+                and _HS_FILENAME_RE.search(f.stem)):
+            filename_hits.append(f.name)
+
+    # Tabular files to scan for column headers.
     _SCAN_EXTS = {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
     candidates = [
         f for f in all_files
@@ -8789,7 +8801,7 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
     n_strong = len(strong_hits)
     n_weak = len(weak_hits)
 
-    if n_strong == 0 and n_weak < 2:
+    if n_strong == 0 and n_weak < 2 and not filename_hits:
         return findings
 
     severity = ('SIGNIFICANT'
@@ -8799,21 +8811,37 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
     detected = (strong_hits[:5] + weak_hits[:3])[:6]
     detected_str = ', '.join(f'`{h}`' for h in detected)
 
-    findings.append(finding(
-        'HS', severity,
-        'Data file(s) may contain human subjects data — anonymisation not documented',
-        'Column headers suggest this deposit may contain personal or clinical data. '
+    _source_desc = ('Column headers' if detected_str
+                    else 'Filename patterns')
+    _body = (
+        f'{_source_desc} suggest this deposit may contain personal or '
+        'clinical/administrative data. '
         'Before depositing openly, confirm that: '
         '(1) data has been fully anonymised or de-identified; '
         '(2) you have ethics/IRB approval to share this data; '
         '(3) the anonymisation process is documented in the README; '
         '(4) sharing complies with your institution\'s data governance policy. '
         'If data cannot be fully anonymised, consider a managed-access repository '
-        'such as Vivli (clinical trial data) rather than open deposit.',
-        [f'Sensitive headers detected: {detected_str}',
-         'README does not mention anonymisation or ethics approval',
-         'Action: add anonymisation statement to README, or restrict '
-         'access if data cannot be shared openly']
+        'such as Vivli (clinical trial data) rather than open deposit.'
+    )
+    _evidence = []
+    if detected_str:
+        _evidence.append(f'Sensitive headers detected: {detected_str}')
+    if filename_hits:
+        _evidence.append(
+            f'Filename signals: {", ".join(filename_hits[:5])}'
+            + (f' (+ {len(filename_hits)-5} more)' if len(filename_hits) > 5 else '')
+        )
+    _evidence += [
+        'README does not mention anonymisation or ethics approval',
+        'Action: add anonymisation statement to README, or restrict '
+        'access if data cannot be shared openly',
+    ]
+    findings.append(finding(
+        'HS', severity,
+        'Data file(s) may contain human subjects data — anonymisation not documented',
+        _body,
+        _evidence,
     ))
     return findings
 
