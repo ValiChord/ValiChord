@@ -22,7 +22,7 @@ NOTEBOOK_EXTENSIONS = {'.ipynb', '.mlx', '.rmd', '.qmd'}
 DATA_EXTENSIONS = {
     '.csv', '.tsv', '.xlsx', '.xls', '.json', '.jsonl', '.ndjson',
     '.parquet', '.feather', '.arrow',
-    '.rds', '.rdata', '.dta', '.sav', '.por', '.zsav', '.sas7bdat', '.xpt',
+    '.rds', '.rda', '.rdata', '.dta', '.sav', '.por', '.zsav', '.sas7bdat', '.xpt',
     '.mat', '.pkl', '.npy', '.npz', '.hdf5', '.h5', '.nc',
     '.dif', '.gdt',
     # Shapefile components
@@ -2449,7 +2449,7 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                 'instructions, execution steps, and expected outputs, '
                 'validators cannot proceed systematically.',
                 [f'Missing sections: {", ".join(missing)}',
-                 (f'README length: {len(content)} characters' if content else 'No README found')]
+                 (f'README: {readme_file.name} ({len(content)} chars)' if readme_file else 'No README file present')]
             ))
         elif len(missing) >= 1:
             findings.append(finding(
@@ -4643,10 +4643,14 @@ def detect_AO_r_specific_issues(repo_dir, all_files):
             'Without renv.lock validators cannot install exact package versions.',
             ['Missing: renv.lock', 'Run renv::init() and renv::snapshot()']))
     if not has_session_info:
+        _scanned = ', '.join(f.name for f in r_files[:5])
+        if len(r_files) > 5:
+            _scanned += f' (+ {len(r_files) - 5} more)'
         findings.append(finding('BN', 'LOW CONFIDENCE',
             'No sessionInfo() call found in R scripts',
             'sessionInfo() documents exact R and package versions used.',
-            ['Recommendation: add sessionInfo() at end of main script']))
+            [f'Scanned {len(r_files)} R file(s): {_scanned}',
+             'Recommendation: add sessionInfo() at end of main script']))
     return findings
 
 def detect_AP_stata_specific(repo_dir, all_files):
@@ -5977,24 +5981,11 @@ def detect_IC_inconsistent_extension_case(repo_dir, all_files):
         ext_variants.setdefault(lo, set()).add(f.suffix)
         ext_examples.setdefault(lo, {}).setdefault(f.suffix, f.name)
 
+    # Only fire when BOTH upper and lower casings of the same extension coexist
+    # in the same deposit.  A single consistent casing (e.g. all .Rmd or all
+    # .TIF) is not an inconsistency — it is a convention choice.
     inconsistent = {lo: variants for lo, variants in ext_variants.items()
                     if len(variants) > 1}
-
-    # Also flag extensions that are consistently uppercase when the deposit
-    # predominantly uses lowercase extensions.  E.g. if a deposit has .jpg,
-    # .off, .ply (all lowercase) but .TIF files are uppercase throughout, the
-    # .TIF vs .tif inconsistency with the deposit convention should still fire
-    # even though there are no .tif siblings.
-    _has_lowercase_ext = any(
-        f.suffix and f.suffix == f.suffix.lower() and f.suffix
-        for f in all_files
-    )
-    if _has_lowercase_ext:
-        for lo, variants in ext_variants.items():
-            if lo not in inconsistent and len(variants) == 1:
-                (sole_variant,) = variants
-                if sole_variant != lo:  # this extension is consistently uppercase
-                    inconsistent[lo] = variants
 
     if not inconsistent:
         return findings
@@ -6003,12 +5994,7 @@ def detect_IC_inconsistent_extension_case(repo_dir, all_files):
     for lo, variants in sorted(inconsistent.items()):
         examples = [ext_examples[lo][v] for v in sorted(variants)
                     if v in ext_examples[lo]]
-        if len(variants) > 1:
-            casing_desc = f'both {" and ".join(sorted(variants))} found'
-        else:
-            # Consistently-uppercase extension with no lowercase sibling —
-            # "both" is wrong here; describe the actual situation clearly.
-            casing_desc = f'only {next(iter(variants))} found (no lowercase {lo} siblings)'
+        casing_desc = f'both {" and ".join(sorted(variants))} found'
         details.append(
             f'{lo}: {casing_desc} '
             f'(e.g. {", ".join(examples[:2])})'
