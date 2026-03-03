@@ -4916,7 +4916,7 @@ def detect_AW_missing_doi(repo_dir, all_files, zip_name=None):
                 'automatically (format: 10.5061/dryad.XXXXXXX). '
                 'Add your Dryad DOI to the README.'
             )
-        elif re.search(r'(?<![a-z])osf(?![a-z])', _zn):
+        elif re.search(r'(?:^|[^a-z])osf(?:[^a-z]|$)', _zn):
             _doi_rec = (
                 'This appears to be an OSF deposit — add your OSF DOI or '
                 'persistent URL (format: osf.io/XXXXX) to the README.'
