@@ -2470,18 +2470,30 @@ def detect_G_inadequate_readme(repo_dir, all_files):
                 missing.remove('expected outputs')
 
         if len(missing) >= 3:
+            if readme_file:
+                _g_body = (
+                    f'The README ({readme_file.name}) is missing sections that '
+                    'validators need to reproduce the work. Without installation '
+                    'instructions, execution steps, and expected outputs, '
+                    'validators cannot proceed systematically.'
+                )
+                _g_readme_line = (
+                    f'README: {readme_file.name} '
+                    + ('(PDF/binary — sections cannot be auto-checked)'
+                       if readme_is_pdf else f'({len(content)} chars)')
+                )
+            else:
+                _g_body = (
+                    'No README was found — validators cannot check for required '
+                    'sections (installation, execution, expected outputs, data). '
+                    'Add a README documenting how to reproduce the analysis.'
+                )
+                _g_readme_line = 'No README file present'
             findings.append(finding(
                 'G', 'LOW CONFIDENCE',
                 f'README is missing critical sections: {", ".join(missing)}',
-                'A README exists but is missing sections that validators '
-                'need to reproduce the work. Without installation '
-                'instructions, execution steps, and expected outputs, '
-                'validators cannot proceed systematically.',
-                [f'Missing sections: {", ".join(missing)}',
-                 (f'README: {readme_file.name} '
-                  + ('(PDF/binary — sections cannot be auto-checked)'
-                     if readme_is_pdf else f'({len(content)} chars)')
-                  if readme_file else 'No README file present')]
+                _g_body,
+                [f'Missing sections: {", ".join(missing)}', _g_readme_line]
             ))
         elif len(missing) >= 1:
             findings.append(finding(
