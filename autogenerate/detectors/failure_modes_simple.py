@@ -8716,10 +8716,23 @@ _HS_SUPPRESS_RE = re.compile(
 )
 
 # Filename stems that strongly suggest human subjects data (without reading content).
-# Catches administrative data conventions: clmt = claimant (US DoL), etc.
+# Catches administrative data conventions (clmt = claimant, US DoL) and
+# behavioural/clinical research identifiers (sleep study, survey, wearable, etc.).
+# Applied after CamelCase splitting + separator normalisation so that tokens like
+# 'ScreenSleep' → 'Screen Sleep' and 'screen_time' → 'screen time' both match.
 _HS_FILENAME_RE = re.compile(
-    r'\b(clmt|claimant|applicant|beneficiar|respondent|participant|'
-    r'patient|subject|enrollee|member_?id|client_?id)\b',
+    r'\b('
+    # Administrative / benefits data
+    r'clmt|claimant|applicant|beneficiar|respondent|'
+    r'enrollee|member_?id|client_?id|'
+    # Clinical / research participants
+    r'participant|patient|subject|'
+    # Behavioural research & wearables
+    r'sleep|screen\s*time|actigraph|wearable|fitbit|'
+    r'diary|survey|questionnaire|interview|'
+    # Common study identifiers
+    r'cohort|longitudinal|followup|follow.?up'
+    r')\b',
     re.IGNORECASE,
 )
 
@@ -8790,9 +8803,11 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
         if (f.suffix.lower() in _DATA_EXTS_HS
                 and not _HS_SYNTHETIC_RE.search(f.stem)
                 and f.name.lower() not in CODEBOOK_FILENAMES):
-            # Normalise separators (_, -, .) to space so \b works across
-            # separator-joined tokens like bamdetamt_clmt or pca.clmt
-            _stem_norm = re.sub(r'[._\-]', ' ', f.stem)
+            # Normalise to space-separated tokens so \b works correctly:
+            # 1. Split CamelCase: 'ScreenSleep' → 'Screen Sleep'
+            # 2. Replace separator chars: 'pca_bamdetamt_clmt' → 'pca bamdetamt clmt'
+            _stem_norm = re.sub(r'([a-z])([A-Z])', r'\1 \2', f.stem)
+            _stem_norm = re.sub(r'[._\-]', ' ', _stem_norm)
             if _HS_FILENAME_RE.search(_stem_norm):
                 filename_hits.append(f.name)
 
