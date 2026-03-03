@@ -122,20 +122,23 @@ def main():
     print(f"  Repository size: {total_size_mb:.1f}MB")
 
     # ── inventory all files ──────────────────────────────────────────
-    all_files = [
-        f for f in repo_dir.rglob('*')
-        if f.is_file()
-        and '.git' not in f.parts
-        and '__pycache__' not in f.parts
-        and '__MACOSX' not in f.parts       # macOS zip metadata directory
-        and not f.name.startswith('._')     # macOS resource-fork sidecar files
-        and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
-                            '.valichord_nested_archives.json'}
-        # Exclude ValiChord-generated output files so they don't confuse
-        # detectors when a previous output zip is re-uploaded as input.
-        and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
-        and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
-    ]
+    all_files = sorted(
+        (
+            f for f in repo_dir.rglob('*')
+            if f.is_file()
+            and '.git' not in f.parts
+            and '__pycache__' not in f.parts
+            and '__MACOSX' not in f.parts       # macOS zip metadata directory
+            and not f.name.startswith('._')     # macOS resource-fork sidecar files
+            and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
+                                '.valichord_nested_archives.json'}
+            # Exclude ValiChord-generated output files so they don't confuse
+            # detectors when a previous output zip is re-uploaded as input.
+            and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
+            and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
+        ),
+        key=lambda f: str(f),
+    )
 
     print(f"  Files found: {len(all_files)}")
     print()

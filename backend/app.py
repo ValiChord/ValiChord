@@ -88,20 +88,23 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
 
         extract_nested(repo_dir)
 
-        all_files = [
-            f for f in repo_dir.rglob('*')
-            if f.is_file()
-            and '.git' not in f.parts
-            and '__pycache__' not in f.parts
-            and '__MACOSX' not in f.parts
-            and not f.name.startswith('._')
-            and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
-                                '.valichord_nested_archives.json'}
-            # Exclude ValiChord-generated output files so they don't confuse
-            # detectors when a previous output zip is re-uploaded as input.
-            and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
-            and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
-        ]
+        all_files = sorted(
+            (
+                f for f in repo_dir.rglob('*')
+                if f.is_file()
+                and '.git' not in f.parts
+                and '__pycache__' not in f.parts
+                and '__MACOSX' not in f.parts
+                and not f.name.startswith('._')
+                and f.name not in {'.DS_Store', 'Thumbs.db', 'desktop.ini',
+                                    '.valichord_nested_archives.json'}
+                # Exclude ValiChord-generated output files so they don't confuse
+                # detectors when a previous output zip is re-uploaded as input.
+                and f.name not in {'ASSESSMENT.md', 'CLEANING_REPORT.md'}
+                and not (f.name.endswith('_DRAFT.md') or f.name.endswith('_DRAFT.txt'))
+            ),
+            key=lambda f: str(f),
+        )
 
         findings = run_simple_detectors(repo_dir, all_files, zip_name=original_filename)
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
