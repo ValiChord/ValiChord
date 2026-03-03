@@ -1904,15 +1904,26 @@ def _generate_requirements_draft(repo_dir, all_files,
         r_files = _researcher_r_files(all_files, repo_dir)
         r_files += [f for f, lang in _code_txt_langs.items() if lang == 'r']
         r_libs = set()
-        # Drop the closing-) requirement — library(ggplot2, quietly=TRUE) must match
+        # Named-argument keywords that are NOT package names
+        _named_arg_kws = frozenset({'package', 'lib.loc', 'quietly', 'warn.conflicts',
+                                    'verbose', 'character.only', 'logical.return',
+                                    'mask.ok', 'exclude', 'include.only', 'attach.required'})
+        # library(pkg) / require(pkg)
         lib_pat = re.compile(r'(?:library|require)\s*\(\s*["\']?([\w\.]+)')
-        # pacman::p_load(pkg1, pkg2, ...) — common alternative to library()
+        # pacman::p_load(pkg1, pkg2, ...) or p_load(pkg1, ...)
         pacman_pat = re.compile(r'(?:pacman::)?p_load\s*\(([^)]+)\)')
-        # Any named vector of quoted strings assigned to a variable, then used
-        # with lapply/sapply/for — covers packages/pkgs/libs/required_* etc.
-        vec_pkg_pat = re.compile(
-            r'(?i)(?:packages?|pkgs?|libs?|required[\w]*|deps?|dep_list)\s*<-\s*c\s*\(([^)]+)\)'
-        )
+        # install.packages("pkg") or install.packages(c("pkg1","pkg2",...))
+        install_single_pat = re.compile(r'install\.packages\s*\(\s*["\']?([\w\.]+)["\']?')
+        install_vec_pat = re.compile(r'install\.packages\s*\(\s*c\s*\(([^)]+)\)')
+        # ANY c("pkg1","pkg2",...) vector — catches any variable name pattern.
+        # Only extract quoted strings that look like valid R package names.
+        any_c_vec_pat = re.compile(r'\bc\s*\(([^)]{10,})\)')  # ≥10 chars to avoid c(1,2,3)
+
+        def _extract_quoted_pkgs(text_fragment):
+            return [p for p in re.findall(r'["\']+([\w\.]+)["\']', text_fragment)
+                    if len(p) >= 2 and re.match(r'^[A-Za-z][\w\.]*$', p)
+                    and p.lower() not in _named_arg_kws]
+
         # Sources to scan: all researcher R files + README code blocks
         _readme_src = ''
         for _rrf in all_files:
@@ -1922,26 +1933,55 @@ def _generate_requirements_draft(repo_dir, all_files,
                 except Exception:
                     pass
                 break
-        _sources_to_scan = [(rf, rf.read_text(encoding='utf-8', errors='ignore'))
-                            for rf in r_files]
+        _sources_to_scan = []
+        for rf in r_files:
+            try:
+                _sources_to_scan.append((rf, rf.read_text(encoding='utf-8', errors='ignore')))
+            except Exception:
+                pass
         if _readme_src:
             _sources_to_scan.append((None, _readme_src))
         for _rf, src in _sources_to_scan:
+            # library() / require()
             for m in lib_pat.finditer(src):
                 pkg = m.group(1)
-                # Skip named-argument patterns like library(package = "foo")
-                # where group(1) captures the argument name, not the package
-                if pkg.lower() not in {'package', 'lib.loc', 'quietly', 'warn.conflicts',
-                                        'verbose', 'character.only', 'logical.return',
-                                        'mask.ok', 'exclude', 'include.only', 'attach.required'}:
+                if pkg.lower() not in _named_arg_kws:
                     r_libs.add(pkg)
-            for m in vec_pkg_pat.finditer(src):
-                for pkg in re.findall(r'["\']+([\w\.]+)["\']', m.group(1)):
-                    r_libs.add(pkg)
+            # pacman::p_load()
             for m in pacman_pat.finditer(src):
-                for pkg in re.findall(r'["\']?([\w\.]+)["\']?', m.group(1)):
-                    if pkg and not pkg.startswith('#'):
+                for pkg in _extract_quoted_pkgs(m.group(1)):
+                    r_libs.add(pkg)
+                # Also catch unquoted p_load(tidyverse, ggplot2, ...)
+                for pkg in re.findall(r'\b([A-Za-z][\w\.]+)\b', m.group(1)):
+                    if len(pkg) >= 2 and pkg.lower() not in _named_arg_kws:
                         r_libs.add(pkg)
+            # install.packages("pkg") or install.packages(c(...))
+            for m in install_single_pat.finditer(src):
+                pkg = m.group(1)
+                if pkg.lower() not in _named_arg_kws and len(pkg) >= 2:
+                    r_libs.add(pkg)
+            for m in install_vec_pat.finditer(src):
+                for pkg in _extract_quoted_pkgs(m.group(1)):
+                    r_libs.add(pkg)
+            # Any c("pkg1","pkg2",...) with quoted strings — catch vector patterns
+            # regardless of variable name or context
+            for m in any_c_vec_pat.finditer(src):
+                fragment = m.group(1)
+                # Only process if fragment looks like a package-name list
+                # (has quoted strings, not a mix of numbers/formulas)
+                quoted = _extract_quoted_pkgs(fragment)
+                if quoted and len(quoted) >= 2:
+                    # Context check: within 3 lines, is there library/require/lapply/install?
+                    # Lookahead/lookbehind in source for context
+                    start = max(0, m.start() - 200)
+                    end = min(len(src), m.end() + 200)
+                    ctx = src[start:end].lower()
+                    if any(kw in ctx for kw in ('library', 'require', 'install',
+                                                 'lapply', 'sapply', 'p_load')):
+                        for pkg in quoted:
+                            r_libs.add(pkg)
+        # Record scan count for the header note
+        _r_files_scanned = len([s for s in _sources_to_scan if s[0] is not None])
         # Exclude base-R packages — they ship with R and need no installation
         r_libs -= {p for p in r_libs if p.lower() in {b.lower() for b in _BASE_R_PACKAGES}}
         # Build github_pkgs map and collect BiocManager/install.packages from install*.R
@@ -1986,7 +2026,7 @@ def _generate_requirements_draft(repo_dir, all_files,
                                and p.lower() not in _BIOC_LOWER
                                and p.lower() not in _REMOVED_CRAN_LOWER]
             lines += ['# R repository detected.',
-                      '# Packages detected from library()/require() calls:',
+                      f'# Packages detected from {_r_files_scanned} R script(s) (library()/require()/install.packages()):',
                       '# Add version numbers before deposit.', '']
             if cran_list:
                 lines.append('# CRAN packages — install with install.packages():')
@@ -2072,10 +2112,10 @@ def _generate_requirements_draft(repo_dir, all_files,
                     msrc = mf.read_text(encoding='utf-8', errors='ignore')
                     for m in toolbox_pattern.finditer(msrc):
                         tb = m.group(1).strip()
-                    # Normalise abbreviated MathWorks names to full current names
-                    if tb.lower() in {'statistics toolbox', 'statistics and machine learning toolbox'}:
-                        tb = 'Statistics and Machine Learning Toolbox'
-                    found_toolboxes.add(tb)
+                        # Normalise abbreviated MathWorks names to full current names
+                        if tb.lower() in {'statistics toolbox', 'statistics and machine learning toolbox'}:
+                            tb = 'Statistics and Machine Learning Toolbox'
+                        found_toolboxes.add(tb)
                     if any(fn in msrc for fn in eeglab_fns):
                         found_eeglab = True
                 except Exception:
@@ -2428,7 +2468,7 @@ def _install_instructions(code_files, all_files=None):
                               and '.nf' not in suffixes):
         # Only add step 3 pip install if step 2 didn't already cover it
         import re as _re3
-        req_files_check = [f for f in all_files if _re3.match(r'requirements.*\.txt$', f.name.lower())]
+        req_files_check = [f for f in (all_files or []) if _re3.match(r'requirements.*\.txt$', f.name.lower())]
         if not req_files_check:
             lines.append('3. Install dependencies: `pip install -r requirements.txt`')
     return lines
