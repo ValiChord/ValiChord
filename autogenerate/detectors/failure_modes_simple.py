@@ -5598,33 +5598,46 @@ def detect_BS_archive_code_present(repo_dir, all_files):
 
 
 def detect_BT_spaces_in_filenames(repo_dir, all_files):
-    """Check for spaces in filenames (all extensions — spaces cause problems when scripting)."""
+    """Check for spaces in any path component (filename or directory name).
+
+    A spaced directory name (e.g. 'R code for analyses/') causes the same
+    shell quoting failures as a spaced filename — every file inside it
+    produces an unquotable path when passed to Rscript, python, etc.
+    """
     findings = []
-    problem_files = [
-        f for f in all_files
-        if ' ' in f.name
-    ]
-    # Deduplicate by basename (same logical filename appearing in multiple zip copies)
-    _seen_bt: dict = {}
-    for f in problem_files:
-        if f.name not in _seen_bt:
-            _seen_bt[f.name] = f
-    problem_files = list(_seen_bt.values())
-    if problem_files:
-        if len(problem_files) <= 3:
-            bt_title = f'Spaces in filenames: {", ".join(f.name for f in problem_files)}'
-        else:
-            bt_title = f'Spaces in {len(problem_files)} filenames'
-        _bt_guidance = (
-            'Filenames with spaces cause problems when scripting or batch '
-            'processing. Replace spaces with underscores before deposit.'
-        )
-        findings.append(finding(
-            'BT', 'LOW CONFIDENCE',
-            bt_title,
-            _bt_guidance,
-            [f'Problem file: {f.name}' for f in problem_files]
-        ))
+    # Collect every path component (dir name or filename) that contains a
+    # space, deduplicating by the component string itself.
+    _seen_bt: dict = {}  # component string -> one representative Path
+    for f in all_files:
+        try:
+            rel_parts = f.relative_to(repo_dir).parts
+        except ValueError:
+            rel_parts = f.parts
+        for part in rel_parts:
+            if ' ' in part and part not in _seen_bt:
+                _seen_bt[part] = f
+
+    if not _seen_bt:
+        return findings
+
+    problem_parts = list(_seen_bt.keys())
+    if len(problem_parts) <= 3:
+        bt_title = f'Spaces in file/directory names: {", ".join(problem_parts)}'
+    else:
+        bt_title = f'Spaces in {len(problem_parts)} file/directory names'
+    _bt_guidance = (
+        'Spaces in file or directory names cause shell quoting failures when '
+        'scripting or batch processing. A path like '
+        '\'R code for analyses/script.R\' cannot be passed unquoted to '
+        'Rscript or python on the command line. '
+        'Replace spaces with underscores before deposit.'
+    )
+    findings.append(finding(
+        'BT', 'LOW CONFIDENCE',
+        bt_title,
+        _bt_guidance,
+        [f'Problem name: {p}' for p in problem_parts]
+    ))
     return findings
 
 
