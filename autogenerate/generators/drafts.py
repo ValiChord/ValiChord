@@ -154,6 +154,10 @@ _BASE_R_PACKAGES = {
     'base', 'methods', 'utils', 'stats', 'graphics', 'grDevices', 'datasets',
     'tools', 'grid', 'parallel', 'splines', 'tcltk', 'compiler',
     'translations', 'Matrix',
+    # Base R function names that appear as quoted strings (e.g. column names)
+    # and are not installable packages.
+    'names', 'length', 'class', 'typeof', 'dim', 'nrow', 'ncol',
+    'colnames', 'rownames', 'levels', 'labels', 'attr', 'attributes',
 }
 
 # Well-known CRAN packages (case-sensitive as registered on CRAN).
@@ -1980,6 +1984,12 @@ def _generate_requirements_draft(repo_dir, all_files,
                                                  'lapply', 'sapply', 'p_load')):
                         for pkg in quoted:
                             r_libs.add(pkg)
+            # pkg:: namespace calls — catches packages used without library()
+            # e.g. kableExtra::kbl(), dplyr::filter()
+            for ns_m in re.finditer(r'\b([A-Za-z][A-Za-z0-9.]+)::[A-Za-z]', src):
+                pkg = ns_m.group(1)
+                if len(pkg) >= 2 and pkg.lower() not in _named_arg_kws:
+                    r_libs.add(pkg)
         # Record scan count for the header note
         _r_files_scanned = len([s for s in _sources_to_scan if s[0] is not None])
         # Exclude base-R packages — they ship with R and need no installation
