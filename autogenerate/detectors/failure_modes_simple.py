@@ -8884,7 +8884,10 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
 
     # Filename-level signals — catches binary/proprietary data files (.dta, .sav, etc.)
     # whose headers cannot be read but whose names suggest human subjects content.
-    _DATA_EXTS_HS = DATA_EXTENSIONS | {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
+    # Image extensions included: survey/study images (e.g. "respondents.jpg") are valid signals.
+    _DATA_EXTS_HS = (DATA_EXTENSIONS
+                     | {'.csv', '.tsv', '.tab', '.xlsx', '.xls'}
+                     | {'.jpg', '.jpeg', '.png', '.tif', '.tiff'})
     filename_hits: list = []
     for f in all_files:
         if (f.suffix.lower() in _DATA_EXTS_HS

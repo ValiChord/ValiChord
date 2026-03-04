@@ -139,7 +139,14 @@ def _surface_features(repo_dir, all_files, findings) -> dict:
     has_requirements = bool(file_names_lower & _DEPENDENCY_FILES)
     has_makefile    = bool({'makefile', 'gnumakefile'} & file_names_lower)
     has_citation_cff = 'citation.cff' in file_names_lower
-    has_codebook    = bool(file_names_lower & _CODEBOOK_FILENAMES)
+    _CODEBOOK_STEM_KEYWORDS = (
+        'codebook', 'data_dictionary', 'data-dictionary',
+        'column_description', 'field_description',
+    )
+    has_codebook    = (
+        bool(file_names_lower & _CODEBOOK_FILENAMES)
+        or any(kw in name for kw in _CODEBOOK_STEM_KEYWORDS for name in file_names_lower)
+    )
     has_checksums   = bool(file_names_lower & _CHECKSUM_NAMES)
 
     has_run_all = any(
