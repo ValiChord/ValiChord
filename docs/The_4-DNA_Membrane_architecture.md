@@ -2,7 +2,7 @@
 
 ## ValiChord is built as a series of independent but connected "bubbles" (technically called DNAs) rather than a single monolithic program. Each bubble has its own membrane—a digital boundary that controls who can join the network and what information is allowed to leave. This ensures that sensitive research data stays private while the "proof" of the science becomes public.
 
-#1. Researcher Repository DNA (Private Membrane)#
+# 1. Researcher Repository DNA (Private Membrane)
 
 Function: Runs locally on the researcher's or institution's own computer.
 
