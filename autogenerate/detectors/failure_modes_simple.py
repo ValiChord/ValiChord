@@ -5649,46 +5649,94 @@ def detect_BS_archive_code_present(repo_dir, all_files):
 
 
 def detect_BT_spaces_in_filenames(repo_dir, all_files):
-    """Check for spaces in any path component (filename or directory name).
+    """Check for problematic characters in path components (filenames or directory names).
 
-    A spaced directory name (e.g. 'R code for analyses/') causes the same
-    shell quoting failures as a spaced filename — every file inside it
-    produces an unquotable path when passed to Rscript, python, etc.
+    Three categories, in descending severity:
+    1. Windows-illegal characters (< > : " | ? *) — prevent extraction on Windows entirely.
+    2. Shell special characters ([ ] { }) — cause glob/brace expansion in bash/zsh.
+    3. Spaces and non-ASCII characters — shell quoting failures and encoding issues.
     """
     findings = []
-    # Collect every path component (dir name or filename) that contains a
-    # space, deduplicating by the component string itself.
-    _seen_bt: dict = {}  # component string -> one representative Path
+
+    # Characters that are illegal in Windows filenames/directory names.
+    # Backslash and forward-slash are path separators and can't appear in
+    # a path component, so they're excluded from the set.
+    _WIN_ILLEGAL = frozenset('<>:"|?*')
+    # Shell glob/brace-expansion characters.
+    _GLOB_CHARS = frozenset('[]{}')
+
+    win_illegal: dict = {}   # component -> set of offending chars
+    glob_chars: dict = {}    # component -> representative Path
+    spaces: dict = {}        # component -> representative Path
+    non_ascii: dict = {}     # component -> representative Path
+
     for f in all_files:
         try:
             rel_parts = f.relative_to(repo_dir).parts
         except ValueError:
             rel_parts = f.parts
         for part in rel_parts:
-            if ' ' in part and part not in _seen_bt:
-                _seen_bt[part] = f
+            bad_win = frozenset(part) & _WIN_ILLEGAL
+            bad_glob = frozenset(part) & _GLOB_CHARS
+            if bad_win and part not in win_illegal:
+                win_illegal[part] = bad_win
+            if bad_glob and part not in glob_chars:
+                glob_chars[part] = f
+            if ' ' in part and part not in spaces:
+                spaces[part] = f
+            if not part.isascii() and part not in non_ascii:
+                non_ascii[part] = f
 
-    if not _seen_bt:
-        return findings
+    # ── SIGNIFICANT: Windows-illegal characters ──────────────────────────────
+    if win_illegal:
+        _wparts = list(win_illegal.keys())
+        if len(_wparts) <= 3:
+            _wtitle = (
+                'Windows-illegal characters in path names: '
+                + ', '.join(repr(p) for p in _wparts)
+            )
+        else:
+            _wtitle = f'Windows-illegal characters in {len(_wparts)} path names'
+        findings.append(finding(
+            'BT', 'SIGNIFICANT',
+            _wtitle,
+            'Characters < > : " | ? * are illegal in Windows filenames and directory '
+            'names. A validator on Windows cannot unzip this archive without errors — '
+            'these names must be renamed before deposit.',
+            [f'Problem name: {p!r}  (illegal chars: {" ".join(sorted(win_illegal[p]))})'
+             for p in _wparts],
+        ))
 
-    problem_parts = list(_seen_bt.keys())
-    if len(problem_parts) <= 3:
-        bt_title = f'Spaces in file/directory names: {", ".join(problem_parts)}'
-    else:
-        bt_title = f'Spaces in {len(problem_parts)} file/directory names'
-    _bt_guidance = (
-        'Spaces in file or directory names cause shell quoting failures when '
-        'scripting or batch processing. A path like '
-        '\'R code for analyses/script.R\' cannot be passed unquoted to '
-        'Rscript or python on the command line. '
-        'Replace spaces with underscores before deposit.'
-    )
-    findings.append(finding(
-        'BT', 'LOW CONFIDENCE',
-        bt_title,
-        _bt_guidance,
-        [f'Problem name: {p}' for p in problem_parts]
-    ))
+    # ── LOW CONFIDENCE: spaces, glob chars, non-ASCII ────────────────────────
+    other: dict = {}
+    issue_labels = []
+    if spaces:
+        other.update(spaces)
+        issue_labels.append('spaces (shell quoting failures when scripting)')
+    if glob_chars:
+        other.update(glob_chars)
+        issue_labels.append('square/curly brackets (shell glob expansion)')
+    if non_ascii:
+        other.update(non_ascii)
+        issue_labels.append('non-ASCII characters (encoding failures on some systems)')
+
+    if other:
+        _oparts = list(other.keys())
+        if len(_oparts) <= 3:
+            _otitle = (
+                'Problematic characters in path names: '
+                + ', '.join(repr(p) for p in _oparts)
+            )
+        else:
+            _otitle = f'Problematic characters in {len(_oparts)} path names'
+        findings.append(finding(
+            'BT', 'LOW CONFIDENCE',
+            _otitle,
+            'Path names contain ' + ' and '.join(issue_labels) + '. '
+            'Replace spaces and special characters with underscores before deposit.',
+            [f'Problem name: {p!r}' for p in _oparts[:10]],
+        ))
+
     return findings
 
 
@@ -8862,7 +8910,16 @@ _HS_FILENAME_RE = re.compile(
     # Common study identifiers
     r'cohort|longitudinal|followup|follow.?up|'
     # Clinical / symptom data
-    r'symptoms?|clinical'
+    r'symptoms?|clinical|'
+    # Psychometric scales & psychological constructs —
+    # these always indicate individual-level measurement in research data files
+    r'narcissi[sm]|depress|anxiet|wellbeing|well.being|'
+    r'ptsd|personalit|cogniti|psychometr|'
+    r'traum|schizophreni|autism|autistic|adhd|'
+    r'bipolar|mental.health|affectiv|'
+    # Educational / ability assessment
+    r'achievement.*test|iq.score|iq.data|'
+    r'\biq\b'
     r')\b',
     re.IGNORECASE,
 )
