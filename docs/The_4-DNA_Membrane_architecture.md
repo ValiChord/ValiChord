@@ -1,5 +1,5 @@
 <div align="center">
-<img src="[YOUR_IMAGE_PATH_HERE](https://github.com/topeuph-ai/ValiChord/blob/main/the%204%20membranes.png)" alt="The 4 DNA Membrane Architecture" width="800">
+<img src=https://github.com/topeuph-ai/ValiChord/blob/main/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
 </div>
 
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
