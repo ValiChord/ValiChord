@@ -146,6 +146,10 @@ def _surface_features(repo_dir, all_files, findings) -> dict:
     has_codebook    = (
         bool(file_names_lower & _CODEBOOK_FILENAMES)
         or any(kw in name for kw in _CODEBOOK_STEM_KEYWORDS for name in file_names_lower)
+        # [E] detector emits severity=INFO when it suppresses itself due to
+        # content-based codebook detection (e.g. variable table found in a PDF).
+        or any(fi.get('mode') == 'E' and fi.get('severity') == 'INFO'
+               for fi in findings)
     )
     has_checksums   = bool(file_names_lower & _CHECKSUM_NAMES)
 
@@ -177,10 +181,13 @@ def _surface_features(repo_dir, all_files, findings) -> dict:
         len(fi.get('evidence', [])) for fi in findings if fi.get('mode') == 'L'
     )
 
+    _SP_PREFIX = 'Proprietary software required: '
     prop_sw: list = []
     for fi in findings:
         if fi.get('mode') == 'SP':
-            prop_sw.extend(fi.get('evidence', []))
+            title = fi.get('title', '')
+            if title.startswith(_SP_PREFIX):
+                prop_sw.append(title[len(_SP_PREFIX):])
 
     code_file_count = sum(1 for f in all_files if f.suffix.lower() in _CODE_EXTENSIONS)
     data_file_count = sum(1 for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS)
