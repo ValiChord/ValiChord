@@ -2493,6 +2493,18 @@ def _quickstart_step2(all_files, code_files):
                 f'   {_tb_note}']
     if '.do' in suffixes or '.ado' in suffixes:
         return ['2. Open Stata and ensure required packages are installed']
+    # JavaScript/web — detect from all_files because code_files excludes frontend dirs
+    _JS_EXTS_QS = frozenset({'.js', '.ts', '.jsx', '.tsx', '.mjs', '.vue'})
+    _STAT_EXTS_QS = frozenset({'.py', '.r', '.do', '.jl', '.m', '.sas', '.ipynb', '.rmd', '.qmd', '.ado'})
+    _WEBAPP_VENDOR_QS = {'vendor', 'lib', 'dist', 'node_modules', 'target', 'bower_components'}
+    if (any(f.suffix.lower() in _JS_EXTS_QS
+            and not any(p.lower() in _WEBAPP_VENDOR_QS for p in f.parts)
+            for f in all_files)
+            and not any(f.suffix.lower() in _STAT_EXTS_QS for f in all_files)):
+        _has_pkg_json_qs = any(f.name == 'package.json' for f in all_files)
+        if _has_pkg_json_qs:
+            return ['2. Install dependencies: `npm install  # or: yarn install`']
+        return []  # No install step needed — open HTML entry point in browser
     if has_requirements:
         return ['2. Pin the version numbers in your existing `requirements.txt` (e.g. pandas==2.1.3)']
     return ['2. Add version numbers to `requirements_DRAFT.txt` and rename to `requirements.txt`']
@@ -3061,17 +3073,24 @@ def _generate_quickstart_draft(repo_dir, all_files,
         notebook_extensions = NOTEBOOK_EXTENSIONS
 
         # Detect JS/web-only repos and show entry point instead of listing all JS files
+        # Use all_files (not code_files) because JS files are excluded from code_files
+        # by the frontend-dir filter, making code_files empty for pure-JS deposits.
         _qs_web_suffixes = {'.js', '.html', '.css', '.ts'}
         _qs_analysis_suffixes = {'.py', '.r', '.rmd', '.jl', '.do', '.m'}
-        _qs_code_suffixes = {f.suffix.lower() for f in code_files}
+        _qs_vendor_dirs = {'vendor', 'lib', 'dist', 'node_modules', 'target', 'bower_components'}
         _qs_is_web = (
-            bool(_qs_code_suffixes & _qs_web_suffixes) and
-            not bool(_qs_code_suffixes & _qs_analysis_suffixes)
+            any(f.suffix.lower() in _qs_web_suffixes
+                and not any(p.lower() in _qs_vendor_dirs for p in f.parts)
+                for f in all_files) and
+            not any(f.suffix.lower() in _qs_analysis_suffixes for f in all_files)
         )
+        # Find HTML entry point — prefer index.html at root, fall back to any .html
         _qs_index = next(
             (f for f in all_files if f.name.lower() == 'index.html'
              and len(f.relative_to(repo_dir).parts) == 1),
-            next((f for f in all_files if f.name.lower() == 'index.html'), None)
+            next((f for f in all_files if f.name.lower() == 'index.html'),
+                 next((f for f in sorted(all_files, key=lambda x: len(x.relative_to(repo_dir).parts))
+                       if f.suffix.lower() == '.html'), None))
         )
         if _qs_is_web and _qs_index:
             lines += [

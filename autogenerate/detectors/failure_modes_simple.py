@@ -471,6 +471,7 @@ _ASSET_INPUT_DIRS = frozenset({
     'assets', 'static',
     'media', 'resources',
     'materials', 'icons', 'icon',
+    'maps', 'tiles',
 })
 
 
@@ -5232,7 +5233,8 @@ def detect_BA_missing_checksums(repo_dir, all_files):
                   if f.suffix.lower() in _CHECKSUM_WORTHY
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
-                  and f.name.lower() not in _NON_DATA_TXT]
+                  and f.name.lower() not in _NON_DATA_TXT
+                  and not _in_asset_dir(f, repo_dir)]
     if not data_files:
         return findings
 
