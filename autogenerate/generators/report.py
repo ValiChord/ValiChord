@@ -221,7 +221,7 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         f'| 🔴 CRITICAL | {len(critical)} |',
         f'| 🟡 SIGNIFICANT | {len(significant)} |',
         f'| 🔵 LOW CONFIDENCE | {len(low)} |',
-        f'| **Total findings** | **{len(findings)}** |',
+        f'| **Total findings** | **{len(critical) + len(significant) + len(low)}** |',
         '',
     ]
 
