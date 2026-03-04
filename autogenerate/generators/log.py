@@ -107,19 +107,48 @@ def _detect_platform(zip_name: str) -> str:
     return "unknown"
 
 
+_LANG_VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target',
+                     'bower_components'}
+
+_ASSET_INPUT_DIRS_LOG = frozenset({
+    'images', 'img', 'stimuli', 'stimulus',
+    'audio', 'video', 'fonts', 'font',
+    'assets', 'static', 'media', 'resources',
+    'materials', 'icons', 'icon',
+})
+
+
+def _in_asset_dir_log(f, repo_dir) -> bool:
+    try:
+        parts = f.relative_to(repo_dir).parts
+    except ValueError:
+        parts = f.parts
+    return any(part.lower() in _ASSET_INPUT_DIRS_LOG for part in parts[:-1])
+
+
 def _detect_language(all_files) -> str:
-    """Return the dominant programming language based on code file extensions."""
+    """Return the dominant programming language based on code file extensions.
+
+    Skips minified files (.min.js, .min.css) and vendored directories so that
+    committed third-party libraries do not swamp the researcher's own language.
+    """
     lang_exts = {
-        'r':      {'.r', '.rmd', '.qmd'},
-        'python': {'.py', '.ipynb'},
-        'julia':  {'.jl'},
-        'stata':  {'.do', '.ado'},
-        'matlab': {'.m', '.mlx'},
-        'sas':    {'.sas'},
-        'shell':  {'.sh', '.bash'},
+        'r':          {'.r', '.rmd', '.qmd'},
+        'python':     {'.py', '.ipynb'},
+        'julia':      {'.jl'},
+        'stata':      {'.do', '.ado'},
+        'matlab':     {'.m', '.mlx'},
+        'sas':        {'.sas'},
+        'shell':      {'.sh', '.bash'},
+        'javascript': {'.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'},
     }
     counts = {lang: 0 for lang in lang_exts}
     for f in all_files:
+        # Skip minified build artefacts and vendored third-party code
+        if f.name.endswith('.min.js') or f.name.endswith('.min.css'):
+            continue
+        if any(part.lower() in _LANG_VENDOR_DIRS for part in f.parts):
+            continue
         ext = f.suffix.lower()
         for lang, exts in lang_exts.items():
             if ext in exts:
@@ -189,8 +218,18 @@ def _surface_features(repo_dir, all_files, findings) -> dict:
             if title.startswith(_SP_PREFIX):
                 prop_sw.append(title[len(_SP_PREFIX):])
 
-    code_file_count = sum(1 for f in all_files if f.suffix.lower() in _CODE_EXTENSIONS)
-    data_file_count = sum(1 for f in all_files if f.suffix.lower() in _DATA_EXTENSIONS)
+    code_file_count = sum(
+        1 for f in all_files
+        if f.suffix.lower() in _CODE_EXTENSIONS
+        and not f.name.endswith('.min.js')
+        and not f.name.endswith('.min.css')
+        and not any(part.lower() in _LANG_VENDOR_DIRS for part in f.parts)
+    )
+    data_file_count = sum(
+        1 for f in all_files
+        if f.suffix.lower() in _DATA_EXTENSIONS
+        and not _in_asset_dir_log(f, repo_dir)
+    )
 
     try:
         total_size_kb = round(

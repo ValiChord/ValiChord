@@ -458,6 +458,31 @@ LICENCE_NAMES = {
 # researcher-code detectors (B, U, AC, AI, AJ, AK, AS, AT, AU, AA, BB …)
 VENDOR_DIRS = {'weka', 'vendor', 'lib', 'dist', 'node_modules', 'target'}
 
+# Directories whose contents are input assets — stimuli, fonts, icons, etc.
+# Files inside these directories are not research data or generated outputs and
+# must not trigger [Y], [E], or [AA].  Path check covers any depth:
+#   images/Training/001.jpeg  → excluded by 'images' in parts
+#   static/fonts/glyph.woff  → excluded by 'fonts' in parts
+_ASSET_INPUT_DIRS = frozenset({
+    'images', 'img',
+    'stimuli', 'stimulus',
+    'audio', 'video',
+    'fonts', 'font',
+    'assets', 'static',
+    'media', 'resources',
+    'materials', 'icons', 'icon',
+})
+
+
+def _in_asset_dir(f, repo_dir) -> bool:
+    """Return True if this file lives inside an asset input directory."""
+    try:
+        parts = f.relative_to(repo_dir).parts
+    except ValueError:
+        parts = f.parts
+    # Check all parts except the filename itself
+    return any(part.lower() in _ASSET_INPUT_DIRS for part in parts[:-1])
+
 # R package library directories — contain installed third-party package code,
 # not researcher-authored scripts.  When a deposit commits renv/library/ or
 # packrat/lib/, those R files must not be scanned for researcher practices
@@ -2221,6 +2246,7 @@ def detect_E_missing_data_documentation(repo_dir, all_files):
         and f.name.lower() not in _build_config_names
         and not _is_ide_config(f)
         and not f.name.lower().startswith('readme')
+        and not _in_asset_dir(f, repo_dir)
         # Exclude CSV/TSV files that are themselves structured as codebooks —
         # they ARE the documentation, not data that needs to be documented.
         # Mirrors [BA]'s data_files construction exactly.
@@ -3768,6 +3794,7 @@ def detect_Y_data_source_missing(repo_dir, all_files):
         if f.suffix.lower() in _Y_EXTENDED_EXTS
         and not _is_model_artifact(f)
         and not f.name.lower().startswith('readme')
+        and not _in_asset_dir(f, repo_dir)
     ]
 
     if not data_files:
@@ -3885,9 +3912,11 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
 
     figure_extensions = {'.png', '.jpg', '.jpeg', '.svg', '.eps', '.pdf',
                          '.tex'}  # .tex covers TikZ figures and stargazer/kableExtra tables
+    # 'images' intentionally excluded — it's an asset input dir (stimuli, icons),
+    # not an output dir.  Researchers put generated figures in 'figures'/'results'.
     _FIGURE_DIRS = {
         'figures', 'figure', 'figs', 'fig',
-        'plots', 'plot', 'images',
+        'plots', 'plot',
         'results', 'result',
         'out', 'output', 'outputs',
         'tables', 'table', 'tex',
@@ -3895,24 +3924,25 @@ def detect_AA_figure_reproducibility(repo_dir, all_files):
     figure_files = [
         f for f in all_files
         if f.suffix.lower() in figure_extensions
-        and (f.parent.name.lower() in _FIGURE_DIRS
-             # Also catch any directory with 10+ output-extension files
-             )
+        and f.parent.name.lower() in _FIGURE_DIRS
         and not any(part.lower() in VENDOR_DIRS
                     for part in f.relative_to(repo_dir).parts)
+        and not _in_asset_dir(f, repo_dir)
     ]
     # Fallback: if no named-dir match, look for any non-root directory
     # with ≥10 figure-extension files (catches Out/, Results_v2/, etc.)
     if not figure_files:
         _dir_counts: dict = {}
         for f in all_files:
-            if f.suffix.lower() in figure_extensions:
+            if (f.suffix.lower() in figure_extensions
+                    and not _in_asset_dir(f, repo_dir)):
                 _dir_counts[f.parent] = _dir_counts.get(f.parent, 0) + 1
         for _d, _n in _dir_counts.items():
             if _n >= 10 and _d != repo_dir:
                 figure_files += [
                     f for f in all_files
                     if f.parent == _d and f.suffix.lower() in figure_extensions
+                    and not _in_asset_dir(f, repo_dir)
                 ]
 
     if not figure_files:
@@ -5748,6 +5778,18 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
             })
             _pair_exts = {f.suffix.lower() for f in unique}
             if '.pdf' in _pair_exts and (_pair_exts - {'.pdf'}) <= _SCRIPT_EXTS:
+                continue
+            # Skip web-font sets — Bootstrap and similar frameworks commit all
+            # font formats (.eot, .ttf, .woff, .woff2, .otf, and .svg) because
+            # each format targets a different browser.  This is not a
+            # reproducibility-relevant duplicate.
+            _FONT_EXTS = frozenset({'.eot', '.ttf', '.woff', '.woff2', '.otf'})
+            _in_font_dir = any(
+                any(part.lower() in {'fonts', 'font'} for part in f.parts)
+                for f in unique
+            )
+            if _pair_exts <= (_FONT_EXTS | {'.svg'}) or (
+                    _in_font_dir and _pair_exts <= (_FONT_EXTS | {'.svg', '.png'})):
                 continue
             # Skip pairs where file sizes differ by more than 50:1 — these are
             # a primary data file alongside a small sidecar description, not
