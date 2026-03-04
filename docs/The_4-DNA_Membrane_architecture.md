@@ -43,24 +43,24 @@ Control: Only the system's official rules can "write" to this library, but anyon
 
 Technical Term	Brief Explanation or Analogy
 
-ValiChord	A "distributed immune system" for science that verifies if research is actually reproducible.
+ValiChord.	A "distributed immune system" for science that verifies if research is actually reproducible.
 
-DNA (Holochain)	The Club Rulebook. In this system, a "DNA" is a specific set of rules that defines a small, private network.
+DNA (Holochain).	The Club Rulebook. In this system, a "DNA" is a specific set of rules that defines a small, private network.
 
-Membrane	The Bouncer. A security boundary that decides who is allowed into a specific network and what data is allowed out.
+Membrane.	The Bouncer. A security boundary that decides who is allowed into a specific network and what data is allowed out.
 
-Shared DHT	A Neighborhood Bulletin Board. A way for people to share information without a central "Big Brother" server; everyone holds a small piece of the board.
+Shared DHT.	A Neighborhood Bulletin Board. A way for people to share information without a central "Big Brother" server; everyone holds a small piece of the board.
 
-Cryptographic Proof	A Digital Fingerprint. A unique code representing a file. If even one comma changes in the file, the fingerprint changes completely.
+Cryptographic Proof.	A Digital Fingerprint. A unique code representing a file. If even one comma changes in the file, the fingerprint changes completely.
 
-Commit-Reveal	The Sealed Envelope. You put your answer in an envelope on the table (Commit) and only open it (Reveal) once everyone else has done the same.
+Commit-Reveal.	The Sealed Envelope. You put your answer in an envelope on the table (Commit) and only open it (Reveal) once everyone else has done the same.
 
-Data Locality	Keeping it at Home. Keeping data on your own device rather than sending it to a "Cloud" server owned by a corporation.
+Data Locality.	Keeping it at Home. Keeping data on your own device rather than sending it to a "Cloud" server owned by a corporation.
 
-Immutable	Carved in Stone. Once information is recorded in the ledger, it can never be changed or deleted.
+Immutable	Carved. in Stone. Once information is recorded in the ledger, it can never be changed or deleted.
 
-Tamper-Evident	A Wax Seal. You might not stop someone from trying to change data, but you will immediately see that the "seal" is broken if they try.
+Tamper-Evident.	A Wax Seal. You might not stop someone from trying to change data, but you will immediately see that the "seal" is broken if they try.
 
-Static Analysis	The Proofread. Looking at the files and code to find obvious mistakes without actually running the program.
+Static Analysis.	The Proofread. Looking at the files and code to find obvious mistakes without actually running the program.
 
 
