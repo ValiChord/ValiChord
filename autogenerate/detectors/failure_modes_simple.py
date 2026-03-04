@@ -5212,34 +5212,20 @@ def detect_AZ_figure_format(repo_dir, all_files):
 
 def detect_BA_missing_checksums(repo_dir, all_files):
     findings = []
-    # Extensions that represent data/binary payload files requiring checksums.
-    # Includes images and ML formats in addition to standard data formats.
-    # Plain .txt is included because scientific data (EEG, sensor output, etc.)
-    # is frequently stored as tab/space-delimited text files.
-    # Common figure formats (.png, .jpg, .gif, .bmp, .webp) are NOT included:
-    # in typical deposits these are supplementary figures, not primary data.
-    # .tif/.tiff kept because it doubles as microscopy and GIS raster data.
-    _CHECKSUM_WORTHY = DATA_EXTENSIONS | ARCHIVE_EXTENSIONS | {
+    # Use DATA_EXTENSIONS as the base — this is the same set used by the LOG's
+    # data_file_count, keeping the two counts aligned.
+    # Added: .tif/.tiff (microscopy/GIS raster data) and ML model formats.
+    # Excluded: .txt (too many false positives — captions, requirements, etc.),
+    # archive formats (archives are identified separately), and common figure
+    # formats (.png, .jpg, etc.) which are supplementary figures, not data.
+    _CHECKSUM_WORTHY = DATA_EXTENSIONS | {
         '.tiff', '.tif',
         '.pt', '.pth', '.onnx', '.pb', '.bin', '.safetensors', '.ckpt',
-        '.txt',
     }
-    # Well-known non-data .txt files that are never payload data.
-    _NON_DATA_TXT = frozenset({
-        'requirements.txt', 'requirements_extra.txt',
-        'license.txt', 'licence.txt',
-        'changelog.txt', 'changes.txt', 'history.txt',
-        'authors.txt', 'contributors.txt',
-        'notice.txt', 'copying.txt', 'install.txt', 'todo.txt',
-    })
     data_files = [f for f in all_files
                   if f.suffix.lower() in _CHECKSUM_WORTHY
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
-                  and f.name.lower() not in _NON_DATA_TXT
-                  # Small .txt files are sidecars/labels, not data payloads
-                  and not (f.suffix.lower() == '.txt'
-                           and f.stat().st_size < 500)
                   and not _in_asset_dir(f, repo_dir)]
     if not data_files:
         return findings
