@@ -5216,8 +5216,11 @@ def detect_BA_missing_checksums(repo_dir, all_files):
     # Includes images and ML formats in addition to standard data formats.
     # Plain .txt is included because scientific data (EEG, sensor output, etc.)
     # is frequently stored as tab/space-delimited text files.
+    # Common figure formats (.png, .jpg, .gif, .bmp, .webp) are NOT included:
+    # in typical deposits these are supplementary figures, not primary data.
+    # .tif/.tiff kept because it doubles as microscopy and GIS raster data.
     _CHECKSUM_WORTHY = DATA_EXTENSIONS | ARCHIVE_EXTENSIONS | {
-        '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp',
+        '.tiff', '.tif',
         '.pt', '.pth', '.onnx', '.pb', '.bin', '.safetensors', '.ckpt',
         '.txt',
     }
@@ -5234,6 +5237,9 @@ def detect_BA_missing_checksums(repo_dir, all_files):
                   and not f.name.lower().startswith('readme')
                   and f.name.lower() not in CODEBOOK_FILENAMES
                   and f.name.lower() not in _NON_DATA_TXT
+                  # Small .txt files are sidecars/labels, not data payloads
+                  and not (f.suffix.lower() == '.txt'
+                           and f.stat().st_size < 500)
                   and not _in_asset_dir(f, repo_dir)]
     if not data_files:
         return findings
@@ -5820,14 +5826,18 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
                     unique.append(f)
             if len({f.suffix.lower() for f in unique}) < 2:
                 continue
-            # Skip pairs where one file is a PDF and the other is a script —
-            # a PDF printout of code is not a duplicate-format data issue.
+            # Skip source/rendered-output pairs — these are never duplicates.
             _SCRIPT_EXTS = frozenset({
                 '.r', '.rmd', '.rnw', '.qmd', '.py', '.do', '.sps', '.m',
-                '.jl', '.sql', '.sh', '.bash', '.bat', '.ps1',
+                '.jl', '.sql', '.sh', '.bash', '.bat', '.ps1', '.tex',
             })
             _pair_exts = {f.suffix.lower() for f in unique}
+            # PDF + script: printout or compiled LaTeX output
             if '.pdf' in _pair_exts and (_pair_exts - {'.pdf'}) <= _SCRIPT_EXTS:
+                continue
+            # HTML + analysis script: rendered R Markdown / Quarto / Jupyter output
+            _RENDERED_SRC = frozenset({'.r', '.rmd', '.qmd', '.py', '.ipynb'})
+            if '.html' in _pair_exts and (_pair_exts - {'.html'}) <= _RENDERED_SRC:
                 continue
             # Skip web-font sets — Bootstrap and similar frameworks commit all
             # font formats (.eot, .ttf, .woff, .woff2, .otf, and .svg) because
@@ -5841,14 +5851,15 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
             if _pair_exts <= (_FONT_EXTS | {'.svg'}) or (
                     _in_font_dir and _pair_exts <= (_FONT_EXTS | {'.svg', '.png'})):
                 continue
-            # Skip pairs where file sizes differ by more than 50:1 — these are
-            # a primary data file alongside a small sidecar description, not
-            # genuine duplicate-format exports of the same dataset.
+            # Skip pairs where file sizes differ by more than 20:1 — these are
+            # a primary data file alongside a small sidecar (caption, description,
+            # or label), not genuine duplicate-format exports of the same dataset.
+            # (e.g. EmpiricalFigures.pdf 31KB + EmpiricalFigures.txt 1.3KB ≈ 24:1)
             try:
                 sizes = [f.stat().st_size for f in unique]
                 max_sz = max(sizes)
                 min_sz = min(s for s in sizes if s > 0)
-                if max_sz / min_sz > 50:
+                if max_sz / min_sz > 20:
                     continue
             except Exception:
                 pass
@@ -6601,6 +6612,7 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.mxd':      'ArcMap (ArcGIS)',
         '.aprx':     'ArcGIS Pro',
         '.sas7bdat': 'SAS',
+        '.sas':      'SAS',         # SAS program/syntax file
         '.sps':      'SPSS',        # SPSS syntax file
         '.sav':      'SPSS',        # SPSS data file
         '.por':      'SPSS',        # SPSS Portable format — same tool family
@@ -6608,6 +6620,12 @@ def detect_SP_specialist_software(repo_dir, all_files):
         '.nb':       'Mathematica',
         '.jmp':      'JMP',
         '.tsc':      'TINA-TI (Texas Instruments circuit simulation)',
+        # MATLAB data files — always require MATLAB or GNU Octave to open,
+        # regardless of whether .m scripts are also present.
+        '.mat':      'MATLAB or GNU Octave',
+        # Simulink model files
+        '.slx':      'Simulink (MATLAB)',
+        '.mdl':      'Simulink (MATLAB)',
     }
 
     # MATLAB: .m files are the extension, but only flag MATLAB when no
@@ -6659,11 +6677,17 @@ def detect_SP_specialist_software(repo_dir, all_files):
         display = seen[:6]
         suffix = f' (+ {len(seen) - 6} more)' if len(seen) > 6 else ''
 
+        _octave_note = (
+            ' GNU Octave (free) can read many .mat files but may not support '
+            'all MATLAB toolbox functions.'
+            if 'Octave' in sw else ''
+        )
         findings.append(finding(
             'SP', 'LOW CONFIDENCE',
             f'Proprietary software required: {sw}',
             f'Proprietary software required: {sw}. Validators need a valid licence '
-            f'for {sw} to reproduce results. Confirm the required version in your README.',
+            f'for {sw} to reproduce results.{_octave_note} '
+            f'Confirm the required version in your README.',
             [f'Files/imports: {", ".join(display)}{suffix}',
              f'Action: add "{sw} vX.Y" to README software requirements']
         ))
