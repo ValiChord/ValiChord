@@ -2,37 +2,37 @@
 
 ## ValiChord is built as a series of independent but connected "bubbles" (technically called DNAs) rather than a single monolithic program. Each bubble has its own membrane—a digital boundary that controls who can join the network and what information is allowed to leave. This ensures that sensitive research data stays private while the "proof" of the science becomes public.
 
-1 #Researcher Repository DNA (Private Membrane)#
+#1. Researcher Repository DNA (Private Membrane)#
 
-    Function: Runs locally on the researcher's or institution's own computer.
+Function: Runs locally on the researcher's or institution's own computer.
 
-    Role: This is the "home base" that holds the original research—the raw code, secret data, and early notes.
+Role: This is the "home base" that holds the original research—the raw code, secret data, and early notes.
 
-    Privacy: Sensitive information (like private patient records) stays inside this bubble; it never touches the internet or the shared network, making the system GDPR compliant by its very nature.
+Privacy: Sensitive information (like private patient records) stays inside this bubble; it never touches the internet or the shared network, making the system GDPR compliant by its very nature.
 
-#Validator Workspace DNA (Private Membrane)#
+#2. Validator Workspace DNA (Private Membrane)#
 
-    Function: An isolated, temporary "locked room" for a single independent validator.
+Function: An isolated, temporary "locked room" for a single independent validator.
 
-    Role: This is where the actual reproduction attempt (or "Repro Witnessing") happens; the validator re-runs the researcher's code here to see if it produces the same results.
+Role: This is where the actual reproduction attempt (or "Repro Witnessing") happens; the validator re-runs the researcher's code here to see if it produces the same results.
 
-    Privacy: No other validators can see inside this room while the work is happening, which prevents "groupthink" and ensures the validator is not influenced by peers.
+Privacy: No other validators can see inside this room while the work is happening, which prevents "groupthink" and ensures the validator is not influenced by peers.
 
-#Attestation DNA (Shared DHT)
+#3. Attestation DNA (Shared DHT)
 
-    Function: A shared digital bulletin board for credentialed participants.
+Function: A shared digital bulletin board for credentialed participants.
 
-    Role: Instead of storing the research itself, it records the act of validation—signed statements (attestations) and digital "fingerprints" proving that a check-up occurred.
+Role: Instead of storing the research itself, it records the act of validation—signed statements (attestations) and digital "fingerprints" proving that a check-up occurred.
 
-    Integrity: It manages the commit-reveal protocol, where validators must lock in their findings before they are allowed to see what others found.
+Integrity: It manages the commit-reveal protocol, where validators must lock in their findings before they are allowed to see what others found.
 
-#Governance & Harmony Records DNA (Public DHT)
+#4. Governance & Harmony Records DNA (Public DHT)
 
-    Function: A publicly readable library for the whole scientific community.
+Function: A publicly readable library for the whole scientific community.
 
-    Role: Stores the final Harmony Records, badges, and public validation statuses.
+Role: Stores the final Harmony Records, badges, and public validation statuses.
 
-    Control: Only the system's official rules can "write" to this library, but anyone—journals, funders, or the public—can "read" it to verify reproducibility signals.
+Control: Only the system's official rules can "write" to this library, but anyone—journals, funders, or the public—can "read" it to verify reproducibility signals.
 
 🧠# Plain English Glossary
 
