@@ -2,7 +2,7 @@
 
 ## ValiChord is built as a series of independent but connected "bubbles" (technically called DNAs) rather than a single monolithic program. Each bubble has its own membrane—a digital boundary that controls who can join the network and what information is allowed to leave. This ensures that sensitive research data stays private while the "proof" of the science becomes public.
 
-#1.Researcher Repository DNA (Private Membrane)
+#1Researcher Repository DNA (Private Membrane)
 
     Function: Runs locally on the researcher's or institution's own computer.
 
@@ -10,7 +10,7 @@
 
     Privacy: Sensitive information (like private patient records) stays inside this bubble; it never touches the internet or the shared network, making the system GDPR compliant by its very nature.
 
-#2.Validator Workspace DNA (Private Membrane)
+#2Validator Workspace DNA (Private Membrane)
 
     Function: An isolated, temporary "locked room" for a single independent validator.
 
@@ -18,7 +18,7 @@
 
     Privacy: No other validators can see inside this room while the work is happening, which prevents "groupthink" and ensures the validator is not influenced by peers.
 
-#3.Attestation DNA (Shared DHT)
+#3Attestation DNA (Shared DHT)
 
     Function: A shared digital bulletin board for credentialed participants.
 
@@ -26,7 +26,7 @@
 
     Integrity: It manages the commit-reveal protocol, where validators must lock in their findings before they are allowed to see what others found.
 
-#4.Governance & Harmony Records DNA (Public DHT)
+#4Governance & Harmony Records DNA (Public DHT)
 
     Function: A publicly readable library for the whole scientific community.
 
