@@ -34,9 +34,11 @@ Role: Stores the final Harmony Records, badges, and public validation statuses.
 
 Control: Only the system's official rules can "write" to this library, but anyone—journals, funders, or the public—can "read" it to verify reproducibility signals.
 
-🧠# Plain English Glossary
+
+## Plain English Glossary
 
 Technical Term	Brief Explanation or Analogy
+
 ValiChord	A "distributed immune system" for science that verifies if research is actually reproducible.
 
 DNA (Holochain)	The Club Rulebook. In this system, a "DNA" is a specific set of rules that defines a small, private network.
