@@ -1,3 +1,7 @@
+<div align="center">
+<img src="YOUR_IMAGE_PATH_HERE" alt="ValiChord at Home Architecture Overview" width="800">
+</div>
+
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
 
 ## ValiChord is built as a series of independent but connected "bubbles" (technically called DNAs) rather than a single monolithic program. Each bubble has its own membrane—a digital boundary that controls who can join the network and what information is allowed to leave. This ensures that sensitive research data stays private while the "proof" of the science becomes public.
@@ -59,4 +63,4 @@ Tamper-Evident	A Wax Seal. You might not stop someone from trying to change data
 
 Static Analysis	The Proofread. Looking at the files and code to find obvious mistakes without actually running the program.
 
-# For a deeper dive into the technical specifications, see the ValiChord Technical Reference and the Governance Framework.
+
