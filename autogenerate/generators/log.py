@@ -250,7 +250,7 @@ def _surface_features(repo_dir, all_files, findings) -> dict:
         "has_codebook":             has_codebook,
         "has_citation_cff":         has_citation_cff,
         "absolute_paths_found":     abs_paths_count,
-        "files_with_spaces":        spaces_count,
+        "files_with_path_issues":   spaces_count,
         "missing_referenced_files": missing_refs,
         "proprietary_software":     prop_sw,
         "code_file_count":          code_file_count,

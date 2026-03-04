@@ -8898,29 +8898,34 @@ _HS_SUPPRESS_RE = re.compile(
 # Applied after CamelCase splitting + separator normalisation so that tokens like
 # 'ScreenSleep' → 'Screen Sleep' and 'screen_time' → 'screen time' both match.
 _HS_FILENAME_RE = re.compile(
+    # Leading \b only — no trailing \b — so stems match all inflected forms.
+    # e.g. 'depress' matches depression/depressive/depressed;
+    #      'narcissi' matches narcissism/narcissistic.
+    # Normalised input is space-separated so the leading \b is sufficient to
+    # prevent mid-word matches (e.g. won't hit 'embarrassment').
     r'\b('
     # Administrative / benefits data
     r'clmt|claimant|applicant|beneficiar|respondent|'
-    r'enrollee|member_?id|client_?id|'
+    r'enrollee|member.?id|client.?id|'
     # Clinical / research participants
     r'participant|patient|subject|'
     # Behavioural research & wearables
-    r'sleep|screen\s*time|actigraph|wearable|fitbit|'
+    r'sleep|screen.?time|actigraph|wearable|fitbit|'
     r'diary|survey|questionnaire|interview|'
     # Common study identifiers
     r'cohort|longitudinal|followup|follow.?up|'
     # Clinical / symptom data
-    r'symptoms?|clinical|'
+    r'symptom|clinical|'
     # Psychometric scales & psychological constructs —
-    # these always indicate individual-level measurement in research data files
-    r'narcissi[sm]|depress|anxiet|wellbeing|well.being|'
+    # stems: match narcissism/narcissistic, depression/depressive, anxiety/anxieties, etc.
+    r'narcissi|depress|anxiet|wellbeing|well.being|'
     r'ptsd|personalit|cogniti|psychometr|'
-    r'traum|schizophreni|autism|autistic|adhd|'
+    r'traum|schizophreni|autis|adhd|'
     r'bipolar|mental.health|affectiv|'
     # Educational / ability assessment
-    r'achievement.*test|iq.score|iq.data|'
+    r'achievement|iq.score|iq.data|'
     r'\biq\b'
-    r')\b',
+    r')',
     re.IGNORECASE,
 )
 
