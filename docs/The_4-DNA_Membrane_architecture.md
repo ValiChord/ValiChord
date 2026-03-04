@@ -14,7 +14,7 @@ Role: This is the "home base" that holds the original research—the raw code, s
 
 Privacy: Sensitive information (like private patient records) stays inside this bubble; it never touches the internet or the shared network, making the system GDPR compliant by its very nature.
 
-# 2. Validator Workspace DNA (Private Membrane)#
+# 2. Validator Workspace DNA (Private Membrane)
 
 Function: An isolated, temporary "locked room" for a single independent validator.
 
