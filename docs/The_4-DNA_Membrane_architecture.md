@@ -10,7 +10,7 @@ Role: This is the "home base" that holds the original researchâ€”the raw code, s
 
 Privacy: Sensitive information (like private patient records) stays inside this bubble; it never touches the internet or the shared network, making the system GDPR compliant by its very nature.
 
-#2. Validator Workspace DNA (Private Membrane)#
+# 2. Validator Workspace DNA (Private Membrane)#
 
 Function: An isolated, temporary "locked room" for a single independent validator.
 
@@ -18,7 +18,7 @@ Role: This is where the actual reproduction attempt (or "Repro Witnessing") happ
 
 Privacy: No other validators can see inside this room while the work is happening, which prevents "groupthink" and ensures the validator is not influenced by peers.
 
-#3. Attestation DNA (Shared DHT)
+# 3. Attestation DNA (Shared DHT)
 
 Function: A shared digital bulletin board for credentialed participants.
 
@@ -26,7 +26,7 @@ Role: Instead of storing the research itself, it records the act of validationâ€
 
 Integrity: It manages the commit-reveal protocol, where validators must lock in their findings before they are allowed to see what others found.
 
-#4. Governance & Harmony Records DNA (Public DHT)
+# 4. Governance & Harmony Records DNA (Public DHT)
 
 Function: A publicly readable library for the whole scientific community.
 
