@@ -1,3 +1,4 @@
+![Holochain](https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png)?raw=true)
 # Why Holochain? The Architecture of Trustworthy Validation
 
 ## The Short Answer
