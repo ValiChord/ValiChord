@@ -5,17 +5,17 @@
 **Distributed Integrity Infrastructure for Computational Research Reproducibility**
 
 [![Status](https://img.shields.io/badge/Status-Phase_0_Pilot-blue?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
-[![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/tree/main/scaffold)
-[![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
+[![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_Architecture%20Scaffold.rs))
+[![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
 ---
 
-## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md)
+## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
 *The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Governance%20Framework.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ]
 
 </div>
 
@@ -40,8 +40,8 @@ Before a study can be validated, it must be "validation-ready." This browser-nat
 ## 🏗️ Technical Specifications & Scaffold
 The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation tasks.
 
-* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Architecture%20Scaffold.rs)**
-* 📚 **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/ValiChord_Technical_Reference.md)**
+* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_Architecture_Scaffold.rs)**
+* 📚 **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md)**
 
 | Layer | Component | Technical Function |
 | :--- | :--- | :--- |
