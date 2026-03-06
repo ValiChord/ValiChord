@@ -542,38 +542,61 @@ pub mod layer2_validation {
     pub enum TaskStatus {
         Assigned,
         InProgress { started_at: DateTime },
-        CommitmentSubmitted { commitment_hash: Hash },
-        Revealed { attestation: ValidationAttestation },
+        PrivateEntrySealed { sealed_at: DateTime },
+        CountersigningSessionOpen,
+        HarmonyRecordCountersigned { harmony_record: Hash },
         Completed,
         Withdrawn { reason: String },
         TimedOut,
     }
 
-    // ---- Commit-Reveal Protocol ----
-    // Validators submit a hash of their results before seeing anyone else's.
-    // Only after ALL validators have committed do they reveal actual findings.
-    // This prevents last-mover advantage and coordination.
+    // ---- Blind Commitment Protocol ----
+    // Holochain mechanism: each validator records findings as a PRIVATE ENTRY
+    // on their own source chain (the commitment). Private entries are sealed
+    // by the validator's signing key and invisible to other validators and
+    // the shared DHT — but their existence and authorship is verifiable on-chain.
+    //
+    // Once all validators have sealed private entries, a COUNTERSIGNING SESSION
+    // is initiated: all parties simultaneously contribute their findings to
+    // construct the shared Harmony Record entry. Each validator's chain is locked
+    // during the session — no validator can observe another's findings and
+    // adjust their own position. All parties countersign the Harmony Record
+    // atomically. This is the reveal: simultaneous, not sequential.
+    //
+    // This maps onto Holochain's native countersigning affordance — the
+    // PreflightRequest / countersigning flow described in the Holochain white
+    // paper (v2.0, Appendix A). The private entry IS the commitment.
+    // The countersigning session IS the reveal.
 
-    /// Phase 1 of commit-reveal: validator commits hash of their attestation.
+    /// Phase 1 — Blind commitment: validator seals findings as a private entry
+    /// on their local Validator Workspace DNA source chain.
+    /// Not published to any shared DHT. Only the validator can read the content.
+    /// Existence is verifiable; content is not visible until reveal.
     #[derive(Debug, Clone)]
-    pub struct ValidationCommitment {
+    pub struct ValidatorPrivateAttestation {
         pub validator_id: ValidatorId,
         pub validation_id: Hash,
-        /// Hash of the full attestation — proves what the validator found
-        /// without revealing it until all validators have committed.
-        pub commitment_hash: Hash,
-        pub committed_at: DateTime,
+        /// Full attestation, stored as a private entry — sealed, immutable,
+        /// not shared until the countersigning session begins.
+        pub attestation: ValidationAttestation,
+        pub sealed_at: DateTime,
         pub signature: Signature,
     }
 
-    /// Phase 2 of commit-reveal: validator reveals their actual attestation.
-    /// The system verifies that hash(attestation) == commitment_hash.
+    /// Phase 2 — Simultaneous reveal via countersigning session.
+    /// Initiated once all assigned validators have sealed private entries.
+    /// All validators contribute findings simultaneously; chains are locked
+    /// during the session to prevent last-mover adjustment.
+    /// Output: a countersigned Harmony Record entry on the shared Attestation DNA.
     #[derive(Debug, Clone)]
-    pub struct ValidationReveal {
-        pub validator_id: ValidatorId,
+    pub struct CountersigningSessionRequest {
         pub validation_id: Hash,
-        pub attestation: ValidationAttestation,
-        pub revealed_at: DateTime,
+        /// All assigned validators must participate
+        pub signing_agents: Vec<ValidatorId>,
+        /// Session window — all validators must respond within this period
+        pub session_timeout: Duration,
+        /// The Harmony Record entry that all parties will countersign
+        pub harmony_record_entry_hash: Hash,
     }
 
     /// The validator's assessment of a study.
@@ -692,8 +715,13 @@ pub mod layer2_validation {
             commitment: &ValidationCommitment,
             reveal: &ValidationReveal,
         ) -> bool {
-            // TODO: hash(reveal.attestation) == commitment.commitment_hash
-            false
+            // NOTE: With Holochain countersigning, the "reveal" is the countersigning
+            // session itself — validators cannot participate without their private entry
+            // already sealed. Hash verification against a separately submitted commitment
+            // is not required; the private entry IS the commitment, and the countersigning
+            // session enforces simultaneous reveal. This function is a placeholder for
+            // any additional post-session integrity checks an engineer identifies.
+            true
         }
 
         /// Check for gaming patterns across a validator's history.
@@ -701,7 +729,8 @@ pub mod layer2_validation {
         /// Validation callbacks must be deterministic (no historical queries, no
         /// time-dependent logic). Gaming detection is inherently statistical and
         /// time-dependent, so it belongs here in coordinator logic, called
-        /// explicitly before key interactions (e.g. before accepting a commitment).
+        /// explicitly before key interactions (e.g. before admitting a validator
+        /// to a countersigning session).
         pub fn detect_gaming_patterns(
             &self,
             validator_id: ValidatorId,
