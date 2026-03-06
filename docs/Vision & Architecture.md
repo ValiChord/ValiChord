@@ -4,10 +4,11 @@
 </div>
 
 # ValiChord 
+
 ## Vision & Architecture for End-to-End Scientific Reproducibility Infrastructure
 
 **Author:** Ceri John
-**Date:** February 2026
+**Date:** March 2026
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -115,7 +116,7 @@ A study moves through ValiChord in a clear sequence:
 
 **Assignment.** Validators are selected through constrained randomness — matched for computational competence, screened for conflicts of interest, drawn from different institutions and geographies. Assignment is double-blind: validators don't know whose work they're assessing, and they don't know who else is validating the same study.
 
-**Validation.** Each validator independently downloads the data, sets up the computational environment, runs the code, and records whether they get the same results. They document their process, time invested, barriers encountered, and confidence level. Results are submitted through a commit-reveal protocol — cryptographically committed before anyone else's findings are visible, then revealed simultaneously.
+**Validation.** Each validator independently downloads the data, sets up the computational environment, runs the code, and records whether they get the same results. They document their process, time invested, barriers encountered, and confidence level. Results are submitted through a blind commitment protocol — each validator privately seals their findings before anyone else's are visible, then all findings are revealed simultaneously when every validator has committed.
 
 **Author notification.** Before the Harmony Record is published, the original author is notified and given a defined response window. They can provide additional documentation, explain discrepancies, or flag issues the validators may have missed. Their response becomes part of the permanent record.
 
@@ -127,7 +128,7 @@ This lifecycle is the thread that connects every layer of the architecture descr
 
 ### The Name
 
-ValiChord combines "Validity" with "Chord." A chord requires multiple notes sounding together — no single note creates harmony. Reproducible validity requires multiple independent validators reaching their conclusions independently — no single researcher validates alone. The musical metaphor is deliberate: ValiChord's outputs are called Harmony Records because they preserve the full texture of agreement and disagreement, not a single flattened score.
+ValiChord combines "Validity" with "Chord." A chord requires multiple notes sounding together — no single note creates harmony. Reproducible validity requires multiple independent validators reaching their conclusions independently — no single researcher validates alone. The musical metaphor is deliberate: ValiChord's outputs are called Harmony Records because they preserve the full texture of agreement and disagreement — not a false unison where the evidence calls for a chord.
 
 ### What Makes It Different
 
@@ -143,7 +144,7 @@ This matters because gaming either end is pointless if the other end catches you
 
 Most systems that aggregate expert opinions produce a single score or verdict. ValiChord deliberately does not. When validators disagree, that disagreement is preserved in the permanent record — visible to journals, funders, and the public for a minimum of 24 months.
 
-This is a philosophical commitment, not a technical limitation. Science advances through productive disagreement. A study where six validators reproduce the results and one doesn't may be telling us something important — about hardware differences, software versions, implicit assumptions, or genuine fragility in the findings. Averaging that signal away produces a false sense of certainty. Preserving it produces honest science.
+This is a philosophical commitment, not a technical limitation. ValiChord takes the embarrassment out of inconclusive and failed results. Every outcome tells us something: a failed reproduction identifies where computation breaks down; a partial reproduction isolates a fragile dependency; a persistent disagreement signals that the field's own standards for what counts as "the same result" are unresolved. The Harmony Record preserves what each outcome tells us — not a verdict that papers over it. Science advances through productive disagreement. A study where six validators reproduce the results and one doesn't may be telling us something important — about hardware differences, software versions, implicit assumptions, or genuine fragility in the findings. Averaging that signal away produces a false sense of certainty. Preserving it produces honest science.
 
 The Harmony Record is ValiChord's canonical output. It contains: the original protocol, each validator's independent results, statistical analysis of agreement and variance, any disagreement details, hardware and software metadata, and an overall reproducibility status that explicitly includes categories like "Indeterminate" and "Persistently Indeterminate" — because sometimes the honest answer is that we don't know, and forcing a binary verdict would be dishonest.
 
@@ -229,7 +230,7 @@ This is where independent validation actually happens. The engine handles valida
 
 Validator diversity isn't a policy preference — it's an architectural requirement. For a validation to be credible, validators must be genuinely independent: different institutions, different geographies, no co-authorship networks. Three validators from the same lab network doesn't constitute independent verification, regardless of their individual competence. This creates structural demand for distributed capability — ValiChord needs qualified validators across regions and institutions to produce epistemically valid results. At the same time, participation in validation work provides under-resourced labs with funded opportunities to build institutional credibility, develop methodological skills, and establish track records of demonstrated competence. This is genuinely mutual: ValiChord needs their independence, they need the opportunity, and both sides are stronger for it.
 
-The commit-reveal protocol is central: validators submit a cryptographic commitment to their results before seeing anyone else's. Only after all validators have committed do they reveal their actual findings. This prevents the last validator from adjusting their results to match the majority — a well-known attack vector in any system where independent assessors can see each other's results before submitting.
+The blind commitment protocol is central: each validator privately seals their findings before seeing anyone else's, then all findings are revealed simultaneously once every validator has committed. This prevents the last validator from adjusting their results to match the majority — a well-known attack vector in any system where independent assessors can see each other's results before submitting. In plain terms: validators seal their findings in a tamper-proof private record first; only then does a joint session open where all findings become visible at once. This is the standard cryptographic pattern known as commit-reveal, implemented using Holochain's native private entries and countersigning mechanism.
 
 When validators disagree significantly, the system escalates: minor disagreement is documented, moderate disagreement triggers additional validators, and substantial disagreement goes to expert panel review. Disagreement is never hidden.
 
@@ -289,7 +290,7 @@ Eight layers sounds complicated. It isn't — for the people using it.
 
 A researcher submitting a study for validation sees a form. They upload their data, describe their methods, specify their claims, and click submit. They don't know about content-addressed storage, cryptographic hashing, or DHT propagation. They uploaded a file and filled in some fields. Layer 0 handled the rest.
 
-A validator receives an assignment. They see a clear brief: here's the study, here's the data, here's what they claimed, here's what you need to check. They download the data, run the code, write up what happened, and submit their assessment. They don't know about commit-reveal protocols, collusion detection, or reputation scoring. They did a piece of professional work and got paid for it. Layers 2, 4, and 6 handled the rest.
+A validator receives an assignment. They see a clear brief: here's the study, here's the data, here's what they claimed, here's what you need to check. They download the data, run the code, write up what happened, and submit their assessment. They don't need to understand blind commitment protocols, collusion detection, or reputation scoring. They did a piece of professional work and got paid for it. Layers 2, 4, and 6 handled the rest.
 
 A journal editor queries a DOI. They see a Harmony Record: seven validators, six successful reproductions, one partial, high confidence, one disagreement documented. They don't know about provenance graphs, governance hardening, or anti-gaming mechanisms. They got a clear, honest answer about whether the study reproduces. Layers 3, 5, and 7 handled the rest.
 
@@ -370,6 +371,103 @@ Some will submit because institutions expect it. Researchers didn't voluntarily 
 And some will submit knowing their work might not reproduce — because that is also a contribution. In the current system, a failed replication is a career embarrassment. In ValiChord, a study that doesn't reproduce generates a Harmony Record documenting *why* — version dependencies, hardware sensitivities, undocumented steps, genuine fragility in the findings. That is valuable scientific knowledge. The researcher who submitted didn't fail; they helped the field understand the boundaries of their own work. This only holds if ValiChord's culture, governance, and public communications consistently treat non-reproduction as information rather than indictment — which is why the Harmony Record preserves context, not just verdicts.
 
 The honest answer is that voluntary submission will drive early adoption, but institutional integration will drive scale. Phase 0 does not depend on solving the adoption question — it requires only 8-10 study authors willing to have their published work validated. Phase 1 is where adoption strategy becomes critical, informed by Phase 0 evidence about what validation actually involves.
+
+---
+
+## Open Design Questions
+
+The following fourteen questions do not have complete answers yet. They are documented here because they are the questions that funders, ethics boards, journal editors, and institutional partners will ask first — and because honest acknowledgment of open problems is more credible than silence.
+
+Each question has precedents in existing reproducibility initiatives, a likely ValiChord approach, and a phase that resolves it. The full treatment — precedents, reasoning, and resolution timelines — is in the companion document *ValiChord Open Design Questions*.
+
+1. Do original authors need to consent to validation?
+2. Who pays for compute?
+3. What happens after a negative Harmony Record?
+4. What is the original author's right of reply?
+5. How are Phase 0 studies selected?
+6. How is restricted and sensitive research handled?
+7. What if Holochain stalls or fails?
+8. How are validators trained and calibrated?
+9. How is a flawed Harmony Record corrected?
+10. How are records preserved long-term?
+11. How is validator identity verified at scale?
+12. What about submission-side cherry-picking?
+13. How is cross-border data jurisdiction managed?
+14. Who pays for persistently indeterminate validation outcomes?
+
+*This is the most critical unresolved economic question in ValiChord's design and receives full treatment — including precedents, current thinking, and the re-submission pathway — in the companion document* ValiChord Open Design Questions.
+
+---
+
+## Where We Are Now
+
+### What Exists
+
+**A validated concept.** The architecture has been designed, reviewed, and confirmed as technically feasible by Paul D'Aoust (Documentation and Developer Community Lead, Holochain Foundation) and Shin Sakamoto, an independent Holochain application developer. Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, providing detailed implementation guidance including the multi-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the Technical Reference and MVP Specification and confirmed the approach is sound. The individual technical components — content-addressed storage, blind commitment via private source chain entries and countersigned reveal (commit-reveal), distributed hash tables, collusion detection — are all established, proven patterns. What's novel is their combination for this specific purpose.
+
+**Illustrative architecture and a Rust scaffold.** The Technical Reference contains detailed pseudocode sketches — data structures, system flows, and component interactions — developed across twelve months of architectural design. A Rust scaffold translating those sketches into the actual implementation language has also been produced. Neither has been compiled or tested; both are design intent documents that give an engineer a precise starting point rather than a blank page.
+
+**A governance framework.** The social layer — addressing institutional capture, validator gaming, domestication pressure, and the perverse incentives that killed previous attempts — has been designed and stress-tested through extensive adversarial analysis. This is detailed in its own companion document.
+
+**Institutional conversations.** Discussions have been initiated with both Cardiff University and Swansea University regarding academic partnership and institutional hosting. The Holochain Foundation has confirmed technical feasibility. Potential partnerships with UKRN, Centre for Open Science, and the Software Sustainability Institute have been identified.
+
+### What Doesn't Exist Yet
+
+**No working software.** The Rust scaffold and pseudocode sketches in the Technical Reference are design intent documents, not functional code. Nothing has been compiled, tested, or deployed. They are the starting point for an engineering conversation, not the output of one.
+
+**No confirmed team.** The lead engineer role is unfilled. Shin Sakamoto, an independent Holochain application developer, has been identified as a target candidate but has not been formally recruited. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
+
+**No confirmed partnerships.** University discussions (Cardiff and Swansea) are at an early stage. No letters of support have been secured. No institutional commitments exist beyond the Holochain Foundation's confirmation of technical feasibility.
+
+**No empirical evidence.** The critical assumption — that validators will participate — is untested. Phase 0 exists specifically to test it.
+
+This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. It is a thoroughly designed concept, not an operational system. The next step is to test its most critical assumption.
+
+---
+
+## The Competitive Landscape
+
+ValiChord is complementary to, not competitive with, existing reproducibility initiatives:
+
+**Registered Reports** pre-register hypotheses and methods. ValiChord adds back-end computational validation. Together, they cover the full lifecycle.
+
+**OSF / Center for Open Science** stores data and manages projects. ValiChord validates what's stored. OSF is a potential integration partner, not a competitor.
+
+**CodeCheck / ReproZip** provide technical reproducibility tooling. ValiChord provides the coordination, governance, and certification layer that these tools operate within.
+
+**Automated CI/CD approaches** (Docker, containerised pipelines, GitHub Actions) can verify that code *runs* and produces *outputs*. They cannot assess whether those outputs *make sense*. Automated testing cannot flag physically impossible intermediate values, notice that a data preprocessing step is undocumented, identify that code ran but produced garbage because of an environment difference, or judge whether partial reproduction counts as success. The gap between "code executed without errors" and "results are scientifically reproducible" is precisely where human judgement is required. ValiChord uses human validators not as a limitation to be automated away, but because the assessment being made — does this study's computation actually reproduce its claimed findings? — requires the kind of contextual reasoning that automation cannot provide. Automated tools are valuable complements (and may handle triage and pre-screening in later phases), but they cannot replace the core validation function.
+
+**UK Reproducibility Network** drives culture change and training. ValiChord provides the infrastructure that culture change needs in order to become operational.
+
+**Journal data mandates** create policy requirements. ValiChord provides the missing mechanism for verifying compliance.
+
+The specific gap ValiChord fills: if journals mandate validation, if funders require third-party verification, if repositories need computational checks — **will qualified researchers actually do this work, and at what cost?** No existing initiative answers this question. Phase 0 does.
+
+---
+
+## Why This Matters
+
+The reproducibility crisis is not an abstract academic concern. It wastes hundreds of billions in research funding. It delays treatments that could save lives. It undermines public trust in science at a moment when that trust is essential.
+
+Every previous attempt to address it has failed — not because the technology was wrong, but because the social dynamics were ignored. ValiChord is designed from the ground up to address both the technical and the social dimensions of the problem, across the entire research lifecycle, with explicit resistance to the institutional pressures that domesticated every previous attempt.
+
+The technology is proven. The architecture is validated. The governance is designed. The critical unknown — will validators participate? — is testable.
+
+The next step is to test it.
+
+---
+
+**Companion Documents:**
+- *ValiChord Technical Reference* — Architecture sketches for engineering discussion
+- *ValiChord Governance Framework* — Tiered governance from pilot to mature system
+- *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
+- *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
+
+**Contact:** Ceri John — topeuph@gmail.com
+
+**© 2026 Ceri John. All Rights Reserved.**
+
 
 ---
 
