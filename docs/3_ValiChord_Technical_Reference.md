@@ -107,7 +107,7 @@ The eight layers describe functional responsibilities, not a central stack. In t
 
 ValiChord is designed as a set of distinct, composable Holochain applications (DNAs) rather than a single monolithic application. Each DNA creates its own encrypted peer-to-peer network with its own **membrane** — the boundary that governs who can join that network and what data is shared within it.
 
-This is the recommended pattern for Holochain applications where different participants need different data spaces. Multiple small, focused apps communicating through bridges is architecturally cleaner, easier to update, and more stable than a single large application managing access internally. In distributed software, updates require every participant to upgrade simultaneously — keeping each DNA small and stable minimises how often this is necessary.
+This is the recommended pattern for Holochain applications where different participants need different data spaces. Multiple small, focused apps communicating through bridges is architecturally cleaner, easier to update, and more stable than a single large application managing access internally. In distributed software, updates to an integrity zome change the DNA's identity, creating a new separate network — participants do not need to upgrade simultaneously, but must eventually upgrade to enter the new shared space. Keeping each DNA small and stable minimises how often this migration is necessary. (Note: Holochain is actively developing features to ease version continuity, but these are not yet fully implemented.)
 
 Each DNA creates a distinct networked organism: even where two DNAs share identical code, small configuration differences — including a **network seed**, a unique property baked into each instance — make them separate organisms that will only synchronise among their own nodes. This is the mechanism that makes the privacy separation absolute: the Researcher Repository DNA and the Attestation DNA are not the same network with different access rules applied; they are genuinely different networks that happen to share some code patterns.
 
@@ -200,9 +200,11 @@ pub enum StorageLocation {
 
 ### GDPR Compliance: Data/Proof Separation
 
-**Challenge:** Patient data requires "right to be forgotten" (GDPR Article 17).
+**Challenge:** ValiChord processes personal data (researcher identities, institutional affiliations, validation records). EU data subjects have rights under GDPR including rights of access, rectification, and erasure. The architecture must handle these without undermining the integrity of the validation record.
 
-**Solution:** In the multi-DNA architecture, GDPR compliance is structurally enforced: sensitive data lives in the private Researcher Repository DNA and cannot enter the shared Attestation DHT by design. The hash approach below provides an additional layer — useful for any data summary properties that do need to travel to the Attestation layer — but the membrane is the primary protection, not a policy overlay on top of a shared system.
+**A note on Article 17 ("right to be forgotten"):** This right is frequently cited in distributed systems discussions but is more nuanced than commonly understood. Article 17(3)(d) provides a research exemption: the right to erasure does not apply where compliance would render scientific research objectives impossible or seriously impaired (subject to Article 89 safeguards). For most ValiChord validation records, this exemption is likely to apply — a validator cannot retrospectively erase their attestation without undermining the integrity of the entire record. The more substantive privacy concern for ValiChord is not erasure rights but the principle of data minimisation: sensitive data should not enter the shared DHT in the first place.
+
+**Solution:** In the multi-DNA architecture, privacy is structurally enforced: sensitive data lives in the private Researcher Repository DNA and cannot enter the shared Attestation DHT by design. The membrane is the primary protection — not a policy overlay on top of a shared system, but a genuine architectural separation. The hash approach below provides an additional layer for any data summary properties that do need to travel to the Attestation layer.
 
 ```rust
 pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> Hash {
@@ -1537,7 +1539,7 @@ pub struct PortfolioSummary {
 
 Holochain is agent-centric rather than data-centric. Each participant maintains their own source chain of actions; only cryptographic proofs are shared to a Distributed Hash Table (DHT). This solves the three problems that killed blockchain-based reproducibility systems:
 
-**GDPR compliance:** Sensitive data stays local, deletable on request. Only one-way hashes go to the DHT. Article 17 compliance maintained.
+**GDPR compliance:** Sensitive data stays local and never enters the shared DHT — data minimisation is architecturally enforced, not just policy. Where erasure rights do apply, they can be exercised against the private DNA without touching the shared attestation record.
 
 **Cost:** No mining, no proof-of-work, no transaction fees. Universities run lightweight nodes. Estimated implementation cost: £50–100K vs. £500K–2M for blockchain equivalents.
 
@@ -1555,15 +1557,158 @@ For ValiChord, this distinction shapes the phase strategy directly. The core dat
 
 Holochain 0.8 (currently in planning) includes "Coordinator Updates: a new feature to allow updates of an application's business logic" as an explicit roadmap item, further strengthening this separation.
 
-### Why Holochain, Not Blockchain
+### Link Types, Anchors, and Paths: Making Data Queryable
 
-Holochain is agent-centric rather than data-centric. Each participant maintains their own personal record of actions on Holochain; only cryptographic proofs are shared to a distributed network. This solves the three problems that killed blockchain-based reproducibility systems:
+Holochain has no global query. Every piece of data is content-addressed — you can only retrieve it if you already know its hash. This creates a discovery problem: how do you find "all studies from Cardiff University" or "all validations by this validator" without a central index?
 
-**GDPR compliance:** Sensitive data stays local, deletable on request. Only one-way hashes reach the shared network. Article 17 compliance maintained.
+The solution is a graph database built from **links**, **anchors**, and **paths**. A link connects a known address (the base) to an unknown one (the target), turning the DHT into a traversable graph. An anchor is simply a small string entry whose address is easy to calculate from its content — you hash the string and retrieve whatever is attached to that address. Links and anchors together solve the discovery problem: you pre-compute the anchor address from a known string, then follow links from it to find all the data hanging off it.
 
-**Cost:** No mining, no proof-of-work, no transaction fees. Universities run lightweight nodes. Estimated implementation cost: £50–100K vs. £500K–2M for blockchain equivalents.
+**Link types** are defined in the integrity zome alongside entry types, using the `hdk_link_types` macro on an enum. Each link type is named and validated separately. Coordinator zomes then use `create_link(base, target, link_type, tag)` to create links and `get_links(base, link_type_filter)` to retrieve them. ValiChord's integrity zomes need the following link type definitions:
 
-**Performance:** No global consensus requirement. Validation happens locally; proofs are shared globally. Scales with participants rather than bottlenecking on consensus.
+Each DNA has its own integrity zome with its own `#[hdk_link_types]` enum — these are not shared across DNAs.
+
+```rust
+// --- Attestation DNA integrity zome ---
+#[hdk_link_types]
+pub enum LinkTypes {
+    StudyToValidation,      // study entry → validation entries for that study
+    ValidatorToValidation,  // agent pubkey → validation entries they authored
+    StudyToHarmonyRecord,   // study entry → resulting harmony record
+    StudyStatusPath,        // path anchor → study entry (for status-based queries)
+    InstitutionPath,        // path anchor → study entry (for institution-based queries)
+    DisciplinePath,         // path anchor → validation entry (for discipline queries)
+}
+
+// --- Governance DNA integrity zome ---
+#[hdk_link_types]
+pub enum LinkTypes {
+    ValidatorToReputation,  // agent pubkey → their reputation record
+}
+
+// --- Researcher Repository DNA integrity zome (private membrane) ---
+#[hdk_link_types]
+pub enum LinkTypes {
+    StudyToDataset,         // study entry → dataset entries (never leaves private DNA)
+}
+```
+
+**Paths** extend anchors into hierarchies. `Path::from("studies\0cardiff_university")` creates a two-component path where each component is linked to the next, forming a tree. The HDK ensures intermediate nodes exist before the leaf is created, so you can traverse from `"studies"` down to `"studies\0cardiff_university"` and find all studies registered under that branch. ValiChord's principal query paths are:
+
+| Query | Path |
+|---|---|
+| All studies by institution | `studies\0{institution_id}` |
+| All validations by discipline | `validations\0{discipline_slug}` |
+| Studies by status | `studies\0status\0{active\|completed\|retracted}` |
+| Validators by certification level | `validators\0{tier}` |
+
+**Hotspot prevention with path sharding.** When a single anchor accumulates thousands of links, the DHT nodes responsible for that address become overloaded — this is the hotspot problem. Holochain's Path struct includes a built-in sharding DSL: prefix a path component with `<width>:<depth>#` to distribute load across multiple nodes. For example, `"2:1#cardiff_university"` takes the first 2 characters at depth 1, creating intermediate nodes `"ca"`, `"cb"` etc. that spread links across different parts of the hash space.
+
+For ValiChord at Phase 1 scale (hundreds of studies), simple paths without sharding are adequate. At Phase 2 scale (thousands of studies, multiple institutions), the institution paths should be sharded by the first two characters of the institution identifier. The path sharding strategy belongs in the coordinator zome logic — it does not affect the integrity zome definitions and can be updated without forcing a network migration.
+
+> **Engineering note for scaffolding session:** Arthur specifically flagged that the Holochain scaffolding tool asks explicit questions about collections and link structures. The link type enum above and the path table should be treated as the answer to those questions. Each `Path` also needs a corresponding `TypedPath` (via `path.typed(LinkTypes::InstitutionPath)`) so the HDK knows which link type to use when creating and querying path-based links.
+
+---
+
+### Data Validation Rules in Integrity Zomes
+
+In Holochain, "validation" has two distinct meanings. Scientific validation — whether a study's methodology was sound — is ValiChord's subject matter. Holochain-level data validation is something different: it is the code that decides whether any given DHT operation is structurally and logically permitted, enforced by every peer independently before they store or serve data.
+
+Every integrity zome must implement a `validate(op: Op)` callback. Holochain calls this function twice: first when an agent authors a record (before it is committed to their source chain), and again when a peer receives the corresponding DHT operations for storage. Because every node runs the same code, there is no trusted authority — invalid data simply cannot propagate. The function must be purely deterministic: no random numbers, no system clock, no mutable state. Dependencies are retrieved using `must_get_*` functions rather than live DHT queries.
+
+The `Op` enum covers all seven DHT operation types: `StoreRecord`, `StoreEntry`, `RegisterUpdate`, `RegisterDelete`, `RegisterCreateLink`, `RegisterDeleteLink`, and `RegisterAgentActivity`. Each operation carries the relevant action and entry data. The validation function pattern-matches on these to enforce rules appropriate to each operation type.
+
+**ValiChord's required validation rules by DNA:**
+
+*Attestation DNA (shared, public):*
+
+```rust
+#[hdk_extern]
+pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
+
+        // Validation attestations FIRST — guarded arms must precede the
+        // catch-all arms below, otherwise Rust's match ordering means the
+        // unguarded RegisterUpdate/RegisterDelete arms will always fire first
+        // and the immutability guarantee will never be enforced.
+        FlatOp::RegisterUpdate(OpUpdate { original_action, .. })
+            if matches!(
+                must_get_action(original_action.clone())?.action().entry_type(),
+                Some(EntryType::App(app)) if app.id() == EntryTypesId::ValidationAttestation
+            ) =>
+        {
+            Ok(ValidateCallbackResult::Invalid(
+                "Validation attestations cannot be updated after publication".into()
+            ))
+        }
+
+        FlatOp::RegisterDelete(OpDelete { original_action, .. })
+            if matches!(
+                must_get_action(original_action.clone())?.action().entry_type(),
+                Some(EntryType::App(app)) if app.id() == EntryTypesId::ValidationAttestation
+            ) =>
+        {
+            Ok(ValidateCallbackResult::Invalid(
+                "Validation attestations cannot be deleted — the record is permanent".into()
+            ))
+        }
+
+        // Study entries: only the original researcher may update or delete
+        FlatOp::RegisterUpdate(OpUpdate { original_action, .. }) => {
+            let original = must_get_action(original_action)?;
+            if op.action().author() != original.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may update a study entry".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        FlatOp::RegisterDelete(OpDelete { original_action, .. }) => {
+            let original = must_get_action(original_action)?;
+            if op.action().author() != original.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may delete a study entry".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // Harmony Records: countersignature check (all assigned validators must have signed)
+        // Uses validation_summary fields from the actual HarmonyRecord struct —
+        // successful + partial + failed + inconclusive must equal total_validators.
+        FlatOp::StoreEntry(OpEntry::CreateEntry { entry_type: EntryTypes::HarmonyRecord(record), .. }) => {
+            let summary = &record.validation_summary;
+            let signed_count = summary.successful_validations
+                + summary.partial_validations
+                + summary.failed_validations
+                + summary.inconclusive_validations;
+            if signed_count < summary.total_validators {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Harmony Record requires attestations from all assigned validators".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
+```
+
+*Governance DNA:*
+
+- Reputation updates: only the system coordinator agent (defined in the membrane proof) may write reputation scores. Individual validators cannot edit their own scores.
+- Warrant records: any peer may create a warrant for another agent, but the warrant must reference a valid action hash pointing to the violation.
+
+*Researcher Repository DNA (private membrane):*
+
+- Within the private DNA, the researcher is the only participant — standard Holochain source chain integrity (sequence numbers, signatures) is sufficient. No custom validation rules are needed beyond the system defaults.
+
+**The relationship to scientific validation:** These rules are enforced before data reaches the DHT. They are not about whether the science was done correctly — that is ValiChord's purpose. They are about whether the *record of that science* was written by the right agent, at the right time, in the right form. Getting them right during integrity zome design is critical: they cannot be relaxed after deployment without migrating to a new DNA. The rule that attestations are immutable is particularly important — it is the technical guarantee underpinning ValiChord's core promise that validation records cannot be retroactively altered.
+
+> **Engineering note:** The scaffolding tool generates stub validation functions that return `ValidateCallbackResult::Valid` for all operations. These stubs must be replaced with the rules above before any production deployment. Leaving stubs in place means the system accepts any action from any agent — the scientific fraud prevention the document describes would not actually be enforced at the protocol level.
+
+---
 
 ### Phase 0 Pragmatism
 
@@ -1682,3 +1827,4 @@ The first wave of submissions will come disproportionately from reproducibility 
 **Contact:** Ceri John — topeuph@gmail.com
 
 **© 2026 Ceri John. All Rights Reserved.**
+
