@@ -173,15 +173,26 @@ pub mod layer0_data {
         pub publication_doi: Option<String>,
     }
 
-    /// GDPR compliance: sensitive data stays local, only salted hashes
-    /// go to the DHT. This is Holochain's killer feature for ValiChord.
+    /// Hash a research dataset for transmission to the Attestation DHT.
+    ///
+    /// Privacy by architecture: sensitive data never enters the shared DHT —
+    /// it stays in the private Researcher Repository DNA. Only this hash travels
+    /// to the Attestation layer. This is data minimisation enforced structurally,
+    /// not just by policy.
+    ///
+    /// Note on salting: Holochain Actions already carry unique properties
+    /// (identity + timestamp, carried forward through chaining), so explicit
+    /// random salting is unnecessary for Action/Record hashes. For *research
+    /// data* hashes (where the content being hashed is a dataset, not a
+    /// Holochain action), salting may still be warranted to prevent pre-image
+    /// attacks on known datasets. Salt is transmitted off-DHT from data
+    /// custodian to validator. Serialisation consistency (identical byte
+    /// representation before hashing) is the more fundamental concern.
     pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> Hash {
         // TODO: Use proper SHA-256 via an external crate (ring or sha2).
         // Holochain has no built-in SHA-256 function — its native hashing is
         // Blake2b-256 (used internally for Actions and DHT addressing).
         // SHA-256 must come from an external crate compiled into the WASM zome.
-        // The salt prevents rainbow table attacks on the hash.
-        // Salt is transmitted off-DHT from data custodian to validator.
         let mut combined = data.to_vec();
         combined.extend_from_slice(salt);
         [0u8; 32] // Placeholder
@@ -1440,13 +1451,141 @@ pub mod layer8_presentation {
 //   - ValidationTask → Attestation: Link
 //   - Protocol → HarmonyRecord: Link
 //
-// Validation callbacks → Holochain validate() functions (integrity zome)
-//   - validate_create_entry: check data integrity, signatures
-//   - validate_update_entry: check modification permissions
-//   - validate_delete_entry: GDPR deletion rights
-//   - validate_create_link: check relationship permissions
-//   - validate_agent_joining: membrane proof validation (can access DHT,
-//       unlike genesis_self_check which runs before network join)
+// The LinkTypes enum below and the path table make these relationships
+// queryable. Without them, data is stored but not discoverable —
+// Holochain has no global query; every collection must be traversable
+// via get_links(base, link_type) from a known anchor or path.
+
+/// Link types — defined per DNA, not shared across DNAs.
+/// Each DNA's integrity zome gets its own #[hdk_link_types] enum.
+///
+/// Paths for collection discovery (no global query exists in Holochain):
+///   "studies\0{institution_id}"              → all studies from an institution
+///   "studies\0status\0{active|completed}"    → studies by status
+///   "validations\0{discipline_slug}"         → validations by discipline
+///   "validators\0{tier}"                     → validators by certification tier
+///
+/// Hotspot prevention: at Phase 2+ scale, prefix path components with
+///   "<width>:<depth>#"  e.g. "2:1#cardiff_university"
+/// to shard large collections across the DHT hash space. Not needed at
+/// Phase 0/1 scale. Lives in coordinator logic only — does not affect
+/// these enums or the integrity zomes.
+
+// --- Attestation DNA integrity zome ---
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttestationLinkTypes {
+    StudyToValidation,      // study entry → all validation entries for that study
+    ValidatorToValidation,  // agent pubkey → all validations authored by that agent
+    StudyToHarmonyRecord,   // study entry → resulting harmony record (not reverse)
+    StudyStatusPath,        // path anchor → study entry (queryable by status)
+    InstitutionPath,        // path anchor → study entry (queryable by institution)
+    DisciplinePath,         // path anchor → validation entry (queryable by discipline)
+}
+
+// --- Governance DNA integrity zome ---
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GovernanceLinkTypes {
+    ValidatorToReputation,  // agent pubkey → reputation record
+}
+
+// --- Researcher Repository DNA integrity zome (private membrane) ---
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepositoryLinkTypes {
+    StudyToDataset,         // study entry → dataset entries (never leaves private DNA)
+}
+
+/// Op variants relevant to ValiChord's validation rules.
+/// Simplified stand-in for Holochain's Op enum — the real implementation
+/// uses op.flattened::<EntryTypes, LinkTypes>() to pattern match.
+/// Full Rust stubs with HDK types are in the Technical Reference.
+#[derive(Debug)]
+pub enum ValidateOpType {
+    UpdateStudy    { original_author: AgentId },
+    DeleteStudy    { original_author: AgentId },
+    UpdateAttestation,
+    DeleteAttestation,
+    /// signed_count: sum of successful + partial + failed + inconclusive
+    /// from ValidationSummary — HarmonyRecord has no validator_signatures field
+    CreateHarmonyRecord { signed_count: u8, total_validators: u8 },
+    Other,
+}
+
+/// Stub for the unified validate(op: Op) callback (integrity zome).
+///
+/// Modern Holochain uses ONE unified callback, not per-action callbacks.
+///
+/// CRITICAL ORDERING: guarded arms (attestation immutability) MUST come
+/// before unguarded arms (author check). Rust evaluates match arms in
+/// order — if the unguarded arm comes first it catches everything and the
+/// guarded arms below it are unreachable. The immutability guarantee
+/// silently disappears without a compile error. This is the single most
+/// important structural point in this stub.
+///
+/// Key rules:
+///   1. ValidationAttestation entries: immutable after publication (no update/delete)
+///   2. Study entries: only original author may update or delete
+///   3. HarmonyRecord: all assigned validators must have submitted attestations
+pub fn validate_stub(op_author: AgentId, op_type: ValidateOpType) -> Result<()> {
+    match op_type {
+        // Attestation immutability — MUST be first (see ordering note above)
+        ValidateOpType::UpdateAttestation => {
+            Err(ValiChordError::Unauthorized(
+                "Validation attestations cannot be updated after publication".into()
+            ))
+        }
+        ValidateOpType::DeleteAttestation => {
+            Err(ValiChordError::Unauthorized(
+                "Validation attestations cannot be deleted — the record is permanent".into()
+            ))
+        }
+        // Author check for study entries — after attestation arms
+        ValidateOpType::UpdateStudy { original_author } |
+        ValidateOpType::DeleteStudy { original_author } => {
+            if op_author != original_author {
+                return Err(ValiChordError::Unauthorized(
+                    "Only the original author may modify or delete a study entry".into()
+                ));
+            }
+            Ok(())
+        }
+        // HarmonyRecord: check via validation_summary fields (the actual struct
+        // has no validator_signatures field — use successful + partial + failed
+        // + inconclusive against total_validators)
+        ValidateOpType::CreateHarmonyRecord { signed_count, total_validators } => {
+            if signed_count < total_validators {
+                return Err(ValiChordError::QuorumNotMet {
+                    required: total_validators,
+                    received: signed_count,
+                });
+            }
+            Ok(())
+        }
+        ValidateOpType::Other => Ok(()),
+    }
+}
+
+// Validation callback → single validate(op: Op) function (integrity zome)
+//
+//   Modern Holochain uses ONE unified callback, not per-action callbacks.
+//   The Op enum covers all seven DHT operation types:
+//     StoreRecord, StoreEntry, RegisterUpdate, RegisterDelete,
+//     RegisterCreateLink, RegisterDeleteLink, RegisterAgentActivity.
+//   Pattern-match on op.flattened::<EntryTypes, LinkTypes>() to dispatch.
+//
+//   ValiChord's required rules (see validate_stub above for shape;
+//   see Technical Reference for full HDK Rust stubs):
+//     RegisterUpdate / RegisterDelete on study entries:
+//       → only the original author may modify or delete
+//     RegisterUpdate / RegisterDelete on ValidationAttestation entries:
+//       → INVALID always — attestations are immutable once published
+//     StoreEntry on HarmonyRecord:
+//       → validator_signatures.len() must equal required_validator_count
+//     RegisterAgentActivity (CreateAgent):
+//       → membrane proof must be valid
+//
+//   genesis_self_check() runs BEFORE network join (no DHT access) — check
+//   membrane proof format only. validate() runs after join and can use
+//   must_get_* to retrieve dependencies.
 //
 // CRITICAL CONSTRAINT: validate() callbacks must be fully deterministic.
 //   No time-dependent logic, no historical queries, no statistical patterns.
