@@ -4,7 +4,6 @@
 </div>
 
 # ValiChord 
-
 ## Vision & Architecture for End-to-End Scientific Reproducibility Infrastructure
 
 **Author:** Ceri John
@@ -468,99 +467,3 @@ The next step is to test it.
 
 **© 2026 Ceri John. All Rights Reserved.**
 
-
----
-
-## Open Design Questions
-
-The following fourteen questions do not have complete answers yet. They are documented here because they are the questions that funders, ethics boards, journal editors, and institutional partners will ask first — and because honest acknowledgment of open problems is more credible than silence.
-
-Each question has precedents in existing reproducibility initiatives, a likely ValiChord approach, and a phase that resolves it. The full treatment — precedents, reasoning, and resolution timelines — is in the companion document *ValiChord Open Design Questions*.
-
-1. Do original authors need to consent to validation?
-2. Who pays for compute?
-3. What happens after a negative Harmony Record?
-4. What is the original author's right of reply?
-5. How are Phase 0 studies selected?
-6. How is restricted and sensitive research handled?
-7. What if Holochain stalls or fails?
-8. How are validators trained and calibrated?
-9. How is a flawed Harmony Record corrected?
-10. How are records preserved long-term?
-11. How is validator identity verified at scale?
-12. What about submission-side cherry-picking?
-13. How is cross-border data jurisdiction managed?
-14. Who pays for persistently indeterminate validation outcomes?
-
-*This is the most critical unresolved economic question in ValiChord's design and receives full treatment — including precedents, current thinking, and the re-submission pathway — in the companion document* ValiChord Open Design Questions.
-
----
-
-## Where We Are Now
-
-### What Exists
-
-**A validated concept.** The architecture has been designed, reviewed, and confirmed as technically feasible by Paul D'Aoust (Documentation and Developer Community Lead, Holochain Foundation) and Shin Sakamoto, an independent Holochain application developer. Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, providing detailed implementation guidance including the multi-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the Technical Reference and MVP Specification and confirmed the approach is sound. The individual technical components — content-addressed storage, commit-reveal protocols, distributed hash tables, collusion detection — are all established, proven patterns. What's novel is their combination for this specific purpose.
-
-**A governance framework.** The social layer — addressing institutional capture, validator gaming, domestication pressure, and the perverse incentives that killed previous attempts — has been designed and stress-tested through extensive adversarial analysis. This is detailed in its own companion document.
-
-**Illustrative technical architecture.** Detailed architecture sketches describing data structures, system flows, and component interactions have been developed for engineering discussion. These are design intent documents, not implementation code. They are detailed in the Technical Reference companion document.
-
-**Institutional conversations.** Discussions have been initiated with both Cardiff University and Swansea University regarding academic partnership and institutional hosting. The Holochain Foundation has confirmed technical feasibility. Potential partnerships with UKRN, Centre for Open Science, and the Software Sustainability Institute have been identified.
-
-### What Doesn't Exist Yet
-
-**No code.** No prototype has been built. No software exists. The architecture sketches are illustrative, not functional.
-
-**No confirmed team.** The lead engineer role is unfilled. Shin Sakamoto, an independent Holochain application developer, has been identified as a target candidate but has not been formally recruited. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
-
-**No confirmed partnerships.** University discussions (Cardiff and Swansea) are at an early stage. No letters of support have been secured. No institutional commitments exist beyond the Holochain Foundation's confirmation of technical feasibility.
-
-**No empirical evidence.** The critical assumption — that validators will participate — is untested. Phase 0 exists specifically to test it.
-
-This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. It is a thoroughly designed concept, not an operational system. The next step is to test its most critical assumption.
-
----
-
-## The Competitive Landscape
-
-ValiChord is complementary to, not competitive with, existing reproducibility initiatives:
-
-**Registered Reports** pre-register hypotheses and methods. ValiChord adds back-end computational validation. Together, they cover the full lifecycle.
-
-**OSF / Center for Open Science** stores data and manages projects. ValiChord validates what's stored. OSF is a potential integration partner, not a competitor.
-
-**CodeCheck / ReproZip** provide technical reproducibility tooling. ValiChord provides the coordination, governance, and certification layer that these tools operate within.
-
-**Automated CI/CD approaches** (Docker, containerised pipelines, GitHub Actions) can verify that code *runs* and produces *outputs*. They cannot assess whether those outputs *make sense*. Automated testing cannot flag physically impossible intermediate values, notice that a data preprocessing step is undocumented, identify that code ran but produced garbage because of an environment difference, or judge whether partial reproduction counts as success. The gap between "code executed without errors" and "results are scientifically reproducible" is precisely where human judgement is required. ValiChord uses human validators not as a limitation to be automated away, but because the assessment being made — does this study's computation actually reproduce its claimed findings? — requires the kind of contextual reasoning that automation cannot provide. Automated tools are valuable complements (and may handle triage and pre-screening in later phases), but they cannot replace the core validation function.
-
-**UK Reproducibility Network** drives culture change and training. ValiChord provides the infrastructure that culture change needs in order to become operational.
-
-**Journal data mandates** create policy requirements. ValiChord provides the missing mechanism for verifying compliance.
-
-The specific gap ValiChord fills: if journals mandate validation, if funders require third-party verification, if repositories need computational checks — **will qualified researchers actually do this work, and at what cost?** No existing initiative answers this question. Phase 0 does.
-
----
-
-## Why This Matters
-
-The reproducibility crisis is not an abstract academic concern. It wastes hundreds of billions in research funding. It delays treatments that could save lives. It undermines public trust in science at a moment when that trust is essential.
-
-Every previous attempt to address it has failed — not because the technology was wrong, but because the social dynamics were ignored. ValiChord is designed from the ground up to address both the technical and the social dimensions of the problem, across the entire research lifecycle, with explicit resistance to the institutional pressures that domesticated every previous attempt.
-
-The technology is proven. The architecture is validated. The governance is designed. The critical unknown — will validators participate? — is testable.
-
-The next step is to test it.
-
----
-
-**Companion Documents:**
-- *ValiChord Technical Reference* — Architecture sketches for engineering discussion
-- *ValiChord Governance Framework* — Tiered governance from pilot to mature system
-- *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
-- *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
-
-**Contact:** Ceri John — topeuph@gmail.com
-
-**© 2026 Ceri John. All Rights Reserved.**
