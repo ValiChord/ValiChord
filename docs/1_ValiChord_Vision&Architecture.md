@@ -3,11 +3,12 @@
   <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
-# ValiChord 
+# ValiChord
 ## Vision & Architecture for End-to-End Scientific Reproducibility Infrastructure
 
 **Author:** Ceri John
 **Date:** March 2026
+**Version:** 11
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -73,7 +74,7 @@ Dryad, Figshare, Zenodo, and institutional repositories were built to make data 
 
 ### Blockchain: GDPR Violation Machines
 
-Multiple blockchain-based reproducibility projects launched between 2018 and 2023. All failed or were abandoned. The fundamental problem is that blockchain's core feature — immutability — directly conflicts with the EU's General Data Protection Regulation, which requires the ability to delete personal data on request. Patient data cannot go on an immutable public ledger. Beyond the legal problem, blockchain solutions were prohibitively expensive ($500K–2M to implement, $50–200K per year for validator nodes) and too slow for large-dataset validation. Universities couldn't justify the costs.
+Multiple blockchain-based reproducibility projects launched between 2018 and 2023. All failed or were abandoned. The fundamental problem is that blockchain's core feature — immutability — creates severe tension with the EU's General Data Protection Regulation. The GDPR's data minimisation principle requires that sensitive data not be shared beyond what is necessary; putting patient data on a public immutable ledger violates this at the point of storage, not merely on request for erasure. Patient data cannot go on an immutable public ledger. Beyond the legal problem, blockchain solutions were prohibitively expensive ($500K–2M to implement, $50–200K per year for validator nodes) and too slow for large-dataset validation. Universities couldn't justify the costs.
 
 ### Journal Policies: Mandates Without Enforcement
 
@@ -172,10 +173,10 @@ Blockchain's fundamental design — a single global ledger where every node stor
 
 Holochain is architecturally different. It's agent-centric rather than data-centric: each participant maintains their own source chain of actions, and only cryptographic proofs are shared to a distributed hash table (DHT). Arthur Brock, Holochain's co-founder, describes the result as **intrinsic data integrity**: information is self-validating, packaged so that any tampering breaks the packaging and is immediately detectable by other participants. This means:
 
-- **GDPR compliance by design.** Sensitive data stays local with the researcher or institution, deletable on request. Only one-way cryptographic hashes go to the DHT. The hash proves the data existed and hasn't been tampered with, but can't be reversed to recover the data itself. Article 17 ("right to be forgotten") compliance is maintained.
+- **Privacy by architecture.** Sensitive data stays local with the researcher or institution and never enters the shared DHT. Only one-way cryptographic hashes travel to the network. The hash proves the data existed and hasn't been tampered with, but cannot be reversed to recover the data itself. This is data minimisation enforced structurally — not merely a policy commitment. Where erasure rights do apply under GDPR, they can be exercised against the researcher's private DNA without touching the shared attestation record. (Note: GDPR Article 17(3)(d) provides a research exemption — erasure rights can be overridden where compliance would render scientific research objectives impossible or seriously impaired — so most Harmony Records are likely exempt in any case. The architectural separation goes beyond what the law requires.)
 - **No mining, no fees, no energy waste.** Holochain doesn't require global consensus or proof-of-work. Validation happens locally; proofs are shared globally. Universities run lightweight nodes at minimal cost.
 - **Data sovereignty.** Each researcher controls their own data. No central authority can censor, modify, or gate-keep access. This aligns with scientific values of openness and autonomy.
-- **Behavioural pattern analysis.** Because each validator maintains a source chain of all their actions, the system can detect collusion patterns, rubber-stamping, and other gaming behaviours natively — by analysing the patterns in these chains over time.
+- **Behavioural pattern analysis.** Because each validator maintains a source chain of all their actions, the system has the foundation to detect collusion patterns, rubber-stamping, and other gaming behaviours — by analysing the patterns in these chains over time. Holochain's `get_agent_activity` function makes individual agents' histories queryable; identifying coordinated patterns across multiple validators requires additional coordinator zome logic, but the underlying data is there by design.
 
 This is not a technology choice made for novelty. It's the specific architecture that solves the specific problems that killed every previous blockchain-based reproducibility attempt. Paul D'Aoust (Documentation and Developer Community Lead, Holochain Foundation) has reviewed ValiChord's proposed architecture and confirmed it is implementable with the current Holochain framework. Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, confirming the overall direction and providing detailed implementation guidance. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the architecture and confirmed the approach is sound.
 
@@ -183,7 +184,7 @@ This is not a technology choice made for novelty. It's the specific architecture
 
 **Update strategy.** Within each DNA *(in Holochain, a DNA is a self-contained application — think of it as a separate department, with its own rules, data, and list of who's allowed in)*, Holochain distinguishes integrity zomes *(zomes are the functional units inside a DNA — integrity zomes define the fixed core rules, like a constitution: changing them requires setting up a new network)* from coordinator zomes *(coordinator zomes contain the working logic, like bylaws: these can be updated without disruption)*. For ValiChord, this means disciplinary standards and governance rules can be updated through governance decisions in Phase 2 without forcing every participant to re-install, as long as the core data structures are designed carefully from the start.
 
-**Membrane architecture.** ValiChord is structured as four distinct Holochain applications (DNAs) rather than a single app. Each DNA has its own *membrane* — the access boundary that controls who can join its network and what data is shared within it *(like a door with a specific lock: you can only enter if you hold the right key)*. The Researcher Repository DNA is private to the researcher and their institution; the Validator Workspace DNA is private to each individual validator; the Attestation DNA is shared among credentialed participants; the Governance and Harmony Records DNA is publicly readable. This makes data locality not merely a policy commitment but an architectural guarantee: sensitive data cannot enter the shared network because it lives in a DNA with a membrane that prevents it. The separation is absolute — even where two DNAs share identical code, a **network seed** (a unique property baked into each instance) makes them genuinely different organisms that will only synchronise among their own participants. It also means the system is easier to update over time — each DNA is small and focused, so changes to governance rules in Phase 2 do not require every participant to upgrade the core attestation layer simultaneously.
+**Membrane architecture.** ValiChord is structured as four distinct Holochain applications (DNAs) rather than a single app. Each DNA has its own *membrane* — the access boundary that controls who can join its network and what data is shared within it *(like a door with a specific lock: you can only enter if you hold the right key)*. The Researcher Repository DNA is private to the researcher and their institution; the Validator Workspace DNA is private to each individual validator; the Attestation DNA is shared among credentialed participants; the Governance and Harmony Records DNA is publicly readable. This makes data locality not merely a policy commitment but an architectural guarantee: sensitive data cannot enter the shared network because it lives in a DNA with a membrane that prevents it. The separation is absolute — even where two DNAs share identical code, a **network seed** (a unique property baked into each instance) makes them genuinely different organisms that will only synchronise among their own participants. It also means the system is easier to update over time — each DNA is small and focused, so changes to governance rules in Phase 2 do not require every participant to upgrade the core attestation layer at the same time — participants must eventually upgrade to enter the new shared space, but the transition is not a hard synchronisation requirement.
 
 A further property follows from the source chain structure: researchers can share a chain of **headers** — timestamps, sequence numbers, and entry hashes — to prove that a dataset existed at a particular time and has not been modified, without ever sharing the underlying data. For GDPR-sensitive studies, this means the Attestation layer can carry full chronological accountability while the data itself remains under the researcher's control.
 
@@ -199,7 +200,9 @@ This is not a design flaw — it is a boundary. No computational validation syst
 
 ## The Eight-Layer Architecture
 
-ValiChord is organised into eight layers, each addressing a specific aspect of the reproducibility infrastructure. The layers interact but can be activated progressively — the system doesn't need to be built all at once.
+**Note on structure:** The eight layers below are a conceptual framework — they describe what ValiChord does in functional terms. The actual engineering structure is the four-DNA membrane architecture described in the Holochain section above (Researcher Repository, Validator Workspace, Attestation, Governance & Harmony Records). Readers familiar with Holochain will recognise that these functional layers map across those four DNAs rather than sitting in a single application. The layer framework is retained here because it communicates the system's responsibilities clearly to non-technical audiences; it is not an implementation plan.
+
+ValiChord's responsibilities are organised into eight functional areas, each addressing a specific aspect of the reproducibility infrastructure. They interact but can be activated progressively — the system doesn't need to be built all at once.
 
 Think of them as concentric rings of responsibility rather than a stack of steps. At the centre, **Layer 0** ensures every validator works from provably identical materials — no layer above it can function without this guarantee. **Layer 1** brings research into the system with honest commitments made upfront, before results are known. **Layer 2** is where independent validation actually happens: validators reproduce the work in isolation, and the engine detects any attempt to game the process. **Layer 3** sets the rules — and is designed to resist the institutional pressures that have corrupted every previous reproducibility initiative. **Layer 4** remembers everything: a permanent, tamper-evident record of every action, auditable by anyone. **Layer 5** translates the work of the inner layers into the trust signals the outside world consumes — Harmony Records, badges, reports. **Layer 6** answers the question "why would anyone validate?" with real incentives, career credit, and reputation that compounds over time. And **Layers 7 and 8** connect ValiChord to the institutions, journals, and funders that need its outputs, without requiring them to replace their existing systems. Each layer can be built and proven independently; none of them is sufficient alone.
 
@@ -339,7 +342,7 @@ Experimental reproducibility is the longer-term aim. Computational reproducibili
 
 Beyond science entirely, the same infrastructure could extend to any field where claims need independent verification: policy modelling, economic forecasting, regulatory submissions, software verification. These are possibilities to note, not promises to make — ValiChord must prove itself in its home domain first.
 
-Each phase generates the evidence that shapes the next. The staged approach means £69K (Phase 0) ensures that £1.9M of infrastructure investment is designed around empirical evidence rather than untested assumptions.
+Each phase generates the evidence that shapes the next. The staged approach means ~£150K FEC (Phase 0) ensures that £1.9M of infrastructure investment is designed around empirical evidence rather than untested assumptions.
 
 ### Economic Model
 
@@ -404,7 +407,7 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **A validated concept.** The architecture has been designed, reviewed, and confirmed as technically feasible by Paul D'Aoust (Documentation and Developer Community Lead, Holochain Foundation) and Shin Sakamoto, an independent Holochain application developer. Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, providing detailed implementation guidance including the multi-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the Technical Reference and MVP Specification and confirmed the approach is sound. The individual technical components — content-addressed storage, blind commitment via private source chain entries and countersigned reveal (commit-reveal), distributed hash tables, collusion detection — are all established, proven patterns. What's novel is their combination for this specific purpose.
 
-**Illustrative architecture and a Rust scaffold.** The Technical Reference contains detailed pseudocode sketches — data structures, system flows, and component interactions — developed across twelve months of architectural design. A Rust scaffold translating those sketches into the actual implementation language has also been produced. Neither has been compiled or tested; both are design intent documents that give an engineer a precise starting point rather than a blank page.
+**Illustrative architecture and a Rust scaffold.** The Technical Reference contains detailed pseudocode sketches — data structures, system flows, and component interactions — developed across twelve months of architectural design. A Rust scaffold translating those sketches into the actual implementation language has been produced and, following Arthur Brock's solution engineering review in February 2026, substantially rebuilt. Brock identified that the original scaffold had been structured around the eight-layer conceptual framework rather than Holochain's four-DNA membrane architecture — entry types were not annotated correctly as Holochain entries, and one DNA had been invented (an "Identity" DNA) while another was missing (the Validator Workspace DNA, which Brock described as essential). The scaffold has been reorganised accordingly. Neither version has been compiled or tested; both are design intent documents. The corrected scaffold, and what the review process revealed about how to maintain architectural coherence as documents grow in complexity, is an honest part of this project's status.
 
 **A governance framework.** The social layer — addressing institutional capture, validator gaming, domestication pressure, and the perverse incentives that killed previous attempts — has been designed and stress-tested through extensive adversarial analysis. This is detailed in its own companion document.
 
@@ -460,7 +463,7 @@ The next step is to test it.
 - *ValiChord Technical Reference* — Architecture sketches for engineering discussion
 - *ValiChord Governance Framework* — Tiered governance from pilot to mature system
 - *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
 
 **Contact:** Ceri John — topeuph@gmail.com
