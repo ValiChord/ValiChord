@@ -8,6 +8,7 @@
 
 **Author:** Ceri John
 **Date:** March 2026
+**Version:** 12
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -32,6 +33,40 @@ They have not been compiled, tested, or audited. They are the starting point for
 ---
 
 ## Architecture Overview
+
+### Four-DNA Membrane Architecture (the real structure)
+
+ValiChord is built as four distinct Holochain DNA membranes. This is the actual engineering structure — not a logical model but the literal organisation of code, data, and network boundaries. Each DNA is a separate peer-to-peer network with its own membrane governing who can join and what data is shared within it.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ DNA 4 — Governance & Harmony Records                             │
+│ Public DHT. Harmony Records, badges, reputation, governance.     │
+│ What journals, funders, and institutions query via HTTP Gateway. │
+└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ DNA 3 — Attestation                                              │
+│ Shared DHT, credentialed membrane.                               │
+│ The act of validation: requests, attestations, warrants.         │
+│ All inter-validator coordination happens here.                   │
+└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ DNA 2 — Validator Workspace           (private, per validator)   │
+│ Local only. Where reproduction work happens.                     │
+│ Private attestation sealed here before the reveal session.       │
+└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ DNA 1 — Researcher Repository         (private, researcher only) │
+│ Local only. Code, data, protocols under researcher control.      │
+│ Only a cryptographic hash travels outward. GDPR by architecture. │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+The detailed specification of each DNA — entry types, link types, validate callbacks, and coordinator zome functions — is in the Holochain Architecture Notes section below.
+
+### Conceptual Layer Map
+
+The eight-layer framework below describes ValiChord's functional responsibilities. It is a conceptual map, not the engineering structure — the responsibilities are distributed across the four DNAs above, not stacked in a single application. The diagram is retained because it communicates *what* ValiChord does clearly; the DNA architecture above is *how* it is built.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -66,7 +101,7 @@ They have not been compiled, tested, or audited. They are the starting point for
 │ LAYER 1: Intake & Pre-Commitment (Claims Entry)         │
 │ Protocol registration, pre-commitment, deviation tracking│
 └─────────────────────────────────────────────────────────┘
-┌═════════════════════════════════════════════════════════┐
+┌═════════════════════════════════════════════════════════╗
 ║ LAYER 0: Data & Integrity (Foundation)                  ║
 ║ Content-addressed storage, cryptographic integrity      ║
 ╚═════════════════════════════════════════════════════════╝
@@ -155,7 +190,11 @@ The eight layers divide ValiChord's responsibilities as follows. **Layer 0** is 
 
 ### Core Data Structure
 
-> **Type conventions:** Throughout this document, the following type aliases are assumed: `Hash` = `[u8; 32]` (SHA-256 digest for research file fingerprints; Holochain internally uses BLAKE2b for its own addressing), `DateTime` = UTC timestamp, `AgentId` = Holochain `AgentPubKey` (unique cryptographic identity per participant), `ValidatorId` = `AgentId` (alias for readability when the agent is acting as a validator), `Discipline` = enum of scientific fields. `Signature` = cryptographic signature from an agent's keypair. These are illustrative — final type definitions depend on Holochain SDK version and engineering decisions.
+> **Type conventions:** Throughout this document, the following type aliases are assumed: `Hash` = `[u8; 32]` (SHA-256 digest for research file fingerprints; Holochain internally uses BLAKE2b for its own addressing), `DateTime` = UTC timestamp, `AgentId` = Holochain `AgentPubKey` (unique cryptographic identity per participant).
+>
+> **Important on AgentPubKey size:** `AgentPubKey` in Holochain is **39 bytes, not 32**. It carries a multihash protocol prefix and a DHT location suffix in addition to the 32-byte key material. Using `[u8; 32]` as an `AgentId` type alias in a scaffold is structurally incorrect — replace with the HDK's native `AgentPubKey` type at implementation time.
+>
+> Other aliases: `ValidatorId` = `AgentId` (alias for readability when the agent is acting as a validator), `Discipline` = enum of scientific fields, `Signature` = cryptographic signature from an agent's keypair. These are illustrative — final type definitions depend on Holochain SDK version and engineering decisions.
 
 ```rust
 /// Content-addressed, tamper-evident data snapshot
@@ -265,37 +304,31 @@ pub struct PreRegisteredProtocol {
     pub institutional_approval: Signature,
 }
 
-/// Analysis plan is frozen at registration
-pub struct TimeLocked<T> {
-    pub inner: T,
-    pub locked_at: DateTime,
-    pub locked_hash: Hash,
-    pub modification_history: Vec<Modification>,
-}
-
-impl<T> TimeLocked<T> {
-    /// Modifications require explicit declaration + justification
-    pub fn request_modification(
-        &mut self,
-        modification: Modification,
-        justification: String,
-        epistemic_impact: EpistemicImpact,
-        requested_by: AgentId,
-    ) -> Result<(), Error> {
-        if epistemic_impact == EpistemicImpact::Substantial {
-            return Err(Error::RequiresGovernanceReview);
-        }
-        
-        self.modification_history.push(Modification {
-            changed_at: SystemTime::now(),
-            justification,
-            impact: epistemic_impact,
-            approver: requested_by,
-        });
-        
-        Ok(())
-    }
-}
+/// **Note on protocol immutability:** Earlier versions of this document included a
+/// `TimeLocked<T>` wrapper struct with a `modification_history: Vec<Modification>`
+/// field and a `request_modification()` method. This was a design carry-over from
+/// a centralised database model and is **not needed in Holochain**.
+///
+/// In Holochain, all entries on the source chain are immutable by architecture —
+/// there is no mutable state to lock. "Modifications" in Holochain create new,
+/// immutable entries that mark the previous record as updated, preserving the
+/// complete chronological history automatically. A `TimeLocked` wrapper adds
+/// application-level complexity to enforce something the architecture already
+/// guarantees.
+///
+/// The correct Holochain pattern:
+///   1. Researcher creates `PreRegisteredProtocol` entry → source chain records it
+///      with author key, timestamp, and sequence number
+///   2. If protocol must be modified → researcher calls `update_entry(original_hash, new_protocol)`
+///      → Holochain creates a new immutable record pointing back to the original
+///   3. Any peer can retrieve the full chain of updates via `get_details(original_hash)`
+///   4. Any peer can verify nothing was backdated — source chain sequence enforces
+///      chronological ordering cryptographically
+///
+/// For explicit deviation tracking (where the reason for the change matters),
+/// create a separate `DeclaredDeviation` entry linked to the original protocol.
+/// This gives you a structured, queryable deviation record without needing a wrapper.
+pub struct PreRegisteredProtocolNote; // See struct definition above
 ```
 
 ### Deviation Typology
@@ -1577,18 +1610,28 @@ pub enum LinkTypes {
     StudyStatusPath,        // path anchor → study entry (for status-based queries)
     InstitutionPath,        // path anchor → study entry (for institution-based queries)
     DisciplinePath,         // path anchor → validation entry (for discipline queries)
+    AgentToProfile,         // agent pubkey → ValidatorProfile entry
 }
 
 // --- Governance DNA integrity zome ---
 #[hdk_link_types]
 pub enum LinkTypes {
     ValidatorToReputation,  // agent pubkey → their reputation record
+    RequestToHarmonyRecord, // ValidationRequest ref → HarmonyRecord
+    DisciplinePath,         // path anchor → HarmonyRecord (for discipline queries)
 }
 
 // --- Researcher Repository DNA integrity zome (private membrane) ---
 #[hdk_link_types]
 pub enum LinkTypes {
     StudyToDataset,         // study entry → dataset entries (never leaves private DNA)
+    ProtocolToDeviation,    // protocol entry → declared deviation entries
+}
+
+// --- Validator Workspace DNA integrity zome (private membrane) ---
+#[hdk_link_types]
+pub enum LinkTypes {
+    TaskToPrivateAttestation, // task entry → sealed private attestation
 }
 ```
 
@@ -1827,4 +1870,5 @@ The first wave of submissions will come disproportionately from reproducibility 
 **Contact:** Ceri John — topeuph@gmail.com
 
 **© 2026 Ceri John. All Rights Reserved.**
+
 
