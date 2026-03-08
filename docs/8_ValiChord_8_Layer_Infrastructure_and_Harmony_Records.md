@@ -37,3 +37,5 @@ Divergent Findings: The system explicitly acknowledges and documents when findin
  Brutality Commitments (see Governance framework) Applied: To ensure integrity, strict commitments—such as double-blind reviews and commit-reveal protocols—prevent validators from being influenced by author status or peer findings.
  
  Final Consensus Hash: The result is a permanent, tamper-evident Harmony Record that provides an honest summary of a study's reproducibility status for the entire community.
+
+ **Note on structure:** The eight layers above are a conceptual framework — they describe what ValiChord does in functional terms. The actual engineering structure is the four-DNA membrane architecture described in the Holochain section above (Researcher Repository, Validator Workspace, Attestation, Governance & Harmony Records). Readers familiar with Holochain will recognise that these functional layers map across those four DNAs rather than sitting in a single application. The layer framework is retained here because it communicates the system's responsibilities clearly to non-technical audiences; it is not an implementation plan.
