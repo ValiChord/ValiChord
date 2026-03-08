@@ -2,10 +2,10 @@
 
 <img src="Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 
-**Distributed Integrity Infrastructure for Computational Research Reproducibility**
+**An Immune System for Science: Distributed Integrity Infrastructure for Computational Research**
 
 [![Status](https://img.shields.io/badge/Status-Phase_0_Pilot-blue?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
-[![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_Architecture_Scaffold.rs)
+[![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
 ---
@@ -15,41 +15,55 @@
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Repository Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_4-DNA_Membrane_architecture.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
 
 </div>
 
 ## 🧬 The Mission
 Computational methods now underpin virtually every scientific discipline, yet **70% of researchers** have failed to reproduce another scientist's experiments. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
 
-**ValiChord** is a distributed, agent-centric infrastructure designed to automate scientific reproducibility. It provides a tamper-evident audit trail for computational research—replacing binary "Pass/Fail" verdicts with **Harmony Records** that preserve the full texture of scientific disagreement.
+**ValiChord** is a distributed, agent-centric infrastructure designed to automate scientific reproducibility. It provides a tamper-evident audit trail—replacing binary "Pass/Fail" verdicts with **Harmony Records** that preserve the full texture of scientific disagreement.
 
 ---
 
-## 🛠️ Interactive Tools for Researchers
+## 🏗️ 4-DNA Membrane Architecture
+ ValiChord is built as four distinct peer-to-peer networks (DNAs) to ensure absolute data sovereignty and GDPR compliance by design.
 
-### 🔍 **Repository Readiness Check (Alpha)**
-**Self-diagnostic tool for reproducibility.**
-Before a study can be validated, it must be "validation-ready." This browser-native tool evaluates your research repository against global standards (`FAIR`, `The Turing Way`).
-* **Zero-Knowledge:** Works entirely in your browser; no code or data is ever stored.
-* **Instant Audit:** Identifies documentation gaps and environment friction.
-👉 **[Launch the Readiness Check](https://topeuph-ai.github.io/ValiChord/demo.html)**
-
----
-
-## 🏗️ Technical Specifications & Scaffold
-The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation tasks.
-
-* 🛠️ **[Architecture Scaffold (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_Architecture_Scaffold.rs)**
-* 📚 **[Technical Reference](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md)**
-
-| Layer | Component | Technical Function |
+| DNA | Purpose | Access Control |
 | :--- | :--- | :--- |
-| `0` | **Data Foundation** | Content-addressed, tamper-evident snapshots of research artifacts. |
-| `1` | **Analysis Intake** | Time-locked analysis plans and cryptographic pre-commitments. |
-| `2` | **Validation Engine** | Blinded **Commit-Reveal** protocol for independent peer verification. |
-| `3` | **Governance** | **"Brutality Commitments"** to prevent institutional capture. |
-| `4` | **Audit & Provenance** | Immutable event logs and provenance graphs of the validation path. |
+| **Researcher Repository** | Private storage of raw code, data, and methods. | **Private** (Researcher/Institution) |
+| **Validator Workspace** | The "Witnessing hApp" where reproduction work occurs. | **Private** (Individual Validator) |
+| **Attestation** | Shared DHT for validation requests and cryptographic outcomes. | **Credentialed** (Membrane Proof) |
+| **Governance & Harmony** | Public results, badges, and reputation scores. | **Open Read** (Public/API) |
+
+---
+
+
+## 🛠️ Researcher Ecosystem: "ValiChord at Home"
+We provide a full feedback pipeline to move research from "messy" to "validatable".
+
+### 🏠 **ValiChord at Home (Self-Service)**
+**Private, local pre-vetting for researchers.**
+Before submitting for formal validation, researchers use this tool to scan their repositories privately.
+* **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
+* **Difficulty Prediction:** Uses a weighted rubric to estimate validation labor based on Phase 0 empirical data.
+👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/at-home.html)**
+
+### 🔍 **Assisted Correction**
+**Automated reproducibility hygiene.**
+ValiChord generates proposed corrections—such as drafted READMEs and pinned dependencies—for researcher review and approval, ensuring studies pass triage without manual toil.
+
+---
+
+
+## 🛠️ Technical Specifications
+The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cost abstractions for high-stakes validation.
+
+* 🛠️ **[Architecture Scaffold v10 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs)** — *Type-level spec for the 4-DNA model.*
+* 📚 **[Technical Reference v12](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md)** — *Full architectural narrative and engineering sketches.*
+
+### **The Commit-Reveal Protocol**
+To prevent "last-mover advantage," ValiChord utilizes Holochain's native countersigning sessions. Validators seal findings as private source chain entries (**Commit**) before a simultaneous, atomic reveal session (**Reveal**).
 
 ---
 
@@ -57,13 +71,14 @@ The ValiChord engine is specified in `Rust` to ensure memory safety and zero-cos
 
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
-| **Phase 0** | **Workload Discovery:** Quantifying the labor cost of validation. | **[Proposed: UKRI Metascience 2]** |
-| **Phase 1** | **Core Infrastructure:** Building the functional Rust/Holochain MVP. | **[Architecture Validated]** |
+| **Phase 0** | **Workload Discovery:** Empirical study to quantify the "Price of Truth" (£150k FEC). | **[Proposed: UKRI Metascience 2]** |
+| **Phase 1** | **Core Infrastructure:** Building the functional Rust/Holochain 4-DNA MVP. | **[Architecture Validated]** |
+| **Phase 2** | **Integration:** Journal and funder API deployments via HTTP Gateway. | **[In Planning]** |
 
 ---
 
 > ### *“Every initiative assumes verification is feasible at a reasonable cost. That assumption has never been tested. ValiChord is the test.”*
 
 ---
-**Author:** Ceri John &nbsp;•&nbsp; **Technical Validation:** Holochain Foundation (Jan 2026)  
+**Author:** Ceri John &nbsp;•&nbsp; **Technical Validation:** Arthur Brock (Holochain), Joel Marcey (Rust Foundation), Paul D'Aoust (Holochain Foundation)  
 **Contact:** [topeuph@gmail.com](mailto:topeuph@gmail.com)
