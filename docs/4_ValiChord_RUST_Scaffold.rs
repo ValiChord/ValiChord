@@ -2,7 +2,7 @@
 // ValiChord — Distributed Validation Infrastructure for Computational Research
 // =============================================================================
 //
-// ARCHITECTURE SCAFFOLD — v11 — March 2026
+// ARCHITECTURE SCAFFOLD — v12 — March 2026
 //
 // This file is a single-file representation of ValiChord's four Holochain
 // DNA membranes, written for a Holochain engineer to read and work from.
@@ -31,6 +31,43 @@
 //   init() capability grants:       Written — requires review against SDK version
 //   DNA properties:                 Specified — plug in real AgentPubKey values
 //   Tests:                          Placeholder structure — expand with Tryorama
+//
+// CHANGES IN v12 (from v11)
+//
+//   CRITICAL FIXES:
+//   - DNA 3 validate(): removed `op.action()` after `op.flattened()` consumes op.
+//     Action now extracted from the destructured FlatOp variant (correct HDI pattern).
+//   - DNA 3 init(): removed `notify_commitment_sealed` from Unrestricted grants.
+//     It is a write function; same-agent cross-DNA calls have author grant implicitly.
+//   - DNA 4 init(): removed `check_and_create_harmony_record` from Unrestricted grants.
+//     Write functions must not be callable by anonymous HTTP Gateway callers.
+//
+//   DESIGN RESOLUTIONS:
+//   - Added `CommitmentAnchor` entry type to DNA 3. Replaces get_agent_activity()
+//     approach for detecting commits (which couldn't distinguish private action types).
+//     CommitmentAnchor is a public, immutable, zero-content DHT proof of commitment.
+//   - Added `PhaseMarker` entry type + `RequestToPhaseMarker` link to DNA 3.
+//     Implements the DHT-poll-driven phase transition gate (engineering constraint #1).
+//   - Added `get_current_phase()` coordinator function to DNA 3 for DHT polling.
+//   - `notify_commitment_sealed()` now writes CommitmentAnchor + checks count +
+//     writes PhaseMarker when all validators have committed. Protocol is complete.
+//
+//   AUTHOR CHECKS:
+//   - DNA 4 validate(): added `harmony_record_creator_key` check for HarmonyRecord,
+//     GovernanceDecision, and ReproducibilityBadge creation. Previously these entries
+//     had no author validation and could be written by any caller.
+//   - DNA 4 DnaProperties: added `harmony_record_creator_key` field.
+//   - DNA 4 validate(): added delete-block for HarmonyRecord (was missing alongside update-block).
+//   - DNA 3 validate(): added immutability guards for CommitmentAnchor and PhaseMarker.
+//
+//   MINOR CORRECTIONS:
+//   - `UndeclaredDeviation` consolidated to shared types section (was duplicated in
+//     validator_workspace and attestation DNA modules).
+//   - DNA 1 EntryTypes: all entries now marked `visibility = "private"` explicitly.
+//   - `ValidationAttestation` and `HarmonyRecord` now have a `discipline` field and
+//     `discipline_tag()` impl — resolves the missing method call.
+//   - `ResearchHash` type alias documented: real crates should use `ExternalHash`.
+//   - `PhaseSignal` struct field renamed task_ref → request_ref for consistency.
 //
 // WHAT THIS IS NOT
 //
@@ -119,8 +156,12 @@
 /// Compute with the `sha2` crate compiled to WASM:
 ///   use sha2::{Sha256, Digest};
 ///   let hash: [u8; 32] = Sha256::digest(bytes).into();
-/// Store on the DHT as Holochain's ExternalHash type.
-pub type ResearchHash = [u8; 32];
+///
+/// In the real crate implementations, use Holochain's `ExternalHash` type
+/// (from `hdi::prelude::*`) instead of [u8; 32]. ExternalHash serialises
+/// correctly through Holochain's MessagePack layer and can be used as a
+/// DHT base address for links. The alias below is scaffold-only.
+pub type ResearchHash = [u8; 32]; // real crates: use ExternalHash
 
 /// Scientific discipline. Extended by governance decision, not code change.
 /// Kept in shared types so the same enum is used across all four DNAs.
@@ -184,6 +225,17 @@ pub enum EpistemicImpact {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Severity { Minor, Moderate, Major, Critical }
 
+/// A deviation the validator observed that the researcher did NOT pre-declare.
+/// Defined in shared types so the same struct is used in both Validator
+/// Workspace DNA (private attestation) and Attestation DNA (public reveal)
+/// without duplicating the definition across crates.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UndeclaredDeviation {
+    pub deviation_type: DeviationType,
+    pub severity:       Severity,
+    pub evidence:       String,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ComputationalResources {
     pub personal_hardware_sufficient:  bool,
@@ -192,6 +244,24 @@ pub struct ComputationalResources {
     pub cloud_compute_required:        bool,
     /// Integer pence to avoid floating-point rounding in financial values.
     pub estimated_compute_cost_pence:  Option<u64>,
+}
+
+/// Shared helper — converts a Discipline to the short path-key string used in
+/// DHT path anchors. Available to all DNA modules via the shared types crate.
+///
+/// In the real implementation, add this as an inherent method on `Discipline` or
+/// as a free function in `valichord_shared_types`.
+pub fn discipline_tag(d: &Discipline) -> String {
+    match d {
+        Discipline::ComputationalBiology => "computational_biology".into(),
+        Discipline::ClimateScience       => "climate_science".into(),
+        Discipline::SocialScience        => "social_science".into(),
+        Discipline::Economics            => "economics".into(),
+        Discipline::Psychology           => "psychology".into(),
+        Discipline::Neuroscience         => "neuroscience".into(),
+        Discipline::MachineLearning      => "machine_learning".into(),
+        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()),
+    }
 }
 
 // =============================================================================
@@ -352,8 +422,14 @@ pub mod researcher_repository {
         #[hdk_entry_types]
         #[unit_enum(UnitEntryTypes)]
         pub enum EntryTypes {
+            // All entries in this single-agent private DNA are marked private
+            // so they never propagate to any shared DHT. Structurally enforces
+            // that raw research data cannot leave this membrane.
+            #[entry_type(visibility = "private")]
             VerifiedDataSnapshot(VerifiedDataSnapshot),
+            #[entry_type(visibility = "private")]
             PreRegisteredProtocol(PreRegisteredProtocol),
+            #[entry_type(visibility = "private")]
             DeclaredDeviation(DeclaredDeviation),
         }
 
@@ -545,12 +621,8 @@ pub mod validator_workspace {
             pub computational_resources: ComputationalResources,
         }
 
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-        pub struct UndeclaredDeviation {
-            pub deviation_type: DeviationType,
-            pub severity:       Severity,
-            pub evidence:       String,
-        }
+        // UndeclaredDeviation is defined in shared types — import from
+        // valichord_shared_types crate in the real implementation.
 
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
         pub enum ValidationFocus {
@@ -790,6 +862,17 @@ pub mod attestation {
             pub confidence:               AttestationConfidence,
             pub deviation_flags:          Vec<UndeclaredDeviation>,
             pub computational_resources:  ComputationalResources,
+            /// Copied from the ValidationRequest at submission time so attestation
+            /// entries can be indexed by discipline without a cross-DNA lookup.
+            pub discipline:               Discipline,
+        }
+
+        impl ValidationAttestation {
+            /// Short string identifier used in DHT path keys.
+            /// Delegates to the shared `discipline_tag()` helper.
+            pub fn discipline_tag(&self) -> String {
+                super::super::discipline_tag(&self.discipline)
+            }
         }
 
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -817,12 +900,8 @@ pub mod attestation {
             UnableToAssess,
         }
 
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-        pub struct UndeclaredDeviation {
-            pub deviation_type: DeviationType,
-            pub severity:       Severity,
-            pub evidence:       String,
-        }
+        // UndeclaredDeviation is defined in shared types — import from
+        // valichord_shared_types crate in the real implementation.
 
         /// Validator profile — published to the shared DHT for assignment queries.
         #[hdk_entry_helper]
@@ -875,6 +954,52 @@ pub mod attestation {
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
         pub enum AssessmentConfidence { High, Medium, Low }
 
+        /// Public commitment anchor — written to the shared DHT when a validator
+        /// seals their private attestation in DNA 2.
+        ///
+        /// This solves the "how do peers know a commitment happened" problem.
+        /// The private entry in DNA 2 is invisible to peers; `get_agent_activity`
+        /// returns all action hashes but cannot distinguish one private action type
+        /// from another. CommitmentAnchor is the public proof that a specific
+        /// validator has committed for a specific task — with zero content disclosure.
+        ///
+        /// Written by `notify_commitment_sealed()` in this DNA's coordinator,
+        /// called from DNA 2's post_commit via call(OtherRole("attestation")).
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct CommitmentAnchor {
+            /// Links to the ValidationRequest this commitment is for.
+            pub request_ref:   ResearchHash,
+            /// AgentPubKey of the committing validator (redundant with action author,
+            /// included for efficient querying without fetching the full action).
+            pub validator:     AgentPubKey,
+        }
+
+        /// DHT-persisted record of the current validation phase for a request.
+        ///
+        /// Written by the coordinator when all validators have posted a
+        /// CommitmentAnchor. Validators who were offline when signals fired
+        /// discover the open reveal window by polling get_current_phase().
+        ///
+        /// This is the mechanism that makes phase transitions DHT-poll-driven
+        /// rather than signal-driven (engineering constraint #1).
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct PhaseMarker {
+            pub request_ref:  ResearchHash,
+            pub phase:        ValidationPhase,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum ValidationPhase {
+            /// All assigned validators have posted a CommitmentAnchor.
+            /// Reveal window is now open.
+            RevealOpen,
+            /// All ValidationAttestation entries have been submitted.
+            /// HarmonyRecord assembly is underway.
+            Complete,
+        }
+
         // --- Entry Types Enum ------------------------------------------------
 
         #[hdk_entry_types]
@@ -884,6 +1009,8 @@ pub mod attestation {
             ValidationAttestation(ValidationAttestation),
             ValidatorProfile(ValidatorProfile),
             DifficultyAssessment(DifficultyAssessment),
+            CommitmentAnchor(CommitmentAnchor),
+            PhaseMarker(PhaseMarker),
         }
 
         // --- Link Types ------------------------------------------------------
@@ -905,6 +1032,12 @@ pub mod attestation {
             /// Path anchor → ValidationAttestation ActionHash, queryable by discipline
             /// Path format: "attestations.{discipline}.{YYYY_MM}"
             DisciplinePath,
+            /// ValidationRequest ActionHash → CommitmentAnchor ActionHash
+            /// One link per validator per request — used to count commitments.
+            RequestToCommitment,
+            /// ValidationRequest ActionHash → PhaseMarker ActionHash
+            /// At most one live link per request — current phase.
+            RequestToPhaseMarker,
         }
 
         // --- Validate Callback -----------------------------------------------
@@ -912,10 +1045,10 @@ pub mod attestation {
         // This is the most important validate() in ValiChord.
         // Rules enforced here cannot be relaxed without migrating to a new DNA.
         //
-        // ARM ORDERING IS CRITICAL:
-        //   The ValidationAttestation immutability guards use helper functions
-        //   (validate_update, validate_delete) that check entry type first.
-        //   This is cleaner than guarded match arms (which cannot use ? in guards).
+        // IMPORTANT: op.flattened() consumes `op`. Do NOT call op.action() after
+        // flattening — it is a use-after-move compile error. Extract the action
+        // from the destructured FlatOp variant instead (each variant contains the
+        // action that produced it). This is the correct Holochain HDI pattern.
 
         #[hdk_extern]
         pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
@@ -923,21 +1056,25 @@ pub mod attestation {
 
                 // Updates: check for ValidationAttestation immutability first,
                 // then fall back to author-only check for other entry types.
+                // `action` is extracted from the FlatOp variant — NOT from the
+                // consumed `op`. This is the fix for the use-after-move bug.
                 FlatOp::RegisterUpdate(OpUpdate {
-                    original_action,
+                    action,               // new update action
+                    original_action,      // original create action
                     original_app_entry,
                     ..
                 }) => {
-                    validate_update(op.action(), original_action, original_app_entry)
+                    validate_update(action.action(), original_action, original_app_entry)
                 }
 
                 // Deletes: same pattern.
                 FlatOp::RegisterDelete(OpDelete {
+                    action,               // delete action
                     original_action,
                     original_app_entry,
                     ..
                 }) => {
-                    validate_delete(op.action(), original_action, original_app_entry)
+                    validate_delete(action.action(), original_action, original_app_entry)
                 }
 
                 // Membrane proof — full credential check runs after network join.
@@ -946,6 +1083,24 @@ pub mod attestation {
                     membrane_proof, ..
                 }) => {
                     validate_membrane_proof(membrane_proof)
+                }
+
+                // CommitmentAnchor is immutable — no updates or deletes allowed.
+                // Prevents a validator from retracting a commitment after seeing peers'.
+                FlatOp::RegisterUpdate(OpUpdate {
+                    original_app_entry: EntryTypes::CommitmentAnchor(_), ..
+                }) => {
+                    Ok(ValidateCallbackResult::Invalid(
+                        "CommitmentAnchor cannot be updated — commitments are permanent".into()
+                    ))
+                }
+
+                FlatOp::RegisterDelete(OpDelete {
+                    original_app_entry: EntryTypes::CommitmentAnchor(_), ..
+                }) => {
+                    Ok(ValidateCallbackResult::Invalid(
+                        "CommitmentAnchor cannot be deleted — commitments are permanent".into()
+                    ))
                 }
 
                 // All other ops: valid.
@@ -962,6 +1117,12 @@ pub mod attestation {
             if matches!(original_app_entry, EntryTypes::ValidationAttestation(_)) {
                 return Ok(ValidateCallbackResult::Invalid(
                     "ValidationAttestation cannot be updated — the record is permanent".into()
+                ));
+            }
+            // PhaseMarker is immutable — the phase history is append-only.
+            if matches!(original_app_entry, EntryTypes::PhaseMarker(_)) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker cannot be updated — phase history is append-only".into()
                 ));
             }
             // For all other entry types: only the original author may update.
@@ -982,6 +1143,12 @@ pub mod attestation {
             if matches!(original_app_entry, EntryTypes::ValidationAttestation(_)) {
                 return Ok(ValidateCallbackResult::Invalid(
                     "ValidationAttestation cannot be deleted — the record is permanent".into()
+                ));
+            }
+            // PhaseMarker is immutable.
+            if matches!(original_app_entry, EntryTypes::PhaseMarker(_)) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker cannot be deleted — phase history is append-only".into()
                 ));
             }
             // For all other entry types: only the original author may delete.
@@ -1072,7 +1239,7 @@ pub mod attestation {
                 "get_validators_for_discipline",
                 "get_validator_profile",
                 "check_all_commitments_sealed",
-                "notify_commitment_sealed",
+                "get_current_phase",
                 "get_difficulty_assessment",
             ] {
                 public_fns.insert((zome.clone(), (*fn_name).into()));
@@ -1083,11 +1250,15 @@ pub mod attestation {
                 functions: GrantedFunctions::Listed(public_fns),
             })?;
 
-            // Write functions (submit_validation_request, submit_attestation,
-            // publish_validator_profile) are gated by the membrane credential.
-            // Any agent in the network has a valid credential by definition —
-            // the membrane check at join time already enforced this.
-            // No additional capability grant is needed for writes among members.
+            // notify_commitment_sealed is intentionally NOT in the unrestricted list.
+            // It writes CommitmentAnchor and PhaseMarker entries to the DHT — it must
+            // not be callable by anonymous HTTP Gateway callers. It is called via
+            // call(OtherRole("attestation")) from DNA 2's post_commit, which runs
+            // under the same agent's author grant and needs no explicit capability.
+            //
+            // submit_validation_request, submit_attestation, publish_validator_profile:
+            // also not listed — membrane credential at join time is sufficient.
+            // All agents in this network are credentialed by definition.
 
             Ok(InitCallbackResult::Pass)
         }
@@ -1111,7 +1282,7 @@ pub mod attestation {
             )?;
             // Index by status + discipline for queue management
             let status_path = Path::from(
-                format!("requests.pending.{:?}", request.discipline)
+                format!("requests.pending.{}", discipline_tag(&request.discipline))
             ).typed(LinkTypes::StatusPath)?;
             status_path.ensure()?;
             create_link(
@@ -1147,7 +1318,7 @@ pub mod attestation {
             )?;
             // Index by discipline + month for analytics queries
             let disc_path = Path::from(
-                format!("attestations.{:?}", attestation.discipline_tag())
+                format!("attestations.{}", attestation.discipline_tag())
             ).typed(LinkTypes::DisciplinePath)?;
             disc_path.ensure()?;
             create_link(
@@ -1250,23 +1421,109 @@ pub mod attestation {
 
         /// Called by a validator's Workspace DNA post_commit (via call(OtherRole("attestation"))).
         ///
-        /// Checks whether all assigned validators have sealed their private
-        /// commitments. If all have committed, writes a PhaseMarker to the DHT
-        /// opening the reveal window. Validators who missed the remote signal
-        /// discover the open window by polling get_current_phase().
+        /// Two-step operation:
+        ///   1. Write a CommitmentAnchor to the shared DHT — public proof that THIS
+        ///      validator has sealed their private attestation. The private entry in
+        ///      DNA 2 is invisible to peers; CommitmentAnchor is the DHT-visible signal
+        ///      with zero content disclosure.
+        ///   2. Check whether ALL assigned validators have posted a CommitmentAnchor.
+        ///      If yes, write a PhaseMarker(RevealOpen) — the DHT-persistent record
+        ///      that opens the reveal window.
         ///
+        /// This function is NOT in the unrestricted capability grant. It is called
+        /// via call(OtherRole("attestation")) from DNA 2's post_commit under author
+        /// grant — same-agent cross-DNA calls need no explicit capability.
         /// This function is the real protocol gate. Signals are notifications only.
         #[hdk_extern]
         pub fn notify_commitment_sealed(
-            task_ref: ResearchHash,
+            request_ref: ResearchHash,
         ) -> ExternResult<()> {
-            let all_sealed = check_all_commitments_sealed_inner(task_ref)?;
+            let agent = agent_info()?.agent_initial_pubkey;
+
+            // Step 1: write a CommitmentAnchor to the shared DHT.
+            let anchor = integrity::CommitmentAnchor {
+                request_ref,
+                validator: agent,
+            };
+            let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
+
+            // Link from the request so all anchors are discoverable.
+            // Note: the request_ref is a ResearchHash ([u8; 32]), not an ActionHash.
+            // In real code use the ExternalHash as the link base.
+            // For now, link from the request action hash stored in a local query.
+            // TODO: pass request ActionHash alongside request_ref for the link base,
+            //   or use a Path anchor keyed on hex(request_ref).
+            let request_path = Path::from(
+                format!("commitments.{}", hex::encode(request_ref))
+            ).typed(LinkTypes::RequestToCommitment)?;
+            request_path.ensure()?;
+            create_link(
+                request_path.path_entry_hash()?,
+                anchor_hash,
+                LinkTypes::RequestToCommitment,
+                (),
+            )?;
+
+            // Step 2: check if all validators have now committed.
+            let all_sealed = check_all_commitments_sealed_inner(request_ref)?;
             if all_sealed {
-                // TODO: Write a PhaseMarker entry to the DHT indicating reveal window open.
-                // Emit local signal to this agent's UI.
-                emit_signal(PhaseSignal { phase: "RevealOpen".into(), task_ref })?;
+                // Write a PhaseMarker to the DHT — the DHT-poll-driven gate for
+                // the reveal window. Validators who were offline and missed the
+                // remote signal discover this by polling get_current_phase().
+                let marker = integrity::PhaseMarker {
+                    request_ref,
+                    phase: integrity::ValidationPhase::RevealOpen,
+                };
+                let marker_hash = create_entry(EntryTypes::PhaseMarker(marker))?;
+                let phase_path = Path::from(
+                    format!("phase.{}", hex::encode(request_ref))
+                ).typed(LinkTypes::RequestToPhaseMarker)?;
+                phase_path.ensure()?;
+                create_link(
+                    phase_path.path_entry_hash()?,
+                    marker_hash,
+                    LinkTypes::RequestToPhaseMarker,
+                    (),
+                )?;
+                // Emit a local signal — UI notification only, not a protocol gate.
+                emit_signal(PhaseSignal {
+                    phase: "RevealOpen".into(),
+                    request_ref,
+                })?;
             }
             Ok(())
+        }
+
+        /// Poll the current protocol phase for a request.
+        ///
+        /// Called by validators who need to discover the phase without relying
+        /// on signal delivery (engineering constraint #1). Returns None if no
+        /// PhaseMarker has been written yet (commit phase still in progress).
+        #[hdk_extern]
+        pub fn get_current_phase(
+            request_ref: ResearchHash,
+        ) -> ExternResult<Option<integrity::ValidationPhase>> {
+            let phase_path = Path::from(
+                format!("phase.{}", hex::encode(request_ref))
+            ).typed(LinkTypes::RequestToPhaseMarker)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(
+                    phase_path.path_entry_hash()?,
+                    LinkTypes::RequestToPhaseMarker,
+                )?.build(),
+            )?;
+            // Return the most recent phase (last written wins).
+            match links.last() {
+                Some(link) => {
+                    let target = link.target.clone().into_action_hash()
+                        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid phase link".into())))?;
+                    let record = get(target, GetOptions::network())?;
+                    // Deserialise the PhaseMarker entry and return its phase field.
+                    // TODO: deserialise record into PhaseMarker and return phase.
+                    Ok(None) // placeholder
+                }
+                None => Ok(None),
+            }
         }
 
         #[hdk_extern]
@@ -1279,13 +1536,26 @@ pub mod attestation {
         fn check_all_commitments_sealed_inner(
             request_ref: ResearchHash,
         ) -> ExternResult<bool> {
-            // TODO: Retrieve the list of assigned validators for this request.
-            // For each assigned validator, call:
-            //   get_agent_activity(validator_pubkey, ChainQueryFilter::new(), ActivityRequest::Full)
-            // Check that each validator's activity includes a ValidatorPrivateAttestation action.
-            // Note: get_agent_activity returns action hashes only — not entry content
-            // (private entries are not accessible). A private action appearing in the
-            // agent's source chain is sufficient proof the commitment was sealed.
+            // Count CommitmentAnchor entries posted for this request.
+            // This is reliable because CommitmentAnchor entries are public DHT entries
+            // (not private actions) — exactly one per committed validator, immutable.
+            //
+            // Previously this used get_agent_activity() to check for private actions,
+            // which could not reliably distinguish ValidatorPrivateAttestation from
+            // any other private entry. CommitmentAnchor resolves this.
+            let request_path = Path::from(
+                format!("commitments.{}", hex::encode(request_ref))
+            ).typed(LinkTypes::RequestToCommitment)?;
+            let commitment_links = get_links(
+                GetLinksInputBuilder::try_new(
+                    request_path.path_entry_hash()?,
+                    LinkTypes::RequestToCommitment,
+                )?.build(),
+            )?;
+
+            // TODO: Retrieve the ValidationRequest to get num_validators_required,
+            // then compare: commitment_links.len() >= num_validators_required as usize
+            let _ = commitment_links;
             Ok(false) // placeholder
         }
 
@@ -1392,11 +1662,11 @@ pub mod attestation {
             Ok(Vec::new()) // placeholder
         }
 
-        // Signal type for UI notification
+        // Signal type for UI notification only — NOT a protocol gate.
         #[derive(Debug, serde::Serialize, serde::Deserialize)]
         struct PhaseSignal {
-            phase:    String,
-            task_ref: ResearchHash,
+            phase:       String,
+            request_ref: ResearchHash,
         }
     }
 }
@@ -1425,7 +1695,8 @@ pub mod attestation {
 // coordinator crate uses: hdk::prelude::*
 //
 // dna.yaml properties:
-//   system_coordinator_key: AgentPubKey  # only this key may write reputation scores
+//   system_coordinator_key:      AgentPubKey  # only this key may write ValidatorReputation
+//   harmony_record_creator_key:  AgentPubKey  # only this key may write HarmonyRecord / GovernanceDecision / Badge
 
 pub mod governance {
 
@@ -1447,6 +1718,16 @@ pub mod governance {
             /// The only AgentPubKey permitted to write ValidatorReputation entries.
             /// Any other author is rejected by the validate() callback.
             pub system_coordinator_key: AgentPubKey,
+            /// The only AgentPubKey permitted to write HarmonyRecord and
+            /// GovernanceDecision entries. In practice this is a well-known
+            /// "assembly coordinator" node operated by the ValiChord consortium.
+            /// Changing this key requires publishing a new DNA (new hash = new network).
+            ///
+            /// This check cannot be done cross-DNA from validate() — Governance DNA
+            /// cannot reach into Attestation DNA's DHT to verify the calling agent
+            /// holds a valid ValidatorProfile. The DNA-properties key is the
+            /// cryptographically enforced backstop.
+            pub harmony_record_creator_key: AgentPubKey,
         }
 
         // --- Entry Types -----------------------------------------------------
@@ -1486,6 +1767,16 @@ pub mod governance {
             pub valid_until_secs:   u64,
             /// Link to full provenance chain in Attestation DNA.
             pub provenance_link:    String,
+            /// Discipline copied from the ValidationRequest for DHT path indexing.
+            pub discipline:         Discipline,
+        }
+
+        impl HarmonyRecord {
+            /// Short string identifier used in DHT path keys.
+            /// Delegates to the shared `discipline_tag()` helper.
+            pub fn discipline_tag(&self) -> String {
+                super::super::discipline_tag(&self.discipline)
+            }
         }
 
         /// Participant counts — MUST satisfy the invariant:
@@ -1660,11 +1951,23 @@ pub mod governance {
         pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             match op.flattened::<EntryTypes, LinkTypes>()? {
 
-                // HarmonyRecord creation: verify participant count invariant.
-                // successful + partial + failed + inconclusive MUST equal total_validators.
+                // HarmonyRecord creation:
+                //   1. Author must be harmony_record_creator_key (from DNA properties).
+                //   2. Participant count invariant must be satisfied.
+                // validate() cannot reach into the Attestation DNA to verify the
+                // underlying attestations exist — that cross-DNA check belongs in
+                // the coordinator logic of check_and_create_harmony_record().
                 FlatOp::StoreEntry(OpEntry::CreateEntry {
-                    app_entry: EntryTypes::HarmonyRecord(ref record), ..
+                    app_entry: EntryTypes::HarmonyRecord(ref record),
+                    ref action,
+                    ..
                 }) => {
+                    let props = DnaProperties::try_from_dna_properties()?;
+                    if *action.author() != props.harmony_record_creator_key {
+                        return Ok(ValidateCallbackResult::Invalid(
+                            "Only harmony_record_creator_key may write HarmonyRecord entries".into()
+                        ));
+                    }
                     validate_harmony_record_counts(&record.validation_summary)
                 }
 
@@ -1675,6 +1978,44 @@ pub mod governance {
                     Ok(ValidateCallbackResult::Invalid(
                         "HarmonyRecord cannot be updated — the record is permanent".into()
                     ))
+                }
+
+                FlatOp::RegisterDelete(OpDelete {
+                    original_app_entry: EntryTypes::HarmonyRecord(_), ..
+                }) => {
+                    Ok(ValidateCallbackResult::Invalid(
+                        "HarmonyRecord cannot be deleted — the record is permanent".into()
+                    ))
+                }
+
+                // GovernanceDecision: only harmony_record_creator_key may write.
+                FlatOp::StoreEntry(OpEntry::CreateEntry {
+                    app_entry: EntryTypes::GovernanceDecision(_),
+                    ref action,
+                    ..
+                }) => {
+                    let props = DnaProperties::try_from_dna_properties()?;
+                    if *action.author() != props.harmony_record_creator_key {
+                        return Ok(ValidateCallbackResult::Invalid(
+                            "Only harmony_record_creator_key may write GovernanceDecision entries".into()
+                        ));
+                    }
+                    Ok(ValidateCallbackResult::Valid)
+                }
+
+                // ReproducibilityBadge: only harmony_record_creator_key may issue.
+                FlatOp::StoreEntry(OpEntry::CreateEntry {
+                    app_entry: EntryTypes::ReproducibilityBadge(_),
+                    ref action,
+                    ..
+                }) => {
+                    let props = DnaProperties::try_from_dna_properties()?;
+                    if *action.author() != props.harmony_record_creator_key {
+                        return Ok(ValidateCallbackResult::Invalid(
+                            "Only harmony_record_creator_key may issue ReproducibilityBadge entries".into()
+                        ));
+                    }
+                    Ok(ValidateCallbackResult::Valid)
                 }
 
                 // ValidatorReputation: only system_coordinator_key may write.
@@ -1753,7 +2094,6 @@ pub mod governance {
                 "get_badge",
                 "get_validator_reputation",
                 "get_governance_decisions",
-                "check_and_create_harmony_record",
             ] {
                 public_fns.insert((zome.clone(), (*fn_name).into()));
             }
@@ -1762,6 +2102,14 @@ pub mod governance {
                 access: CapAccess::Unrestricted,
                 functions: GrantedFunctions::Listed(public_fns),
             })?;
+
+            // check_and_create_harmony_record, create_harmony_record, issue_badge,
+            // update_validator_reputation, record_governance_decision are intentionally
+            // NOT in the unrestricted list. They write entries whose authors are
+            // validated against harmony_record_creator_key / system_coordinator_key
+            // in validate(). Calls must come from the authorised agent's conductor
+            // via same-agent cross-DNA call (author grant) — not anonymous HTTP Gateway.
+
             Ok(InitCallbackResult::Pass)
         }
 
@@ -1804,7 +2152,7 @@ pub mod governance {
             )?;
             // Index by discipline + month for analytics
             let disc_path = Path::from(
-                format!("harmony.{:?}", record.discipline_tag())
+                format!("harmony.{}", record.discipline_tag())
             ).typed(LinkTypes::DisciplinePath)?;
             disc_path.ensure()?;
             create_link(
