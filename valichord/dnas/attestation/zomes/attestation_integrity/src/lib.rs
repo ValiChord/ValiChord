@@ -14,7 +14,10 @@ use valichord_shared_types::{
 
 #[dna_properties]
 pub struct DnaProperties {
-    pub authorized_joining_certificate_issuer: AgentPubKey,
+    /// Stored as a base58 HoloHash string in happ.yaml modifiers.
+    /// The conductor passes YAML values as msgpack strings, so AgentPubKey
+    /// (which expects binary bytes) cannot be used here directly.
+    pub authorized_joining_certificate_issuer: String,
     pub discipline: String,
     pub minimum_validators: u32,
 }

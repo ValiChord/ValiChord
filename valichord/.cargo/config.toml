@@ -1,0 +1,6 @@
+# Use the getrandom 0.3 "custom" backend for wasm32-unknown-unknown.
+# This avoids the wasm-bindgen imports that wasm_js brings in, which
+# Holochain's wasmer runtime does not support.
+# The coordinator zome must provide __getrandom_v03_custom (see lib.rs).
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", "getrandom_backend=\"custom\""]

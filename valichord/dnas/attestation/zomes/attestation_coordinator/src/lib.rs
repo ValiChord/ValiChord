@@ -500,3 +500,7 @@ struct PhaseSignal {
     phase:       String,
     request_ref: ExternalHash,
 }
+
+// Note: getrandom 0.3 custom backend for wasm32-unknown-unknown is enabled
+// via .cargo/config.toml (--cfg getrandom_backend="custom"). The required
+// __getrandom_v03_custom stub is provided by hdk itself.

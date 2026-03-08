@@ -16,7 +16,13 @@
  */
 
 import { runScenario, dhtSync, pause } from "@holochain/tryorama";
-import { AppBundleSource, ActionHash, encodeHashToBase64 } from "@holochain/client";
+import {
+  AppBundleSource,
+  ActionHash,
+  encodeHashToBase64,
+  HoloHashType,
+  hashFrom32AndType,
+} from "@holochain/client";
 import { expect, test, describe } from "vitest";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -41,6 +47,17 @@ function shortMembraneProof(): Uint8Array {
 }
 
 /**
+ * Build a valid 39-byte ExternalHash from a single repeated core byte.
+ * Structure: [0x84, 0x2F, 0x24] + 32×coreByte + dhtLocation(4 bytes).
+ * Uses @holochain/client's hashFrom32AndType which computes the correct
+ * DHT location (blake2b-based XOR fold) so try_from_raw_39 accepts it.
+ */
+function fakeExternalHash(coreByte: number): Uint8Array {
+  const core = new Uint8Array(32).fill(coreByte);
+  return hashFrom32AndType(core, HoloHashType.External);
+}
+
+/**
  * Player config that injects a membrane proof for the attestation role
  * and sets minimum_validators=2 so two validators are sufficient in tests.
  */
@@ -51,13 +68,13 @@ function playerConfig(membraneProof?: Uint8Array) {
       value: HAPP_PATH,
     },
     options: {
-      membraneProofs: membraneProof
-        ? { attestation: Array.from(membraneProof) }
-        : undefined,
       rolesSettings: {
         attestation: {
           type: "provisioned" as const,
           value: {
+            // membrane_proof lives inside value, not at top-level options.
+            // RoleSettings.provisioned.value: { membrane_proof?, modifiers? }
+            membrane_proof: membraneProof,
             modifiers: {
               properties: {
                 // Use 2 validators so Alice + Bob are sufficient in tests.
@@ -94,25 +111,31 @@ async function zomeCall<T>(
 function makeValidationRequest(overrides?: Record<string, unknown>) {
   return {
     protocol_ref: null,
-    // 32-byte ExternalHash encoded as base64
-    data_hash: Array.from(new Uint8Array(39).fill(0xab)),
+    // ExternalHash: valid 39-byte Uint8Array (prefix + core + DHT loc).
+    // Must be Uint8Array so msgpack encodes as binary (bin), not array.
+    data_hash: fakeExternalHash(0xab),
     num_validators_required: 2,
-    validation_tier: { Basic: null },
-    discipline: { ComputationalBiology: null },
+    // ValidationTier has no serde tag attr → external tag → unit variant = plain string.
+    validation_tier: "Basic",
+    // Discipline uses #[serde(tag="type", content="content")] → adjacent-tagged.
+    // Unit variants: {"type": "VariantName"} (no content key for unit variants).
+    discipline: { type: "ComputationalBiology" },
     ...overrides,
   };
 }
 
 /** Minimal ValidationAttestation payload */
-function makeAttestation(requestRef: Uint8Array | number[]) {
+function makeAttestation(requestRef: Uint8Array) {
   return {
-    request_ref: Array.from(requestRef),
-    outcome: { Reproduced: null },
+    request_ref: requestRef,
+    // AttestationOutcome uses #[serde(tag="type", content="content")] → adjacent-tagged.
+    outcome: { type: "Reproduced" },
     outcome_summary: {
       key_metrics: [],
       effect_direction_matches: null,
       confidence_interval_overlap: null,
-      overall_agreement: { ExactMatch: null },
+      // AgreementLevel has no serde tag → external tag → unit variant = plain string.
+      overall_agreement: "ExactMatch",
     },
     time_invested_secs: 3600,
     time_breakdown: {
@@ -121,7 +144,8 @@ function makeAttestation(requestRef: Uint8Array | number[]) {
       code_execution_secs: 1800,
       troubleshooting_secs: 300,
     },
-    confidence: { High: null },
+    // AttestationConfidence has no serde tag → external tag → unit variant = plain string.
+    confidence: "High",
     deviation_flags: [],
     computational_resources: {
       personal_hardware_sufficient: true,
@@ -130,7 +154,8 @@ function makeAttestation(requestRef: Uint8Array | number[]) {
       cloud_compute_required: false,
       estimated_compute_cost_pence: null,
     },
-    discipline: { ComputationalBiology: null },
+    // Discipline uses #[serde(tag="type", content="content")] → adjacent-tagged.
+    discipline: { type: "ComputationalBiology" },
   };
 }
 
@@ -149,9 +174,13 @@ describe("1. Membrane proof", () => {
         ]);
 
         // If genesis completed successfully, we can call a read function.
-        const result = await zomeCall<null>(alice, "get_current_phase", {
-          request_ref: Array.from(new Uint8Array(39).fill(0x01)),
-        });
+        // get_current_phase takes ExternalHash directly (not wrapped in object).
+        // Must be a valid 39-byte ExternalHash (prefix + 32-byte core + DHT loc).
+        const result = await zomeCall<null>(
+          alice,
+          "get_current_phase",
+          fakeExternalHash(0x01),
+        );
 
         // No PhaseMarker written yet — should return null/undefined.
         expect(result).toBeNull();
@@ -207,8 +236,9 @@ describe("2. Full commit-reveal round", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        // Shared request_ref: 39-byte ExternalHash
-        const REQUEST_REF = Array.from(new Uint8Array(39).fill(0xcc));
+        // Shared request_ref: valid 39-byte ExternalHash.
+        // fakeExternalHash computes correct DHT location so try_from_raw_39 accepts it.
+        const REQUEST_REF = fakeExternalHash(0xcc);
 
         // --- Step 1: Alice submits the ValidationRequest ---
         const _requestHash = await zomeCall<ActionHash>(
@@ -231,7 +261,7 @@ describe("2. Full commit-reveal round", () => {
         await dhtSync([alice, bob], dnaHash);
 
         // After Alice's commit: phase should still be null (Bob hasn't committed).
-        const phaseAfterAlice = await zomeCall<null | { RevealOpen: null } | { Complete: null }>(
+        const phaseAfterAlice = await zomeCall<string | null>(
           bob,
           "get_current_phase",
           REQUEST_REF,
@@ -243,13 +273,14 @@ describe("2. Full commit-reveal round", () => {
         await dhtSync([alice, bob], dnaHash);
 
         // After Bob's commit: both anchors present → PhaseMarker(RevealOpen) written.
-        const phaseAfterBoth = await zomeCall<{ RevealOpen: null } | null>(
+        // ValidationPhase has no serde tag → external tag → unit variant = plain string.
+        const phaseAfterBoth = await zomeCall<string | null>(
           alice,
           "get_current_phase",
           REQUEST_REF,
         );
         expect(phaseAfterBoth).not.toBeNull();
-        expect(phaseAfterBoth).toHaveProperty("RevealOpen");
+        expect(phaseAfterBoth).toBe("RevealOpen");
 
         // --- Step 3: Reveal phase — both submit public attestations ---
         const aliceAttestationHash = await zomeCall<ActionHash>(
@@ -302,7 +333,7 @@ describe("3. DHT-poll phase transition", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const REQUEST_REF = Array.from(new Uint8Array(39).fill(0xee));
+        const REQUEST_REF = fakeExternalHash(0xee);
 
         const dnaHash = carol.cells.find(
           (c: { name: string }) => c.name === "attestation",
@@ -328,13 +359,14 @@ describe("3. DHT-poll phase transition", () => {
         await dhtSync([carol, dave, eve], dnaHash);
 
         // Eve polls the DHT — must learn the phase without a signal.
-        const phase = await zomeCall<{ RevealOpen: null } | null>(
+        // ValidationPhase serializes as plain string (external tag, unit variant).
+        const phase = await zomeCall<string | null>(
           eve,
           "get_current_phase",
           REQUEST_REF,
         );
         expect(phase).not.toBeNull();
-        expect(phase).toHaveProperty("RevealOpen");
+        expect(phase).toBe("RevealOpen");
 
         // The signal flag is informational — we do NOT assert eveReceivedSignal.
         // The test passes regardless of whether the signal arrived.
@@ -361,7 +393,7 @@ describe("4. ValidationAttestation immutability", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const REQUEST_REF = Array.from(new Uint8Array(39).fill(0xbb));
+        const REQUEST_REF = fakeExternalHash(0xbb);
 
         // Alice submits a public attestation.
         const hash = await zomeCall<ActionHash>(
@@ -402,7 +434,7 @@ describe("4. ValidationAttestation immutability", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const REQUEST_REF = Array.from(new Uint8Array(39).fill(0xdd));
+        const REQUEST_REF = fakeExternalHash(0xdd);
 
         // Alice posts a CommitmentAnchor.
         await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);

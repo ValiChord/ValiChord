@@ -28,6 +28,7 @@ name = "attestation_coordinator"
 version = "0.1.0"
 dependencies = [
  "attestation_integrity",
+ "getrandom",
  "hdk",
  "serde",
  "valichord_shared_types",
@@ -37,6 +38,7 @@ dependencies = [
 name = "attestation_integrity"
 version = "0.1.0"
 dependencies = [
+ "getrandom",
  "hdi",
  "holochain_serialized_bytes",
  "serde",
