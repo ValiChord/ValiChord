@@ -1,0 +1,19 @@
+---
+manifest_version: "0"
+name: validator_workspace
+integrity:
+  network_seed: ~
+  # No properties — single-agent private DNA, one instance per validator.
+  properties: ~
+  zomes:
+    - name: validator_workspace_integrity
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/validator_workspace_integrity.wasm"
+      dependencies: ~
+coordinator:
+  zomes:
+    - name: validator_workspace_coordinator
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/validator_workspace_coordinator.wasm"
+      dependencies:
+        - name: validator_workspace_integrity

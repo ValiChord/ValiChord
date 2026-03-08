@@ -1034,6 +1034,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "validator_workspace_coordinator"
+version = "0.1.0"
+dependencies = [
+ "attestation_integrity",
+ "getrandom",
+ "hdk",
+ "holochain_serialized_bytes",
+ "serde",
+ "valichord_shared_types",
+ "validator_workspace_integrity",
+]
+
+[[package]]
+name = "validator_workspace_integrity"
+version = "0.1.0"
+dependencies = [
+ "attestation_integrity",
+ "getrandom",
+ "hdi",
+ "holochain_serialized_bytes",
+ "serde",
+ "valichord_shared_types",
+]
+
+[[package]]
 name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

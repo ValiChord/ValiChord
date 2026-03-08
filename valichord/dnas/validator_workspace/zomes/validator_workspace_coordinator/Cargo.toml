@@ -1,0 +1,17 @@
+[package]
+name = "validator_workspace_coordinator"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "validator_workspace_coordinator"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+holochain_serialized_bytes = { workspace = true }
+valichord_shared_types = { path = "../../../../shared_types" }
+validator_workspace_integrity = { path = "../validator_workspace_integrity" }
+attestation_integrity = { path = "../../../attestation/zomes/attestation_integrity" }
+getrandom = { workspace = true }
