@@ -3,12 +3,12 @@
   <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
-# ValiChord — Technical Reference
+# ValiChord Complete — Technical Reference
 ## Illustrative Architecture Sketches for Engineering Discussion
 
 **Author:** Ceri John
 **Date:** March 2026
-**Version:** 12
+**Version:** 16
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -160,7 +160,7 @@ Harmony Records, badges, and public validation status — what journals, funders
 
 The eight-layer framework below remains the correct conceptual description of what ValiChord does. The layers now map across these four DNAs rather than sitting in one application. Where a layer's primary home in the DNA structure is relevant, it is noted.
 
-**Precedent:** This four-DNA membrane pattern is independently validated by the holo-health project, a Holochain-based architecture for person-centric healthcare ecosystems designed by Steve Melville (https://github.com/evomimic/holo-health/blob/master/holo-health-app-architecture.md). The holo-health architecture uses an identical structure for an analogous problem: a private Personal Health Vault (equivalent to ValiChord's Researcher Repository DNA) holds sensitive personal data under the individual's control; a Health Market hApp (equivalent to ValiChord's Attestation DNA) provides the shared public space where parties find each other under agreed terms; and a Health Service Delivery hApp (equivalent to ValiChord's per-validation private channel) creates a private, audited space for each individual transaction, recording the *act* of data sharing without storing the sensitive data itself. Two independent teams reached the same membrane architecture for the same class of problem — sensitive personal data that must remain under individual control while participating in a shared verification ecosystem. Steve Melville is also one of the contacts identified by Arthur Brock as directly relevant to ValiChord's design.
+**Precedent:** This four-DNA membrane pattern is independently validated by the holo-health project, a Holochain-based architecture for person-centric healthcare ecosystems designed by Steve Melville (https://github.com/evomimic/holo-health/blob/master/holo-health-app-architecture.md). The holo-health architecture uses an identical structure for an analogous problem: a private Personal Health Vault (equivalent to ValiChord's Researcher Repository DNA) holds sensitive personal data under the individual's control; a Health Market hApp (equivalent to ValiChord's Attestation DNA) provides the shared public space where parties find each other under agreed terms; and a Health Service Delivery hApp (equivalent to ValiChord's per-validation private channel) creates a private, audited space for each individual transaction, recording the *act* of data sharing without storing the sensitive data itself. Two independent teams reached the same membrane architecture for the same class of problem — sensitive personal data that must remain under individual control while participating in a shared verification ecosystem.
 
 ---
 
@@ -190,28 +190,29 @@ The eight layers divide ValiChord's responsibilities as follows. **Layer 0** is 
 
 ### Core Data Structure
 
-> **Type conventions:** Throughout this document, the following type aliases are assumed: `Hash` = `[u8; 32]` (SHA-256 digest for research file fingerprints; Holochain internally uses BLAKE2b for its own addressing), `DateTime` = UTC timestamp, `AgentId` = Holochain `AgentPubKey` (unique cryptographic identity per participant).
+> **Type conventions:** Throughout this document, the following type aliases are assumed: `ExternalHash` = `[u8; 32]` (SHA-256 digest for research file fingerprints; Holochain internally uses BLAKE2b for its own addressing), `DateTime` = UTC timestamp, `AgentId` = Holochain `AgentPubKey` (unique cryptographic identity per participant).
 >
 > **Important on AgentPubKey size:** `AgentPubKey` in Holochain is **39 bytes, not 32**. It carries a multihash protocol prefix and a DHT location suffix in addition to the 32-byte key material. Using `[u8; 32]` as an `AgentId` type alias in a scaffold is structurally incorrect — replace with the HDK's native `AgentPubKey` type at implementation time.
 >
-> Other aliases: `ValidatorId` = `AgentId` (alias for readability when the agent is acting as a validator), `Discipline` = enum of scientific fields, `Signature` = cryptographic signature from an agent's keypair. These are illustrative — final type definitions depend on Holochain SDK version and engineering decisions.
+> Other aliases: `ValidatorId` = `AgentId` (alias for readability when the agent is acting as a validator), `Discipline` = enum of scientific fields, `Signature` = cryptographic signature (illustrative alias; in implementation use `Option<Vec<u8>>` — raw signature bytes — as in the scaffold). These are illustrative — final type definitions depend on Holochain SDK version and engineering decisions.
 
 ```rust
-/// Content-addressed, tamper-evident data snapshot
+/// Content-addressed, tamper-evident data snapshot.
+///
+/// Note: created_at, creator_id, and a separate content_id are deliberately
+/// omitted — Holochain Actions carry author key, timestamp, and sequence number
+/// natively. Duplicating them inside entry structs is both redundant and
+/// unreliable (the author can set them to anything).
 pub struct VerifiedDataSnapshot {
-    /// Unique content identifier (SHA-256 hash of contents)
-    pub content_id: Hash,
+    /// SHA-256 fingerprint of the research files (data, code, protocol).
+    /// This is the integrity guarantee — the storage location is secondary.
+    pub sha256_hash: ExternalHash,
     
-    /// Redundant storage locations
+    /// Where the files can be downloaded. Any provider is acceptable;
+    /// the hash — not the location — is the integrity proof.
     pub storage_locations: Vec<StorageLocation>,
     
-    /// SHA-256 hash (primary integrity verification)
-    pub sha256_hash: Hash,
-    
-    /// Dataset metadata
     pub size_bytes: u64,
-    pub created_at: DateTime,
-    pub creator_id: AgentId,
 }
 
 /// Storage location is deliberately agnostic — the fingerprint matters, not where the data lives.
@@ -246,9 +247,17 @@ pub enum StorageLocation {
 **Solution:** In the multi-DNA architecture, privacy is structurally enforced: sensitive data lives in the private Researcher Repository DNA and cannot enter the shared Attestation DHT by design. The membrane is the primary protection — not a policy overlay on top of a shared system, but a genuine architectural separation. The hash approach below provides an additional layer for any data summary properties that do need to travel to the Attestation layer.
 
 ```rust
-pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> Hash {
+/// Hash research data with a salt for privacy protection.
+///
+/// Note: This salting is specifically for research DATA hashes — it prevents
+/// re-identification of sensitive datasets by an attacker who might otherwise
+/// brute-force the hash. It is NOT needed for Holochain Actions, which carry
+/// their own cryptographic uniqueness natively via author key, sequence number,
+/// and timestamp. Apply this function only when hashing raw research content,
+/// not when referencing Holochain entries.
+pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> ExternalHash {
     let salted = [data, salt].concat();
-    Hash::digest(&salted)
+    ExternalHash::digest(&salted)
 }
 
 // Validator receives salt from data custodian off-DHT
@@ -270,13 +279,18 @@ A further privacy property follows from how Holochain records actions: a researc
 ### Pre-Registered Protocol
 
 ```rust
-/// Pre-registered protocol with committed analysis plan
+/// Pre-registered protocol with committed analysis plan.
+///
+/// Note: protocol_id and registered_at are deliberately omitted.
+/// The Holochain ActionHash IS the protocol identifier, and the Action
+/// carries the timestamp natively. To record a modification, call
+/// update_entry() and create a linked DeclaredDeviation entry —
+/// Holochain preserves the full update chain automatically.
+/// No application-level TimeLocked wrapper is needed or appropriate.
 pub struct PreRegisteredProtocol {
-    /// Unique protocol identifier
-    pub protocol_id: Hash,
-    
-    /// Time-locked analysis plan (sealed after lock period)
-    pub analysis_plan: TimeLocked<AnalysisPlan>,
+    /// Plain analysis plan description — Holochain immutability enforces
+    /// the commitment without any wrapper struct.
+    pub analysis_plan_description: String,
     
     /// Pre-specified hypotheses
     pub hypotheses: Vec<Hypothesis>,
@@ -297,17 +311,12 @@ pub struct PreRegisteredProtocol {
     /// Deviation allowances (structured)
     pub allowed_deviation_types: Vec<DeviationType>,
     
-    /// Registration timestamp
-    pub registered_at: DateTime,
-    
     /// Institutional signature
-    pub institutional_approval: Signature,
+    pub institutional_approval: Option<Vec<u8>>,
 }
 
-/// **Note on protocol immutability:** Earlier versions of this document included a
-/// `TimeLocked<T>` wrapper struct with a `modification_history: Vec<Modification>`
-/// field and a `request_modification()` method. This was a design carry-over from
-/// a centralised database model and is **not needed in Holochain**.
+/// **Note on protocol immutability:** A `TimeLocked<T>` wrapper struct is
+/// **not needed in Holochain** and should not appear in the implementation.
 ///
 /// In Holochain, all entries on the source chain are immutable by architecture —
 /// there is no mutable state to lock. "Modifications" in Holochain create new,
@@ -473,8 +482,10 @@ pub struct ValidationRequest {
     /// Or external protocol if pre-registration not required
     pub protocol: Option<Protocol>,
     
-    /// Data snapshot from Layer 0
-    pub data_snapshot: VerifiedDataSnapshot,
+    /// SHA-256 hash of study data — the ONLY thing from the private
+    /// Researcher Repository DNA that crosses into this shared network.
+    /// The full VerifiedDataSnapshot stays in DNA 1; only the hash travels.
+    pub data_hash: ExternalHash,
     
     /// Validation parameters
     pub num_validators_required: u8,
@@ -517,7 +528,8 @@ pub struct DifficultyAssessment {
     
     /// Weighted composite score → predicted difficulty tier
     pub predicted_tier: DifficultyTier,
-    pub predicted_time_range: (Duration, Duration),  // min-max estimate
+    pub predicted_min_secs: u64,   // u64 seconds throughout — avoids WASM Duration serialisation
+    pub predicted_max_secs: u64,
     pub confidence: AssessmentConfidence,
 }
 
@@ -783,28 +795,87 @@ Reputation-weighted constrained randomness with safeguards:
 ### Validator Attestation with Deviation Flagging
 
 ```rust
+/// THE COMMIT PHASE — stored as a private entry in the Validator Workspace DNA.
+/// Invisible to all peers and the shared DHT. Its existence is verifiable
+/// on the validator's source chain; its contents are not visible until reveal.
+/// validator_id and validation_id are omitted — the Holochain Action carries
+/// author key and ActionHash natively.
+pub struct ValidatorPrivateAttestation {
+    pub task_ref:               ExternalHash,
+    pub outcome:                AttestationOutcome,
+    pub detailed_report:        String,  // stays private — never enters shared DHT
+    pub time_invested_secs:     u64,     // u64 seconds avoids WASM serialisation complexity
+    pub time_breakdown:         TimeBreakdown,
+    pub confidence:             AttestationConfidence,  // simple High/Medium/Low
+    pub deviation_flags:        Vec<UndeclaredDeviation>,
+    pub computational_resources: ComputationalResources,
+}
+
+/// THE REVEAL PHASE — written to the shared Attestation DNA once all validators
+/// have sealed private attestations and the reveal window opens.
+/// IMMUTABLE after publication — enforced by validate() callback.
+/// detailed_report is deliberately omitted: only the structured outcome summary
+/// crosses the membrane boundary, not the full narrative.
 pub struct ValidationAttestation {
-    pub validator_id: ValidatorId,
-    pub validation_id: Hash,
-    pub outcome: AttestationOutcome,
-    pub detailed_report: String,
-    pub time_invested: Duration,
-    pub confidence: ConfidenceLevel,
-    
-    /// Deviation assessment — validators can flag undeclared deviations
-    pub deviation_flags: Vec<UndeclaredDeviation>,
-    
-    /// Agreement with epistemic impact assessment
-    pub impact_agreement: Option<ImpactAssessment>,
+    pub request_ref:             ExternalHash,
+    pub outcome:                 AttestationOutcome,
+    pub outcome_summary:         OutcomeSummary,  // structured for agreement detection
+    pub time_invested_secs:      u64,
+    pub time_breakdown:          TimeBreakdown,
+    pub confidence:              AttestationConfidence,
+    pub deviation_flags:         Vec<UndeclaredDeviation>,
+    pub computational_resources: ComputationalResources,
 }
 
 pub struct UndeclaredDeviation {
     pub deviation_type: DeviationType,
-    pub severity: Severity,
-    pub evidence: String,
-    pub flagged_by: ValidatorId,
+    pub severity:       Severity,
+    pub evidence:       String,
+    // flagged_by omitted — the Holochain Action author field carries this natively
 }
 ```
+
+### Commit-Phase Entries: CommitmentAnchor and PhaseMarker
+
+Two entry types were added to the Attestation DNA in scaffold v12 to resolve the commit-reveal phase detection problem.
+
+```rust
+/// Public, immutable, zero-content proof that a specific validator has sealed
+/// their private attestation for a specific study. Written to the shared DHT
+/// at commit time — everyone can see the commitment happened and which study
+/// it is for, but not the actual outcome (which remains in the private
+/// ValidatorPrivateAttestation in DNA 2).
+///
+/// This replaces the earlier approach of using get_agent_activity() to count
+/// private actions — which was unresolvable because private entry content is
+/// inaccessible to peers, making it impossible to confirm the private action
+/// was specifically a ValidatorPrivateAttestation rather than any other entry.
+#[entry_type(required_validations = 5)]
+pub struct CommitmentAnchor {
+    pub request_ref:  ExternalHash,   // which study this commitment is for
+    pub validator_id: AgentPubKey,    // which validator committed
+    // No outcome content — the commitment is the proof of action, not of result
+}
+
+/// DHT-persistent record of the current phase for a validation round.
+/// Written by the coordinator when all expected CommitmentAnchors are present.
+/// Validators who were offline when signals fired discover the open window by
+/// polling get_current_phase(), which queries the RequestToPhaseMarker link.
+///
+/// IMMUTABLE after publication — enforced by validate() callback.
+pub struct PhaseMarker {
+    pub request_ref: ExternalHash,
+    pub phase:       ValidationPhase,
+}
+
+pub enum ValidationPhase {
+    CommitOpen,   // accepting commitments (default — no PhaseMarker entry needed)
+    RevealOpen,   // all validators committed; reveal window open
+    Closed,       // HarmonyRecord created; round complete
+}
+```
+
+Both `CommitmentAnchor` and `PhaseMarker` are immutable after creation — the validate() callback blocks all updates and deletes, enforcing the same immutability guarantee as `ValidationAttestation`.
 
 ### Gaming & Collusion Detection Mechanisms
 
@@ -822,6 +893,8 @@ pub struct UndeclaredDeviation {
 - Social distance mapping (co-authorship graph analysis)
 
 **Warrants — Holochain's native enforcement mechanism:** When a participant publishes data that violates the DNA's validation rules, any peer that detects the violation creates and signs a **warrant** — a cryptographic proof of the bad action — and publishes it to the network. Warrants propagate automatically to the agent activity authorities responsible for tracking that participant's history. Once received, a warrant is permanent and discoverable by any node via `get_agent_activity`. Any node can check a validator's warrant status before interacting with them — for example, before accepting a commitment in the commit-reveal protocol. Automatic network-level blocking of warranted agents is on Holochain's roadmap; the current behaviour is that warrants are created, persisted, and queryable, with network block enforcement following. For ValiChord, this means a validator who submits fraudulent attestations can be warranted by peers and their status checked by any participant, without a governance committee needing to investigate and act first. Warrants were stabilised as a core feature in Holochain 0.7 (previously behind an experimental flag) — this enforcement mechanism is production-ready, not experimental.
+
+> **Phase 2 addition — `Warrant` entry in Governance DNA:** Holochain's native warrant mechanism records that a violation occurred. For ValiChord's governance commitments, a structured `Warrant` entry in DNA 4 will eventually be needed to attach a narrative justification — which validator raised it, what the evidence was, and what the governance panel decided. This makes warrant decisions permanently and publicly queryable with full context, not just a flag against an agent's activity chain. The native warrant mechanism is sufficient for Phase 1; the structured entry is a Phase 2 governance addition.
 
 > **Engineering question:** The specific thresholds for gaming detection (e.g., >90% agreement triggering investigation) need empirical calibration. Phase 0 data on natural agreement rates would inform these. Setting thresholds too low creates false positives; too high misses real collusion.
 
@@ -1061,9 +1134,13 @@ pub struct AuditRecord {
 The canonical output of ValiChord. Preserves the full texture of agreement and disagreement rather than producing a single verdict.
 
 ```rust
+/// Note: record_id and issued_at are deliberately omitted — the Holochain
+/// ActionHash IS the record identifier, and the Action carries the timestamp
+/// natively. valid_until is stored as seconds (u64) to avoid DateTime
+/// serialisation complexity in WASM.
 pub struct HarmonyRecord {
-    pub record_id: Hash,
-    pub protocol_id: Hash,
+    /// Links back to the ValidationRequest in the Attestation DNA.
+    pub request_ref: ExternalHash,
     
     /// Validation summary
     pub validation_summary: ValidationSummary,
@@ -1080,11 +1157,10 @@ pub struct HarmonyRecord {
     /// Reproducibility status
     pub status: ReproducibilityStatus,
     
-    /// Issue date and validity
-    pub issued_at: DateTime,
-    pub valid_until: DateTime,  // 24 months minimum per Governance
+    /// 24-month minimum validity per governance policy (Unix timestamp seconds).
+    pub valid_until_secs: u64,
     
-    /// Link to full provenance
+    /// Link to full provenance chain in Attestation DNA.
     pub provenance_link: String,
 }
 
@@ -1134,7 +1210,7 @@ pub enum ReproducibilityStatus {
     },
     /// The system refuses to force a verdict where evidence doesn't support one
     PersistentlyIndeterminate {
-        time_elapsed: Duration,
+        time_elapsed_secs: u64,  // u64 seconds — avoids WASM Duration serialisation
         validator_count: u8,
         disagreement_summary: String,
     },
@@ -1320,7 +1396,7 @@ pub enum ValidationCreditTier {
 ```rust
 pub struct TimeTracking {
     pub reported_hours: f64,
-    pub system_tracked_time: Duration,
+    pub system_tracked_time_secs: u64,  // u64 seconds throughout
     pub expected_time_range: (f64, f64),
     pub audit_flags: Vec<AuditFlag>,
 }
@@ -1328,7 +1404,7 @@ pub struct TimeTracking {
 pub enum AuditFlag {
     TooFast { expected_min: f64, actual: f64 },
     TooSlow { expected_max: f64, actual: f64 },
-    InactivityPeriods { gaps: Vec<Duration> },
+    InactivityPeriods { gaps: Vec<u64> },  // gap durations in seconds
 }
 
 /// 10% random audit sampling (stratified)
@@ -1528,7 +1604,7 @@ pub struct ValidationTask {
     pub data_access_instructions: DataAccessInstructions,
     pub validation_tier: ValidationTier,
     pub deadline: DateTime,
-    pub estimated_time: Duration,
+    pub estimated_time_secs: u64,  // u64 seconds
     pub compensation: Compensation,
 }
 
@@ -1606,11 +1682,21 @@ Each DNA has its own integrity zome with its own `#[hdk_link_types]` enum — th
 pub enum LinkTypes {
     StudyToValidation,      // study entry → validation entries for that study
     ValidatorToValidation,  // agent pubkey → validation entries they authored
+    ValidatorToAttestation, // agent pubkey → ValidationAttestation entries they authored
     StudyToHarmonyRecord,   // study entry → resulting harmony record
     StudyStatusPath,        // path anchor → study entry (for status-based queries)
     InstitutionPath,        // path anchor → study entry (for institution-based queries)
     DisciplinePath,         // path anchor → validation entry (for discipline queries)
     AgentToProfile,         // agent pubkey → ValidatorProfile entry
+    /// Links the ValidationRequest to the validator's public commitment proof.
+    /// Added in v12: replaces the broken get_agent_activity() private-action-counting
+    /// approach. CommitmentAnchor is a public, zero-content DHT entry — everyone
+    /// can see a commitment happened for this study, but not the outcome.
+    RequestToCommitment,    // ValidationRequest ActionHash → CommitmentAnchor ActionHash
+    /// Links the ValidationRequest to the current phase state.
+    /// Validators who miss the reveal-open signal discover the phase by polling
+    /// get_current_phase() which traverses this link.
+    RequestToPhaseMarker,   // ValidationRequest ActionHash → PhaseMarker ActionHash
 }
 
 // --- Governance DNA integrity zome ---
@@ -1619,6 +1705,7 @@ pub enum LinkTypes {
     ValidatorToReputation,  // agent pubkey → their reputation record
     RequestToHarmonyRecord, // ValidationRequest ref → HarmonyRecord
     DisciplinePath,         // path anchor → HarmonyRecord (for discipline queries)
+    BadgePath,              // path anchor → ReproducibilityBadge (queryable by badge type)
 }
 
 // --- Researcher Repository DNA integrity zome (private membrane) ---
@@ -1648,7 +1735,7 @@ pub enum LinkTypes {
 
 For ValiChord at Phase 1 scale (hundreds of studies), simple paths without sharding are adequate. At Phase 2 scale (thousands of studies, multiple institutions), the institution paths should be sharded by the first two characters of the institution identifier. The path sharding strategy belongs in the coordinator zome logic — it does not affect the integrity zome definitions and can be updated without forcing a network migration.
 
-> **Engineering note for scaffolding session:** Arthur specifically flagged that the Holochain scaffolding tool asks explicit questions about collections and link structures. The link type enum above and the path table should be treated as the answer to those questions. Each `Path` also needs a corresponding `TypedPath` (via `path.typed(LinkTypes::InstitutionPath)`) so the HDK knows which link type to use when creating and querying path-based links.
+> **Engineering note:** The Holochain scaffolding tool asks explicit questions about collections and link structures. The link type enum above and the path table should be treated as the answer to those questions. Each `Path` also needs a corresponding `TypedPath` (via `path.typed(LinkTypes::InstitutionPath)`) so the HDK knows which link type to use when creating and querying path-based links.
 
 ---
 
@@ -1741,6 +1828,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 *Governance DNA:*
 
 - Reputation updates: only the system coordinator agent (defined in the membrane proof) may write reputation scores. Individual validators cannot edit their own scores.
+- HarmonyRecord, GovernanceDecision, and ReproducibilityBadge writes: only the `harmony_record_creator_key` agent (baked into DNA 4 properties) may create these entries. This prevents any anonymous HTTP Gateway caller from fabricating public validation records. The `harmony_record_creator_key` is set in `dna.yaml` at deployment and is immutable for the lifetime of that network instance.
+
+```yaml
+# DNA 4 dna.yaml properties (added v12)
+properties:
+  system_coordinator_key:      "uhCAk..."  # may write ValidatorReputation
+  harmony_record_creator_key:  "uhCAk..."  # may write HarmonyRecord / GovernanceDecision / Badge
+  authorized_joining_certificate_issuer: "uhCAk..."
+```
 - Warrant records: any peer may create a warrant for another agent, but the warrant must reference a valid action hash pointing to the violation.
 
 *Researcher Repository DNA (private membrane):*
@@ -1864,11 +1960,10 @@ The first wave of submissions will come disproportionately from reproducibility 
 **Companion Documents:**
 - *ValiChord Vision & Architecture* — What ValiChord is and why it matters
 - *ValiChord Governance Framework* — How the system resists corruption
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
 
 **Contact:** Ceri John — topeuph@gmail.com
 
 **© 2026 Ceri John. All Rights Reserved.**
-
 
