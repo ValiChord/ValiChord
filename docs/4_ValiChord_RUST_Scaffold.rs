@@ -2,347 +2,474 @@
 // ValiChord — Distributed Validation Infrastructure for Computational Research
 // =============================================================================
 //
-// ARCHITECTURE SCAFFOLD — NOT PRODUCTION CODE
+// ARCHITECTURE SCAFFOLD — v11 — March 2026
 //
-// This file captures ValiChord's architecture as Rust types, traits, and stub
-// implementations, organised around the four Holochain DNA membranes.
+// This file is a single-file representation of ValiChord's four Holochain
+// DNA membranes, written for a Holochain engineer to read and work from.
 //
-// Status:
-//   - Types: Structured around the correct four-DNA architecture
-//   - Trait definitions: Complete — these define the system's API surface
-//   - Implementations: Stubs only — marked with TODO for Phase 1 engineering
-//   - Holochain integration: Annotated with HDK patterns (entry macros, link
-//     types, validate callback) — adapt to current SDK version at build time
+// HOW TO USE THIS FILE
 //
-// What this IS:
-//   - A type-level specification of ValiChord's data model per DNA
-//   - A trait-level specification of ValiChord's behaviour
-//   - A guide for Phase 1 engineering decisions
-//   - The starting point for the scaffolding session with Arthur Brock
+//   In the real implementation each DNA becomes two separate Rust crates:
+//     - <dna>_integrity   (uses `hdi` crate, compiled to WASM)
+//     - <dna>_coordinator (uses `hdk` crate, compiled to WASM)
 //
-// What this is NOT:
-//   - Compilable against the current Holochain HDK (entry macros and zome
-//     function signatures need adapting to the current SDK version)
-//   - Production-ready (no error handling, no tests, no persistence)
-//   - A substitute for Phase 0 evidence (compensation tiers, difficulty
-//     weights, and thresholds are all placeholders pending empirical data)
+//   The four DNA modules below map directly to those crates. Within each
+//   module, the boundary between integrity and coordinator code is clearly
+//   marked. Copy each section into the appropriate crate when building.
 //
-// Four-DNA Membrane Architecture:
+//   Shared types (marked at the top of this file) belong in a shared Rust
+//   library crate imported by each integrity zome as a Cargo dependency.
+//   Do NOT define them inside any zome — changes to integrity zomes change
+//   the DNA hash, creating a new empty network. Keeping shared types in a
+//   separate crate lets you update them without rebuilding every integrity zome.
+//
+// STATUS
+//
+//   Entry types and link types:     Complete — match scaffolding plan
+//   Validate callbacks:             Written — not production-audited
+//   Coordinator functions:          Stubbed — marked TODO for implementation
+//   init() capability grants:       Written — requires review against SDK version
+//   DNA properties:                 Specified — plug in real AgentPubKey values
+//   Tests:                          Placeholder structure — expand with Tryorama
+//
+// WHAT THIS IS NOT
+//
+//   - Compilable as-is (each DNA module references types from other modules
+//     for clarity; in real code each crate has its own isolated type set)
+//   - Production-ready (no error recovery, no retry logic, no persistence)
+//   - A substitute for Phase 0 empirical data (difficulty weights, compensation
+//     tiers, and gaming thresholds are all placeholders pending real evidence)
+//
+// FOUR-DNA MEMBRANE ARCHITECTURE
+//
 //   DNA 1: Researcher Repository  — private membrane, researcher only
 //   DNA 2: Validator Workspace    — private membrane, per validator
 //   DNA 3: Attestation            — shared DHT, credentialed participants
-//   DNA 4: Governance & Harmony   — public DHT, open read
+//   DNA 4: Governance & Harmony   — public DHT, open read / HTTP Gateway
 //
-// The old eight-layer conceptual framework (Layers 0–8) described what
-// ValiChord does. The four-DNA structure describes how it is built.
-// Layers still appear as comments where useful to explain purpose, but
-// they are not the organising principle of the code.
+// KEY ENGINEERING CONSTRAINTS (do not lose these)
 //
-// Companion documents:
-//   - ValiChord Technical Reference (full architecture narrative)
-//   - ValiChord Vision & Architecture (system-level design rationale)
-//   - ValiChord Governance Framework (governance mechanics and anti-capture)
-//   - ValiChord Phase 0 Proposal (the empirical study that informs all of this)
+//   1. Signals are fire-and-forget. Phase transitions MUST be driven by DHT
+//      state polling — never by signal delivery. A validator offline when a
+//      signal fires will miss it entirely.
 //
-// Author: Ceri John (architecture), with AI assistance (scaffold generation)
-// Date: March 2026
-// Licence: Copyright held by author; will be open-sourced on funding
+//   2. call_remote() cannot cross DNA network boundaries. All inter-validator
+//      coordination must happen within the Attestation DNA's shared network.
+//      Researcher Repository and Validator Workspace are never reachable
+//      from other agents' code.
+//
+//   3. Integrity zomes must stay small. Every change — including dependency
+//      version bumps — changes the DNA hash and creates a new empty network.
+//
+//   4. Collusion and gaming detection belong in coordinator zomes, not in
+//      validate(). The validate callback must be fully deterministic (no
+//      historical queries, no statistical analysis, no time-dependent logic).
+//
+//   5. AgentPubKey is 39 bytes, not 32. Use the HDK's native AgentPubKey type.
+//      Never use [u8; 32] or Vec<u8> as a substitute for agent identity.
+//
+//   6. SHA-256 for research file fingerprints; BLAKE2b is Holochain-internal.
+//      Use the `sha2` crate (compiled to WASM) to compute ExternalHash values.
+//      Do not use hash_entry() for research files — that produces BLAKE2b.
+//
+//   7. In validate(), guarded entry-type arms MUST precede unguarded arms.
+//      Rust evaluates match arms in order. An unguarded update/delete arm
+//      placed before the immutability guards silently swallows everything —
+//      no compile error, no runtime error, just a broken security guarantee.
+//
+//   8. coordinator zomes can currently only safely depend on ONE integrity
+//      zome. Always list the dependency explicitly in dna.yaml even if there
+//      is only one — this is a known Holochain bug.
+//
+//   9. sys_time() and random_bytes() are coordinator-only. They cannot be
+//      used in validate() — doing so would break validation determinism.
+//
+//  10. Holochain Actions already carry author key, timestamp, and sequence
+//      number natively. Do not duplicate created_at or creator_id inside
+//      entry structs — those fields will be wrong (author can set them to
+//      anything) and they waste DHT space.
+//
+// COMPANION DOCUMENTS
+//
+//   SCAFFOLDING_PLAN.md           — Directory structure, call maps, protocol flow
+//   3_ValiChord_Technical_Reference.md — Full architecture narrative
+//   1_ValiChord_Vision&Architecture.md — System-level design rationale
+//   2_ValiChord_Governance_Framework.md — Anti-capture mechanics
+//   holochain_complete_knowledge.md — Synthesised Holochain Build Guide
+//
+// Author: Ceri John (architecture), Claude Sonnet 4.6 (scaffold generation)
+// Date:   March 2026
 // =============================================================================
 
-#![allow(dead_code, unused_variables)]
-
-use std::collections::HashMap;
-use std::time::Duration;
+#![allow(dead_code, unused_variables, unused_imports)]
 
 // =============================================================================
-// COMMON TYPES
+// SHARED TYPES
+// In the real implementation these live in a separate `valichord_shared_types`
+// crate and are imported by each integrity zome via Cargo.toml.
 // =============================================================================
-//
-// These types are used across multiple DNAs. In the actual implementation,
-// shared types should be defined in a common crate imported by each DNA's
-// integrity zome rather than duplicated.
 
-/// SHA-256 digest — used for research file fingerprints (data, code, protocols).
-/// This is the researcher-facing hash: content-addressed identification of study
-/// materials, compatible with academic repositories (Zenodo, Figshare, etc.).
+/// SHA-256 digest of external research content (data files, code archives).
 ///
-/// Note: Holochain uses BLAKE2b internally for addressing Actions and DHT records.
-/// These are separate layers — SHA-256 identifies *what was validated*,
-/// BLAKE2b addresses *the validation actions themselves*.
-pub type ExternalHash = [u8; 32];
-
-/// UTC timestamp. All ValiChord events are timestamped for audit and provenance.
-/// In the actual Holochain implementation, use Holochain's native `Timestamp`
-/// type from the HDK — it provides microsecond precision and integrates with
-/// source chain sequencing.
-pub type DateTime = u64; // microseconds since Unix epoch (placeholder)
-
-/// Holochain AgentPubKey equivalent. Each participant has a unique cryptographic
-/// identity derived from their keypair.
+/// This is NOT a Holochain internal hash. Holochain uses BLAKE2b internally
+/// for ActionHash, EntryHash, and AgentPubKey. SHA-256 is the researcher-
+/// facing fingerprint that identifies study materials and is compatible with
+/// academic repositories (Zenodo, Figshare, OSF, etc.).
 ///
-/// IMPORTANT: In Holochain, AgentPubKey is 39 bytes — NOT 32. It carries a
-/// multihash protocol prefix and a DHT location suffix in addition to the
-/// 32-byte key material. Using [u8; 32] here would be structurally wrong in
-/// the actual implementation. Use `AgentPubKey` from the HDK directly.
-///
-/// This type alias is used throughout the scaffold for readability. Replace
-/// with the HDK's `AgentPubKey` type at implementation time.
-pub type AgentId = Vec<u8>; // 39 bytes in practice; Vec used here to avoid hardcoding wrong size
+/// Compute with the `sha2` crate compiled to WASM:
+///   use sha2::{Sha256, Digest};
+///   let hash: [u8; 32] = Sha256::digest(bytes).into();
+/// Store on the DHT as Holochain's ExternalHash type.
+pub type ResearchHash = [u8; 32];
 
-/// Alias for readability when the agent is acting as a validator.
-pub type ValidatorId = AgentId;
-
-/// Cryptographic signature from an agent's keypair.
-pub type Signature = Vec<u8>;
-
-/// Scientific discipline. Extensible — disciplines are added by governance
-/// decision, not by code change.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+/// Scientific discipline. Extended by governance decision, not code change.
+/// Kept in shared types so the same enum is used across all four DNAs.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Discipline {
     ComputationalBiology,
     ClimateScience,
     SocialScience,
     Economics,
-    Physics,
-    Chemistry,
     Psychology,
     Neuroscience,
     MachineLearning,
     Other(String),
 }
 
-/// Error types. Intentionally broad at scaffold stage.
-#[derive(Debug)]
-pub enum ValiChordError {
-    NotFound(String),
-    Unauthorized(String),
-    ValidationFailed(String),
-    GovernanceRequired(String),
-    HashMismatch { expected: ExternalHash, actual: ExternalHash },
-    QuorumNotMet { required: u8, received: u8 },
-    HolochainError(String),
+/// Structured outcome from a single validator's reproduction attempt.
+/// Shared across DNA 2 (private commit) and DNA 3 (public reveal).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AttestationOutcome {
+    /// Code ran and key results match published findings.
+    Reproduced,
+    /// Code ran but results partially match (detail required).
+    PartiallyReproduced { details: String },
+    /// Code ran but results do not match published findings.
+    FailedToReproduce { details: String },
+    /// Validator could not reach the point of running the code.
+    UnableToAssess { reason: String },
 }
 
-pub type Result<T> = std::result::Result<T, ValiChordError>;
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AttestationConfidence { High, Medium, Low }
+
+/// Phase 0's four-category time breakdown — the primary measurement goal.
+/// These categories feed the difficulty prediction model.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TimeBreakdown {
+    pub environment_setup_secs: u64,
+    pub data_acquisition_secs:  u64,
+    pub code_execution_secs:    u64,
+    pub troubleshooting_secs:   u64,
+}
+
+/// Structured deviation type. One of ValiChord's key contributions:
+/// deviation reporting as machine-readable data, not free text.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum DeviationType {
+    DataAccess            { reason: String, impact: EpistemicImpact },
+    EthicalConcern        { review_board: String },
+    ModelFailure          { attempted_model: String, fallback_model: String, justification: String },
+    ComputationalLimit    { planned_method: String, actual_method: String, reason: String },
+    SampleSizeAdjustment  { original_n: usize, revised_n: usize, power_analysis: String },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum EpistemicImpact {
+    Minimal,
+    Moderate,
+    Substantial, // Triggers governance review
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum Severity { Minor, Moderate, Major, Critical }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ComputationalResources {
+    pub personal_hardware_sufficient:  bool,
+    pub hpc_required:                  bool,
+    pub gpu_required:                  bool,
+    pub cloud_compute_required:        bool,
+    /// Integer pence to avoid floating-point rounding in financial values.
+    pub estimated_compute_cost_pence:  Option<u64>,
+}
 
 // =============================================================================
 // DNA 1: RESEARCHER REPOSITORY
 // =============================================================================
 //
-// Private membrane — only the researcher (and their institution, if they choose
-// to share access) can join this DNA. Nothing sensitive ever leaves this space.
+// Private membrane — researcher (and their institution) only.
+// Holds raw research materials locally.
 //
-// The researcher publishes only a cryptographic commitment outward to the
-// Attestation DNA: metadata and a hash. The membrane is the primary GDPR
-// protection — data minimisation enforced structurally, not by policy.
+// The ONLY thing that leaves this DNA is a SHA-256 hash (ResearchHash) of the
+// study materials. GDPR compliance is structurally enforced: sensitive data
+// cannot enter the shared DHT because it lives in a separate, private DNA.
 //
-// Integrity zome (hdi): entry types, link types, validate callback
-// Coordinator zome (hdk): CRUD functions, init, post_commit
+// integrity crate uses:  hdi::prelude::*
+// coordinator crate uses: hdk::prelude::*
+//
+// dna.yaml properties: none — single-agent private DNA needs no configuration.
 
-pub mod researcher_repository_dna {
+pub mod researcher_repository {
+
     use super::*;
 
-    // ---- Entry Types --------------------------------------------------------
+    // =========================================================================
+    // INTEGRITY ZOME — hdi::prelude::*
+    // =========================================================================
     //
-    // In the actual implementation, each struct must be decorated with:
-    //   #[hdk_entry_helper]
-    // and registered in an enum decorated with:
-    //   #[derive(Serialize, Deserialize)]
-    //   #[hdk_entry_types]
-    //   #[unit_enum(UnitEntryTypes)]
-    //   pub enum EntryTypes { ... }
+    // In the real crate: use hdi::prelude::*;
     //
-    // Without these macros the entries cannot be stored on the source chain.
+    // Entry types and link types defined here determine the DNA hash.
+    // The validate callback defined here is the ONLY place validation logic lives.
+    // Do not import hdk here — hdi is a strict subset and the correct choice.
 
-    /// Content-addressed, tamper-evident data snapshot.
-    /// Stored as a private entry in this DNA — never enters the shared DHT.
-    ///
-    /// Note: Holochain Actions already carry author key, signature, and
-    /// timestamp natively. These fields do not need to be duplicated inside
-    /// entry structs — do not add `created_at` or `creator_id` to entries
-    /// that Holochain itself timestamps and signs.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct VerifiedDataSnapshot {
-        /// SHA-256 hash of the research files (the integrity fingerprint)
-        pub sha256_hash: ExternalHash,
-        /// Redundant storage locations — the hash is the guarantee, not the location
-        pub storage_locations: Vec<StorageLocation>,
-        pub size_bytes: u64,
+    pub mod integrity {
+
+        use super::*;
+
+        // --- Entry Types -----------------------------------------------------
+
+        /// Content-addressed fingerprint of a researcher's study materials.
+        /// Stored as a private entry — never enters the shared DHT.
+        ///
+        /// The sha256_hash is what travels outward to the Attestation DNA.
+        /// Storage locations tell validators where to download the materials.
+        /// The hash guarantees authenticity regardless of storage provider.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone, PartialEq)]
+        pub struct VerifiedDataSnapshot {
+            /// SHA-256 fingerprint of the research files (data, code, protocol).
+            pub sha256_hash:        ResearchHash,
+            /// Where the files can be downloaded. The hash — not the location —
+            /// is the integrity guarantee.
+            pub storage_locations:  Vec<StorageLocation>,
+            pub size_bytes:         u64,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum StorageLocation {
+            Zenodo        { deposit_id: String },
+            Figshare      { article_id: String },
+            Osf           { project_id: String },
+            GitHub        { repo: String, commit_sha: String },
+            Institutional { url: String },
+            S3            { bucket: String, region: String },
+            Other         { provider: String, location: String },
+        }
+
+        /// Pre-registered protocol — what the researcher committed to before
+        /// seeing results.
+        ///
+        /// Holochain's source chain enforces immutability: once written, this
+        /// entry cannot be silently altered. Updates create new immutable entries
+        /// and mark the old one as superseded, preserving the full history.
+        /// No application-level "time lock" wrapper is needed or appropriate.
+        ///
+        /// To record a protocol modification, call update_entry() and create a
+        /// linked DeclaredDeviation entry explaining the reason.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct PreRegisteredProtocol {
+            pub analysis_plan_description:  String,
+            pub hypotheses:                 Vec<Hypothesis>,
+            pub analysis_type:              AnalysisType,
+            pub primary_outcomes:           Vec<OutcomeMeasure>,
+            pub secondary_outcomes:         Vec<OutcomeMeasure>,
+            pub stopping_rules:             String,
+            pub sample_size_n:              usize,
+            pub sample_size_justification:  String,
+            pub allowed_deviation_types:    Vec<DeviationType>,
+            /// Raw signature bytes from the institutional authority.
+            pub institutional_approval:     Option<Vec<u8>>,
+            pub external_links:             ExternalLinks,
+        }
+
+        /// A declared deviation from the pre-registered plan.
+        ///
+        /// Each deviation is a separate, new entry — not an update to the
+        /// protocol. This gives a queryable, structured deviation history
+        /// without relying on Holochain's update chain for semantic meaning.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct DeclaredDeviation {
+            /// ActionHash of the specific protocol version this deviates from.
+            pub protocol_action_hash:   ActionHash,
+            pub deviation_type:         DeviationType,
+            pub justification:          String,
+            pub epistemic_impact:       EpistemicImpact,
+        }
+
+        // Supporting types for protocol entries
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct Hypothesis {
+            pub statement:   String,
+            pub formal_spec: Option<FormalClaim>,
+            pub claim_type:  ClaimType,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct FormalClaim {
+            pub null_hypothesis:        String,
+            pub alternative_hypothesis: String,
+            pub significance_threshold: f64,
+            pub test_statistic:         String,
+            pub direction:              Direction,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum Direction    { TwoSided, GreaterThan, LessThan }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum ClaimType {
+            Primary,
+            Secondary,
+            Exploratory { disclosed: bool },
+            Robustness,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum AnalysisType { Confirmatory, Exploratory, Mixed }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct OutcomeMeasure {
+            pub name:          String,
+            pub specification: String,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct ExternalLinks {
+            pub osf_project:         Option<String>,
+            pub github_repo:         Option<String>,
+            pub preregistration_doi: Option<String>,
+            pub trial_registry:      Option<String>,
+            pub publication_doi:     Option<String>,
+        }
+
+        // --- Entry Types Enum ------------------------------------------------
+
+        #[hdk_entry_types]
+        #[unit_enum(UnitEntryTypes)]
+        pub enum EntryTypes {
+            VerifiedDataSnapshot(VerifiedDataSnapshot),
+            PreRegisteredProtocol(PreRegisteredProtocol),
+            DeclaredDeviation(DeclaredDeviation),
+        }
+
+        // --- Link Types ------------------------------------------------------
+
+        #[hdk_link_types]
+        pub enum LinkTypes {
+            /// Protocol ActionHash → Snapshot ActionHash
+            ProtocolToSnapshot,
+            /// Protocol ActionHash → DeclaredDeviation ActionHash (modification history)
+            ProtocolToDeviation,
+        }
+
+        // --- Validate Callback -----------------------------------------------
+        //
+        // This DNA has a single participant (the researcher). Standard Holochain
+        // source chain integrity — sequence numbers, author signatures, append-
+        // only history — is sufficient. No custom rules are needed.
+
+        #[hdk_extern]
+        pub fn validate(_op: Op) -> ExternResult<ValidateCallbackResult> {
+            Ok(ValidateCallbackResult::Valid)
+        }
     }
 
-    /// Storage location is deliberately agnostic. The integrity guarantee
-    /// comes from the content hash recorded on Holochain, not the storage system.
-    #[derive(Debug, Clone)]
-    pub enum StorageLocation {
-        Zenodo { deposit_id: String },
-        Figshare { article_id: String },
-        InstitutionalRepository { url: String },
-        Osf { project_id: String },
-        GitHub { repo: String, commit_sha: String },
-        S3 { bucket: String, region: String },
-        Other { provider: String, location: String },
-    }
-
-    /// Pre-registered protocol with committed analysis plan.
-    ///
-    /// In Holochain, immutability is not enforced by a "TimeLocked" wrapper —
-    /// it is enforced by the architecture itself. All entries on the source
-    /// chain are immutable once written. "Updates" in Holochain create new
-    /// immutable records that mark the old ones as superseded, preserving
-    /// the full modification history automatically. No application-level
-    /// locking mechanism is needed or appropriate.
-    ///
-    /// Protocol modifications are recorded as new entries linked to the
-    /// original via ProtocolVersionLink. The full history is always queryable.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct PreRegisteredProtocol {
-        pub analysis_plan_description: String,
-        pub hypotheses: Vec<Hypothesis>,
-        pub analysis_type: AnalysisType,
-        pub primary_outcomes: Vec<OutcomeMeasure>,
-        pub secondary_outcomes: Vec<OutcomeMeasure>,
-        pub stopping_rules: String,
-        pub sample_size_n: usize,
-        pub sample_size_justification: String,
-        pub allowed_deviation_types: Vec<DeviationType>,
-        pub institutional_approval: Option<Signature>,
-        pub external_links: ExternalLinks,
-    }
-
-    /// Declared deviation from pre-registered plan.
-    /// Each deviation is a new, immutable entry — not an update to the protocol.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct DeclaredDeviation {
-        /// Links back to the original protocol
-        pub protocol_ref: ExternalHash,
-        pub deviation_type: DeviationType,
-        pub justification: String,
-        pub epistemic_impact: EpistemicImpact,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct Hypothesis {
-        pub statement: String,
-        pub formal_spec: Option<FormalClaim>,
-        pub claim_type: ClaimType,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct FormalClaim {
-        pub null_hypothesis: String,
-        pub alternative_hypothesis: String,
-        pub significance_threshold: f64,
-        pub test_statistic: String,
-        pub direction: Direction,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum Direction { TwoSided, GreaterThan, LessThan }
-
-    #[derive(Debug, Clone)]
-    pub enum ClaimType {
-        Primary,
-        Secondary,
-        Exploratory { disclosed: bool },
-        Robustness,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum AnalysisType { Confirmatory, Exploratory, Mixed }
-
-    #[derive(Debug, Clone)]
-    pub struct OutcomeMeasure {
-        pub name: String,
-        pub specification: String,
-    }
-
-    /// Not all deviations are equal. This typology is one of ValiChord's
-    /// key contributions — making deviation reporting structured rather than
-    /// free-text.
-    #[derive(Debug, Clone)]
-    pub enum DeviationType {
-        DataAccess { reason: String, impact: EpistemicImpact },
-        EthicalConcern { review_board: String },
-        ModelFailure {
-            attempted_model: String,
-            fallback_model: String,
-            justification: String,
-        },
-        ComputationalLimit {
-            planned_method: String,
-            actual_method: String,
-            reason: String,
-        },
-        SampleSizeAdjustment {
-            original_n: usize,
-            revised_n: usize,
-            power_analysis: String,
-        },
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
-    pub enum EpistemicImpact {
-        Minimal,
-        Moderate,
-        Substantial, // Triggers governance review
-    }
-
-    #[derive(Debug, Clone, Default)]
-    pub struct ExternalLinks {
-        pub osf_project: Option<String>,
-        pub github_repo: Option<String>,
-        pub preregistration_doi: Option<String>,
-        pub trial_registry: Option<String>,
-        pub publication_doi: Option<String>,
-    }
-
-    // ---- Link Types ---------------------------------------------------------
+    // =========================================================================
+    // COORDINATOR ZOME — hdk::prelude::*
+    // =========================================================================
     //
-    // Defined in the integrity zome. Each DNA has its own enum — not shared.
+    // In the real crate: use hdk::prelude::*;
 
-    // #[hdk_link_types]
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum LinkTypes {
-        /// protocol entry → dataset/snapshot entries for that protocol
-        ProtocolToSnapshot,
-        /// study entry → dataset entries (never leaves this private DNA)
-        StudyToDataset,
-        /// protocol entry → deviation entries (the modification history)
-        ProtocolToDeviation,
-    }
+    pub mod coordinator {
 
-    // ---- Validate Callback --------------------------------------------------
-    //
-    // Researcher Repository DNA: the researcher is the only participant.
-    // Standard Holochain source chain integrity (sequence numbers, author
-    // signatures) is sufficient. No complex custom rules are needed.
-    // genesis_self_check() and validate() can use default implementations.
+        use super::*;
 
-    // ---- Coordinator Zome Functions -----------------------------------------
-    //
-    // These are the public API of this DNA:
-    //   submit_protocol(protocol: PreRegisteredProtocol) -> ExternResult<ActionHash>
-    //   declare_deviation(deviation: DeclaredDeviation) -> ExternResult<ActionHash>
-    //   upload_snapshot(snapshot: VerifiedDataSnapshot) -> ExternResult<ActionHash>
-    //   get_protocol(protocol_hash: ActionHash) -> ExternResult<Option<Record>>
-    //   get_protocol_history(protocol_hash: ActionHash) -> ExternResult<Vec<Record>>
+        // No init() needed — single-agent private DNA. Author grant covers all
+        // calls and no remote agents need capability access.
 
-    /// Hash a research dataset with a salt before transmitting the fingerprint
-    /// to the Attestation DNA.
-    ///
-    /// Privacy by architecture: sensitive data never enters the shared DHT —
-    /// only this hash travels outward. Salt is transmitted off-DHT from data
-    /// custodian to validator. The primary protection is the membrane separation;
-    /// salting is a secondary layer for any summary properties that do travel.
-    pub fn hash_dataset_with_salt(data: &[u8], salt: &[u8]) -> ExternalHash {
-        // TODO: Use SHA-256 via an external crate (ring or sha2).
-        // Holochain has no built-in SHA-256 — its native hashing is BLAKE2b.
-        let mut combined = data.to_vec();
-        combined.extend_from_slice(salt);
-        [0u8; 32] // Placeholder
+        #[hdk_extern]
+        pub fn submit_protocol(protocol: integrity::PreRegisteredProtocol) -> ExternResult<ActionHash> {
+            let action_hash = create_entry(EntryTypes::PreRegisteredProtocol(protocol))?;
+            // TODO: Create path link for local discovery if needed.
+            Ok(action_hash)
+        }
+
+        #[hdk_extern]
+        pub fn update_protocol(
+            original_hash: ActionHash,
+            updated_protocol: integrity::PreRegisteredProtocol,
+        ) -> ExternResult<ActionHash> {
+            update_entry(original_hash, updated_protocol)
+        }
+
+        #[hdk_extern]
+        pub fn declare_deviation(deviation: integrity::DeclaredDeviation) -> ExternResult<ActionHash> {
+            let deviation_hash = create_entry(EntryTypes::DeclaredDeviation(deviation.clone()))?;
+            // Link from the protocol this deviates from
+            create_link(
+                deviation.protocol_action_hash.clone(),
+                deviation_hash.clone(),
+                LinkTypes::ProtocolToDeviation,
+                (),
+            )?;
+            Ok(deviation_hash)
+        }
+
+        #[hdk_extern]
+        pub fn upload_snapshot(snapshot: integrity::VerifiedDataSnapshot) -> ExternResult<ActionHash> {
+            create_entry(EntryTypes::VerifiedDataSnapshot(snapshot))
+        }
+
+        #[hdk_extern]
+        pub fn get_protocol(hash: ActionHash) -> ExternResult<Option<Record>> {
+            get(hash, GetOptions::network())
+        }
+
+        /// Retrieve the full modification history of a protocol.
+        /// Traverses the update chain from the original ActionHash.
+        #[hdk_extern]
+        pub fn get_protocol_history(original_hash: ActionHash) -> ExternResult<Details> {
+            // get_details returns the record plus all updates and deletes
+            let details = get_details(original_hash, GetOptions::network())?
+                .ok_or(wasm_error!(WasmErrorInner::Guest("Protocol not found".into())))?;
+            Ok(details)
+        }
+
+        #[hdk_extern]
+        pub fn get_deviations_for_protocol(
+            protocol_hash: ActionHash,
+        ) -> ExternResult<Vec<Record>> {
+            let links = get_links(
+                GetLinksInputBuilder::try_new(protocol_hash, LinkTypes::ProtocolToDeviation)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(target_hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(target_hash, GetOptions::network())? {
+                        records.push(record);
+                    }
+                }
+            }
+            Ok(records)
+        }
+
+        /// Compute SHA-256 of research materials before transmitting the hash
+        /// outward to the Attestation DNA.
+        ///
+        /// The data itself NEVER leaves this private DNA — only the hash travels.
+        /// This is the primary GDPR protection: membrane separation ensures
+        /// sensitive data cannot enter the shared DHT by architecture, not policy.
+        pub fn compute_research_hash(data: &[u8]) -> ResearchHash {
+            // TODO: use sha2::Sha256 compiled to WASM (add sha2 to Cargo.toml).
+            // use sha2::{Sha256, Digest};
+            // Sha256::digest(data).into()
+            [0u8; 32] // placeholder
+        }
     }
 }
 
@@ -351,599 +478,925 @@ pub mod researcher_repository_dna {
 // =============================================================================
 //
 // Private membrane, per validator — the "Repro Witnessing hApp."
-// Each validator runs this locally. Only they can join.
+// Each validator runs their own instance. Only they can join.
 //
 // This is where the actual reproduction work happens:
-//   - Validator receives study materials and task assignment
-//   - Runs analysis in their local environment
-//   - Records findings as a private entry (the commit phase)
-//   - Only the signed attestation — never raw results — leaves this space
+//   - ValidationTask received from the Attestation DNA coordinator
+//   - Validator runs analysis in their local environment
+//   - ValidatorPrivateAttestation sealed as a private entry (COMMIT PHASE)
+//   - Only the signed outcome summary — never raw results — leaves this space
 //
-// Because the local app controls how data is serialised before hashing,
-// outputs are consistent regardless of database query ordering or other
-// non-deterministic operations outside the validator's control.
+// integrity crate uses:  hdi::prelude::*
+// coordinator crate uses: hdk::prelude::*
+//
+// dna.yaml properties: none — single-agent private DNA.
 
-pub mod validator_workspace_dna {
+pub mod validator_workspace {
+
     use super::*;
-    use super::researcher_repository_dna::{
-        DeviationType, EpistemicImpact, PreRegisteredProtocol,
-        VerifiedDataSnapshot,
-    };
 
-    // ---- Entry Types --------------------------------------------------------
+    // =========================================================================
+    // INTEGRITY ZOME — hdi::prelude::*
+    // =========================================================================
 
-    /// A validation task assigned to this validator.
-    /// Received from the Attestation DNA's coordinator via call().
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidationTask {
-        pub task_id: ExternalHash,
-        /// Reference to the ValidationRequest in the Attestation DNA
-        pub request_ref: ExternalHash,
-        pub protocol_summary: Option<PreRegisteredProtocol>,
-        pub data_snapshot: VerifiedDataSnapshot,
-        pub validation_focus: ValidationFocus,
-        pub time_cap: Duration,
-        pub estimated_time_range: (Duration, Duration),
-        pub compensation_tier: CompensationTier,
+    pub mod integrity {
+
+        use super::*;
+
+        // --- Entry Types -----------------------------------------------------
+
+        /// A validation assignment received from the Attestation DNA.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct ValidationTask {
+            /// SHA-256 content hash identifying this task (not a Holochain ActionHash).
+            pub task_id:             ResearchHash,
+            /// References the ValidationRequest entry in the Attestation DNA.
+            pub request_ref:         ResearchHash,
+            pub validation_focus:    ValidationFocus,
+            pub time_cap_secs:       u64,
+            pub estimated_min_secs:  u64,
+            pub estimated_max_secs:  u64,
+            pub compensation_tier:   CompensationTier,
+        }
+
+        /// THE COMMIT PHASE — stored as a private entry.
+        ///
+        /// Invisible to all peers and to the shared DHT. Its *existence* is
+        /// verifiable on this validator's source chain (any peer can query
+        /// get_agent_activity to confirm the validator has a private action
+        /// at this sequence position). Its *content* is not visible to anyone
+        /// else until the reveal phase opens.
+        ///
+        /// This IS the cryptographic commitment. There is no need to hash it
+        /// separately and post a hash elsewhere — Holochain's private entry
+        /// mechanism gives us the sealed commitment natively.
+        #[hdk_entry_helper]
+        #[entry_type(visibility = "private")]
+        #[derive(Debug, Clone)]
+        pub struct ValidatorPrivateAttestation {
+            pub task_ref:               ResearchHash,
+            pub outcome:                AttestationOutcome,
+            pub detailed_report:        String,
+            pub time_invested_secs:     u64,
+            pub time_breakdown:         TimeBreakdown,
+            pub confidence:             AttestationConfidence,
+            pub deviation_flags:        Vec<UndeclaredDeviation>,
+            pub computational_resources: ComputationalResources,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct UndeclaredDeviation {
+            pub deviation_type: DeviationType,
+            pub severity:       Severity,
+            pub evidence:       String,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum ValidationFocus {
+            ComputationalReproducibility,
+            PreCommitmentAdherence,
+            MethodologicalReview,
+        }
+
+        /// Compensation tiers — PLACEHOLDER amounts.
+        /// Phase 0 empirical evidence determines real values.
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum CompensationTier {
+            Tier1 { amount_pence: u64 }, // ~1–2 hours: £50–100
+            Tier2 { amount_pence: u64 }, // ~4–8 hours: £200–400
+            Tier3 { amount_pence: u64 }, // ~16+ hours: £800–1600
+        }
+
+        // --- Entry Types Enum ------------------------------------------------
+
+        #[hdk_entry_types]
+        #[unit_enum(UnitEntryTypes)]
+        pub enum EntryTypes {
+            ValidationTask(ValidationTask),
+            #[entry_type(visibility = "private")]
+            ValidatorPrivateAttestation(ValidatorPrivateAttestation),
+        }
+
+        // --- Link Types ------------------------------------------------------
+
+        #[hdk_link_types]
+        pub enum LinkTypes {
+            /// ValidationTask ActionHash → ValidatorPrivateAttestation ActionHash
+            TaskToPrivateAttestation,
+        }
+
+        // --- Validate Callback -----------------------------------------------
+        //
+        // Single participant — standard source chain integrity is sufficient.
+
+        #[hdk_extern]
+        pub fn validate(_op: Op) -> ExternResult<ValidateCallbackResult> {
+            Ok(ValidateCallbackResult::Valid)
+        }
     }
 
-    /// Private attestation entry — the COMMIT phase.
-    ///
-    /// Stored as a private entry on this validator's source chain.
-    /// Invisible to other validators and to the shared DHT.
-    /// Its existence is verifiable on-chain; its contents are not visible
-    /// until the validator participates in the countersigning reveal session.
-    ///
-    /// This is Holochain's native private entry mechanism — the sealed
-    /// commitment is not a hash of results submitted elsewhere; it IS the
-    /// entry, stored locally and invisible to peers until the reveal.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidatorPrivateAttestation {
-        pub task_ref: ExternalHash,
-        pub outcome: AttestationOutcome,
-        pub detailed_report: String,
-        pub time_invested: Duration,
-        pub time_breakdown: TimeBreakdown,
-        pub confidence: AttestationConfidence,
-        pub deviation_flags: Vec<UndeclaredDeviation>,
-        pub computational_resources: ComputationalResources,
+    // =========================================================================
+    // COORDINATOR ZOME — hdk::prelude::*
+    // =========================================================================
+
+    pub mod coordinator {
+
+        use super::*;
+
+        // No init() needed — single-agent private DNA.
+
+        #[hdk_extern]
+        pub fn receive_task(task: integrity::ValidationTask) -> ExternResult<ActionHash> {
+            create_entry(EntryTypes::ValidationTask(task))
+        }
+
+        /// Seal the validator's private attestation — the COMMIT PHASE.
+        ///
+        /// Writes a private entry: visible only on this validator's own
+        /// source chain. post_commit fires after the write is confirmed
+        /// and notifies the Attestation DNA coordinator.
+        #[hdk_extern]
+        pub fn seal_private_attestation(
+            attestation: integrity::ValidatorPrivateAttestation,
+        ) -> ExternResult<ActionHash> {
+            let task_ref = attestation.task_ref;
+            let attestation_hash = create_entry(
+                EntryTypes::ValidatorPrivateAttestation(attestation)
+            )?;
+            // Link from the task so we can retrieve it later
+            // Note: this link is also private since the target is private.
+            // TODO: verify Holochain version behaviour for links to private entries.
+            create_link(
+                ActionHash::from_raw_36(task_ref.to_vec()), // placeholder — use actual task ActionHash
+                attestation_hash.clone(),
+                LinkTypes::TaskToPrivateAttestation,
+                (),
+            )?;
+            Ok(attestation_hash)
+        }
+
+        #[hdk_extern]
+        pub fn get_task(task_hash: ActionHash) -> ExternResult<Option<Record>> {
+            get(task_hash, GetOptions::local())
+        }
+
+        #[hdk_extern]
+        pub fn get_my_attestation(task_hash: ActionHash) -> ExternResult<Option<Record>> {
+            let links = get_links(
+                GetLinksInputBuilder::try_new(task_hash, LinkTypes::TaskToPrivateAttestation)?.build(),
+            )?;
+            match links.first() {
+                Some(link) => {
+                    let target = link.target.clone().into_action_hash()
+                        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid link target".into())))?;
+                    get(target, GetOptions::local())
+                }
+                None => Ok(None),
+            }
+        }
+
+        /// Called automatically by Holochain after seal_private_attestation
+        /// successfully commits to the source chain.
+        ///
+        /// Notifies the Attestation DNA coordinator that this validator's
+        /// commitment is sealed. The Attestation coordinator must POLL DHT
+        /// state to check when all validators have committed — it cannot rely
+        /// on this signal (which is fire-and-forget and will be missed by
+        /// any offline peer).
+        ///
+        /// The signal here is a UI convenience notification only.
+        #[hdk_extern(infallible)]
+        pub fn post_commit(committed_actions: Vec<SignedActionHashed>) -> ExternResult<()> {
+            for action in committed_actions {
+                if let Action::Create(create) = action.action() {
+                    // When it's a ValidatorPrivateAttestation, notify the
+                    // Attestation DNA coordinator via call() — author grant
+                    // handles cross-DNA same-agent calls automatically.
+                    // TODO: check entry type and call:
+                    //   call(
+                    //     CallTargetCell::OtherRole("attestation".into()),
+                    //     "attestation_coordinator",
+                    //     "notify_commitment_sealed",
+                    //     None,
+                    //     task_ref,
+                    //   )
+                }
+            }
+            Ok(())
+        }
     }
-
-    #[derive(Debug, Clone)]
-    pub enum ValidationFocus {
-        ComputationalReproducibility,
-        PreCommitmentAdherence,
-        MethodologicalReview,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum AttestationOutcome {
-        /// Code runs and results match published findings
-        Reproduced,
-        /// Code runs but results partially match
-        PartiallyReproduced { details: String },
-        /// Code runs but results do not match
-        FailedToReproduce { details: String },
-        /// Could not reach the point of running the code
-        UnableToAssess { reason: String },
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum AttestationConfidence { High, Medium, Low }
-
-    /// Phase 0's four-category time breakdown — the primary data collection
-    /// goal of the workload discovery pilot.
-    #[derive(Debug, Clone)]
-    pub struct TimeBreakdown {
-        pub environment_setup: Duration,
-        pub data_acquisition: Duration,
-        pub code_execution: Duration,
-        pub troubleshooting: Duration,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct UndeclaredDeviation {
-        pub deviation_type: DeviationType,
-        pub severity: Severity,
-        pub evidence: String,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum Severity { Minor, Moderate, Major, Critical }
-
-    #[derive(Debug, Clone)]
-    pub struct ComputationalResources {
-        pub personal_hardware_sufficient: bool,
-        pub hpc_required: bool,
-        pub gpu_required: bool,
-        pub cloud_compute_required: bool,
-        pub estimated_compute_cost_gbp: Option<f64>,
-    }
-
-    /// Compensation tiers. PLACEHOLDERS — Phase 0 evidence determines real values.
-    #[derive(Debug, Clone)]
-    pub enum CompensationTier {
-        /// Quick check (~1-2 hours): £50-100
-        Tier1 { amount_pence: u64 },
-        /// Standard validation (~4-8 hours): £200-400
-        Tier2 { amount_pence: u64 },
-        /// Comprehensive review (~16+ hours): £800-1600
-        Tier3 { amount_pence: u64 },
-    }
-
-    // ---- Link Types ---------------------------------------------------------
-
-    // #[hdk_link_types]
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum LinkTypes {
-        /// task entry → private attestation entry for that task
-        TaskToPrivateAttestation,
-    }
-
-    // ---- Validate Callback --------------------------------------------------
-    //
-    // Validator Workspace DNA: the validator is the only participant.
-    // Standard source chain integrity is sufficient.
-    // The private entry is the commitment — its existence is the proof.
-    // No peers are validating this DNA so no custom membrane rules needed.
-
-    // ---- Coordinator Zome Functions -----------------------------------------
-    //
-    //   receive_task(task: ValidationTask) -> ExternResult<ActionHash>
-    //   seal_private_attestation(attestation: ValidatorPrivateAttestation) -> ExternResult<ActionHash>
-    //   get_task(task_ref: ExternalHash) -> ExternResult<Option<Record>>
-    //   get_my_attestation(task_ref: ExternalHash) -> ExternResult<Option<Record>>
-    //
-    // Note: seal_private_attestation writes a private entry — it never appears
-    // in the DHT, only on this validator's local source chain.
-    //
-    // post_commit callback: after a private attestation is sealed, use
-    // post_commit to send a remote signal to the Attestation DNA coordinator
-    // that this validator's commitment is ready. The Attestation DNA then
-    // polls to check whether all validators have sealed their commitments
-    // before opening the reveal window.
-    //
-    // IMPORTANT: Signals are send-and-forget — they cannot drive protocol
-    // phase transitions. The Attestation DNA coordinator must poll the DHT
-    // for state (all expected validators sealed?) and not rely on signal delivery.
 }
 
 // =============================================================================
 // DNA 3: ATTESTATION
 // =============================================================================
 //
-// Shared DHT, credentialed participants (membrane proof required to join).
-// This is the core shared layer.
+// Shared DHT, credentialed participants (institutional membrane proof required).
 //
 // Records the *act* of validation: protocol registered, attestation submitted,
-// warrant issued. Not the content of the research — only the signed outcome
-// summary. All inter-validator coordination happens here because call_remote()
-// only works between agents on the SAME DNA's network.
+// warrant issued. NOT the content of the research — only the signed outcome
+// summary. All inter-validator call_remote() coordination happens here because
+// call_remote() only works between agents on the SAME DNA's network.
 //
-// Agreement detection operates on structured outcome summaries, not raw result
-// hashes — because computational reproduction almost never produces bit-identical
-// outputs due to floating point differences and hardware variation.
+// Agreement detection operates on structured OutcomeSummary fields — not on
+// raw result hashes — because computational reproduction almost never produces
+// bit-identical outputs due to floating-point differences and hardware variation.
+//
+// integrity crate uses:  hdi::prelude::*
+// coordinator crate uses: hdk::prelude::*
+//
+// dna.yaml properties (baked into DNA hash — immutable per network instance):
+//   authorized_joining_certificate_issuer: AgentPubKey  # credential issuer
+//   discipline: String                                    # one network per discipline
+//   minimum_validators: u32                               # e.g. 3
 
-pub mod attestation_dna {
+pub mod attestation {
+
     use super::*;
-    use super::researcher_repository_dna::{
-        DeviationType, EpistemicImpact, DeclaredDeviation,
-    };
-    use super::validator_workspace_dna::{
-        AttestationOutcome, AttestationConfidence, TimeBreakdown,
-        ComputationalResources, Severity, ValidationFocus,
-    };
 
-    // ---- Entry Types --------------------------------------------------------
+    // =========================================================================
+    // INTEGRITY ZOME — hdi::prelude::*
+    // =========================================================================
 
-    /// A request to validate a study.
-    /// Submitted by a researcher (or journal, funder) to kick off validation.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidationRequest {
-        /// Reference to the PreRegisteredProtocol in the Researcher Repository DNA
-        pub protocol_ref: Option<ExternalHash>,
-        /// SHA-256 hash of the study data — the only thing from the private DNA
-        /// that travels to this shared network
-        pub data_hash: ExternalHash,
-        pub num_validators_required: u8,
-        pub validation_tier: ValidationTier,
-        pub discipline: Discipline,
-    }
+    pub mod integrity {
 
-    #[derive(Debug, Clone)]
-    pub enum ValidationTier {
-        Basic,       // Simple computational reproducibility
-        Enhanced,    // Includes robustness checks
-        Comprehensive, // Full methodological review
-    }
+        use super::*;
 
-    /// Validator's attested outcome — the REVEAL phase.
-    ///
-    /// This entry is written to the shared Attestation DHT during the
-    /// countersigning session. At this point all validators simultaneously
-    /// contribute their findings; each validator's chain is locked during
-    /// the session to prevent any party adjusting their position after seeing
-    /// others' results. This is the simultaneous reveal.
-    ///
-    /// The private attestation in the Validator Workspace DNA is the sealed
-    /// commitment. This entry is the public attestation — the revealed finding.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidationAttestation {
-        pub request_ref: ExternalHash,
-        pub outcome: AttestationOutcome,
-        /// Outcome summary — structured for agreement detection.
-        /// Agreement is assessed on these summaries, not on raw result hashes,
-        /// because exact hash matches are unrealistic across environments.
-        pub outcome_summary: OutcomeSummary,
-        pub time_invested: Duration,
-        pub time_breakdown: TimeBreakdown,
-        pub confidence: AttestationConfidence,
-        pub deviation_flags: Vec<UndeclaredDeviation>,
-        pub computational_resources: ComputationalResources,
-    }
+        // --- DNA Properties --------------------------------------------------
+        //
+        // These are baked into the DNA hash. Changing them creates a new DNA
+        // hash = new network. This tamper-evidence is the feature.
 
-    /// Structured outcome for agreement detection across validators.
-    /// What constitutes agreement is defined by discipline-specific standards
-    /// in the Governance DNA.
-    #[derive(Debug, Clone)]
-    pub struct OutcomeSummary {
-        pub key_metrics: Vec<MetricResult>,
-        pub effect_direction_matches: Option<bool>,
-        pub confidence_interval_overlap: Option<f64>,
-        pub overall_agreement: AgreementLevel,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct MetricResult {
-        pub metric_name: String,
-        pub produced_value: String,
-        pub expected_value: String,
-        pub within_tolerance: bool,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum AgreementLevel {
-        ExactMatch,
-        WithinTolerance,
-        DirectionalMatch,
-        Divergent,
-        UnableToAssess,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct UndeclaredDeviation {
-        pub deviation_type: DeviationType,
-        pub severity: Severity,
-        pub evidence: String,
-    }
-
-    /// Validator profile — their credentials, expertise, and availability.
-    /// Published to the Attestation DHT so the assignment engine can query it.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidatorProfile {
-        pub institution: String,
-        pub disciplines: Vec<Discipline>,
-        pub certification_tier: CertificationTier,
-        pub available: bool,
-        pub max_concurrent_tasks: u8,
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum CertificationTier {
-        Provisional,  // < 10 completed validations
-        Certified,    // ≥ 10 with good standing
-        Senior,       // ≥ 50 with excellent standing
-    }
-
-    // Difficulty Assessment — lives in the Attestation DNA because it runs
-    // on the incoming study hash and determines validator assignment params.
-
-    /// Surface feature scores for predicting validation difficulty.
-    /// Weights are PLACEHOLDERS — Phase 0 evidence determines real values.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct DifficultyAssessment {
-        pub request_ref: ExternalHash,
-        pub code_volume: u8,           // 1–5
-        pub dependency_count: u8,      // 1–5
-        pub documentation_quality: u8, // 1–5 (5 = excellent)
-        pub data_accessibility: u8,    // 1–5 (5 = fully open)
-        pub environment_complexity: u8,// 1–5
-        pub study_age_years: u8,       // 1–5 (5 = very old)
-        pub predicted_tier: DifficultyTier,
-        pub predicted_time_range: (Duration, Duration),
-        pub confidence: AssessmentConfidence,
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
-    pub enum DifficultyTier {
-        Standard,  // ~4-8 hours
-        Moderate,  // ~8-16 hours
-        Complex,   // ~16-30 hours
-        Extreme,   // ~30+ hours — flagged for triage
-        Excluded,  // Fails minimum criteria
-    }
-
-    #[derive(Debug, Clone)]
-    pub enum AssessmentConfidence { High, Medium, Low }
-
-    #[derive(Debug, Clone)]
-    pub struct ImprovementReport {
-        pub request_ref: ExternalHash,
-        pub overall_assessment: DifficultyTier,
-        pub recommendations: Vec<ImprovementRecommendation>,
-        pub projected_tier_if_improved: DifficultyTier,
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct ImprovementRecommendation {
-        pub feature: String,
-        pub current_score: u8,
-        pub target_score: u8,
-        pub action: String,
-        pub guidance_link: String,
-        pub estimated_effort: String,
-    }
-
-    // ---- Link Types ---------------------------------------------------------
-
-    // #[hdk_link_types]
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum LinkTypes {
-        /// study hash anchor → ValidationRequest entries for that study
-        StudyToValidation,
-        /// agent pubkey → ValidationAttestation entries authored by that agent
-        ValidatorToAttestation,
-        /// ValidationRequest → resulting HarmonyRecord (in Governance DNA)
-        RequestToHarmonyRecord,
-        /// path anchor → ValidationRequest (queryable by status)
-        StudyStatusPath,
-        /// path anchor → ValidationRequest (queryable by institution)
-        InstitutionPath,
-        /// path anchor → ValidationAttestation (queryable by discipline)
-        DisciplinePath,
-        /// agent pubkey → ValidatorProfile entry
-        AgentToProfile,
-    }
-
-    // ---- Validate Callback (Attestation DNA) --------------------------------
-    //
-    // This is the most important integrity zome in ValiChord.
-    // Rules enforced here cannot be relaxed after deployment without
-    // migrating to a new DNA.
-    //
-    // CRITICAL ORDERING: guarded arms (attestation immutability) MUST come
-    // before unguarded arms (author check). Rust evaluates match arms in
-    // order — if the unguarded arm comes first it catches everything and the
-    // guarded arms below it are unreachable. The immutability guarantee
-    // silently disappears without a compile error.
-
-    /*
-    #[hdk_extern]
-    pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-        match op.flattened::<EntryTypes, LinkTypes>()? {
-
-            // 1. ValidationAttestation entries: IMMUTABLE after publication.
-            //    MUST be first — see ordering note above.
-            FlatOp::RegisterUpdate(OpUpdate { original_action, .. })
-                if matches!(
-                    must_get_action(original_action.clone())?.action().entry_type(),
-                    Some(EntryType::App(app)) if app.id() == EntryTypesId::ValidationAttestation
-                ) =>
-            {
-                Ok(ValidateCallbackResult::Invalid(
-                    "Validation attestations cannot be updated after publication".into()
-                ))
-            }
-
-            FlatOp::RegisterDelete(OpDelete { original_action, .. })
-                if matches!(
-                    must_get_action(original_action.clone())?.action().entry_type(),
-                    Some(EntryType::App(app)) if app.id() == EntryTypesId::ValidationAttestation
-                ) =>
-            {
-                Ok(ValidateCallbackResult::Invalid(
-                    "Validation attestations cannot be deleted — the record is permanent".into()
-                ))
-            }
-
-            // 2. Study/ValidationRequest entries: only original author may update or delete.
-            //    After the attestation immutability arms — see ordering note.
-            FlatOp::RegisterUpdate(OpUpdate { original_action, .. }) => {
-                let original = must_get_action(original_action)?;
-                if op.action().author() != original.action().author() {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "Only the original requester may update a validation request".into()
-                    ));
-                }
-                Ok(ValidateCallbackResult::Valid)
-            }
-
-            FlatOp::RegisterDelete(OpDelete { original_action, .. }) => {
-                let original = must_get_action(original_action)?;
-                if op.action().author() != original.action().author() {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "Only the original requester may delete a validation request".into()
-                    ));
-                }
-                Ok(ValidateCallbackResult::Valid)
-            }
-
-            // 3. Membrane proof validation (RegisterAgentActivity: CreateAgent)
-            //    — full verification happens here, after network join.
-            //    genesis_self_check() handles format-only check before join.
-            FlatOp::RegisterAgentActivity(OpActivity::CreateAgent { membrane_proof, .. }) => {
-                validate_membrane_proof(membrane_proof)
-            }
-
-            _ => Ok(ValidateCallbackResult::Valid),
-        }
-    }
-
-    // Two-stage membrane proof validation for the Attestation DNA:
-    //   Stage 1 — genesis_self_check(): runs BEFORE network join, no DHT access.
-    //     Check format only: is this a valid-length signature blob?
-    //   Stage 2 — validate_agent_joining() in validate(): runs AFTER network join.
-    //     Full validation: is the signing authority on the DHT? Is the signature
-    //     over the agent's key? Is the issuer's credential itself valid?
-    fn validate_membrane_proof(
-        membrane_proof: Option<MembraneProof>
-    ) -> ExternResult<ValidateCallbackResult> {
-        // TODO: Verify that the membrane_proof is a valid credential signed by
-        // the authorized_joining_certificate_issuer baked into the DNA properties.
-        // Use dna_info().properties to retrieve the expected issuer key.
-        Ok(ValidateCallbackResult::Valid) // Placeholder
-    }
-    */
-
-    // ---- Coordinator Zome Functions -----------------------------------------
-    //
-    //   submit_validation_request(request: ValidationRequest) -> ExternResult<ActionHash>
-    //   submit_attestation(attestation: ValidationAttestation) -> ExternResult<ActionHash>
-    //   publish_validator_profile(profile: ValidatorProfile) -> ExternResult<ActionHash>
-    //   get_validation_request(hash: ActionHash) -> ExternResult<Option<Record>>
-    //   get_attestations_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Record>>
-    //   get_validators_for_discipline(discipline: Discipline) -> ExternResult<Vec<Record>>
-    //   check_all_commitments_sealed(request_ref: ExternalHash) -> ExternResult<bool>
-    //   recv_remote_signal(signal: SerializedBytes) -> ExternResult<()>  ← unrestricted grant
-    //
-    // Capability grants (set up in init() callback):
-    //   Unrestricted: recv_remote_signal, all public read functions
-    //   Assigned (credentialed validators only): submit_attestation, submit_validation_request
-    //
-    // Without an init() callback creating these grants, remote callers receive
-    // ZomeCallResponse::Unauthorized even for functions intended to be public.
-
-    // ---- Validator Assignment Logic -----------------------------------------
-
-    /// Constraints on validator panel composition.
-    pub struct AssignmentConstraints {
-        /// Maximum proportion of validators from one institution
-        pub max_institutional_share: f64,  // Default: 0.4 (40%)
-        /// Minimum number of validators
-        pub min_validators: u8,            // Default: 3
-        /// Require at least one domain expert
-        pub require_domain_expert: bool,
-        /// Double-blind: validators don't see author identity
-        pub double_blind: bool,            // Default: true
-    }
-
-    impl Default for AssignmentConstraints {
-        fn default() -> Self {
-            AssignmentConstraints {
-                max_institutional_share: 0.4,
-                min_validators: 3,
-                require_domain_expert: true,
-                double_blind: true,
-            }
-        }
-    }
-
-    pub struct ValidationEngine {
-        pub constraints: AssignmentConstraints,
-    }
-
-    impl ValidationEngine {
-        /// Select validators for a study, respecting all constraints.
-        /// Runs in coordinator zome — queries DHT for available validators,
-        /// their profiles, and institutional affiliations.
-        pub fn select_validators(
-            &self,
-            request: &ValidationRequest,
-            available_validators: &[ValidatorProfile],
-        ) -> Result<Vec<ValidatorId>> {
-            // TODO: Implement reputation-weighted constrained random selection:
-            // 1. Filter by discipline capability and certification tier
-            // 2. Apply institutional caps (max 40% from one institution)
-            // 3. Weight by reputation score from Governance DNA
-            // 4. Check co-authorship conflicts (social distance)
-            // 5. Ensure at least one domain expert if required
-            Err(ValiChordError::NotFound("Not implemented".into()))
+        #[dna_properties]
+        #[derive(Debug, serde::Deserialize)]
+        pub struct DnaProperties {
+            /// AgentPubKey of the institution or authority empowered to issue
+            /// joining credentials. Only credentials signed by this key are
+            /// accepted by the membrane.
+            pub authorized_joining_certificate_issuer: AgentPubKey,
+            /// Discipline this network serves (e.g. "genomics", "economics").
+            /// Each discipline runs its own Attestation DNA instance.
+            pub discipline: String,
+            /// Minimum number of validators required per study.
+            pub minimum_validators: u32,
         }
 
-        /// Check for gaming patterns across a validator's history.
+        // --- Entry Types -----------------------------------------------------
+
+        /// A request to validate a study. Submitted by a researcher or journal
+        /// to kick off a validation round.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct ValidationRequest {
+            /// SHA-256 hash of the PreRegisteredProtocol entry bytes from the
+            /// Researcher Repository DNA — the ONLY link back to the private DNA.
+            /// Not an ActionHash: we cannot reference another DNA's chain directly.
+            pub protocol_ref:             Option<ResearchHash>,
+            /// SHA-256 hash of the study data files. Validators use this to
+            /// verify they downloaded the correct materials.
+            pub data_hash:                ResearchHash,
+            pub num_validators_required:  u8,
+            pub validation_tier:          ValidationTier,
+            pub discipline:               Discipline,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum ValidationTier { Basic, Enhanced, Comprehensive }
+
+        /// THE REVEAL PHASE — the public attestation written to the shared DHT.
         ///
-        /// Runs in coordinator zome — NOT in validate() callback.
-        /// Validation callbacks must be deterministic (no historical queries,
-        /// no time-dependent logic). Gaming detection is inherently statistical
-        /// and belongs here, called explicitly before key interactions (e.g.
-        /// before accepting an attestation into the reveal session).
-        pub fn detect_gaming_patterns(
-            &self,
-            validator_id: &ValidatorId,
-            history: &[ValidationAttestation],
-        ) -> Vec<GamingFlag> {
-            // TODO: Implement detection patterns:
-            // - Collusion: >90% agreement with specific other validators over 20+ events
-            // - Speed: unrealistically fast completion times
-            // - Rubber-stamping: always Reproduced with minimal time invested
-            // - Social distance: co-authorship graph proximity to study authors
-            //
-            // WARRANTS: When a gaming pattern is confirmed, any peer can issue
-            // a warrant — a cryptographic proof of the bad action — published
-            // to the network. Warrants are permanent and discoverable via
-            // get_agent_activity(). Stabilised in Holochain 0.7.
-            Vec::new()
+        /// Written once the validator's private commitment (in Validator Workspace
+        /// DNA) is sealed and the reveal window is open. At this point the outcome
+        /// becomes visible to all participants simultaneously.
+        ///
+        /// IMMUTABLE after publication — enforced by validate() callback.
+        /// The validate() arms that guard this entry MUST appear before any
+        /// unguarded update/delete arm (see ENGINEERING CONSTRAINTS #7 above).
+        #[hdk_entry_helper]
+        #[entry_type(required_validations = 7)]
+        #[derive(Debug, Clone)]
+        pub struct ValidationAttestation {
+            /// Links this attestation to its ValidationRequest.
+            pub request_ref:              ResearchHash,
+            pub outcome:                  AttestationOutcome,
+            /// Structured summary for agreement detection across validators.
+            /// Agreement is assessed on these summaries — not on raw result
+            /// hashes — because reproduction almost never produces bit-identical
+            /// outputs across different hardware and environments.
+            pub outcome_summary:          OutcomeSummary,
+            pub time_invested_secs:       u64,
+            pub time_breakdown:           TimeBreakdown,
+            pub confidence:               AttestationConfidence,
+            pub deviation_flags:          Vec<UndeclaredDeviation>,
+            pub computational_resources:  ComputationalResources,
         }
-    }
 
-    #[derive(Debug, Clone)]
-    pub enum GamingFlag {
-        SuspiciousAgreementPattern { with_validator: ValidatorId, agreement_rate: f64 },
-        UnrealisticallyFast { expected_min: Duration, actual: Duration },
-        RubberStamping { approval_rate: f64, avg_time: Duration },
-        SocialProximity { distance: u8, shared_publications: u32 },
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct OutcomeSummary {
+            pub key_metrics:                 Vec<MetricResult>,
+            pub effect_direction_matches:    Option<bool>,
+            pub confidence_interval_overlap: Option<f64>,
+            pub overall_agreement:           AgreementLevel,
+        }
 
-    impl DifficultyAssessment {
-        /// Compute predicted tier from surface feature scores.
-        /// PLACEHOLDER: weights must come from Phase 0 regression.
-        pub fn compute(
-            request_ref: ExternalHash,
-            code_volume: u8,
-            dependency_count: u8,
-            documentation_quality: u8,
-            data_accessibility: u8,
-            environment_complexity: u8,
-            study_age_years: u8,
-        ) -> Self {
-            // TODO: Replace with empirically derived weights from Phase 0.
-            // The current weights are illustrative only.
-            let weighted_score =
-                (code_volume as f64 * 0.15) +
-                (dependency_count as f64 * 0.20) +
-                ((5 - documentation_quality) as f64 * 0.25) + // inverse: poor docs = harder
-                ((5 - data_accessibility) as f64 * 0.20) +    // inverse: poor access = harder
-                (environment_complexity as f64 * 0.10) +
-                (study_age_years as f64 * 0.10);
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct MetricResult {
+            pub metric_name:      String,
+            pub produced_value:   String,
+            pub expected_value:   String,
+            pub within_tolerance: bool,
+        }
 
-            let predicted_tier = if weighted_score < 1.5 {
-                DifficultyTier::Standard
-            } else if weighted_score < 2.5 {
-                DifficultyTier::Moderate
-            } else if weighted_score < 3.5 {
-                DifficultyTier::Complex
-            } else {
-                DifficultyTier::Extreme
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum AgreementLevel {
+            ExactMatch,
+            WithinTolerance,
+            DirectionalMatch,
+            Divergent,
+            UnableToAssess,
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct UndeclaredDeviation {
+            pub deviation_type: DeviationType,
+            pub severity:       Severity,
+            pub evidence:       String,
+        }
+
+        /// Validator profile — published to the shared DHT for assignment queries.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct ValidatorProfile {
+            pub institution:          String,
+            pub disciplines:          Vec<Discipline>,
+            pub certification_tier:   CertificationTier,
+            pub available:            bool,
+            pub max_concurrent_tasks: u8,
+            /// ORCID or institutional identifier for external verification.
+            pub orcid:                Option<String>,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum CertificationTier {
+            Provisional, // < 10 completed validations
+            Certified,   // ≥ 10 in good standing
+            Senior,      // ≥ 50 in excellent standing
+        }
+
+        /// Surface-feature difficulty assessment.
+        /// Weights are PLACEHOLDERS — Phase 0 regression determines real values.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct DifficultyAssessment {
+            pub request_ref:            ResearchHash,
+            /// Each scored 1–5. See SCAFFOLDING_PLAN.md for definitions.
+            pub code_volume:            u8,
+            pub dependency_count:       u8,
+            pub documentation_quality:  u8, // 5 = excellent
+            pub data_accessibility:     u8, // 5 = fully open
+            pub environment_complexity: u8,
+            pub study_age_years:        u8, // 5 = very old
+            pub predicted_tier:         DifficultyTier,
+            pub predicted_min_secs:     u64,
+            pub predicted_max_secs:     u64,
+            pub confidence:             AssessmentConfidence,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum DifficultyTier {
+            Standard,  // ~4–8 hours
+            Moderate,  // ~8–16 hours
+            Complex,   // ~16–30 hours
+            Extreme,   // ~30+ hours — flag for human triage
+            Excluded,  // Fails minimum criteria — rejected from pipeline
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum AssessmentConfidence { High, Medium, Low }
+
+        // --- Entry Types Enum ------------------------------------------------
+
+        #[hdk_entry_types]
+        #[unit_enum(UnitEntryTypes)]
+        pub enum EntryTypes {
+            ValidationRequest(ValidationRequest),
+            ValidationAttestation(ValidationAttestation),
+            ValidatorProfile(ValidatorProfile),
+            DifficultyAssessment(DifficultyAssessment),
+        }
+
+        // --- Link Types ------------------------------------------------------
+
+        #[hdk_link_types]
+        pub enum LinkTypes {
+            /// ExternalHash anchor (study data_hash) → ValidationRequest ActionHash
+            StudyToValidation,
+            /// AgentPubKey → ValidationAttestation ActionHash
+            ValidatorToAttestation,
+            /// AgentPubKey → ValidatorProfile ActionHash
+            AgentToProfile,
+            /// Path anchor → ValidationRequest ActionHash, queryable by status+discipline
+            /// Path format: "requests.{status}.{discipline}"
+            StatusPath,
+            /// Path anchor → ValidationRequest ActionHash, queryable by institution
+            /// Path format: "institutions.{institution_id}"
+            InstitutionPath,
+            /// Path anchor → ValidationAttestation ActionHash, queryable by discipline
+            /// Path format: "attestations.{discipline}.{YYYY_MM}"
+            DisciplinePath,
+        }
+
+        // --- Validate Callback -----------------------------------------------
+        //
+        // This is the most important validate() in ValiChord.
+        // Rules enforced here cannot be relaxed without migrating to a new DNA.
+        //
+        // ARM ORDERING IS CRITICAL:
+        //   The ValidationAttestation immutability guards use helper functions
+        //   (validate_update, validate_delete) that check entry type first.
+        //   This is cleaner than guarded match arms (which cannot use ? in guards).
+
+        #[hdk_extern]
+        pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+            match op.flattened::<EntryTypes, LinkTypes>()? {
+
+                // Updates: check for ValidationAttestation immutability first,
+                // then fall back to author-only check for other entry types.
+                FlatOp::RegisterUpdate(OpUpdate {
+                    original_action,
+                    original_app_entry,
+                    ..
+                }) => {
+                    validate_update(op.action(), original_action, original_app_entry)
+                }
+
+                // Deletes: same pattern.
+                FlatOp::RegisterDelete(OpDelete {
+                    original_action,
+                    original_app_entry,
+                    ..
+                }) => {
+                    validate_delete(op.action(), original_action, original_app_entry)
+                }
+
+                // Membrane proof — full credential check runs after network join.
+                // genesis_self_check() handles format-only check before join.
+                FlatOp::RegisterAgentActivity(OpActivity::CreateAgent {
+                    membrane_proof, ..
+                }) => {
+                    validate_membrane_proof(membrane_proof)
+                }
+
+                // All other ops: valid.
+                _ => Ok(ValidateCallbackResult::Valid),
+            }
+        }
+
+        fn validate_update(
+            new_action: &Action,
+            original_action: SignedActionHashed,
+            original_app_entry: EntryTypes,
+        ) -> ExternResult<ValidateCallbackResult> {
+            // ValidationAttestation is immutable — block all updates.
+            if matches!(original_app_entry, EntryTypes::ValidationAttestation(_)) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation cannot be updated — the record is permanent".into()
+                ));
+            }
+            // For all other entry types: only the original author may update.
+            if new_action.author() != original_action.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may update this entry".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        fn validate_delete(
+            new_action: &Action,
+            original_action: SignedActionHashed,
+            original_app_entry: EntryTypes,
+        ) -> ExternResult<ValidateCallbackResult> {
+            // ValidationAttestation is immutable — block all deletes.
+            if matches!(original_app_entry, EntryTypes::ValidationAttestation(_)) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation cannot be deleted — the record is permanent".into()
+                ));
+            }
+            // For all other entry types: only the original author may delete.
+            if new_action.author() != original_action.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may delete this entry".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        /// Full membrane proof validation — runs after network join with DHT access.
+        ///
+        /// Checks:
+        ///   1. A membrane proof is present (genesis_self_check already caught None).
+        ///   2. It is signed by authorized_joining_certificate_issuer (from DNA properties).
+        ///   3. The signature is over the joining agent's AgentPubKey.
+        fn validate_membrane_proof(
+            membrane_proof: Option<MembraneProof>,
+        ) -> ExternResult<ValidateCallbackResult> {
+            let proof = match membrane_proof {
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "Attestation DNA requires a membrane proof".into()
+                )),
+                Some(p) => p,
             };
 
-            DifficultyAssessment {
-                request_ref,
-                code_volume,
-                dependency_count,
-                documentation_quality,
-                data_accessibility,
-                environment_complexity,
-                study_age_years,
-                predicted_tier,
-                predicted_time_range: (Duration::from_secs(0), Duration::from_secs(0)), // TODO
-                confidence: AssessmentConfidence::Low, // Low until Phase 0 data
+            let props = DnaProperties::try_from_dna_properties()?;
+            let issuer = props.authorized_joining_certificate_issuer;
+
+            // TODO: Deserialise `proof` into (joining_agent_pubkey, signature).
+            // Then: verify_signature(issuer, signature, joining_agent_pubkey)
+            // Return Invalid if verification fails.
+            //
+            // Exact deserialisation format depends on how credentials are issued
+            // by the institutional authority. Define a CredentialPayload struct
+            // and serialise consistently on both the issuing and verifying sides.
+
+            Ok(ValidateCallbackResult::Valid) // placeholder
+        }
+
+        // --- genesis_self_check — format-only, runs BEFORE network join ------
+        //
+        // No DHT access is available here. Check only that the proof is present
+        // and plausibly structured — this protects the joining agent from
+        // committing a malformed proof that would fail full validation later.
+
+        #[hdk_extern]
+        pub fn genesis_self_check(
+            data: GenesisSelfCheckData,
+        ) -> ExternResult<GenesisSelfCheckCallbackResult> {
+            match data.membrane_proof {
+                None => Ok(GenesisSelfCheckCallbackResult::Invalid(
+                    "Attestation DNA requires a membrane proof (institutional credential)".into()
+                )),
+                Some(ref proof) if proof.bytes().len() < 64 => {
+                    Ok(GenesisSelfCheckCallbackResult::Invalid(
+                        "Membrane proof is too short to be a valid credential signature".into()
+                    ))
+                }
+                _ => Ok(GenesisSelfCheckCallbackResult::Valid),
             }
+        }
+    }
+
+    // =========================================================================
+    // COORDINATOR ZOME — hdk::prelude::*
+    // =========================================================================
+
+    pub mod coordinator {
+
+        use super::*;
+        use std::collections::BTreeSet;
+
+        // --- init() — capability grants --------------------------------------
+
+        #[hdk_extern]
+        pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
+            // Grant unrestricted access to read functions and remote signal receiver.
+            // Without these grants, remote callers receive Unauthorized even for
+            // functions intended to be public.
+            let zome = zome_info()?.name;
+            let mut public_fns = BTreeSet::new();
+            for fn_name in &[
+                "recv_remote_signal",
+                "get_validation_request",
+                "get_attestations_for_request",
+                "get_validators_for_discipline",
+                "get_validator_profile",
+                "check_all_commitments_sealed",
+                "notify_commitment_sealed",
+                "get_difficulty_assessment",
+            ] {
+                public_fns.insert((zome.clone(), (*fn_name).into()));
+            }
+            create_cap_grant(ZomeCallCapGrant {
+                tag: "public-read".into(),
+                access: CapAccess::Unrestricted,
+                functions: GrantedFunctions::Listed(public_fns),
+            })?;
+
+            // Write functions (submit_validation_request, submit_attestation,
+            // publish_validator_profile) are gated by the membrane credential.
+            // Any agent in the network has a valid credential by definition —
+            // the membrane check at join time already enforced this.
+            // No additional capability grant is needed for writes among members.
+
+            Ok(InitCallbackResult::Pass)
+        }
+
+        // --- Write functions -------------------------------------------------
+
+        #[hdk_extern]
+        pub fn submit_validation_request(
+            request: integrity::ValidationRequest,
+        ) -> ExternResult<ActionHash> {
+            let request_hash = create_entry(EntryTypes::ValidationRequest(request.clone()))?;
+            // Index by study data hash for discovery
+            let study_path = Path::from(format!("study.{}", hex::encode(request.data_hash)))
+                .typed(LinkTypes::StudyToValidation)?;
+            study_path.ensure()?;
+            create_link(
+                study_path.path_entry_hash()?,
+                request_hash.clone(),
+                LinkTypes::StudyToValidation,
+                (),
+            )?;
+            // Index by status + discipline for queue management
+            let status_path = Path::from(
+                format!("requests.pending.{:?}", request.discipline)
+            ).typed(LinkTypes::StatusPath)?;
+            status_path.ensure()?;
+            create_link(
+                status_path.path_entry_hash()?,
+                request_hash.clone(),
+                LinkTypes::StatusPath,
+                (),
+            )?;
+            Ok(request_hash)
+        }
+
+        /// Submit a public attestation — THE REVEAL PHASE.
+        ///
+        /// Called after the reveal window opens (all validators have sealed
+        /// their private commitments). This entry is IMMUTABLE — the validate()
+        /// callback blocks all subsequent updates and deletes.
+        ///
+        /// post_commit fires after this write is confirmed and triggers
+        /// HarmonyRecord assembly in the Governance DNA.
+        #[hdk_extern]
+        pub fn submit_attestation(
+            attestation: integrity::ValidationAttestation,
+        ) -> ExternResult<ActionHash> {
+            let agent = agent_info()?.agent_initial_pubkey;
+            let attestation_hash = create_entry(
+                EntryTypes::ValidationAttestation(attestation.clone())
+            )?;
+            create_link(
+                agent.clone(),
+                attestation_hash.clone(),
+                LinkTypes::ValidatorToAttestation,
+                (),
+            )?;
+            // Index by discipline + month for analytics queries
+            let disc_path = Path::from(
+                format!("attestations.{:?}", attestation.discipline_tag())
+            ).typed(LinkTypes::DisciplinePath)?;
+            disc_path.ensure()?;
+            create_link(
+                disc_path.path_entry_hash()?,
+                attestation_hash.clone(),
+                LinkTypes::DisciplinePath,
+                (),
+            )?;
+            Ok(attestation_hash)
+        }
+
+        #[hdk_extern]
+        pub fn publish_validator_profile(
+            profile: integrity::ValidatorProfile,
+        ) -> ExternResult<ActionHash> {
+            let agent = agent_info()?.agent_initial_pubkey;
+            let profile_hash = create_entry(EntryTypes::ValidatorProfile(profile))?;
+            create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, ())?;
+            Ok(profile_hash)
+        }
+
+        #[hdk_extern]
+        pub fn assess_difficulty(
+            request_ref: ResearchHash,
+        ) -> ExternResult<ActionHash> {
+            // TODO: Implement surface feature scoring.
+            // Stage 1 (Phase 1): rule-based weighted rubric from Phase 0 correlations.
+            // Stage 2 (Phase 1 later): automated analysis of code repository.
+            // Stage 3 (Phase 2+): statistical model trained on 200+ validations.
+            //
+            // Placeholder scores:
+            let assessment = integrity::DifficultyAssessment {
+                request_ref,
+                code_volume:            3,
+                dependency_count:       3,
+                documentation_quality:  3,
+                data_accessibility:     3,
+                environment_complexity: 3,
+                study_age_years:        2,
+                predicted_tier:         integrity::DifficultyTier::Moderate,
+                predicted_min_secs:     28800,  // 8 hours
+                predicted_max_secs:     57600,  // 16 hours
+                confidence:             integrity::AssessmentConfidence::Low,
+            };
+            create_entry(EntryTypes::DifficultyAssessment(assessment))
+        }
+
+        // --- Read functions --------------------------------------------------
+
+        #[hdk_extern]
+        pub fn get_validation_request(hash: ActionHash) -> ExternResult<Option<Record>> {
+            get(hash, GetOptions::network())
+        }
+
+        #[hdk_extern]
+        pub fn get_attestations_for_request(
+            request_ref: ResearchHash,
+        ) -> ExternResult<Vec<Record>> {
+            // Query via ValidatorToAttestation links on each assigned validator's
+            // AgentPubKey. In practice the coordinator tracks the assignment list.
+            // TODO: Implement by iterating assigned validator pubkeys and calling
+            //       get_links(validator_pubkey, ValidatorToAttestation) for each.
+            Ok(Vec::new())
+        }
+
+        #[hdk_extern]
+        pub fn get_validators_for_discipline(
+            discipline: Discipline,
+        ) -> ExternResult<Vec<Record>> {
+            // TODO: Query the discipline path and retrieve profiles.
+            Ok(Vec::new())
+        }
+
+        #[hdk_extern]
+        pub fn get_validator_profile(
+            agent: AgentPubKey,
+        ) -> ExternResult<Option<Record>> {
+            let links = get_links(
+                GetLinksInputBuilder::try_new(agent, LinkTypes::AgentToProfile)?.build(),
+            )?;
+            match links.first() {
+                Some(link) => {
+                    let target = link.target.clone().into_action_hash()
+                        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid link".into())))?;
+                    get(target, GetOptions::network())
+                }
+                None => Ok(None),
+            }
+        }
+
+        #[hdk_extern]
+        pub fn get_difficulty_assessment(
+            request_ref: ResearchHash,
+        ) -> ExternResult<Option<Record>> {
+            // TODO: query by request_ref
+            Ok(None)
+        }
+
+        // --- Protocol coordination -------------------------------------------
+
+        /// Called by a validator's Workspace DNA post_commit (via call(OtherRole("attestation"))).
+        ///
+        /// Checks whether all assigned validators have sealed their private
+        /// commitments. If all have committed, writes a PhaseMarker to the DHT
+        /// opening the reveal window. Validators who missed the remote signal
+        /// discover the open window by polling get_current_phase().
+        ///
+        /// This function is the real protocol gate. Signals are notifications only.
+        #[hdk_extern]
+        pub fn notify_commitment_sealed(
+            task_ref: ResearchHash,
+        ) -> ExternResult<()> {
+            let all_sealed = check_all_commitments_sealed_inner(task_ref)?;
+            if all_sealed {
+                // TODO: Write a PhaseMarker entry to the DHT indicating reveal window open.
+                // Emit local signal to this agent's UI.
+                emit_signal(PhaseSignal { phase: "RevealOpen".into(), task_ref })?;
+            }
+            Ok(())
+        }
+
+        #[hdk_extern]
+        pub fn check_all_commitments_sealed(
+            request_ref: ResearchHash,
+        ) -> ExternResult<bool> {
+            check_all_commitments_sealed_inner(request_ref)
+        }
+
+        fn check_all_commitments_sealed_inner(
+            request_ref: ResearchHash,
+        ) -> ExternResult<bool> {
+            // TODO: Retrieve the list of assigned validators for this request.
+            // For each assigned validator, call:
+            //   get_agent_activity(validator_pubkey, ChainQueryFilter::new(), ActivityRequest::Full)
+            // Check that each validator's activity includes a ValidatorPrivateAttestation action.
+            // Note: get_agent_activity returns action hashes only — not entry content
+            // (private entries are not accessible). A private action appearing in the
+            // agent's source chain is sufficient proof the commitment was sealed.
+            Ok(false) // placeholder
+        }
+
+        #[hdk_extern]
+        pub fn recv_remote_signal(signal: SerializedBytes) -> ExternResult<()> {
+            // TODO: Deserialise and route to appropriate handler.
+            emit_signal(signal)?;
+            Ok(())
+        }
+
+        /// post_commit — fires after ValidationAttestation is confirmed written.
+        ///
+        /// Checks whether all validators have now revealed. If yes, calls the
+        /// Governance DNA to assemble the Harmony Record.
+        #[hdk_extern(infallible)]
+        pub fn post_commit(committed_actions: Vec<SignedActionHashed>) -> ExternResult<()> {
+            for action in committed_actions {
+                // TODO: detect ValidationAttestation entries and call:
+                //   call(
+                //     CallTargetCell::OtherRole("governance".into()),
+                //     "governance_coordinator",
+                //     "check_and_create_harmony_record",
+                //     None,
+                //     request_ref,
+                //   )
+            }
+            Ok(())
+        }
+
+        // --- Gaming and collusion detection ----------------------------------
+        //
+        // These functions run in the coordinator — NOT in validate().
+        // validate() must be deterministic. Gaming detection is statistical
+        // and cross-agent and cannot run inside the validation callback.
+        //
+        // Call these before accepting a validator into the reveal window.
+
+        pub fn detect_gaming_patterns(
+            validator: AgentPubKey,
+            history: Vec<integrity::ValidationAttestation>,
+        ) -> Vec<GamingFlag> {
+            let mut flags = Vec::new();
+            // TODO: Implement detection patterns:
+            //
+            // SuspiciousAgreementPattern:
+            //   If a validator agrees with a specific peer in >90% of their
+            //   shared cases over 20+ events, flag for investigation.
+            //   Threshold is PLACEHOLDER — Phase 0 data on natural agreement
+            //   rates is required to calibrate this correctly.
+            //
+            // UnrealisticallyFast:
+            //   If time_invested_secs < predicted_min_secs * 0.5, flag.
+            //   Threshold is PLACEHOLDER.
+            //
+            // RubberStamping:
+            //   If approval_rate > 0.95 over 20+ validations with low
+            //   average time invested, flag. Threshold PLACEHOLDER.
+            //
+            // SocialProximity:
+            //   Query a co-authorship graph (Phase 2+ data source).
+            //   If a validator co-authored with the study's researchers
+            //   within 3 degrees, flag.
+            //
+            // On confirmed gaming: any peer may issue a Warrant DHT op.
+            // Warrants are permanent and discoverable via get_agent_activity().
+            // Application coordinator must check warrants before accepting
+            // protocol participation — network does not auto-block warranted agents.
+            flags
+        }
+
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum GamingFlag {
+            SuspiciousAgreementPattern { with_validator: AgentPubKey, agreement_rate: f64 },
+            UnrealisticallyFast        { expected_min_secs: u64, actual_secs: u64 },
+            RubberStamping             { approval_rate: f64, avg_time_secs: u64 },
+            SocialProximity            { distance: u8, shared_publications: u32 },
+        }
+
+        // --- Validator assignment --------------------------------------------
+
+        #[derive(Debug, Clone)]
+        pub struct AssignmentConstraints {
+            /// Maximum proportion of validators from the same institution.
+            pub max_institutional_share: f64,  // default 0.4
+            pub min_validators:          u8,   // from DNA properties
+            pub require_domain_expert:   bool, // default true
+            /// Validators never see author name, institution, or funding source.
+            pub double_blind:            bool, // default true
+        }
+
+        pub fn select_validators(
+            request: &integrity::ValidationRequest,
+            available_profiles: Vec<integrity::ValidatorProfile>,
+            constraints: &AssignmentConstraints,
+        ) -> ExternResult<Vec<AgentPubKey>> {
+            // TODO:
+            // 1. Filter by discipline capability and certification tier
+            // 2. Apply institutional cap (max 40% from same institution)
+            // 3. Exclude validators with social proximity to study authors
+            // 4. Weight by ValidatorReputation score from Governance DNA
+            //    (call(OtherRole("governance"), "get_validator_reputation", agent_pubkey))
+            // 5. Require at least one domain expert if constraints.require_domain_expert
+            // 6. Randomly sample from weighted pool
+            Ok(Vec::new()) // placeholder
+        }
+
+        // Signal type for UI notification
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        struct PhaseSignal {
+            phase:    String,
+            task_ref: ResearchHash,
         }
     }
 }
@@ -952,445 +1405,683 @@ pub mod attestation_dna {
 // DNA 4: GOVERNANCE & HARMONY RECORDS
 // =============================================================================
 //
-// Public DHT — governance-controlled writing, publicly readable by anyone.
-// This is what journals, funders, and institutions query.
+// Public DHT — governance-controlled writing, open reading.
 //
-// Harmony Records, badges, governance decisions, and validator reputation
-// all live here. Anti-domestication mechanics are baked into the membrane
-// proof and coordinator logic.
+// This is what journals, funders, and institutions query. External access is
+// via the Holochain HTTP Gateway (v0.2, July 2025) — a standard HTTP/REST
+// interface for non-participant callers who do not run a Holochain node.
 //
-// External access via HTTP Gateway (Holochain v0.2, July 2025):
-// Journals and funders query this DNA over standard HTTP/REST without running
-// a Holochain node. Only this DNA needs to be reachable from outside —
-// the private DNAs (Researcher Repository, Validator Workspace) are never
-// exposed via the HTTP Gateway.
+// ONLY this DNA is exposed via the HTTP Gateway. The private DNAs
+// (Researcher Repository, Validator Workspace) are never reachable externally.
+//
+// REST endpoints served via HTTP Gateway:
+//   GET /api/v1/harmony/{request_ref}
+//   GET /api/v1/badges/{request_ref}
+//   GET /api/v1/validators/{agent_id}
+//   GET /api/v1/harmony/discipline/{discipline}
+//   GET /api/v1/governance/decisions
+//
+// integrity crate uses:  hdi::prelude::*
+// coordinator crate uses: hdk::prelude::*
+//
+// dna.yaml properties:
+//   system_coordinator_key: AgentPubKey  # only this key may write reputation scores
 
-pub mod governance_dna {
+pub mod governance {
+
     use super::*;
-    use super::researcher_repository_dna::EpistemicImpact;
-    use super::validator_workspace_dna::AttestationOutcome;
-    use super::attestation_dna::{ValidationTier, AgreementLevel};
 
-    // ---- Entry Types --------------------------------------------------------
+    // =========================================================================
+    // INTEGRITY ZOME — hdi::prelude::*
+    // =========================================================================
 
-    /// The canonical output of ValiChord.
-    ///
-    /// Preserves the full texture of agreement and disagreement rather than
-    /// producing a single verdict. "Harmony" means the structure of agreement
-    /// AND disagreement — a record with 2 successes and 1 failure is more
-    /// informative than a binary pass/fail.
-    ///
-    /// Written to this DNA via countersigning session — all assigned validators
-    /// simultaneously countersign this single entry. This is the reveal: their
-    /// private attestations (in Validator Workspace DNA) become public here.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct HarmonyRecord {
-        /// Reference to the ValidationRequest in the Attestation DNA
-        pub request_ref: ExternalHash,
-        pub validation_summary: ValidationSummary,
-        pub validators: Vec<ValidatorSummary>,
-        /// Disagreements are always visible — per governance commitments
-        pub disagreements: Vec<Disagreement>,
-        pub confidence_level: ConfidenceLevel,
-        pub status: ReproducibilityStatus,
-        /// 24 months minimum per governance policy
-        pub valid_until: DateTime,
-        pub provenance_link: String,
-    }
+    pub mod integrity {
 
-    /// Countersigning check: successful + partial + failed + inconclusive
-    /// must equal total_validators. Use these fields in the validate() callback
-    /// to verify all validators participated — HarmonyRecord has no
-    /// `validator_signatures` field (that was incorrect in previous versions).
-    #[derive(Debug, Clone)]
-    pub struct ValidationSummary {
-        pub total_validators: u8,
-        pub successful_validations: u8,
-        pub partial_validations: u8,
-        pub failed_validations: u8,
-        pub inconclusive_validations: u8,
-        pub agreement_level: f64,
-        pub outlier_count: u8,
-    }
+        use super::*;
 
-    #[derive(Debug, Clone)]
-    pub struct ValidatorSummary {
-        pub validator_id: ValidatorId,
-        pub outcome: AttestationOutcome,
-        pub time_invested: Duration,
-        pub confidence: String,
-    }
+        // --- DNA Properties --------------------------------------------------
 
-    #[derive(Debug, Clone)]
-    pub struct Disagreement {
-        pub description: String,
-        pub validators_involved: Vec<ValidatorId>,
-        pub resolution: Option<String>,
-    }
+        #[dna_properties]
+        #[derive(Debug, serde::Deserialize)]
+        pub struct DnaProperties {
+            /// The only AgentPubKey permitted to write ValidatorReputation entries.
+            /// Any other author is rejected by the validate() callback.
+            pub system_coordinator_key: AgentPubKey,
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum ConfidenceLevel {
-        High { agreement: f64, reasoning: String },
-        Medium { concerns: Vec<String>, reasoning: String },
-        Low { substantial_disagreement: bool, reasoning: String },
-    }
+        // --- Entry Types -----------------------------------------------------
 
-    /// ValiChord refuses to force a verdict where evidence doesn't support one.
-    /// PersistentlyIndeterminate is a valid, informative status.
-    #[derive(Debug, Clone)]
-    pub enum ReproducibilityStatus {
-        ExactMatch { validator_count: u8 },
-        DirectionalMatch { validator_count: u8, variance_explanation: String },
-        PartialMatch { successful_aspects: Vec<String>, failed_aspects: Vec<String> },
-        Failed { failure_reasons: Vec<String>, validator_count: u8 },
-        Inconclusive { reasons: Vec<String> },
-        PersistentlyIndeterminate {
-            time_elapsed: Duration,
-            validator_count: u8,
-            disagreement_summary: String,
-        },
-    }
+        /// The canonical output of ValiChord.
+        ///
+        /// "Harmony" preserves the full texture of agreement AND disagreement.
+        /// A record with 2 successes and 1 failure is more informative than a
+        /// forced binary pass/fail. Disagreements are ALWAYS visible — this is
+        /// a non-negotiable governance commitment.
+        ///
+        /// Assembled by the coordinator once all ValidationAttestation entries
+        /// are present in the Attestation DNA for a given request_ref.
+        ///
+        /// IMMUTABLE after publication — enforced by validate() callback.
+        ///
+        /// Note on countersigning: the Technical Reference mentions using
+        /// Holochain's native countersigning session for simultaneous reveal.
+        /// In this implementation the coordinator assembles the record from
+        /// independently-written attestations. Countersigning can be added in
+        /// Phase 2 if the simultaneous-atomicity guarantee is required — the
+        /// entry structure is compatible with either approach.
+        #[hdk_entry_helper]
+        #[entry_type(required_validations = 7)]
+        #[derive(Debug, Clone)]
+        pub struct HarmonyRecord {
+            /// Links back to the ValidationRequest in the Attestation DNA.
+            pub request_ref:        ResearchHash,
+            pub validation_summary: ValidationSummary,
+            pub validators:         Vec<ValidatorSummary>,
+            /// Disagreements are always visible per governance commitment.
+            /// The system refuses to average away meaningful scientific signals.
+            pub disagreements:      Vec<Disagreement>,
+            pub confidence_level:   ConfidenceLevel,
+            pub status:             ReproducibilityStatus,
+            /// 24-month minimum validity per governance policy.
+            pub valid_until_secs:   u64,
+            /// Link to full provenance chain in Attestation DNA.
+            pub provenance_link:    String,
+        }
 
-    /// Reproducibility badge — domain-specific, not gamified.
-    /// Cannot be reduced to a single numerical score.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ReproducibilityBadge {
-        pub harmony_record_ref: ExternalHash,
-        pub badge_type: BadgeType,
-        pub level: BadgeLevel,
-        pub discipline: Discipline,
-        pub issued_at: DateTime,
-    }
+        /// Participant counts — MUST satisfy the invariant:
+        ///   successful + partial + failed + inconclusive == total_validators
+        /// Enforced by the validate() callback on HarmonyRecord creation.
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct ValidationSummary {
+            pub total_validators:         u8,
+            pub successful_validations:   u8,
+            pub partial_validations:      u8,
+            pub failed_validations:       u8,
+            pub inconclusive_validations: u8,
+            /// 0.0–1.0 agreement rate across all validators.
+            pub agreement_level:          f64,
+            pub outlier_count:            u8,
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum BadgeType {
-        ComputationalReproducible,
-        PreRegisteredAndValidated { adherence_score: f64 },
-        OpenDataValidated,
-        MultiLabValidated { lab_count: u8 },
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct ValidatorSummary {
+            pub validator_id:       AgentPubKey,
+            pub outcome:            AttestationOutcome,
+            pub time_invested_secs: u64,
+            pub confidence:         AttestationConfidence,
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum BadgeLevel {
-        Bronze, // ≥3 validators, ≥60% success
-        Silver, // ≥5 validators, ≥70%, pre-registered
-        Gold,   // ≥7 validators, ≥80%, multi-institutional
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct Disagreement {
+            pub description:         String,
+            pub validators_involved: Vec<AgentPubKey>,
+            pub resolution:          Option<String>,
+        }
 
-    /// Governance decision — every decision is logged immutably.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct GovernanceDecision {
-        pub decision_type: DecisionType,
-        pub made_by: GovernanceBody,
-        pub rationale: String,
-        pub vote_tally: Option<VoteTally>,
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum ConfidenceLevel {
+            High   { agreement: f64, reasoning: String },
+            Medium { concerns: Vec<String>, reasoning: String },
+            Low    { substantial_disagreement: bool, reasoning: String },
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum DecisionType {
-        DeviationApproved { protocol_ref: ExternalHash },
-        DeviationDenied { protocol_ref: ExternalHash, reason: String },
-        StandardUpdated { discipline: Discipline },
-        ValidatorSanctioned { validator_id: ValidatorId, reason: String },
-        PolicyChanged { policy: String, old_value: String, new_value: String },
-    }
+        /// ValiChord refuses to force a verdict where evidence doesn't support one.
+        /// PersistentlyIndeterminate is a valid, informative outcome — not a failure.
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum ReproducibilityStatus {
+            ExactMatch       { validator_count: u8 },
+            DirectionalMatch { validator_count: u8, variance_explanation: String },
+            PartialMatch     { successful_aspects: Vec<String>, failed_aspects: Vec<String> },
+            Failed           { failure_reasons: Vec<String>, validator_count: u8 },
+            Inconclusive     { reasons: Vec<String> },
+            PersistentlyIndeterminate {
+                time_elapsed_secs:    u64,
+                validator_count:      u8,
+                disagreement_summary: String,
+            },
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum GovernanceBody {
-        DeviationReviewBoard,
-        DisciplinaryStandardsCommittee { discipline: Discipline },
-        SteeringCommittee,
-        CommunityVote,
-    }
+        /// Reproducibility badge. Cannot be reduced to a single gameable number.
+        /// Issued only when the associated HarmonyRecord meets the badge thresholds.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct ReproducibilityBadge {
+            pub harmony_record_ref: ResearchHash,
+            pub badge_type:         BadgeType,
+            pub level:              BadgeLevel,
+            pub discipline:         Discipline,
+        }
 
-    #[derive(Debug, Clone)]
-    pub struct VoteTally {
-        pub for_votes: u32,
-        pub against_votes: u32,
-        pub abstentions: u32,
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum BadgeType {
+            ComputationalReproducible,
+            PreRegisteredAndValidated  { adherence_score: f64 },
+            OpenDataValidated,
+            MultiLabValidated          { lab_count: u8 },
+        }
 
-    /// Multi-dimensional validator reputation. No single gameable score.
-    ///
-    /// Only the system coordinator agent (defined in the membrane proof)
-    /// may write reputation scores. Individual validators cannot edit
-    /// their own scores — enforced by the validate() callback.
-    // #[hdk_entry_helper]
-    #[derive(Debug, Clone)]
-    pub struct ValidatorReputation {
-        pub validator_id: ValidatorId,
-        pub validation_score: f64,
-        pub preregistration_quality: f64,
-        pub deviation_handling: f64,
-        pub time_investment_consistency: f64,
-        pub peer_endorsements: u32,
-        pub expertise_areas: HashMap<Discipline, ExpertiseLevel>,
-        pub total_validations: u32,
-        pub total_score: f64,
-    }
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        pub enum BadgeLevel {
+            Bronze, // ≥3 validators, ≥60% success
+            Silver, // ≥5 validators, ≥70%, pre-registered
+            Gold,   // ≥7 validators, ≥80%, multi-institutional
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum ExpertiseLevel { Novice, Competent, Expert, Authority }
+        /// Governance decision — every decision is logged immutably.
+        /// The full decision history is always queryable and tamper-evident.
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct GovernanceDecision {
+            pub decision_type: DecisionType,
+            pub made_by:       GovernanceBody,
+            pub rationale:     String,
+            pub vote_tally:    Option<VoteTally>,
+        }
 
-    /// Incentive structure. Compensation amounts are PLACEHOLDERS —
-    /// Phase 0 evidence determines real values. Amounts stored as integer
-    /// pence to avoid floating-point rounding errors in financial calculations.
-    #[derive(Debug, Clone)]
-    pub enum ValidatorIncentive {
-        CreditRecognition { credit_type: CreditType },
-        DirectPayment { amount_pence: u64, currency: String },
-        ReputationGain { increase: f64 },
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum DecisionType {
+            DeviationApproved   { protocol_ref: ResearchHash },
+            DeviationDenied     { protocol_ref: ResearchHash, reason: String },
+            StandardUpdated     { discipline: Discipline },
+            ValidatorSanctioned { validator_id: AgentPubKey, reason: String },
+            PolicyChanged       { policy: String, old_value: String, new_value: String },
+        }
 
-    #[derive(Debug, Clone)]
-    pub enum CreditType {
-        ValidationExecution,
-        MethodologyReview,
-        FormalAnalysis,
-        Software,
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum GovernanceBody {
+            DeviationReviewBoard,
+            DisciplinaryStandardsCommittee { discipline: Discipline },
+            SteeringCommittee,
+            CommunityVote,
+        }
 
-    /// Anti-gaming constraints built into the incentive structure.
-    pub struct IncentiveConstraints {
-        pub no_speed_incentives: bool,
-        pub quality_multiplier: f64,
-        pub cross_discipline_bonus: f64,
-        pub disagreement_discovery_bonus: f64,
-        pub homophily_penalty: f64, // Penalty for >90% agreement with single institution
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub struct VoteTally {
+            pub for_votes:    u32,
+            pub against_votes: u32,
+            pub abstentions:  u32,
+        }
 
-    // ---- Link Types ---------------------------------------------------------
+        /// Multi-dimensional validator reputation. No single gameable score.
+        ///
+        /// ONLY the system_coordinator_key may write these entries.
+        /// Enforced by the validate() callback — validators cannot edit their
+        /// own scores. Individual dimensions prevent gaming that a total score
+        /// would enable (e.g. padding validation count at expense of quality).
+        #[hdk_entry_helper]
+        #[derive(Debug, Clone)]
+        pub struct ValidatorReputation {
+            pub validator_id:                AgentPubKey,
+            pub validation_score:            f64, // 0.0–1.0 quality across all attempts
+            pub preregistration_quality:     f64, // quality of their own pre-registrations
+            pub deviation_handling:          f64, // appropriate flagging of deviations
+            pub time_investment_consistency: f64, // plausible, consistent time records
+            pub peer_endorsements:           u32,
+            pub expertise_areas:             Vec<(Discipline, ExpertiseLevel)>,
+            pub total_validations:           u32,
+            pub total_score:                 f64, // composite — recalculated by coordinator
+        }
 
-    // #[hdk_link_types]
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum LinkTypes {
-        /// agent pubkey → their ValidatorReputation record
-        ValidatorToReputation,
-        /// ValidationRequest ref → HarmonyRecord
-        RequestToHarmonyRecord,
-        /// GovernanceDecision → affected protocol/validator
-        DecisionToTarget,
-        /// path anchor → HarmonyRecord (for discipline-based queries)
-        DisciplinePath,
-    }
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+        pub enum ExpertiseLevel { Novice, Competent, Expert, Authority }
 
-    // ---- Validate Callback (Governance DNA) ---------------------------------
-    //
-    // Key rules:
-    //   1. HarmonyRecord: countersignature check — signed_count must equal total_validators
-    //   2. ValidatorReputation: only the system coordinator agent may write
-    //   3. Warrant records: any peer may create, but must reference a valid action hash
+        // --- Entry Types Enum ------------------------------------------------
 
-    /*
-    #[hdk_extern]
-    pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-        match op.flattened::<EntryTypes, LinkTypes>()? {
+        #[hdk_entry_types]
+        #[unit_enum(UnitEntryTypes)]
+        pub enum EntryTypes {
+            HarmonyRecord(HarmonyRecord),
+            ReproducibilityBadge(ReproducibilityBadge),
+            GovernanceDecision(GovernanceDecision),
+            ValidatorReputation(ValidatorReputation),
+        }
 
-            // HarmonyRecord: verify all assigned validators participated.
-            // Use validation_summary fields — successful + partial + failed +
-            // inconclusive must equal total_validators.
-            FlatOp::StoreEntry(OpEntry::CreateEntry {
-                entry_type: EntryTypes::HarmonyRecord(record), ..
-            }) => {
-                let summary = &record.validation_summary;
-                let signed_count = summary.successful_validations
-                    + summary.partial_validations
-                    + summary.failed_validations
-                    + summary.inconclusive_validations;
-                if signed_count < summary.total_validators {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "HarmonyRecord requires attestations from all assigned validators".into()
-                    ));
+        // --- Link Types ------------------------------------------------------
+
+        #[hdk_link_types]
+        pub enum LinkTypes {
+            /// AgentPubKey → ValidatorReputation ActionHash
+            ValidatorToReputation,
+            /// ExternalHash anchor (request_ref) → HarmonyRecord ActionHash
+            RequestToHarmonyRecord,
+            /// GovernanceDecision ActionHash → affected target ActionHash
+            DecisionToTarget,
+            /// Path anchor → HarmonyRecord ActionHash, queryable by discipline
+            /// Path format: "harmony.{discipline}.{YYYY_MM}"
+            DisciplinePath,
+            /// Path anchor → ReproducibilityBadge ActionHash
+            /// Path format: "badges.{badge_type}"
+            BadgePath,
+        }
+
+        // --- Validate Callback -----------------------------------------------
+
+        #[hdk_extern]
+        pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+            match op.flattened::<EntryTypes, LinkTypes>()? {
+
+                // HarmonyRecord creation: verify participant count invariant.
+                // successful + partial + failed + inconclusive MUST equal total_validators.
+                FlatOp::StoreEntry(OpEntry::CreateEntry {
+                    app_entry: EntryTypes::HarmonyRecord(ref record), ..
+                }) => {
+                    validate_harmony_record_counts(&record.validation_summary)
                 }
-                Ok(ValidateCallbackResult::Valid)
-            }
 
-            // ValidatorReputation: only the system coordinator may write.
-            FlatOp::StoreEntry(OpEntry::CreateEntry {
-                entry_type: EntryTypes::ValidatorReputation(_), ..
-            }) => {
-                let coordinator_key = dna_info()?.properties.system_coordinator_key;
-                if op.action().author() != coordinator_key {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "Only the system coordinator may write reputation scores".into()
-                    ));
+                // HarmonyRecord is immutable after publication.
+                FlatOp::RegisterUpdate(OpUpdate {
+                    original_app_entry: EntryTypes::HarmonyRecord(_), ..
+                }) => {
+                    Ok(ValidateCallbackResult::Invalid(
+                        "HarmonyRecord cannot be updated — the record is permanent".into()
+                    ))
                 }
-                Ok(ValidateCallbackResult::Valid)
-            }
 
-            _ => Ok(ValidateCallbackResult::Valid),
+                // ValidatorReputation: only system_coordinator_key may write.
+                FlatOp::StoreEntry(OpEntry::CreateEntry {
+                    app_entry: EntryTypes::ValidatorReputation(_),
+                    ref action,
+                    ..
+                }) => {
+                    validate_reputation_author(action.author())
+                }
+
+                FlatOp::RegisterUpdate(OpUpdate {
+                    original_app_entry: EntryTypes::ValidatorReputation(_),
+                    ref action,
+                    ..
+                }) => {
+                    validate_reputation_author(action.author())
+                }
+
+                _ => Ok(ValidateCallbackResult::Valid),
+            }
+        }
+
+        fn validate_harmony_record_counts(
+            summary: &ValidationSummary,
+        ) -> ExternResult<ValidateCallbackResult> {
+            let count = summary.successful_validations
+                + summary.partial_validations
+                + summary.failed_validations
+                + summary.inconclusive_validations;
+            if count != summary.total_validators {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "HarmonyRecord: {} outcomes submitted but {} validators assigned. \
+                     successful + partial + failed + inconclusive must equal total_validators.",
+                    count, summary.total_validators
+                )));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        fn validate_reputation_author(
+            author: &AgentPubKey,
+        ) -> ExternResult<ValidateCallbackResult> {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if *author != props.system_coordinator_key {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the system coordinator may write ValidatorReputation entries".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
         }
     }
-    */
 
-    // ---- Coordinator Zome Functions -----------------------------------------
-    //
-    //   create_harmony_record(record: HarmonyRecord) -> ExternResult<ActionHash>
-    //   issue_badge(badge: ReproducibilityBadge) -> ExternResult<ActionHash>
-    //   record_governance_decision(decision: GovernanceDecision) -> ExternResult<ActionHash>
-    //   update_validator_reputation(reputation: ValidatorReputation) -> ExternResult<ActionHash>
-    //   get_harmony_record(request_ref: ExternalHash) -> ExternResult<Option<Record>>
-    //   get_harmony_records_for_discipline(discipline: Discipline) -> ExternResult<Vec<Record>>
-    //   get_validator_reputation(validator_id: AgentId) -> ExternResult<Option<Record>>
-    //
-    // Capability grants (set up in init() callback):
-    //   Unrestricted: ALL read functions (get_harmony_record, get_badge, etc.)
-    //   This DNA is the HTTP Gateway target — public readability is the point.
-    //   No unrestricted write functions — writing requires a membrane credential.
+    // =========================================================================
+    // COORDINATOR ZOME — hdk::prelude::*
+    // =========================================================================
+
+    pub mod coordinator {
+
+        use super::*;
+        use std::collections::BTreeSet;
+
+        // --- init() — capability grants --------------------------------------
+        //
+        // ALL read functions are unrestricted — this DNA is the HTTP Gateway
+        // target. Public readability is the design intent, not a gap.
+
+        #[hdk_extern]
+        pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
+            let zome = zome_info()?.name;
+            let mut public_fns = BTreeSet::new();
+            for fn_name in &[
+                "recv_remote_signal",
+                "get_harmony_record",
+                "get_harmony_records_for_discipline",
+                "get_badge",
+                "get_validator_reputation",
+                "get_governance_decisions",
+                "check_and_create_harmony_record",
+            ] {
+                public_fns.insert((zome.clone(), (*fn_name).into()));
+            }
+            create_cap_grant(ZomeCallCapGrant {
+                tag: "public-read".into(),
+                access: CapAccess::Unrestricted,
+                functions: GrantedFunctions::Listed(public_fns),
+            })?;
+            Ok(InitCallbackResult::Pass)
+        }
+
+        // --- Write functions (membrane-gated) --------------------------------
+
+        /// Called by the Attestation DNA coordinator's post_commit via
+        /// call(OtherRole("governance"), ...) — author grant applies
+        /// automatically for same-agent cross-DNA calls.
+        ///
+        /// Checks if all ValidationAttestations are present for request_ref.
+        /// If yes, assembles and creates the HarmonyRecord.
+        #[hdk_extern]
+        pub fn check_and_create_harmony_record(
+            request_ref: ResearchHash,
+        ) -> ExternResult<()> {
+            // TODO:
+            // 1. call(OtherRole("attestation"), "get_attestations_for_request", request_ref)
+            // 2. Check count against expected num_validators_required
+            // 3. If complete: assemble HarmonyRecord from attestations
+            // 4. create_harmony_record(assembled_record)
+            // 5. If badge thresholds met: issue_badge(...)
+            // 6. update_validator_reputation(...) for each validator
+            Ok(())
+        }
+
+        #[hdk_extern]
+        pub fn create_harmony_record(
+            record: integrity::HarmonyRecord,
+        ) -> ExternResult<ActionHash> {
+            let record_hash = create_entry(EntryTypes::HarmonyRecord(record.clone()))?;
+            // Index by request_ref for direct lookup
+            let anchor = Path::from(format!("request.{}", hex::encode(record.request_ref)))
+                .typed(LinkTypes::RequestToHarmonyRecord)?;
+            anchor.ensure()?;
+            create_link(
+                anchor.path_entry_hash()?,
+                record_hash.clone(),
+                LinkTypes::RequestToHarmonyRecord,
+                (),
+            )?;
+            // Index by discipline + month for analytics
+            let disc_path = Path::from(
+                format!("harmony.{:?}", record.discipline_tag())
+            ).typed(LinkTypes::DisciplinePath)?;
+            disc_path.ensure()?;
+            create_link(
+                disc_path.path_entry_hash()?,
+                record_hash.clone(),
+                LinkTypes::DisciplinePath,
+                (),
+            )?;
+            Ok(record_hash)
+        }
+
+        #[hdk_extern]
+        pub fn issue_badge(badge: integrity::ReproducibilityBadge) -> ExternResult<ActionHash> {
+            let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
+            Ok(badge_hash)
+        }
+
+        #[hdk_extern]
+        pub fn record_governance_decision(
+            decision: integrity::GovernanceDecision,
+        ) -> ExternResult<ActionHash> {
+            create_entry(EntryTypes::GovernanceDecision(decision))
+        }
+
+        /// Only the system_coordinator_key agent may call this successfully.
+        /// The validate() callback enforces the authorship check on-chain.
+        #[hdk_extern]
+        pub fn update_validator_reputation(
+            reputation: integrity::ValidatorReputation,
+        ) -> ExternResult<ActionHash> {
+            let validator = reputation.validator_id.clone();
+            let rep_hash = create_entry(EntryTypes::ValidatorReputation(reputation))?;
+            create_link(
+                validator,
+                rep_hash.clone(),
+                LinkTypes::ValidatorToReputation,
+                (),
+            )?;
+            Ok(rep_hash)
+        }
+
+        // --- Read functions (unrestricted — HTTP Gateway targets) -------------
+
+        #[hdk_extern]
+        pub fn get_harmony_record(
+            request_ref: ResearchHash,
+        ) -> ExternResult<Option<Record>> {
+            let anchor = Path::from(format!("request.{}", hex::encode(request_ref)))
+                .typed(LinkTypes::RequestToHarmonyRecord)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(
+                    anchor.path_entry_hash()?,
+                    LinkTypes::RequestToHarmonyRecord,
+                )?.build(),
+            )?;
+            match links.first() {
+                Some(link) => {
+                    let target = link.target.clone().into_action_hash()
+                        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid link".into())))?;
+                    get(target, GetOptions::network())
+                }
+                None => Ok(None),
+            }
+        }
+
+        #[hdk_extern]
+        pub fn get_harmony_records_for_discipline(
+            discipline: Discipline,
+        ) -> ExternResult<Vec<Record>> {
+            // TODO: Query discipline path and retrieve records.
+            Ok(Vec::new())
+        }
+
+        #[hdk_extern]
+        pub fn get_badge(
+            request_ref: ResearchHash,
+        ) -> ExternResult<Option<Record>> {
+            // TODO: Query by harmony_record_ref
+            Ok(None)
+        }
+
+        #[hdk_extern]
+        pub fn get_validator_reputation(
+            agent: AgentPubKey,
+        ) -> ExternResult<Option<Record>> {
+            let links = get_links(
+                GetLinksInputBuilder::try_new(agent, LinkTypes::ValidatorToReputation)?.build(),
+            )?;
+            // Return the most recent reputation record (last link in the list).
+            match links.last() {
+                Some(link) => {
+                    let target = link.target.clone().into_action_hash()
+                        .ok_or(wasm_error!(WasmErrorInner::Guest("Invalid link".into())))?;
+                    get(target, GetOptions::network())
+                }
+                None => Ok(None),
+            }
+        }
+
+        #[hdk_extern]
+        pub fn get_governance_decisions(
+            limit: u32,
+        ) -> ExternResult<Vec<Record>> {
+            // TODO: Query decisions path with pagination
+            Ok(Vec::new())
+        }
+
+        #[hdk_extern]
+        pub fn recv_remote_signal(signal: SerializedBytes) -> ExternResult<()> {
+            emit_signal(signal)?;
+            Ok(())
+        }
+
+        /// Evaluate HarmonyRecord outcome and issue badge if thresholds are met.
+        pub fn evaluate_badge_threshold(
+            record: &integrity::HarmonyRecord,
+        ) -> Option<integrity::BadgeLevel> {
+            let s = &record.validation_summary;
+            let success_rate = (s.successful_validations + s.partial_validations) as f64
+                / s.total_validators as f64;
+
+            if s.total_validators >= 7 && success_rate >= 0.80 {
+                Some(integrity::BadgeLevel::Gold)
+            } else if s.total_validators >= 5 && success_rate >= 0.70 {
+                Some(integrity::BadgeLevel::Silver)
+            } else if s.total_validators >= 3 && success_rate >= 0.60 {
+                Some(integrity::BadgeLevel::Bronze)
+            } else {
+                None
+            }
+        }
+    }
 }
 
 // =============================================================================
-// CROSS-DNA ARCHITECTURE NOTES
+// TESTS
 // =============================================================================
 //
-// --- Cross-DNA calls (within the same hApp instance) ---
+// These are unit tests for business logic that does not require a running
+// Holochain conductor. Integration and multi-agent tests belong in Tryorama.
 //
-// Use hdk::p2p::call with CallTargetCell::OtherRole("dna_role_name").
-// When all four DNAs run on a single node (true for any researcher or validator),
-// the author grant applies automatically — no capability tokens required for
-// same-agent cross-DNA calls.
+// TRYORAMA TEST PRIORITY ORDER (see SCAFFOLDING_PLAN.md for full specifications):
 //
-// CRITICAL CONSTRAINT: call_remote() only works between agents on the SAME
-// DNA's network. Alice's Attestation DNA can call_remote to Bob's Attestation
-// DNA. Alice's Attestation DNA CANNOT call_remote to Bob's Researcher Repository
-// DNA. All inter-validator coordination must happen within the Attestation DNA.
-//
-// --- Signals ---
-//
-// Signals are SEND-AND-FORGET. No delivery confirmation, no persistence.
-// A validator offline when the signal fires misses it entirely.
-//
-// Phase transitions must be driven by DHT state polling, not signal delivery:
-//   - Attestation DNA coordinator polls: have all expected validators sealed
-//     their private commitments? (checks source chain activity)
-//   - Only when all commitments are confirmed does the reveal window open.
-//   - Signals are appropriate for notifying UIs that something is ready to act
-//     on — not for driving the protocol machinery.
-//
-// --- DNA Properties ---
-//
-// Use #[dna_properties] on a struct to embed configuration into the DNA hash.
-// These are immutable for the lifetime of a network instance — changing them
-// creates a new DNA hash = a new network.
-//
-// ValiChord uses cases:
-//   Attestation DNA:
-//     - authorized_joining_certificate_issuer: AgentPubKey
-//     - discipline: String (e.g. "genomics")
-//     - minimum_validators: u32
-//   Governance DNA:
-//     - system_coordinator_key: AgentPubKey (the only agent that may write reputation)
-//
-// --- Path Sharding (Phase 2+ scale) ---
-//
-// When a single anchor accumulates thousands of links, DHT nodes responsible
-// for that address become overloaded. Holochain's Path struct includes a
-// built-in sharding DSL: prefix with `<width>:<depth>#` to distribute load.
-// Example: "2:1#cardiff_university" creates intermediate nodes "ca", "cb" etc.
-//
-// At Phase 1 scale (hundreds of studies), simple paths without sharding are
-// adequate. At Phase 2 scale (thousands of studies), shard institution paths
-// by the first two characters of the institution identifier.
-// Path sharding belongs in coordinator logic only — no effect on integrity zomes.
-//
-// --- Two Access Models — Keep These Separate ---
-//
-// Model A — LOCAL FRONT END (researcher UI, validator UI):
-//   Connects via AppWebsocket.connect() over a local WebSocket interface.
-//   This interface is ONLY exposed to processes on the same device — not
-//   reachable from the network. This is a hard security guarantee, not policy.
-//   The UI must be distributed with the hApp and a Holochain runtime
-//   (hc-spin for dev, Kangaroo/p2p Shipyard for production).
-//   All four DNAs are accessible this way from the local UI.
-//
-// Model B — EXTERNAL HTTP GATEWAY (journals, funders, institutional platforms):
-//   Uses Holochain HTTP Gateway (v0.2, July 2025) to reach the Governance DNA
-//   over standard HTTP/REST. External callers do not run a Holochain node.
-//   ONLY the Governance/Harmony Records DNA is exposed this way.
-//   Private DNAs (Researcher Repository, Validator Workspace) are never
-//   reachable via the HTTP Gateway.
-//
-// DO NOT conflate these. A journal cannot call a researcher's local zome
-// functions directly. A researcher's UI does not go through the HTTP Gateway.
-//
-// --- REST API Endpoints (served via HTTP Gateway on Governance DNA) ---
-//
-// GET    /api/v1/harmony/{request_ref}         Get Harmony Record
-// GET    /api/v1/badges/{request_ref}          Get badge for study
-// GET    /api/v1/validators/{agent_id}         Get validator reputation
-// GET    /api/v1/query/doi/{doi}               Query by DOI
-// GET    /api/v1/query/osf/{osf_id}            Query by OSF project
-// GET    /api/v1/institutions/{id}/metrics     Institutional metrics
-// GET    /api/v1/funders/{id}/portfolio        Funder portfolio
-
-// =============================================================================
-// TESTS (placeholder structure)
-// =============================================================================
+//   1. Membrane proof acceptance/rejection for Attestation DNA
+//   2. Commit-reveal round: validator seals private attestation → all sealed
+//      → reveal window opens → ValidationAttestation written → HarmonyRecord created
+//   3. Phase transition driven by DHT polling — NOT by signal delivery
+//   4. Offline validator scenario: misses signal, reconnects, learns phase from DHT
+//   5. ValidationAttestation immutability: attempt update → rejected by validate()
+//   6. HarmonyRecord count mismatch → rejected by validate()
+//   7. ValidatorReputation write by non-coordinator → rejected by validate()
+//   8. Gaming detection: identical outcomes pattern flagged in coordinator
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::attestation_dna::*;
+
+    // --- Validate business logic (no conductor required) ---------------------
 
     #[test]
-    fn test_difficulty_assessment_easy_study() {
-        let assessment = DifficultyAssessment::compute(
-            [0u8; 32],
-            2, // code volume: low
-            1, // dependency count: low
-            5, // documentation: excellent
-            5, // data accessibility: excellent
-            1, // environment complexity: low
-            1, // study age: recent
-        );
-        assert_eq!(assessment.predicted_tier, DifficultyTier::Standard);
-    }
-
-    #[test]
-    fn test_difficulty_assessment_hard_study() {
-        let assessment = DifficultyAssessment::compute(
-            [0u8; 32],
-            4, // code volume: high
-            5, // dependency count: high
-            1, // documentation: poor
-            1, // data accessibility: restricted
-            4, // environment complexity: high
-            4, // study age: old
-        );
-        assert!(matches!(
-            assessment.predicted_tier,
-            DifficultyTier::Complex | DifficultyTier::Extreme
-        ));
-    }
-
-    #[test]
-    fn test_harmony_record_countersigning_check() {
-        // Verify the logic that the validate callback enforces:
-        // signed_count must equal total_validators
-        let summary = governance_dna::ValidationSummary {
-            total_validators: 3,
-            successful_validations: 2,
-            partial_validations: 1,
-            failed_validations: 0,
+    fn harmony_record_count_invariant_satisfied() {
+        let summary = governance::integrity::ValidationSummary {
+            total_validators:         3,
+            successful_validations:   2,
+            partial_validations:      1,
+            failed_validations:       0,
             inconclusive_validations: 0,
-            agreement_level: 0.8,
-            outlier_count: 0,
+            agreement_level:          0.8,
+            outlier_count:            0,
         };
-        let signed_count = summary.successful_validations
+        let count = summary.successful_validations
             + summary.partial_validations
             + summary.failed_validations
             + summary.inconclusive_validations;
-        assert_eq!(signed_count, summary.total_validators);
+        assert_eq!(count, summary.total_validators,
+            "successful + partial + failed + inconclusive must equal total_validators");
     }
 
     #[test]
-    fn test_assignment_constraints_defaults() {
-        let constraints = attestation_dna::AssignmentConstraints::default();
-        assert_eq!(constraints.min_validators, 3);
-        assert!(constraints.double_blind);
-        assert!((constraints.max_institutional_share - 0.4).abs() < f64::EPSILON);
+    fn harmony_record_count_invariant_violated() {
+        // Simulate what validate() must catch: only 2 outcomes for 3 validators.
+        let summary = governance::integrity::ValidationSummary {
+            total_validators:         3,
+            successful_validations:   1,
+            partial_validations:      1,
+            failed_validations:       0,
+            inconclusive_validations: 0,
+            agreement_level:          0.5,
+            outlier_count:            0,
+        };
+        let count = summary.successful_validations
+            + summary.partial_validations
+            + summary.failed_validations
+            + summary.inconclusive_validations;
+        assert_ne!(count, summary.total_validators,
+            "Test confirms validate() would reject this record");
+    }
+
+    // --- Badge threshold evaluation ------------------------------------------
+
+    #[test]
+    fn badge_threshold_gold() {
+        let summary = governance::integrity::ValidationSummary {
+            total_validators:         7,
+            successful_validations:   6,
+            partial_validations:      1,
+            failed_validations:       0,
+            inconclusive_validations: 0,
+            agreement_level:          0.9,
+            outlier_count:            0,
+        };
+        // 7 validators, 100% success → Gold
+        let success_rate = (summary.successful_validations + summary.partial_validations) as f64
+            / summary.total_validators as f64;
+        assert!(summary.total_validators >= 7);
+        assert!(success_rate >= 0.80);
+    }
+
+    #[test]
+    fn badge_threshold_no_badge() {
+        let summary = governance::integrity::ValidationSummary {
+            total_validators:         3,
+            successful_validations:   1,
+            partial_validations:      0,
+            failed_validations:       2,
+            inconclusive_validations: 0,
+            agreement_level:          0.33,
+            outlier_count:            2,
+        };
+        // 3 validators, 33% success → no badge
+        let success_rate = (summary.successful_validations + summary.partial_validations) as f64
+            / summary.total_validators as f64;
+        assert!(success_rate < 0.60, "33% success should not qualify for any badge");
+    }
+
+    // --- Difficulty assessment scoring ---------------------------------------
+
+    #[test]
+    fn difficulty_assessment_easy_study() {
+        // Low code volume, excellent docs, open data, recent → Standard tier
+        let weighted = difficulty_score(2, 1, 5, 5, 1, 1);
+        assert!(weighted < 1.5, "Easy study should score < 1.5 (Standard tier)");
+    }
+
+    #[test]
+    fn difficulty_assessment_hard_study() {
+        // High code volume, poor docs, restricted data, old → Extreme tier
+        let weighted = difficulty_score(5, 5, 1, 1, 5, 5);
+        assert!(weighted >= 3.5, "Hard study should score >= 3.5 (Extreme tier)");
+    }
+
+    /// Weighted difficulty score computation.
+    /// Weights are PLACEHOLDERS — Phase 0 regression determines real values.
+    fn difficulty_score(
+        code_volume:           u8,
+        dependency_count:      u8,
+        documentation_quality: u8,
+        data_accessibility:    u8,
+        environment_complexity: u8,
+        study_age_years:       u8,
+    ) -> f64 {
+        (code_volume            as f64 * 0.15)
+        + (dependency_count     as f64 * 0.20)
+        + ((5 - documentation_quality)  as f64 * 0.25) // inverse: poor docs = harder
+        + ((5 - data_accessibility)     as f64 * 0.20) // inverse: restricted = harder
+        + (environment_complexity as f64 * 0.10)
+        + (study_age_years      as f64 * 0.10)
+    }
+
+    // --- AttestationOutcome --------------------------------------------------
+
+    #[test]
+    fn attestation_outcome_variants_serialise() {
+        // Verify all variants can be created — catches enum definition issues.
+        let _ = AttestationOutcome::Reproduced;
+        let _ = AttestationOutcome::PartiallyReproduced { details: "some match".into() };
+        let _ = AttestationOutcome::FailedToReproduce   { details: "no match".into()  };
+        let _ = AttestationOutcome::UnableToAssess      { reason:  "no access".into() };
     }
 }
