@@ -2,7 +2,7 @@
 ## ValiChord: Infrastructure for Scientific Reproducibility
 
 ValiChord is an end-to-end system designed to address the reproducibility crisis by providing a tamper-evident, distributed engine for validating computational research.
-### The 8-Layer Infrastructure
+### The 8-Layer Infrastructure (Illustrative)
 
 The system is organized into modular functional layers that manage the lifecycle of a research study from intake to certification:
 
