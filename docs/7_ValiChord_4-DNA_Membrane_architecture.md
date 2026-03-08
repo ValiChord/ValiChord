@@ -38,6 +38,11 @@ Role: Stores the final Harmony Records, badges, and public validation statuses.
 
 Control: Only the system's official rules can "write" to this library, but anyone—journals, funders, or the public—can "read" it to verify reproducibility signals.
 
+<div align="center">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/4%20membranes%20alt.jpeg" alt="The 4 DNA Membrane Architecture" width="800">
+</div>
+
+
 
 ## Plain English Glossary
 
