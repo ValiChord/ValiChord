@@ -77,7 +77,12 @@ To prevent "last-mover advantage," ValiChord utilizes Holochain's native counter
 
 ---
 
-> ### *“Every initiative assumes verification is feasible at a reasonable cost. That assumption has never been tested. ValiChord is the test.”*
+ ValiChord is built on Holochain, an end-to-end open-source P2P app framework.
+
+<a href="https://holochain.org">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png?raw=true" width="750" alt="Holochain Logo">
+</a>
+
 
 ---
 **Author:** Ceri John &nbsp;•&nbsp; **Technical Validation:** Arthur Brock (Holochain), Joel Marcey (Rust Foundation), Paul D'Aoust (Holochain Foundation)  
