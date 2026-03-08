@@ -1,0 +1,19 @@
+{
+  "name": "valichord-tests",
+  "version": "0.1.0",
+  "description": "Tryorama integration tests for ValiChord DNA 3 (Attestation)",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@holochain/tryorama": "^0.19.0",
+    "@holochain/client": "^0.20.2"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}

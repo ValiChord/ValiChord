@@ -1,0 +1,21 @@
+---
+manifest_version: "1"
+name: valichord
+description: "ValiChord — credentialed peer validation for scientific reproducibility"
+
+# DNA 3 only for now. DNA 1, 2, 4 will be added once DNA 3 tests pass.
+roles:
+  - name: attestation
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      bundled: "dnas/attestation.dna"
+      # DNA modifiers (can be overridden per-player in Tryorama via rolesSettings)
+      modifiers:
+        properties:
+          # Placeholder issuer key — overridden in tests
+          authorized_joining_certificate_issuer: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+          discipline: "genomics"
+          minimum_validators: 2
+        network_seed: "valichord-test"

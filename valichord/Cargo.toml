@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = [
+    "shared_types",
+    "dnas/attestation/zomes/attestation_integrity",
+    "dnas/attestation/zomes/attestation_coordinator",
+]
+
+[workspace.dependencies]
+hdi = "0.7"
+hdk = "0.6"
+serde = { version = "1", features = ["derive"] }

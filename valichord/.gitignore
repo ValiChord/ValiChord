@@ -1,0 +1,4 @@
+target/
+workdir/*.dna
+workdir/*.happ
+tests/node_modules/
