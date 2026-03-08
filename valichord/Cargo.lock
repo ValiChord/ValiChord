@@ -369,6 +369,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "governance_coordinator"
+version = "0.1.0"
+dependencies = [
+ "attestation_integrity",
+ "getrandom",
+ "governance_integrity",
+ "hdk",
+ "holochain_serialized_bytes",
+ "serde",
+ "valichord_shared_types",
+]
+
+[[package]]
+name = "governance_integrity"
+version = "0.1.0"
+dependencies = [
+ "attestation_integrity",
+ "getrandom",
+ "hdi",
+ "holochain_serialized_bytes",
+ "serde",
+ "valichord_shared_types",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,305 @@
+use hdi::prelude::*;
+use valichord_shared_types::{AttestationOutcome, Discipline};
+use attestation_integrity::{AgreementLevel, CertificationTier};
+
+// ---------------------------------------------------------------------------
+// DNA Properties — two keys, baked into the DNA hash.
+//
+// Changing either key requires publishing a new DNA (new network seed or new
+// hash), which is a governance decision. The DNA-properties check is the
+// cryptographic backstop: validate() cannot reach into the Attestation DNA
+// to verify the calling agent's credentials, so the key in properties is the
+// authoritative gate.
+// ---------------------------------------------------------------------------
+
+#[dna_properties]
+pub struct DnaProperties {
+    /// Only this key may write ValidatorReputation entries.
+    pub system_coordinator_key:     String,
+    /// Only this key may write HarmonyRecord, GovernanceDecision,
+    /// and ReproducibilityBadge entries.
+    pub harmony_record_creator_key: String,
+}
+
+// ---------------------------------------------------------------------------
+// Entry Types
+// ---------------------------------------------------------------------------
+
+/// The canonical output of ValiChord — the final validation outcome.
+///
+/// "Harmony" preserves the full texture of agreement AND disagreement.
+/// Disagreements are always visible — a non-negotiable governance commitment.
+///
+/// IMMUTABLE after creation: validate() blocks all updates and deletes.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct HarmonyRecord {
+    /// Links back to the ValidationRequest in the Attestation DNA.
+    pub request_ref:              ExternalHash,
+    /// Majority-vote outcome across all validators.
+    pub outcome:                  AttestationOutcome,
+    /// Agreement level computed from validator outcomes.
+    pub agreement_level:          AgreementLevel,
+    /// Agent keys of all validators who participated.
+    pub participating_validators: Vec<AgentPubKey>,
+    /// Max time invested across validators (Phase 0 data collection).
+    pub validation_duration_secs: u64,
+    pub discipline:               Discipline,
+    pub created_at_secs:          u64,
+}
+
+/// Per-validator reputation score.
+///
+/// Only the system_coordinator_key agent may write these entries.
+/// Individual dimensions prevent gaming that a single total score would enable.
+/// Updateable by creating a new entry (linked via ValidatorToReputation).
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ValidatorReputation {
+    pub validator:         AgentPubKey,
+    pub discipline:        Discipline,
+    pub total_validations: u32,
+    /// 0.0–1.0 rate of outcomes agreeing with the majority.
+    pub agreement_rate:    f64,
+    pub avg_time_secs:     u64,
+    pub tier:              CertificationTier,
+    pub last_updated_secs: u64,
+}
+
+/// Reproducibility badge issued to researchers.
+///
+/// IMMUTABLE after creation.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ReproducibilityBadge {
+    pub study_ref:          ExternalHash,
+    pub issued_to:          AgentPubKey,
+    pub badge_type:         BadgeType,
+    pub issued_at_secs:     u64,
+    /// ActionHash of the HarmonyRecord that triggered this badge.
+    pub harmony_record_ref: ActionHash,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BadgeType {
+    GoldReproducible,
+    SilverReproducible,
+    BronzeReproducible,
+    FailedReproduction,
+}
+
+/// Governance vote outcome — every decision is logged immutably.
+///
+/// IMMUTABLE after creation.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct GovernanceDecision {
+    pub proposal:       String,
+    pub decision:       String,
+    pub decided_at_secs: u64,
+    pub votes_for:      u32,
+    pub votes_against:  u32,
+}
+
+// ---------------------------------------------------------------------------
+// Entry Types Enum
+// ---------------------------------------------------------------------------
+
+#[hdk_entry_types]
+#[unit_enum(UnitEntryTypes)]
+pub enum EntryTypes {
+    HarmonyRecord(HarmonyRecord),
+    ValidatorReputation(ValidatorReputation),
+    ReproducibilityBadge(ReproducibilityBadge),
+    GovernanceDecision(GovernanceDecision),
+}
+
+// ---------------------------------------------------------------------------
+// Link Types
+// ---------------------------------------------------------------------------
+
+#[hdk_link_types]
+pub enum LinkTypes {
+    /// AgentPubKey → ValidatorReputation ActionHash (most recent = last)
+    ValidatorToReputation,
+    /// Path anchor (request_ref) → HarmonyRecord ActionHash
+    RequestToHarmonyRecord,
+    /// Path anchor (discipline) → HarmonyRecord ActionHash
+    DisciplinePath,
+    /// Path anchor (badge_type) → ReproducibilityBadge ActionHash
+    BadgePath,
+    /// ExternalHash (study_ref) → ReproducibilityBadge ActionHash
+    StudyToBadge,
+}
+
+// ---------------------------------------------------------------------------
+// Validate Callback
+// ---------------------------------------------------------------------------
+//
+// CRITICAL design notes:
+//   1. Guarded arms (specific entry type) MUST come before unguarded arms.
+//   2. Author checks use action.author.to_string() vs the String keys
+//      from DnaProperties (base64-encoded AgentPubKey).
+//   3. All entries validated by validate() are PUBLIC — deletes are checked
+//      by deserializing the original entry via must_get_valid_record().
+//   4. No membrane proof: public DHT, open read.
+
+#[hdk_extern]
+pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
+
+        // --- HarmonyRecord create: only harmony_record_creator_key ----------
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::HarmonyRecord(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if action.author.to_string() != props.harmony_record_creator_key {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only harmony_record_creator_key may write HarmonyRecord entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- GovernanceDecision create: only harmony_record_creator_key -----
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::GovernanceDecision(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if action.author.to_string() != props.harmony_record_creator_key {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only harmony_record_creator_key may write GovernanceDecision entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- ReproducibilityBadge create: only harmony_record_creator_key ---
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ReproducibilityBadge(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if action.author.to_string() != props.harmony_record_creator_key {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only harmony_record_creator_key may issue ReproducibilityBadge entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- ValidatorReputation create: only system_coordinator_key --------
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            validate_reputation_author(&action.author)
+        }
+
+        // --- Immutability: block updates to HarmonyRecord -------------------
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::HarmonyRecord(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "HarmonyRecord is immutable — the public record cannot be changed".into(),
+        )),
+
+        // --- Immutability: block updates to GovernanceDecision --------------
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::GovernanceDecision(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "GovernanceDecision is immutable — the decision history is append-only".into(),
+        )),
+
+        // --- Immutability: block updates to ReproducibilityBadge ------------
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ReproducibilityBadge(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "ReproducibilityBadge is immutable — badges cannot be altered after issuance".into(),
+        )),
+
+        // --- ValidatorReputation update: only system_coordinator_key --------
+        // Placed AFTER the immutability guards so they fire first.
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            validate_reputation_author(&action.author)
+        }
+
+        FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
+
+        // --- Deletes: HarmonyRecord, GovernanceDecision, Badge are immutable -
+        FlatOp::RegisterDelete(OpDelete { ref action }) => {
+            let original_action = must_get_action(action.deletes_address.clone())?;
+            if let Some(EntryType::App(app_def)) = original_action.action().entry_type() {
+                let original_record =
+                    must_get_valid_record(action.deletes_address.clone())?;
+                if let Some(entry) = original_record.entry().as_option() {
+                    let entry_type = EntryTypes::deserialize_from_type(
+                        app_def.zome_index,
+                        app_def.entry_index,
+                        entry,
+                    )?;
+                    match entry_type {
+                        Some(EntryTypes::HarmonyRecord(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "HarmonyRecord is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::GovernanceDecision(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "GovernanceDecision is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::ReproducibilityBadge(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ReproducibilityBadge is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // Non-immutable entries: only original author may delete.
+            if action.author != *original_action.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may delete this entry".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // All other ops: valid. Public DHT — open read is the design intent.
+        _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
+
+fn validate_reputation_author(
+    author: &AgentPubKey,
+) -> ExternResult<ValidateCallbackResult> {
+    let props = DnaProperties::try_from_dna_properties()?;
+    if author.to_string() != props.system_coordinator_key {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Only the system coordinator may write ValidatorReputation entries".into(),
+        ));
+    }
+    Ok(ValidateCallbackResult::Valid)
+}
+
+// ---------------------------------------------------------------------------
+// genesis_self_check — no membrane proof required (public DHT, open join)
+// ---------------------------------------------------------------------------
+
+#[hdk_extern]
+pub fn genesis_self_check(
+    _data: GenesisSelfCheckData,
+) -> ExternResult<ValidateCallbackResult> {
+    Ok(ValidateCallbackResult::Valid)
+}

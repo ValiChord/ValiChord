@@ -1,0 +1,16 @@
+[package]
+name = "governance_integrity"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "governance_integrity"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdi = { workspace = true }
+serde = { workspace = true }
+holochain_serialized_bytes = { workspace = true }
+valichord_shared_types = { path = "../../../../shared_types" }
+attestation_integrity = { path = "../../../attestation/zomes/attestation_integrity" }
+getrandom = { workspace = true }

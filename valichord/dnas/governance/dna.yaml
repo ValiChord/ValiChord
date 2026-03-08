@@ -1,0 +1,22 @@
+---
+manifest_version: "0"
+name: governance
+integrity:
+  network_seed: ~
+  # Two keys baked into DNA properties — any network with different keys is a
+  # different DHT.  Change requires a new DNA hash (governance decision).
+  properties:
+    system_coordinator_key:      "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+    harmony_record_creator_key:  "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+  zomes:
+    - name: governance_integrity
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/governance_integrity.wasm"
+      dependencies: ~
+coordinator:
+  zomes:
+    - name: governance_coordinator
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/governance_coordinator.wasm"
+      dependencies:
+        - name: governance_integrity

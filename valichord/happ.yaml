@@ -3,7 +3,6 @@ manifest_version: "0"
 name: valichord
 description: "ValiChord — credentialed peer validation for scientific reproducibility"
 
-# DNA 3 only for now. DNA 1, 2, 4 will be added once DNA 3 tests pass.
 roles:
   - name: attestation
     provisioning:
@@ -18,4 +17,36 @@ roles:
           authorized_joining_certificate_issuer: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
           discipline: "genomics"
           minimum_validators: 2
+        network_seed: "valichord-test"
+
+  - name: researcher_repository
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "workdir/researcher_repository.dna"
+      modifiers:
+        network_seed: "valichord-test"
+
+  - name: validator_workspace
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "workdir/validator_workspace.dna"
+      modifiers:
+        network_seed: "valichord-test"
+
+  - name: governance
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "workdir/governance.dna"
+      modifiers:
+        properties:
+          # Placeholder keys — overridden per-player in Tryorama via rolesSettings.
+          # In production these are the assembly coordinator and system coordinator keys.
+          system_coordinator_key:     "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+          harmony_record_creator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
         network_seed: "valichord-test"

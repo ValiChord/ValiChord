@@ -8,6 +8,8 @@ members = [
     "dnas/researcher_repository/zomes/researcher_repository_coordinator",
     "dnas/validator_workspace/zomes/validator_workspace_integrity",
     "dnas/validator_workspace/zomes/validator_workspace_coordinator",
+    "dnas/governance/zomes/governance_integrity",
+    "dnas/governance/zomes/governance_coordinator",
 ]
 
 [workspace.dependencies]
