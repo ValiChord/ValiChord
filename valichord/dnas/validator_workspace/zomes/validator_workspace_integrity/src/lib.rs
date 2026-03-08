@@ -1,9 +1,8 @@
 use hdi::prelude::*;
 use valichord_shared_types::{
     AttestationConfidence, AttestationOutcome, ComputationalResources, Discipline,
-    TimeBreakdown, UndeclaredDeviation,
+    OutcomeSummary, TimeBreakdown, UndeclaredDeviation,
 };
-use attestation_integrity::OutcomeSummary;
 
 // ---------------------------------------------------------------------------
 // Supporting types — local to DNA 2

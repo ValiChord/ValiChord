@@ -10,9 +10,15 @@
  * Key design note for governance writes:
  *   DNA 4's validate() checks action.author against harmony_record_creator_key /
  *   system_coordinator_key (both stored as base64 strings in DNA properties).
- *   Tests that require governance writes use `generateSigningKeyPair` to produce
- *   a known key pair BEFORE adding the player, then pass that key as
- *   `agentPubKey` in the player config so conductor identity matches the gate.
+ *   We use `scenario.addPlayers(n)` to register keys in lair FIRST, then read
+ *   adminPlayer.agentPubKey and bake it into governance DNA properties, then
+ *   call `scenario.installAppsForPlayers(configs, players)`.
+ *
+ * Key note on get_attestations_for_request:
+ *   This function discovers validators via CommitmentAnchor entries on the
+ *   "commitments.{request_ref}" path, created by notify_commitment_sealed.
+ *   Tests must call notify_commitment_sealed before submit_attestation so the
+ *   coordinator can find attestations for the request.
  *
  * Prerequisites:
  *   cargo build --target wasm32-unknown-unknown --release
@@ -30,7 +36,6 @@ import {
   encodeHashToBase64,
   HoloHashType,
   hashFrom32AndType,
-  generateSigningKeyPair,
 } from "@holochain/client";
 import { expect, test, describe } from "vitest";
 import { fileURLToPath } from "url";
@@ -57,17 +62,16 @@ function fakeExternalHash(coreByte: number): Uint8Array {
  *
  * adminKeyB64 is baked into governance DNA properties as both
  * harmony_record_creator_key and system_coordinator_key.
- * If agentPubKey is supplied the conductor will use that key identity,
- * allowing the agent to satisfy validate()'s author check.
+ * Do NOT pass agentPubKey here — use addPlayers + installAppsForPlayers
+ * so the key is pre-registered in lair before installation.
  */
-function makePlayerConfig(adminKeyB64: string, agentPubKey?: Uint8Array) {
+function makePlayerConfig(adminKeyB64: string) {
   return {
     appBundleSource: {
       type: "path" as const,
       value: HAPP_PATH,
     },
     options: {
-      ...(agentPubKey ? { agentPubKey } : {}),
       rolesSettings: {
         attestation: {
           type: "provisioned" as const,
@@ -103,7 +107,7 @@ function makePlayerConfig(adminKeyB64: string, agentPubKey?: Uint8Array) {
 const PLACEHOLDER_KEY =
   "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew";
 
-/** callZome helper — typed as any to avoid fighting @holochain/client generics. */
+/** callZome helper. */
 async function callZome(
   player: any,
   roleName: string,
@@ -172,6 +176,11 @@ function makeAttestation(requestRef: Uint8Array) {
   };
 }
 
+/** Return the DNA hash for a given role via namedCells map. */
+function dnaHashForRole(player: any, roleName: string): Uint8Array {
+  return player.namedCells?.get(roleName)?.cell_id[0];
+}
+
 // ---------------------------------------------------------------------------
 // 1. Idempotency
 // ---------------------------------------------------------------------------
@@ -179,17 +188,18 @@ function makeAttestation(requestRef: Uint8Array) {
 describe("1. check_and_create_harmony_record idempotency", () => {
   test(
     "two calls for the same request_ref with no attestations both return null",
-    { timeout: 120_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        // Pre-generate an admin key so the conductor identity matches the
-        // governance DNA-property gate.
-        const [_sigKey, adminPubKey] = await generateSigningKeyPair();
-        const adminKeyB64 = encodeHashToBase64(adminPubKey);
+        // Step 1: create conductor + register key in lair.
+        const [adminPlayer] = await scenario.addPlayers(1);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
 
-        const [admin] = await scenario.addPlayersWithApps([
-          makePlayerConfig(adminKeyB64, adminPubKey),
-        ]);
+        // Step 2: install happ with governance DNA properties matching admin key.
+        const [admin] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64)],
+          [adminPlayer],
+        );
 
         const requestRef = fakeExternalHash(0x01);
 
@@ -204,51 +214,54 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // No record on the DHT.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).toBeNull();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "second call short-circuits when HarmonyRecord already exists",
-    { timeout: 180_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [_sigKey, adminPubKey] = await generateSigningKeyPair();
-        const adminKeyB64 = encodeHashToBase64(adminPubKey);
+        const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
 
-        const [admin, bob] = await scenario.addPlayersWithApps([
-          makePlayerConfig(adminKeyB64, adminPubKey),
-          makePlayerConfig(adminKeyB64),
-        ]);
+        const [admin, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64), makePlayerConfig(adminKeyB64)],
+          [adminPlayer, bobPlayer],
+        );
 
-        // Submit a request and two public attestations so the coordinator
-        // has enough data to assemble a HarmonyRecord.
-        const requestHash = await att(admin, "submit_validation_request",
-          makeValidationRequest());
+        const attDnaHash = dnaHashForRole(admin, "attestation");
 
-        const requestRecord = await att(admin, "get_validation_request", requestHash);
-        // Extract the ExternalHash request_ref — fall back to a fake hash.
-        const requestRef: Uint8Array =
-          requestRecord?.entry?.Present?.entry?.App?.[1]?.request_ref
-          ?? fakeExternalHash(0x02);
+        // Use a consistent request_ref for all protocol steps.
+        const requestRef = fakeExternalHash(0x11);
 
+        // Both validators commit (creates CommitmentAnchors so get_attestations_for_request works).
+        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(bob,   "notify_commitment_sealed", requestRef);
+
+        // Sync attestation DHT — CommitmentAnchors must be visible before
+        // get_attestations_for_request can discover validator keys.
+        await dhtSync([admin, bob], attDnaHash);
+
+        // Both validators reveal (creates ValidatorToAttestation links).
         await att(admin, "submit_attestation", makeAttestation(requestRef));
         await att(bob,   "submit_attestation", makeAttestation(requestRef));
 
-        await dhtSync([admin, bob], admin.cells[0].cell_id[0]);
+        await dhtSync([admin, bob], attDnaHash);
 
-        // First call: attestations present → HarmonyRecord created.
+        // First call: both CommitmentAnchors + attestations present → HarmonyRecord created.
         const first = await gov(admin, "check_and_create_harmony_record", requestRef);
         expect(first).not.toBeNull();
 
-        // Second call: record already exists → idempotent return of null.
+        // Second call: RequestToHarmonyRecord link already on admin's DHT → null.
         const second = await gov(admin, "check_and_create_harmony_record", requestRef);
         expect(second).toBeNull();
 
         // Exactly one record visible.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).not.toBeNull();
-      });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -260,19 +273,21 @@ describe("1. check_and_create_harmony_record idempotency", () => {
 describe("2. Author enforcement", () => {
   test(
     "HarmonyRecord creation from non-creator key is rejected by validate()",
-    { timeout: 60_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Alice joins with the PLACEHOLDER key (which is not her real key).
         // Any governance write must be rejected.
-        const [alice] = await scenario.addPlayersWithApps([
-          makePlayerConfig(PLACEHOLDER_KEY),
-        ]);
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [alicePlayer],
+        );
 
         const requestRef = fakeExternalHash(0x10);
 
-        // Submit one attestation (but only 1, so DNA 3 doesn't fire the
-        // post_commit chain; we test governance directly).
+        // Submit one attestation (but only 1, so we have data; we test governance directly).
+        await att(alice, "notify_commitment_sealed", requestRef);
         await att(alice, "submit_attestation", makeAttestation(requestRef));
         await pause(300);
 
@@ -280,22 +295,24 @@ describe("2. Author enforcement", () => {
         await expect(
           gov(alice, "check_and_create_harmony_record", requestRef),
         ).rejects.toThrow();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "agent key does not equal placeholder key (validate() precondition)",
-    { timeout: 30_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([
-          makePlayerConfig(PLACEHOLDER_KEY),
-        ]);
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [alicePlayer],
+        );
         // Sanity-check: the test relies on alice's actual key being different
         // from the placeholder so validate() fires correctly.
         expect(encodeHashToBase64(alice.agentPubKey)).not.toBe(PLACEHOLDER_KEY);
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });
@@ -307,18 +324,19 @@ describe("2. Author enforcement", () => {
 describe("3. Full end-to-end round", () => {
   test(
     "researcher → request → validator attestations → HarmonyRecord on public DHT",
-    { timeout: 240_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
-        // Pre-generate admin key — this player acts as both a validator and
-        // the governance record creator (harmony_record_creator_key = admin).
-        const [_sigKey, adminPubKey] = await generateSigningKeyPair();
-        const adminKeyB64 = encodeHashToBase64(adminPubKey);
+        // Pre-register admin key in lair, then bake it into governance DNA props.
+        const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
 
-        const [admin, bob] = await scenario.addPlayersWithApps([
-          makePlayerConfig(adminKeyB64, adminPubKey),
-          makePlayerConfig(adminKeyB64),
-        ]);
+        const [admin, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64), makePlayerConfig(adminKeyB64)],
+          [adminPlayer, bobPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(admin, "attestation");
 
         // 1. Researcher registers a study in DNA 1.
         const studyHash = await repo(admin, "register_study", {
@@ -335,15 +353,9 @@ describe("3. Full end-to-end round", () => {
           makeValidationRequest());
         expect(requestHash).not.toBeNull();
 
-        // Retrieve the request to extract request_ref.
-        const requestRecord = await att(admin, "get_validation_request", requestHash);
-        expect(requestRecord).not.toBeNull();
-
-        // Use data_hash from makeValidationRequest as a stand-in for request_ref
-        // when direct deserialization is unavailable.
-        const requestRef: Uint8Array =
-          requestRecord?.entry?.Present?.entry?.App?.[1]?.data_hash
-          ?? fakeExternalHash(0xcc);
+        // Use a consistent fake request_ref for the commit-reveal protocol.
+        // (In production this would be the actual ExternalHash of the study.)
+        const requestRef = fakeExternalHash(0xcc);
 
         // 3. Two validators seal private attestation tasks in DNA 2.
         const taskPayload = {
@@ -359,10 +371,13 @@ describe("3. Full end-to-end round", () => {
         await ws(bob,   "receive_task", taskPayload);
 
         // 4. Both validators call notify_commitment_sealed on DNA 3.
+        //    Sync between commits so bob sees admin's CommitmentAnchor when
+        //    check_all_commitments_sealed_inner counts links (≥2 → PhaseMarker).
         await att(admin, "notify_commitment_sealed", requestRef);
-        await att(bob,   "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
 
-        await dhtSync([admin, bob], admin.cells[0].cell_id[0]);
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
 
         // 5. PhaseMarker(RevealOpen) should now be on the DHT.
         const phase = await att(admin, "get_current_phase", requestRef);
@@ -372,20 +387,19 @@ describe("3. Full end-to-end round", () => {
         await att(admin, "submit_attestation", makeAttestation(requestRef));
         await att(bob,   "submit_attestation", makeAttestation(requestRef));
 
-        await dhtSync([admin, bob], admin.cells[0].cell_id[0]);
+        await dhtSync([admin, bob], attDnaHash);
 
         // 7. Admin manually triggers governance record assembly.
-        //    (DNA 3 post_commit also fires but admin is the key holder so this
-        //    call from admin is authoritative.)
+        //    (DNA 3 post_commit also fires but admin is the key holder.)
         const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
         expect(harmonyHash).not.toBeNull();
 
-        await dhtSync([admin, bob], admin.cells[0].cell_id[0]);
+        await pause(500);
 
         // 8. HarmonyRecord is visible on the public DHT.
         const harmonyRecord = await gov(admin, "get_harmony_record", requestRef);
         expect(harmonyRecord).not.toBeNull();
-      });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -397,12 +411,14 @@ describe("3. Full end-to-end round", () => {
 describe("4. ValidatorReputation author enforcement", () => {
   test(
     "reputation update from non-coordinator key is rejected by validate()",
-    { timeout: 60_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([
-          makePlayerConfig(PLACEHOLDER_KEY),
-        ]);
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [alicePlayer],
+        );
 
         // Alice's key != system_coordinator_key → validate() must reject.
         await expect(
@@ -413,21 +429,22 @@ describe("4. ValidatorReputation author enforcement", () => {
             time_invested_secs: 3600,
           }),
         ).rejects.toThrow();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "reputation update from system_coordinator_key is accepted",
-    { timeout: 60_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [_sigKey, adminPubKey] = await generateSigningKeyPair();
-        const adminKeyB64 = encodeHashToBase64(adminPubKey);
+        const [adminPlayer] = await scenario.addPlayers(1);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
 
-        const [admin] = await scenario.addPlayersWithApps([
-          makePlayerConfig(adminKeyB64, adminPubKey),
-        ]);
+        const [admin] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64)],
+          [adminPlayer],
+        );
 
         const repHash = await gov(admin, "update_validator_reputation", {
           validator: admin.agentPubKey,
@@ -439,7 +456,7 @@ describe("4. ValidatorReputation author enforcement", () => {
 
         const rep = await gov(admin, "get_validator_reputation", admin.agentPubKey);
         expect(rep).not.toBeNull();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });

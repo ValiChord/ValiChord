@@ -1,9 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{
-    AttestationConfidence, AttestationOutcome, ComputationalResources, Discipline,
-    TimeBreakdown, UndeclaredDeviation, ValidationPhase,
-    discipline_tag,
-};
+use valichord_shared_types::{CertificationTier, Discipline, ValidationAttestation, ValidationPhase};
 
 // ---------------------------------------------------------------------------
 // DNA Properties (baked into DNA hash — immutable per network instance)
@@ -43,56 +39,9 @@ pub struct ValidationRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValidationTier { Basic, Enhanced, Comprehensive }
 
-/// THE REVEAL PHASE — public attestation on the shared DHT.
-/// IMMUTABLE after publication. validate() + required_validations=7 enforce this.
-#[hdk_entry_helper]
-#[derive(Clone)]
-pub struct ValidationAttestation {
-    pub request_ref:             ExternalHash,
-    pub outcome:                 AttestationOutcome,
-    /// Structured summary for agreement detection across validators.
-    /// Agreement is assessed on summaries — NOT raw result hashes.
-    pub outcome_summary:         OutcomeSummary,
-    pub time_invested_secs:      u64,
-    pub time_breakdown:          TimeBreakdown,
-    pub confidence:              AttestationConfidence,
-    pub deviation_flags:         Vec<UndeclaredDeviation>,
-    pub computational_resources: ComputationalResources,
-    pub discipline:              Discipline,
-}
-
-impl ValidationAttestation {
-    pub fn discipline_tag(&self) -> String {
-        discipline_tag(&self.discipline)
-    }
-}
-
-// OutcomeSummary and MetricResult are supporting structs, NOT entry types.
-// They do NOT use #[hdk_entry_helper], so we need their serde derives explicitly.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OutcomeSummary {
-    pub key_metrics:                 Vec<MetricResult>,
-    pub effect_direction_matches:    Option<bool>,
-    pub confidence_interval_overlap: Option<f64>,
-    pub overall_agreement:           AgreementLevel,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MetricResult {
-    pub metric_name:      String,
-    pub produced_value:   String,
-    pub expected_value:   String,
-    pub within_tolerance: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum AgreementLevel {
-    ExactMatch,
-    WithinTolerance,
-    DirectionalMatch,
-    Divergent,
-    UnableToAssess,
-}
+// ValidationAttestation, OutcomeSummary, MetricResult, AgreementLevel are
+// defined in valichord_shared_types — imported above.
+// This avoids cdylib→cdylib dependency issues with validator_workspace and governance.
 
 #[hdk_entry_helper]
 #[derive(Clone)]
@@ -105,12 +54,7 @@ pub struct ValidatorProfile {
     pub orcid:                Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum CertificationTier {
-    Provisional,
-    Certified,
-    Senior,
-}
+// CertificationTier is defined in valichord_shared_types — imported above.
 
 #[hdk_entry_helper]
 #[derive(Clone)]

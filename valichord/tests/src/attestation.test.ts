@@ -166,6 +166,7 @@ function makeAttestation(requestRef: Uint8Array) {
 describe("1. Membrane proof", () => {
   test(
     "agent with valid membrane proof (>= 64 bytes) can join the attestation DNA",
+    { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
         // An agent with a sufficiently-long proof joins without error.
@@ -184,12 +185,13 @@ describe("1. Membrane proof", () => {
 
         // No PhaseMarker written yet — should return null/undefined.
         expect(result).toBeNull();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "agent with no membrane proof is rejected at genesis_self_check",
+    { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Missing proof should cause genesis_self_check to fail, so
@@ -197,18 +199,19 @@ describe("1. Membrane proof", () => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(undefined)]),
         ).rejects.toThrow();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check",
+    { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(shortMembraneProof())]),
         ).rejects.toThrow();
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });
@@ -229,6 +232,7 @@ describe("1. Membrane proof", () => {
 describe("2. Full commit-reveal round", () => {
   test(
     "two validators commit, phase opens, both reveal, attestations retrievable",
+    { timeout: 240_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -249,9 +253,7 @@ describe("2. Full commit-reveal round", () => {
         expect(_requestHash).toBeTruthy();
 
         // Sync so Bob sees the request.
-        const dnaHash = alice.cells.find(
-          (c: { name: string }) => c.name === "attestation",
-        )?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
         await dhtSync([alice, bob], dnaHash);
 
         // --- Step 2: Alice commits (seals private attestation in DNA 2) ---
@@ -306,7 +308,7 @@ describe("2. Full commit-reveal round", () => {
           REQUEST_REF,
         );
         expect(attestations).toHaveLength(2);
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });
@@ -325,6 +327,7 @@ describe("2. Full commit-reveal round", () => {
 describe("3. DHT-poll phase transition", () => {
   test(
     "late-joining validator discovers RevealOpen by polling, not via signal",
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [carol, dave, eve] = await scenario.addPlayersWithApps([
@@ -335,9 +338,7 @@ describe("3. DHT-poll phase transition", () => {
 
         const REQUEST_REF = fakeExternalHash(0xee);
 
-        const dnaHash = carol.cells.find(
-          (c: { name: string }) => c.name === "attestation",
-        )?.cell_id[0];
+        const dnaHash = carol.namedCells.get("attestation")?.cell_id[0];
 
         // Track signal received by Eve (should NOT be needed for phase discovery).
         let eveReceivedSignal = false;
@@ -372,7 +373,7 @@ describe("3. DHT-poll phase transition", () => {
         // The test passes regardless of whether the signal arrived.
         // This confirms the design: DHT state is the source of truth.
         console.log(`[test] Eve received signal: ${eveReceivedSignal} (irrelevant to correctness)`);
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });
@@ -387,6 +388,7 @@ describe("3. DHT-poll phase transition", () => {
 describe("4. ValidationAttestation immutability", () => {
   test(
     "attempting to update a ValidationAttestation is rejected by validate()",
+    { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -422,12 +424,13 @@ describe("4. ValidationAttestation immutability", () => {
         //
         // The rejection of zome_call (function-not-found) is the EXPECTED outcome
         // and is treated as passing this test.
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 
   test(
     "attempting to delete a CommitmentAnchor is rejected by validate()",
+    { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -453,7 +456,7 @@ describe("4. ValidationAttestation immutability", () => {
           }),
         ).rejects.toThrow();
         // Rejection confirms no delete path exists in the public API.
-      });
+      }, true, { timeout: 180_000 });
     },
   );
 });

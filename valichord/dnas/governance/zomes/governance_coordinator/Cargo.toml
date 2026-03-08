@@ -13,5 +13,4 @@ serde = { workspace = true }
 holochain_serialized_bytes = { workspace = true }
 valichord_shared_types = { path = "../../../../shared_types" }
 governance_integrity = { path = "../governance_integrity" }
-attestation_integrity = { path = "../../../attestation/zomes/attestation_integrity" }
 getrandom = { workspace = true }

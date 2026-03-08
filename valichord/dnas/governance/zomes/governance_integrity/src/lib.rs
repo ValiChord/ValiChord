@@ -1,6 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{AttestationOutcome, Discipline};
-use attestation_integrity::{AgreementLevel, CertificationTier};
+use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline};
 
 // ---------------------------------------------------------------------------
 // DNA Properties — two keys, baked into the DNA hash.

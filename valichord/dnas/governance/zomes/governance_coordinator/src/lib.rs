@@ -3,8 +3,7 @@ use governance_integrity::{
     BadgeType, EntryTypes, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
 };
-use attestation_integrity::{AgreementLevel, CertificationTier, ValidationAttestation};
-use valichord_shared_types::{AttestationOutcome, Discipline, discipline_tag};
+use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation, discipline_tag};
 
 // ---------------------------------------------------------------------------
 // init() — capability grants for public read functions

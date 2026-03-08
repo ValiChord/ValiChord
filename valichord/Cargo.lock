@@ -372,7 +372,6 @@ dependencies = [
 name = "governance_coordinator"
 version = "0.1.0"
 dependencies = [
- "attestation_integrity",
  "getrandom",
  "governance_integrity",
  "hdk",
@@ -385,7 +384,6 @@ dependencies = [
 name = "governance_integrity"
 version = "0.1.0"
 dependencies = [
- "attestation_integrity",
  "getrandom",
  "hdi",
  "holochain_serialized_bytes",
@@ -1055,6 +1053,7 @@ name = "valichord_shared_types"
 version = "0.1.0"
 dependencies = [
  "hdi",
+ "holochain_serialized_bytes",
  "serde",
 ]
 
@@ -1075,7 +1074,6 @@ dependencies = [
 name = "validator_workspace_integrity"
 version = "0.1.0"
 dependencies = [
- "attestation_integrity",
  "getrandom",
  "hdi",
  "holochain_serialized_bytes",

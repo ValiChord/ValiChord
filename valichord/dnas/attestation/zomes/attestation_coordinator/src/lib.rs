@@ -2,9 +2,9 @@ use hdk::prelude::*;
 use attestation_integrity::{
     AssessmentConfidence, CommitmentAnchor, DifficultyAssessment, DifficultyTier,
     DnaProperties, EntryTypes, LinkTypes, PhaseMarker, ValidatorProfile,
-    ValidationAttestation, ValidationRequest,
+    ValidationRequest,
 };
-use valichord_shared_types::{Discipline, ValidationPhase, discipline_tag};
+use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
 use std::collections::HashSet;
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ pub fn get_attestations_for_request(
                 if let Some(att) = record
                     .entry()
                     .to_app_option::<ValidationAttestation>()
-                    .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                    .map_err(|e: holochain_serialized_bytes::SerializedBytesError| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
                 {
                     if att.request_ref == request_ref {
                         attestations.push(record);

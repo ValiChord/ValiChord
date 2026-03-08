@@ -131,3 +131,71 @@ pub enum ValidationPhase {
     RevealOpen,
     Complete,
 }
+
+// ---------------------------------------------------------------------------
+// Attestation agreement and certification types
+// ---------------------------------------------------------------------------
+//
+// Defined here (not in attestation_integrity) so they can be imported by
+// validator_workspace_integrity, governance_integrity, and governance_coordinator
+// WITHOUT creating a cdylib→cdylib dependency — which would cause duplicate
+// WASM symbol errors at link time.
+
+/// Agreement level across validator outcomes for a given request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AgreementLevel {
+    ExactMatch,
+    WithinTolerance,
+    DirectionalMatch,
+    Divergent,
+    UnableToAssess,
+}
+
+/// Per-validator certification tier used in ValidatorProfile and ValidatorReputation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CertificationTier {
+    Provisional,
+    Certified,
+    Senior,
+}
+
+/// Structured per-metric outcome — included in OutcomeSummary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricResult {
+    pub metric_name:      String,
+    pub produced_value:   String,
+    pub expected_value:   String,
+    pub within_tolerance: bool,
+}
+
+/// Agreement summary attached to every ValidationAttestation.
+/// Agreement is assessed on summaries — NOT raw result hashes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutcomeSummary {
+    pub key_metrics:                 Vec<MetricResult>,
+    pub effect_direction_matches:    Option<bool>,
+    pub confidence_interval_overlap: Option<f64>,
+    pub overall_agreement:           AgreementLevel,
+}
+
+/// THE REVEAL PHASE public attestation entry — defined here so governance_coordinator
+/// can deserialise cross-DNA records without importing attestation_integrity (cdylib).
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ValidationAttestation {
+    pub request_ref:             ExternalHash,
+    pub outcome:                 AttestationOutcome,
+    pub outcome_summary:         OutcomeSummary,
+    pub time_invested_secs:      u64,
+    pub time_breakdown:          TimeBreakdown,
+    pub confidence:              AttestationConfidence,
+    pub deviation_flags:         Vec<UndeclaredDeviation>,
+    pub computational_resources: ComputationalResources,
+    pub discipline:              Discipline,
+}
+
+impl ValidationAttestation {
+    pub fn discipline_tag(&self) -> String {
+        discipline_tag(&self.discipline)
+    }
+}
