@@ -1,5 +1,5 @@
 ---
-manifest_version: "1"
+manifest_version: "0"
 name: valichord
 description: "ValiChord — credentialed peer validation for scientific reproducibility"
 
@@ -10,7 +10,7 @@ roles:
       strategy: create
       deferred: false
     dna:
-      bundled: "dnas/attestation.dna"
+      path: "workdir/attestation.dna"
       # DNA modifiers (can be overridden per-player in Tryorama via rolesSettings)
       modifiers:
         properties:

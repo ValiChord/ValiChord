@@ -1,8 +1,7 @@
 ---
-manifest_version: "1"
+manifest_version: "0"
 name: attestation
 integrity:
-  origin_time: "2025-01-01T00:00:00Z"
   network_seed: ~
   properties:
     # AgentPubKey of the certificate authority whose signatures are accepted
@@ -15,10 +14,13 @@ integrity:
     minimum_validators: 3
   zomes:
     - name: attestation_integrity
-      bundled: "../../target/wasm32-unknown-unknown/release/attestation_integrity.wasm"
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/attestation_integrity.wasm"
+      dependencies: ~
 coordinator:
   zomes:
     - name: attestation_coordinator
-      bundled: "../../target/wasm32-unknown-unknown/release/attestation_coordinator.wasm"
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/attestation_coordinator.wasm"
       dependencies:
         - name: attestation_integrity

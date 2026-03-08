@@ -11,3 +11,4 @@ hdi = { workspace = true }
 serde = { workspace = true }
 holochain_serialized_bytes = "=0.0.56"
 valichord_shared_types = { path = "../../../../shared_types" }
+getrandom = { workspace = true }

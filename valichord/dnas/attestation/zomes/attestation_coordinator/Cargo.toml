@@ -11,3 +11,4 @@ hdk = { workspace = true }
 serde = { workspace = true }
 valichord_shared_types = { path = "../../../../shared_types" }
 attestation_integrity = { path = "../attestation_integrity" }
+getrandom = { workspace = true }
