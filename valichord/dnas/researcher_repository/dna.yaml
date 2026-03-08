@@ -1,0 +1,19 @@
+---
+manifest_version: "0"
+name: researcher_repository
+integrity:
+  network_seed: ~
+  # No properties — single-agent private DNA needs no configuration.
+  properties: ~
+  zomes:
+    - name: researcher_repository_integrity
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/researcher_repository_integrity.wasm"
+      dependencies: ~
+coordinator:
+  zomes:
+    - name: researcher_repository_coordinator
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/researcher_repository_coordinator.wasm"
+      dependencies:
+        - name: researcher_repository_integrity

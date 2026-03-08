@@ -1,0 +1,17 @@
+[package]
+name = "researcher_repository_coordinator"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "researcher_repository_coordinator"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdk = { workspace = true }
+serde = { workspace = true }
+holochain_serialized_bytes = { workspace = true }
+valichord_shared_types = { path = "../../../../shared_types" }
+researcher_repository_integrity = { path = "../researcher_repository_integrity" }
+sha2 = { workspace = true }
+getrandom = { workspace = true }
