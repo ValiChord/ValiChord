@@ -394,8 +394,16 @@ pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
 }
 
 /// Called for every Create action confirmed on this agent's source chain.
-/// Detects ValidationAttestation entries and, when enough validators have
-/// revealed, calls the Governance DNA to assemble a HarmonyRecord.
+///
+/// post_commit MUST NOT write data (Holochain constraint). The governance
+/// DNA's check_and_create_harmony_record is called explicitly by the
+/// assembly coordinator after all attestations are confirmed — never from
+/// here. A cross-DNA write from post_commit creates a per-cell re-entry
+/// deadlock: attestation post_commit → governance → attestation.get_attestations_for_request
+/// → blocked waiting for attestation to finish post_commit.
+///
+/// This function is intentionally a no-op: it validates that the committed
+/// action is a ValidationAttestation (for future signal emission) and returns.
 fn post_commit_on_create(action_hash: ActionHash) -> ExternResult<()> {
     // Retrieve the full record from local storage (it was just written —
     // no network hop needed).
@@ -404,10 +412,10 @@ fn post_commit_on_create(action_hash: ActionHash) -> ExternResult<()> {
         None => return Ok(()),
     };
 
-    // Attempt to deserialise the entry as a ValidationAttestation.
-    // Any other entry type (ValidatorProfile, CommitmentAnchor, etc.) returns
-    // None here and is silently skipped.
-    let attestation: ValidationAttestation =
+    // Confirm the entry is a ValidationAttestation. Any other entry type
+    // (ValidatorProfile, CommitmentAnchor, PhaseMarker, etc.) is silently
+    // skipped. Future: emit a local UI signal here if desired.
+    let _attestation: ValidationAttestation =
         match record
             .entry()
             .to_app_option()
@@ -416,39 +424,6 @@ fn post_commit_on_create(action_hash: ActionHash) -> ExternResult<()> {
             Some(a) => a,
             None => return Ok(()),
         };
-
-    let request_ref = attestation.request_ref.clone();
-
-    // Count how many validators have now revealed for this request.
-    let attestations = get_attestations_for_request(request_ref.clone())?;
-
-    // Read minimum_validators from the DNA properties baked into this DNA hash.
-    let props = DnaProperties::try_from_dna_properties()?;
-
-    if attestations.len() < props.minimum_validators as usize {
-        // Reveal round is still in progress — nothing to do yet.
-        return Ok(());
-    }
-
-    // All required validators have revealed.
-    // Call the Governance DNA coordinator to assemble the HarmonyRecord.
-    //
-    // DEPENDENCY (DNA 4): governance_coordinator must expose the function
-    // "check_and_create_harmony_record" accepting an ExternalHash (request_ref)
-    // as its payload. Wire this when DNA 4 is built and its role name is
-    // confirmed as "governance" in happ.yaml.
-    match call(
-        CallTargetCell::OtherRole("governance".into()),
-        "governance_coordinator",
-        "check_and_create_harmony_record".into(),
-        None,
-        request_ref,
-    ) {
-        Ok(_) => {}
-        Err(e) => {
-            debug!("post_commit: governance call failed (DNA 4 not yet wired?): {}", e);
-        }
-    }
 
     Ok(())
 }

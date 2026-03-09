@@ -385,6 +385,157 @@ describe("3. DHT-poll phase transition", () => {
 // Once a ValidationAttestation is written, the validate() callback MUST
 // reject any attempt to update or delete it.
 
+// ---------------------------------------------------------------------------
+// 5. ValidatorProfile and DifficultyAssessment
+// ---------------------------------------------------------------------------
+
+describe("5. ValidatorProfile and DifficultyAssessment", () => {
+  test(
+    "published validator profile is retrievable by agent public key",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        // CertificationTier: no serde tag → external tag → unit variant = plain string.
+        // Discipline uses #[serde(tag="type", content="content")] — adjacent-tagged.
+        const profile = {
+          institution: "Open Science Lab",
+          disciplines: [{ type: "ComputationalBiology" }],
+          certification_tier: "Provisional",
+          available: true,
+          max_concurrent_tasks: 3,
+          orcid: null,
+        };
+
+        const profileHash = await zomeCall<ActionHash>(
+          alice,
+          "publish_validator_profile",
+          profile,
+        );
+        expect(profileHash).toBeTruthy();
+
+        // Retrieve by agent pub key.
+        const record = await zomeCall<unknown>(
+          alice,
+          "get_validator_profile",
+          alice.agentPubKey,
+        );
+        expect(record).not.toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "get_validator_profile returns null when no profile published",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const result = await zomeCall<unknown>(
+          alice,
+          "get_validator_profile",
+          alice.agentPubKey,
+        );
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "assess_difficulty returns an ActionHash; get_difficulty_assessment is a stub returning null",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0xf0);
+
+        // assess_difficulty creates a DifficultyAssessment entry with hardcoded stub values.
+        const assessmentHash = await zomeCall<ActionHash>(
+          alice,
+          "assess_difficulty",
+          REQUEST_REF,
+        );
+        expect(assessmentHash).toBeTruthy();
+
+        // get_difficulty_assessment is a stub — always returns null.
+        // This is intentional; real implementation is deferred.
+        const result = await zomeCall<unknown>(
+          alice,
+          "get_difficulty_assessment",
+          REQUEST_REF,
+        );
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 6. ValidationRequest lifecycle
+// ---------------------------------------------------------------------------
+
+describe("6. ValidationRequest lifecycle", () => {
+  test(
+    "submitted ValidationRequest is retrievable by its ActionHash",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const requestHash = await zomeCall<ActionHash>(
+          alice,
+          "submit_validation_request",
+          makeValidationRequest(),
+        );
+        expect(requestHash).toBeTruthy();
+
+        const record = await zomeCall<unknown>(
+          alice,
+          "get_validation_request",
+          requestHash,
+        );
+        expect(record).not.toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "get_validation_request returns null for an unknown ActionHash",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        // A properly-typed ActionHash that was never written to the source chain.
+        const unknownHash = hashFrom32AndType(
+          new Uint8Array(32).fill(0xff),
+          HoloHashType.Action,
+        );
+
+        const result = await zomeCall<unknown>(
+          alice,
+          "get_validation_request",
+          unknownHash,
+        );
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
 describe("4. ValidationAttestation immutability", () => {
   test(
     "attempting to update a ValidationAttestation is rejected by validate()",

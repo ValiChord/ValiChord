@@ -1,0 +1,259 @@
+/**
+ * Tryorama integration tests for ValiChord DNA 2 — Validator Workspace
+ *
+ * All entries are private (visibility = "private") — single-agent source
+ * chain only. No dhtSync needed. Single player, local GetOptions.
+ *
+ * Note: seal_private_attestation post_commit fires a cross-DNA call to
+ * attestation.notify_commitment_sealed. With minimum_validators=2 and only
+ * one validator, the CommitmentAnchor count stays at 1 — no PhaseMarker is
+ * written. The post_commit is infallible so failures are silently logged.
+ *
+ * Tests:
+ *   1. receive_task + get_task
+ *   2. seal_private_attestation + get_private_attestation_for_task
+ *   3. get_all_tasks
+ *
+ * Run: cd tests && npm test
+ */
+
+import { runScenario } from "@holochain/tryorama";
+import { ActionHash, HoloHashType, hashFrom32AndType, encodeHashToBase64 } from "@holochain/client";
+import { expect, test, describe } from "vitest";
+import { fileURLToPath } from "url";
+import path from "path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const HAPP_PATH = path.join(__dirname, "../../workdir/valichord.happ");
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const PLACEHOLDER_KEY = "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew";
+
+function simplePlayerConfig() {
+  return {
+    appBundleSource: { type: "path" as const, value: HAPP_PATH },
+    options: {
+      rolesSettings: {
+        attestation: {
+          type: "provisioned" as const,
+          value: {
+            membrane_proof: new Uint8Array(64).fill(0x42),
+            modifiers: {
+              properties: {
+                minimum_validators: 2,
+                discipline: "genomics",
+                authorized_joining_certificate_issuer: PLACEHOLDER_KEY,
+              },
+            },
+          },
+        },
+        governance: {
+          type: "provisioned" as const,
+          value: {
+            modifiers: {
+              properties: {
+                system_coordinator_key: PLACEHOLDER_KEY,
+                harmony_record_creator_key: PLACEHOLDER_KEY,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function fakeExternalHash(coreByte: number): Uint8Array {
+  const core = new Uint8Array(32).fill(coreByte);
+  return hashFrom32AndType(core, HoloHashType.External);
+}
+
+function fakeActionHash(coreByte: number): Uint8Array {
+  const core = new Uint8Array(32).fill(coreByte);
+  return hashFrom32AndType(core, HoloHashType.Action);
+}
+
+async function ws(player: any, fn: string, payload: unknown = null): Promise<any> {
+  return player.appWs.callZome({
+    role_name: "validator_workspace",
+    zome_name: "validator_workspace_coordinator",
+    fn_name: fn,
+    payload,
+  });
+}
+
+/**
+ * A minimal ValidationTask payload.
+ *
+ * ValidationFocus: no serde tag → external tag → unit variant = plain string.
+ * CompensationTier: no serde tag → external tag → struct variant = { "Tier1": { amount_pence: N } }.
+ * Discipline: #[serde(tag="type", content="content")] → { "type": "VariantName" } for unit variants.
+ */
+function makeTask(requestRef: Uint8Array, overrides?: Record<string, unknown>) {
+  return {
+    request_ref: requestRef,
+    assigned_at_secs: 1_700_000_000,
+    discipline: { type: "ComputationalBiology" },
+    deadline_secs: 1_700_100_000,
+    validation_focus: "ComputationalReproducibility",
+    time_cap_secs: 86_400,
+    compensation_tier: { Tier1: { amount_pence: 5_000 } },
+    ...overrides,
+  };
+}
+
+/**
+ * A minimal ValidatorPrivateAttestation payload.
+ *
+ * AttestationOutcome: #[serde(tag="type", content="content")] — adjacent-tagged.
+ *   Unit variant Reproduced → { "type": "Reproduced" } (no content key needed).
+ * AttestationConfidence: no serde tag → external tag → plain string.
+ */
+function makePrivateAttestation(requestRef: Uint8Array) {
+  return {
+    request_ref: requestRef,
+    outcome: { type: "Reproduced" },
+    outcome_summary: {
+      key_metrics: [],
+      effect_direction_matches: null,
+      confidence_interval_overlap: null,
+      overall_agreement: "ExactMatch",
+    },
+    time_invested_secs: 3_600,
+    time_breakdown: {
+      environment_setup_secs: 900,
+      data_acquisition_secs:  600,
+      code_execution_secs:    1_800,
+      troubleshooting_secs:   300,
+    },
+    deviation_flags: [],
+    computational_resources: {
+      personal_hardware_sufficient:  true,
+      hpc_required:                  false,
+      gpu_required:                  false,
+      cloud_compute_required:        false,
+      estimated_compute_cost_pence:  null,
+    },
+    confidence: "High",
+    sealed_at_secs: 1_700_050_000,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 1. receive_task + get_task
+// ---------------------------------------------------------------------------
+
+describe("1. receive_task + get_task", () => {
+  test(
+    "received task is retrievable by its ActionHash",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const REQUEST_REF = fakeExternalHash(0xaa);
+        const taskHash = await ws(alice, "receive_task", makeTask(REQUEST_REF));
+        expect(taskHash).toBeTruthy();
+
+        const record = await ws(alice, "get_task", taskHash);
+        expect(record).not.toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "get_task returns null for an unknown ActionHash",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        // A properly-typed ActionHash that was never written to the source chain.
+        const unknownHash = fakeActionHash(0xff);
+        const result = await ws(alice, "get_task", unknownHash);
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 2. seal_private_attestation + get_private_attestation_for_task
+// ---------------------------------------------------------------------------
+
+describe("2. seal_private_attestation + get_private_attestation_for_task", () => {
+  test(
+    "sealed private attestation is retrievable via its parent task",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const REQUEST_REF = fakeExternalHash(0xbb);
+
+        // Step 1: receive the task.
+        const taskHash = await ws(alice, "receive_task", makeTask(REQUEST_REF));
+        expect(taskHash).toBeTruthy();
+
+        // Step 2: seal the private attestation.
+        // post_commit fires notify_commitment_sealed on the attestation DNA
+        // (infallible — any failure is silently logged).
+        const attestationHash = await ws(alice, "seal_private_attestation", {
+          task_hash: taskHash,
+          attestation: makePrivateAttestation(REQUEST_REF),
+        });
+        expect(attestationHash).toBeTruthy();
+
+        // Step 3: retrieve via task link.
+        const record = await ws(alice, "get_private_attestation_for_task", taskHash);
+        expect(record).not.toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "get_private_attestation_for_task returns null before any attestation is sealed",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const REQUEST_REF = fakeExternalHash(0xcc);
+        const taskHash = await ws(alice, "receive_task", makeTask(REQUEST_REF));
+
+        const result = await ws(alice, "get_private_attestation_for_task", taskHash);
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 3. get_all_tasks
+// ---------------------------------------------------------------------------
+
+describe("3. get_all_tasks", () => {
+  test(
+    "returns all received tasks from the local source chain",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        // No tasks yet.
+        const emptyResult = await ws(alice, "get_all_tasks", null);
+        expect(emptyResult).toHaveLength(0);
+
+        // Receive two tasks with different request_refs.
+        await ws(alice, "receive_task", makeTask(fakeExternalHash(0x01)));
+        await ws(alice, "receive_task", makeTask(fakeExternalHash(0x02)));
+
+        const tasks = await ws(alice, "get_all_tasks", null);
+        expect(tasks).toHaveLength(2);
+      }, true, { timeout: 180_000 });
+    },
+  );
+});

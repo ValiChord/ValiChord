@@ -390,7 +390,9 @@ describe("3. Full end-to-end round", () => {
         await dhtSync([admin, bob], attDnaHash);
 
         // 7. Admin manually triggers governance record assembly.
-        //    (DNA 3 post_commit also fires but admin is the key holder.)
+        //    post_commit no longer calls governance (would deadlock: attestation
+        //    post_commit → governance → attestation.get_attestations_for_request
+        //    re-entry). The coordinator calls this explicitly instead.
         const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
         expect(harmonyHash).not.toBeNull();
 
@@ -457,6 +459,95 @@ describe("4. ValidatorReputation author enforcement", () => {
         const rep = await gov(admin, "get_validator_reputation", admin.agentPubKey);
         expect(rep).not.toBeNull();
       }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 5. Read queries — get_harmony_records_by_discipline + get_badges_for_study
+// ---------------------------------------------------------------------------
+
+describe("5. Read queries", () => {
+  test(
+    "get_harmony_records_by_discipline returns the record after creation",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+
+        const [admin, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64), makePlayerConfig(adminKeyB64)],
+          [adminPlayer, bobPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(admin, "attestation");
+        const requestRef = fakeExternalHash(0x55);
+
+        // Both validators commit then reveal.
+        await att(admin, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
+
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
+
+        await att(admin, "submit_attestation", makeAttestation(requestRef));
+        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([admin, bob], attDnaHash);
+
+        // Create the HarmonyRecord.
+        const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
+        expect(harmonyHash).not.toBeNull();
+
+        await dhtSync([admin, bob], dnaHashForRole(admin, "governance"));
+
+        // Query by discipline — should return exactly one record.
+        const records = await gov(
+          admin,
+          "get_harmony_records_by_discipline",
+          { type: "ComputationalBiology" },
+        );
+        expect(records).toHaveLength(1);
+      }, true, { timeout: 300_000 });
+    },
+  );
+
+  test(
+    "get_badges_for_study returns empty when validator count < 3 (no badge threshold met)",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+
+        const [admin, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64), makePlayerConfig(adminKeyB64)],
+          [adminPlayer, bobPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(admin, "attestation");
+        const requestRef = fakeExternalHash(0x66);
+
+        // Two validators commit and reveal (ExactMatch outcome).
+        await att(admin, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
+
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob], attDnaHash);
+
+        await att(admin, "submit_attestation", makeAttestation(requestRef));
+        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([admin, bob], attDnaHash);
+
+        // Create HarmonyRecord — 2 validators, ExactMatch.
+        // evaluate_badge: ExactMatch + count=2 → None (Bronze requires >= 3).
+        const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
+        expect(harmonyHash).not.toBeNull();
+
+        // No badge should be linked — count too low for any tier.
+        const badges = await gov(admin, "get_badges_for_study", requestRef);
+        expect(badges).toHaveLength(0);
+      }, true, { timeout: 300_000 });
     },
   );
 });

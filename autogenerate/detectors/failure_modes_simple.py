@@ -8934,7 +8934,14 @@ _HS_FILENAME_RE = re.compile(
     r'bipolar|mental.health|affectiv|'
     # Educational / ability assessment
     r'achievement|iq.score|iq.data|'
-    r'\biq\b'
+    r'\biq\b|'
+    # Survey demographics & psychosocial constructs —
+    # individual-level variables that confirm survey / panel data
+    r'gender|demographic|psychosocial|'
+    r'attitude|belong|ideology|politic|'
+    r'scale.item|scale.measure|'
+    # Environmental / social psychology
+    r'climate.attitude|pro.environmental|pro.social'
     r')',
     re.IGNORECASE,
 )
@@ -8967,6 +8974,18 @@ def _hs_read_headers(f) -> list:
                     wb.close()
                     if row:
                         return [str(c).strip() for c in row if c is not None]
+            except Exception:
+                pass
+        if ext in {'.sav', '.zsav', '.dta', '.sas7bdat'}:
+            try:
+                import pyreadstat as _prs
+                if ext in {'.sav', '.zsav'}:
+                    _, meta = _prs.read_sav(str(f), metadataonly=True)
+                elif ext == '.dta':
+                    _, meta = _prs.read_dta(str(f), metadataonly=True)
+                else:
+                    _, meta = _prs.read_sas7bdat(str(f), metadataonly=True)
+                return list(meta.column_names)
             except Exception:
                 pass
     except Exception:
