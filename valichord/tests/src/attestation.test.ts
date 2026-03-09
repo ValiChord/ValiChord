@@ -886,7 +886,11 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
           attestation: makePrivateAttestation(REQUEST_REF),
         });
 
-        // Allow post_commit time to trigger the cross-DNA call, then sync.
+        // post_commit is async relative to callZome: the JS call returns as soon as
+        // the source-chain write completes, but post_commit fires after. Give the
+        // conductor time to run post_commit and complete the cross-DNA call before
+        // dhtSync starts waiting for DHT consistency.
+        await pause(4000);
         await dhtSync([alice, bob], attDnaHash);
 
         // Bob seals — his post_commit raises the total to 2 (≥ minimum_validators=2),
@@ -896,6 +900,7 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
           attestation: makePrivateAttestation(REQUEST_REF),
         });
 
+        await pause(4000);
         await dhtSync([alice, bob], attDnaHash);
 
         // Phase should be RevealOpen — triggered entirely by DNA 2 post_commit,
