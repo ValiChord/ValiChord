@@ -21,6 +21,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_validation_request",
         "get_attestations_for_request",
         "get_validators_for_discipline",
+        "get_pending_requests_for_discipline",
         "get_validator_profile",
         "check_all_commitments_sealed",
         "get_current_phase",
@@ -212,6 +213,34 @@ pub fn get_validators_for_discipline(
     _discipline: Discipline,
 ) -> ExternResult<Vec<Record>> {
     Ok(Vec::new())
+}
+
+/// Return all pending ValidationRequest records indexed under a discipline.
+///
+/// The StatusPath index is written by submit_validation_request using the path
+/// "requests.pending.{discipline_tag}". This function queries that path.
+#[hdk_extern]
+pub fn get_pending_requests_for_discipline(
+    discipline: Discipline,
+) -> ExternResult<Vec<Record>> {
+    let status_path = Path::from(format!(
+        "requests.pending.{}",
+        discipline_tag(&discipline)
+    ))
+    .typed(LinkTypes::StatusPath)?;
+    let links = get_links(
+        LinkQuery::try_new(status_path.path_entry_hash()?, LinkTypes::StatusPath)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
 }
 
 #[hdk_extern]

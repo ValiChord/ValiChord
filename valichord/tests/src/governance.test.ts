@@ -513,6 +513,29 @@ describe("5. Read queries", () => {
   );
 
   test(
+    "get_harmony_records_by_discipline returns empty array when no records exist",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer] = await scenario.addPlayers(1);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+        const [admin] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64)],
+          [adminPlayer],
+        );
+
+        // No HarmonyRecords have been created — should return empty.
+        const records = await gov(
+          admin,
+          "get_harmony_records_by_discipline",
+          { type: "ComputationalBiology" },
+        );
+        expect(records).toHaveLength(0);
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
     "get_badges_for_study returns empty when validator count < 3 (no badge threshold met)",
     { timeout: 600_000 },
     async () => {
@@ -547,6 +570,77 @@ describe("5. Read queries", () => {
         // No badge should be linked — count too low for any tier.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(0);
+      }, true, { timeout: 300_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 6. Badge positive case — Bronze (3 validators, all Reproduced)
+// ---------------------------------------------------------------------------
+//
+// evaluate_badge thresholds (from governance_coordinator):
+//   ExactMatch  + count >= 7  → GoldReproducible
+//   ExactMatch  + count >= 5  → SilverReproducible
+//   ExactMatch  + count >= 3  → BronzeReproducible
+//   Divergent / UnableToAssess (any count) → FailedReproduction
+//
+// With 3 validators all returning Reproduced:
+//   derive_agreement_level: rate = 3/3 = 1.0 → ExactMatch
+//   evaluate_badge: ExactMatch + 3 → BronzeReproducible
+
+describe("6. Badge positive case", () => {
+  test(
+    "get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+
+        const [admin, bob, carol] = await scenario.installAppsForPlayers(
+          [
+            makePlayerConfig(adminKeyB64),
+            makePlayerConfig(adminKeyB64),
+            makePlayerConfig(adminKeyB64),
+          ],
+          [adminPlayer, bobPlayer, carolPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(admin, "attestation");
+        // Use a unique requestRef not shared with any other test.
+        const requestRef = fakeExternalHash(0xb1);
+
+        // All three validators commit.
+        // minimum_validators=2, so the PhaseMarker is written after the 2nd commit.
+        // The 3rd commit also succeeds — a second PhaseMarker is written (harmless,
+        // get_current_phase uses links.last()). All three CommitmentAnchors are needed
+        // so get_attestations_for_request can discover all three attestations.
+        await att(admin, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        await att(carol, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        // All three reveal with Reproduced outcome.
+        await att(admin, "submit_attestation", makeAttestation(requestRef));
+        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(carol, "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        // check_and_create_harmony_record sees 3 attestations:
+        //   rate=1.0 → ExactMatch; count=3 → BronzeReproducible.
+        const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
+        expect(harmonyHash).not.toBeNull();
+
+        await dhtSync([admin, bob, carol], dnaHashForRole(admin, "governance"));
+
+        // Exactly one badge should be linked to this study_ref.
+        const badges = await gov(admin, "get_badges_for_study", requestRef);
+        expect(badges).toHaveLength(1);
       }, true, { timeout: 300_000 });
     },
   );

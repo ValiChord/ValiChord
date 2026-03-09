@@ -107,6 +107,7 @@ async function zomeCall<T>(
   }) as Promise<T>;
 }
 
+
 /** Minimal ValidationRequest payload */
 function makeValidationRequest(overrides?: Record<string, unknown>) {
   return {
@@ -647,6 +648,63 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 8. ValidationRequest query by discipline
+// ---------------------------------------------------------------------------
+//
+// submit_validation_request indexes requests under:
+//   "requests.pending.{discipline_tag}" → LinkTypes::StatusPath
+// get_pending_requests_for_discipline queries that path.
+
+describe("8. ValidationRequest query by discipline", () => {
+  test(
+    "get_pending_requests_for_discipline returns submitted request for matching discipline",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        // Submit a request with ComputationalBiology discipline.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest());
+
+        // Query by the same discipline — should return exactly one request.
+        const records = await zomeCall<unknown[]>(
+          alice,
+          "get_pending_requests_for_discipline",
+          { type: "ComputationalBiology" },
+        );
+        expect(records).toHaveLength(1);
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "get_pending_requests_for_discipline returns empty for a different discipline",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        // Submit a request with ComputationalBiology.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest());
+
+        // Query a different discipline — should return nothing.
+        const records = await zomeCall<unknown[]>(
+          alice,
+          "get_pending_requests_for_discipline",
+          { type: "MachineLearning" },
+        );
+        expect(records).toHaveLength(0);
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
 
 describe("4. ValidationAttestation immutability", () => {
   test(
