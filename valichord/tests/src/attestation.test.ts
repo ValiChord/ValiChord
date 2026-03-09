@@ -536,6 +536,118 @@ describe("6. ValidationRequest lifecycle", () => {
   );
 });
 
+// ---------------------------------------------------------------------------
+// 7. PhaseMarker and CommitmentAnchor immutability (update path)
+// ---------------------------------------------------------------------------
+//
+// validate() in attestation_integrity blocks updates to CommitmentAnchor,
+// PhaseMarker, and ValidationAttestation. The coordinator exposes no update
+// or delete functions for these entries — immutability is enforced at both
+// the API level (no function exists) and the validation level (validate()
+// rejects the op if the function were ever added).
+//
+// These tests verify the API-level protection, which is the practical guard.
+
+describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () => {
+  test(
+    "attempting to update a CommitmentAnchor is rejected (no update function in API)",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0x11);
+
+        // Post a CommitmentAnchor.
+        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+
+        // No update coordinator function exists — call must fail.
+        await expect(
+          alice.appWs.callZome({
+            role_name: "attestation",
+            zome_name: "attestation_coordinator",
+            fn_name: "update_commitment_for_test",
+            payload: null,
+          }),
+        ).rejects.toThrow();
+        // Rejection confirms no update path exists in the public API.
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "attempting to update a PhaseMarker is rejected (no update function in API)",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0x22);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // Both validators commit → PhaseMarker(RevealOpen) is written.
+        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+
+        // Confirm PhaseMarker exists.
+        const phase = await zomeCall<string | null>(
+          alice, "get_current_phase", REQUEST_REF,
+        );
+        expect(phase).toBe("RevealOpen");
+
+        // No update coordinator function exists — call must fail.
+        await expect(
+          alice.appWs.callZome({
+            role_name: "attestation",
+            zome_name: "attestation_coordinator",
+            fn_name: "update_phase_marker_for_test",
+            payload: null,
+          }),
+        ).rejects.toThrow();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "attempting to delete a PhaseMarker is rejected (no delete function in API)",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0x33);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // Both validators commit → PhaseMarker written.
+        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+
+        // No delete coordinator function exists — call must fail.
+        await expect(
+          alice.appWs.callZome({
+            role_name: "attestation",
+            zome_name: "attestation_coordinator",
+            fn_name: "delete_phase_marker_for_test",
+            payload: null,
+          }),
+        ).rejects.toThrow();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
 describe("4. ValidationAttestation immutability", () => {
   test(
     "attempting to update a ValidationAttestation is rejected by validate()",
