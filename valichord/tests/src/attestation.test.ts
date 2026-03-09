@@ -107,6 +107,50 @@ async function zomeCall<T>(
   }) as Promise<T>;
 }
 
+/** callZome for the validator_workspace DNA. */
+async function wsCall<T = unknown>(
+  player: any,
+  fnName: string,
+  payload: unknown = null,
+): Promise<T> {
+  return player.appWs.callZome({
+    role_name: "validator_workspace",
+    zome_name: "validator_workspace_coordinator",
+    fn_name: fnName,
+    payload,
+  }) as Promise<T>;
+}
+
+/** Minimal ValidatorPrivateAttestation payload for post_commit trigger tests. */
+function makePrivateAttestation(requestRef: Uint8Array) {
+  return {
+    request_ref: requestRef,
+    outcome: { type: "Reproduced" },
+    outcome_summary: {
+      key_metrics: [],
+      effect_direction_matches: null,
+      confidence_interval_overlap: null,
+      overall_agreement: "ExactMatch",
+    },
+    time_invested_secs: 3600,
+    time_breakdown: {
+      environment_setup_secs: 900,
+      data_acquisition_secs:  600,
+      code_execution_secs:    1800,
+      troubleshooting_secs:   300,
+    },
+    deviation_flags: [],
+    computational_resources: {
+      personal_hardware_sufficient:  true,
+      hpc_required:                  false,
+      gpu_required:                  false,
+      cloud_compute_required:        false,
+      estimated_compute_cost_pence:  null,
+    },
+    confidence: "High",
+    sealed_at_secs: 1_700_000_000,
+  };
+}
 
 /** Minimal ValidationRequest payload */
 function makeValidationRequest(overrides?: Record<string, unknown>) {
@@ -777,6 +821,92 @@ describe("4. ValidationAttestation immutability", () => {
           }),
         ).rejects.toThrow();
         // Rejection confirms no delete path exists in the public API.
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify auto-trigger
+// ---------------------------------------------------------------------------
+//
+// When a validator calls seal_private_attestation in DNA 2 (validator_workspace),
+// post_commit fires and calls notify_commitment_sealed in DNA 3 (attestation)
+// via call(OtherRole("attestation")). This is the real production protocol path.
+//
+// post_commit MUST NOT write data directly, but CAN call other zome functions.
+// The write (CommitmentAnchor) happens inside notify_commitment_sealed in DNA 3,
+// not inside post_commit itself — so the Holochain constraint is satisfied.
+//
+// Warm-up pattern: each player's attestation cell must have completed init()
+// before post_commit fires. If init() is triggered for the first time from
+// inside a cross-DNA post_commit call the conductor times out (30 s) waiting
+// for init() while post_commit holds the cell operation lock. The warm-up
+// calls (get_current_phase with a throwaway hash) trigger init() eagerly.
+
+describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
+  test(
+    "seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0x9a);
+        const attDnaHash = alice.namedCells.get("attestation")!.cell_id[0];
+
+        // Store a ValidationTask in each validator's workspace DNA.
+        const taskPayload = {
+          request_ref: REQUEST_REF,
+          assigned_at_secs: 1_700_000_000,
+          discipline: { type: "ComputationalBiology" },
+          deadline_secs: 1_700_100_000,
+          validation_focus: "ComputationalReproducibility",
+          time_cap_secs: 86400,
+          compensation_tier: { Tier1: { amount_pence: 5000 } },
+        };
+        const aliceTaskHash = await wsCall<Uint8Array>(alice, "receive_task", taskPayload);
+        const bobTaskHash   = await wsCall<Uint8Array>(bob,   "receive_task", taskPayload);
+
+        // Warm up each player's attestation cell so init() completes before
+        // post_commit fires. If init() is triggered for the first time from
+        // inside a cross-DNA post_commit call the conductor times out (30 s)
+        // waiting for init() while post_commit still holds the cell operation.
+        await zomeCall(alice, "get_current_phase", fakeExternalHash(0x00));
+        await zomeCall(bob,   "get_current_phase", fakeExternalHash(0x00));
+
+        // Alice seals her private attestation in DNA 2.
+        // post_commit fires after the source chain write and calls
+        // notify_commitment_sealed in DNA 3 — no direct call here.
+        await wsCall(alice, "seal_private_attestation", {
+          task_hash:   aliceTaskHash,
+          attestation: makePrivateAttestation(REQUEST_REF),
+        });
+
+        // Allow post_commit time to trigger the cross-DNA call, then sync.
+        await dhtSync([alice, bob], attDnaHash);
+
+        // Bob seals — his post_commit raises the total to 2 (≥ minimum_validators=2),
+        // so PhaseMarker(RevealOpen) is written inside notify_commitment_sealed.
+        await wsCall(bob, "seal_private_attestation", {
+          task_hash:   bobTaskHash,
+          attestation: makePrivateAttestation(REQUEST_REF),
+        });
+
+        await dhtSync([alice, bob], attDnaHash);
+
+        // Phase should be RevealOpen — triggered entirely by DNA 2 post_commit,
+        // not by any direct call to notify_commitment_sealed.
+        const phase = await zomeCall<string | null>(
+          alice,
+          "get_current_phase",
+          REQUEST_REF,
+        );
+        expect(phase).not.toBeNull();
+        expect(phase).toBe("RevealOpen");
       }, true, { timeout: 180_000 });
     },
   );
