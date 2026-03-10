@@ -132,6 +132,10 @@ pub enum LinkTypes {
     RequestToPhaseMarker,
     /// Indexes ValidatorProfile entries under "validators.{discipline_tag}" paths.
     ValidatorTierPath,
+    /// Links request_ref (ExternalHash) → DifficultyAssessment ActionHash.
+    /// Allows get_difficulty_assessment to retrieve the most recent assessment
+    /// for a given request without scanning the source chain.
+    DifficultyPath,
 }
 
 // ---------------------------------------------------------------------------

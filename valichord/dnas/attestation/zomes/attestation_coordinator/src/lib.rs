@@ -141,6 +141,7 @@ pub fn publish_validator_profile(
 pub fn assess_difficulty(
     request_ref: ExternalHash,
 ) -> ExternResult<ActionHash> {
+    let link_base = request_ref.clone();
     let assessment = DifficultyAssessment {
         request_ref,
         code_volume:            3,
@@ -154,7 +155,17 @@ pub fn assess_difficulty(
         predicted_max_secs:     57_600,
         confidence:             AssessmentConfidence::Low,
     };
-    create_entry(EntryTypes::DifficultyAssessment(assessment))
+    let assessment_hash = create_entry(EntryTypes::DifficultyAssessment(assessment))?;
+    // Index directly from request_ref (ExternalHash is a valid DHT base address).
+    // Using request_ref as base is consistent with how governance indexes badges,
+    // and avoids a path intermediate for a simple one-to-one lookup.
+    create_link(
+        link_base,
+        assessment_hash.clone(),
+        LinkTypes::DifficultyPath,
+        (),
+    )?;
+    Ok(assessment_hash)
 }
 
 // ---------------------------------------------------------------------------
@@ -294,9 +305,27 @@ pub fn get_validator_profile(agent: AgentPubKey) -> ExternResult<Option<Record>>
 
 #[hdk_extern]
 pub fn get_difficulty_assessment(
-    _request_ref: ExternalHash,
+    request_ref: ExternalHash,
 ) -> ExternResult<Option<Record>> {
-    Ok(None)
+    let links = get_links(
+        LinkQuery::try_new(request_ref, LinkTypes::DifficultyPath)?,
+        GetStrategy::Network,
+    )?;
+    // Return the most recently created assessment (links are append-only;
+    // last() gives the newest, consistent with get_current_phase behaviour).
+    match links.last() {
+        Some(link) => {
+            let hash = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid DifficultyPath link target".into()
+                )))?;
+            get(hash, GetOptions::network())
+        }
+        None => Ok(None),
+    }
 }
 
 // ---------------------------------------------------------------------------

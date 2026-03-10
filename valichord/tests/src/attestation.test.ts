@@ -541,7 +541,7 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
   );
 
   test(
-    "assess_difficulty returns an ActionHash; get_difficulty_assessment is a stub returning null",
+    "assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null",
     { timeout: 180_000 },
     async () => {
       await runScenario(async (scenario) => {
@@ -549,24 +549,38 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const REQUEST_REF = fakeExternalHash(0xf0);
+        const ASSESSED_REF   = fakeExternalHash(0xf0);
+        const UNASSESSED_REF = fakeExternalHash(0xf1);
 
-        // assess_difficulty creates a DifficultyAssessment entry with hardcoded stub values.
-        const assessmentHash = await zomeCall<ActionHash>(
-          alice,
-          "assess_difficulty",
-          REQUEST_REF,
-        );
+        // Before assessment: both refs return null.
+        const before = await zomeCall<unknown>(alice, "get_difficulty_assessment", ASSESSED_REF);
+        expect(before).toBeNull();
+
+        // assess_difficulty creates a DifficultyAssessment entry and links it
+        // from request_ref via DifficultyPath.
+        const assessmentHash = await zomeCall<ActionHash>(alice, "assess_difficulty", ASSESSED_REF);
         expect(assessmentHash).toBeTruthy();
 
-        // get_difficulty_assessment is a stub — always returns null.
-        // This is intentional; real implementation is deferred.
-        const result = await zomeCall<unknown>(
-          alice,
-          "get_difficulty_assessment",
-          REQUEST_REF,
-        );
-        expect(result).toBeNull();
+        // get_difficulty_assessment follows the DifficultyPath link.
+        const record = await zomeCall<any>(alice, "get_difficulty_assessment", ASSESSED_REF);
+        expect(record).not.toBeNull();
+
+        // Decode and verify request_ref + a hardcoded stub field.
+        // msgpack decodes bytes as a Node.js Buffer (subclass of Uint8Array);
+        // wrap in Uint8Array so toEqual compares byte content, not prototype.
+        const entry = record?.entry;
+        if (entry?.Present?.entry_type === "App") {
+          const decoded = decode(entry.Present.entry as Uint8Array) as {
+            request_ref: Uint8Array;
+            code_volume: number;
+          };
+          expect(new Uint8Array(decoded.request_ref)).toEqual(ASSESSED_REF);
+          expect(decoded.code_volume).toBe(3);
+        }
+
+        // A different request_ref that was never assessed still returns null.
+        const nullResult = await zomeCall<unknown>(alice, "get_difficulty_assessment", UNASSESSED_REF);
+        expect(nullResult).toBeNull();
       }, true, { timeout: 180_000 });
     },
   );

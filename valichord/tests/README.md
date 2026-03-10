@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 54 pass, 1 skipped, 0 fail** (as of 2026-03-10)
+**Status: 55 pass, 1 skipped, 0 fail** (as of 2026-03-10)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -91,7 +91,7 @@ cd tests && npm test
 | 4.2  | attempting to delete a CommitmentAnchor is rejected | PASS |
 | 5.1  | published validator profile is retrievable by agent public key | PASS |
 | 5.2  | get_validator_profile returns null when no profile published | PASS |
-| 5.3  | assess_difficulty returns an ActionHash; get_difficulty_assessment is a stub | PASS |
+| 5.3  | assess_difficulty → get_difficulty_assessment returns record + correct request_ref; unknown ref returns null | PASS |
 | 6.1  | submitted ValidationRequest is retrievable by its ActionHash | PASS |
 | 6.2  | get_validation_request returns null for an unknown ActionHash | PASS |
 | 7.1  | attempting to update a CommitmentAnchor is rejected (no update fn in API) | PASS |
@@ -139,7 +139,6 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — `get_difficulty_assessment` positive path | Returns the assessment written by `assess_difficulty` | Currently a stub returning `None` |
 | DNA 3 — real membrane proof signature verification | Rejects a proof not signed by the authorized issuer key | Placeholder accepts all ≥64-byte proofs; test when real crypto is wired in |
 | DNA 4 — GoldReproducible (12.2) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
 
@@ -152,6 +151,7 @@ These are areas not yet covered by tests, ordered by value.
 | DNA 4 — mixed-outcome badge | Test 7.1 added: 1 Reproduced + 2 FailedToReproduce → Divergent + FailedReproduction badge. |
 | DNA 1 — `PreRegisteredProtocol` immutability (delete) | Test 6.1 added: delete attempt rejected at API level (no delete fn). validate() provides second layer. |
 | DNA 3 — `check_all_commitments_sealed` direct call | Test 16.1 added: verifies false after 1st commit, true after 2nd. |
+| DNA 3 — `get_difficulty_assessment` positive path | Implemented: `assess_difficulty` now links via `DifficultyPath`; `get_difficulty_assessment` follows the link. Test 5.3 updated to verify record returned + correct request_ref + null for unassessed ref. |
 
 ---
 
