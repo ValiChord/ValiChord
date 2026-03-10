@@ -1175,15 +1175,12 @@ describe("12. Badge thresholds — Silver and Gold", () => {
         for (const v of validators) {
           await zomeCall(v, "notify_commitment_sealed", REQUEST_REF);
         }
-        // pause() instead of dhtSync(): with 7 conductors dhtSync's concurrent
-        // dumpFullState calls exhaust the admin websocket connections in CI.
-        // A fixed pause lets the gossip layer settle without polling all nodes.
-        await pause(30_000);
+        await dhtSync(validators, attDnaHash);
 
         for (const v of validators) {
           await zomeCall(v, "submit_attestation", makeAttestation(REQUEST_REF));
         }
-        await pause(30_000);
+        await dhtSync(validators, attDnaHash);
 
         // Derives ExactMatch (7/7 = 100%) + count=7 ≥ 7 → GoldReproducible.
         const harmonyHash = await govCall<Uint8Array | null>(
