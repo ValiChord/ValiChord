@@ -38,6 +38,13 @@ ValiChord is built as four distinct Holochain DNAs — four separate peer-to-pee
 | **DNA 3 — Attestation** | Shared DHT for validation requests, blind commitment anchors, and public attestations. Credentialed membrane. | **Credentialed** — institutional membrane proof required |
 | **DNA 4 — Governance & Harmony** | Public results, Harmony Records, Reproducibility Badges, and validator reputation. HTTP Gateway target. | **Open read** — no Holochain node required |
 
+<div align="center">
+
+📖 <strong>For more detail, see</strong><br>
+<a href="https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md">ValiChord: Technical Architecture — Four-DNA Membrane Design </a>
+
+</div>
+
 ---
 
 ## ✅ Implementation Status
