@@ -66,7 +66,7 @@ valichord/
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**50 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
+**54 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
 - Membrane proof acceptance and rejection
 - Full blind commit-reveal protocol end-to-end across all four DNAs
 - DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
