@@ -128,7 +128,7 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [Technical Reference v16](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v12 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 | [Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md) | How the system resists corruption |
-| [Holochain Scaffolding Plan](https://github.com/topeuph-ai/ValiChord/blob/main/docs/SCAFFOLDING_PLAN.md) | Engineering plan produced by Claude Code |
+| [Holochain Scaffolding Plan](https://github.com/topeuph-ai/ValiChord/blob/main/docs/SCAFFOLDING_PLAN.md) | Engineering plan |
 | [Why Holochain?](https://github.com/topeuph-ai/ValiChord/blob/main/docs/a_Why_Holochain?.md) | Non-technical explanation of the architectural choice |
 
 ---
