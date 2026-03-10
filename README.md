@@ -16,7 +16,7 @@
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_4-DNA_Membrane_architecture.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_Membrane_architecture.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
 
 </div>
 
@@ -112,7 +112,7 @@ Before submitting for formal validation, researchers use this tool to scan their
 - **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
 - **Difficulty Prediction:** Uses a weighted rubric to estimate validation labour based on Phase 0 empirical data.
 
-👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/at-home.html)**
+👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo.html)**
 
 ### 🔍 **Assisted Correction**
 **Automated reproducibility hygiene.**
