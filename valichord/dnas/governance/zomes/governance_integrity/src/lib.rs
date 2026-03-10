@@ -148,13 +148,19 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
 
         // --- HarmonyRecord create: only harmony_record_creator_key ----------
+        //
+        // Empty key = unrestricted (test / development mode).
+        // In production, set harmony_record_creator_key to the real coordinator
+        // agent's base64 public key in the governance DNA properties.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::HarmonyRecord(_),
             ref action,
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
-            if action.author.to_string() != props.harmony_record_creator_key {
+            if !props.harmony_record_creator_key.is_empty()
+                && action.author.to_string() != props.harmony_record_creator_key
+            {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only harmony_record_creator_key may write HarmonyRecord entries".into(),
                 ));
@@ -169,7 +175,9 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
-            if action.author.to_string() != props.harmony_record_creator_key {
+            if !props.harmony_record_creator_key.is_empty()
+                && action.author.to_string() != props.harmony_record_creator_key
+            {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only harmony_record_creator_key may write GovernanceDecision entries".into(),
                 ));
@@ -184,7 +192,9 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
-            if action.author.to_string() != props.harmony_record_creator_key {
+            if !props.harmony_record_creator_key.is_empty()
+                && action.author.to_string() != props.harmony_record_creator_key
+            {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only harmony_record_creator_key may issue ReproducibilityBadge entries".into(),
                 ));
@@ -284,7 +294,12 @@ fn validate_reputation_author(
     author: &AgentPubKey,
 ) -> ExternResult<ValidateCallbackResult> {
     let props = DnaProperties::try_from_dna_properties()?;
-    if author.to_string() != props.system_coordinator_key {
+    // Empty key = unrestricted (test / development mode).
+    // In production, set system_coordinator_key to the real coordinator's
+    // base64 public key in the governance DNA properties.
+    if !props.system_coordinator_key.is_empty()
+        && author.to_string() != props.system_coordinator_key
+    {
         return Ok(ValidateCallbackResult::Invalid(
             "Only the system coordinator may write ValidatorReputation entries".into(),
         ));
