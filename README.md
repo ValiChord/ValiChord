@@ -1,3 +1,4 @@
+[README(2).md](https://github.com/user-attachments/files/25872700/README.2.md)
 <div align="center">
 
 <img src="Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
@@ -16,7 +17,7 @@
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_Membrane_architecture.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_4-DNA_Membrane_architecture.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
 
 </div>
 
@@ -37,8 +38,6 @@ ValiChord is built as four distinct Holochain DNAs — four separate peer-to-pee
 | **DNA 2 — Validator Workspace** | Where the reproduction work happens. Private attestation sealed here during the commit phase. | **Private** — single agent, never enters DHT |
 | **DNA 3 — Attestation** | Shared DHT for validation requests, blind commitment anchors, and public attestations. Credentialed membrane. | **Credentialed** — institutional membrane proof required |
 | **DNA 4 — Governance & Harmony** | Public results, Harmony Records, Reproducibility Badges, and validator reputation. HTTP Gateway target. | **Open read** — no Holochain node required |
-
-<div align="center">
 
 📖 <strong>For more detail, see</strong><br>
 <a href="https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md">ValiChord: Technical Architecture — Four-DNA Membrane Design </a>
@@ -119,7 +118,7 @@ Before submitting for formal validation, researchers use this tool to scan their
 - **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
 - **Difficulty Prediction:** Uses a weighted rubric to estimate validation labour based on Phase 0 empirical data.
 
-👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo.html)**
+👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/at-home.html)**
 
 ### 🔍 **Assisted Correction**
 **Automated reproducibility hygiene.**
@@ -135,8 +134,24 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [Technical Reference v16](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v12 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 | [Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md) | How the system resists corruption |
-| [Holochain Scaffolding Plan](https://github.com/topeuph-ai/ValiChord/blob/main/docs/SCAFFOLDING_PLAN.md) | Engineering plan |
+| [Holochain Scaffolding Plan](https://github.com/topeuph-ai/ValiChord/blob/main/docs/SCAFFOLDING_PLAN.md) | Engineering plan produced by Claude Code |
 | [Why Holochain?](https://github.com/topeuph-ai/ValiChord/blob/main/docs/a_Why_Holochain?.md) | Non-technical explanation of the architectural choice |
+
+---
+
+## 🔧 For Developers
+
+The four-DNA Holochain infrastructure is built and integration-tested. The codebase is available for technical review.
+
+| Resource | Link |
+| :--- | :--- |
+| Codebase (Rust / Holochain) | [`valichord/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord) |
+| Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
+| Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
+| Technical Architecture | [`docs/8_ValiChord_4-DNA_Membrane_architecture.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_4-DNA_Membrane_architecture.md) |
+| Technical Reference v16 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
+
+> **Note:** This is infrastructure-stage code — four compiled, tested Holochain DNAs with no UI layer yet. There is no application to run as a standalone tool. The codebase is here for technical review and collaboration. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
 ---
 
