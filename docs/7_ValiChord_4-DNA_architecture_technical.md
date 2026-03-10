@@ -8,12 +8,6 @@
 **Author:** Ceri John
 **Status:** Infrastructure built and integration-tested
 
-<div align="center">
-
-📖 <strong>For a less technical explanation of the four-DNA architecture, see:</strong><br>
-<a href="https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_nontechnical.md">ValiChord: The 4-DNA Membrane Architecture — Plain English Guide</a>
-
-</div>
 ---
 
 ## Overview
@@ -427,7 +421,7 @@ hc app pack . -o workdir/valichord.happ
 cd tests && npm test
 ```
 
-**50 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
+**54 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
 
 ---
 
@@ -439,8 +433,8 @@ cd tests && npm test
 | Validator assignment engine | DNA 3 `select_validators()` | Stub returns empty. Needs conflict-of-interest detection, institutional balance, randomisation |
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
 | Difficulty assessment retrieval | DNA 3 `get_difficulty_assessment()` | Stub returns None |
-| Badge/reputation logic | DNA 4 | Bronze/Silver/Failed tested. Gold requires 7-conductor environment. Cumulative reputation updates deferred to Phase 1 |
-| Countersigning for simultaneous reveal | DNA 3 | Not implemented. Current design uses sequential reveals with DHT polling. Countersigning would enforce true simultaneity |
+| GoldReproducible badge (7 validators) | DNA 4 / test 12.2 | Test logic correct. Skipped in Codespaces — requires 7 simultaneous conductors (≥16 GB RAM). Run on adequately resourced hardware |
+| Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
 
 ---
 
