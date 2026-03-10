@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 50 pass, 1 skipped, 0 fail** (as of 2026-03-10)
+**Status: 54 pass, 1 skipped, 0 fail** (as of 2026-03-10)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -51,7 +51,7 @@ cd tests && npm test
 
 ## Test inventory
 
-### DNA 1 — `researcher_repository.test.ts` (11 tests)
+### DNA 1 — `researcher_repository.test.ts` (12 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -66,6 +66,7 @@ cd tests && npm test
 | 5.1 | compute_data_hash returns a 39-byte ExternalHash | PASS |
 | 5.2 | same bytes always produce the same hash (deterministic) | PASS |
 | 5.3 | different bytes produce different hashes (collision resistance) | PASS |
+| 6.1 | attempting to delete a PreRegisteredProtocol is rejected (no delete fn in API) | PASS |
 
 ### DNA 2 — `validator_workspace.test.ts` (5 tests)
 
@@ -75,9 +76,9 @@ cd tests && npm test
 | 1.2 | get_task returns null for an unknown ActionHash | PASS |
 | 2.1 | sealed private attestation is retrievable via its parent task | PASS |
 | 2.2 | get_private_attestation_for_task returns null before any attestation | PASS |
-| 3.1 | get_all_tasks returns all received tasks from the local source chain | PASS |
+| 3.1 | get_all_tasks returns all 3 received tasks from the local source chain | PASS |
 
-### DNA 3 — `attestation.test.ts` (24 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (26 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -105,13 +106,15 @@ cd tests && npm test
 | 12.2 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
 | 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
+| 15.1 | two ComputationalBiology profiles published → both returned; MachineLearning returns 0 | PASS |
+| 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
 > CI with <16 GB RAM). The test logic is correct; run it on adequately
 > resourced hardware.
 
-### DNA 4 — `governance.test.ts` (11 tests)
+### DNA 4 — `governance.test.ts` (12 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -126,6 +129,7 @@ cd tests && npm test
 | 5.2 | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
 | 5.3 | get_badges_for_study returns empty when validator count < 3 | PASS |
 | 6.1 | get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced | PASS |
+| 7.1 | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
 
 ---
 
@@ -135,12 +139,19 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — `get_validators_for_discipline` | Returns non-empty list after `publish_validator_profile` | Currently a stub returning `[]`; worth testing once implemented |
 | DNA 3 — `get_difficulty_assessment` positive path | Returns the assessment written by `assess_difficulty` | Currently a stub returning `None` |
 | DNA 3 — real membrane proof signature verification | Rejects a proof not signed by the authorized issuer key | Placeholder accepts all ≥64-byte proofs; test when real crypto is wired in |
-| DNA 4 — mixed-outcome badge | Some Reproduced, some Divergent → correct AgreementLevel + badge | Tests the blended outcome path in `check_and_create_harmony_record` |
 | DNA 4 — GoldReproducible (12.2) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
-| DNA 2 — `get_all_tasks` with multiple tasks | Receive 3 tasks, verify all 3 returned | Current test checks only a single-task list |
+
+### Resolved in this session (2026-03-10)
+
+| Area | Resolution |
+|------|-----------|
+| DNA 3 — `get_validators_for_discipline` | Implemented real path-based query (`ValidatorTierPath`); `publish_validator_profile` now indexes by discipline. Test 15.1 passes. |
+| DNA 2 — `get_all_tasks` with multiple tasks | Extended test 3.1 to receive 3 tasks and verify all 3 returned. |
+| DNA 4 — mixed-outcome badge | Test 7.1 added: 1 Reproduced + 2 FailedToReproduce → Divergent + FailedReproduction badge. |
+| DNA 1 — `PreRegisteredProtocol` immutability (delete) | Test 6.1 added: delete attempt rejected at API level (no delete fn). validate() provides second layer. |
+| DNA 3 — `check_all_commitments_sealed` direct call | Test 16.1 added: verifies false after 1st commit, true after 2nd. |
 
 ---
 

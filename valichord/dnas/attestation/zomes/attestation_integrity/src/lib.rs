@@ -130,6 +130,8 @@ pub enum LinkTypes {
     DisciplinePath,
     RequestToCommitment,
     RequestToPhaseMarker,
+    /// Indexes ValidatorProfile entries under "validators.{discipline_tag}" paths.
+    ValidatorTierPath,
 }
 
 // ---------------------------------------------------------------------------

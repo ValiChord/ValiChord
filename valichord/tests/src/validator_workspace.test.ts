@@ -247,12 +247,13 @@ describe("3. get_all_tasks", () => {
         const emptyResult = await ws(alice, "get_all_tasks", null);
         expect(emptyResult).toHaveLength(0);
 
-        // Receive two tasks with different request_refs.
+        // Receive three tasks with different request_refs.
         await ws(alice, "receive_task", makeTask(fakeExternalHash(0x01)));
         await ws(alice, "receive_task", makeTask(fakeExternalHash(0x02)));
+        await ws(alice, "receive_task", makeTask(fakeExternalHash(0x03)));
 
         const tasks = await ws(alice, "get_all_tasks", null);
-        expect(tasks).toHaveLength(2);
+        expect(tasks).toHaveLength(3);
       }, true, { timeout: 180_000 });
     },
   );

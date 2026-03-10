@@ -1304,3 +1304,108 @@ describe("14. Validator reputation", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 15. get_validators_for_discipline — real path-based query
+// ---------------------------------------------------------------------------
+//
+// publish_validator_profile now creates a link on "validators.{discipline_tag}"
+// (LinkTypes::ValidatorTierPath) for each discipline in the profile.
+// get_validators_for_discipline queries that path and returns all profiles.
+
+describe("15. get_validators_for_discipline", () => {
+  test(
+    "two profiles published for ComputationalBiology — both returned; MachineLearning returns 0",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const compBioProfile = {
+          institution: "Open Science Lab",
+          disciplines: [{ type: "ComputationalBiology" }],
+          certification_tier: "Provisional",
+          available: true,
+          max_concurrent_tasks: 3,
+          orcid: null,
+        };
+
+        // Alice and Bob both publish ComputationalBiology profiles.
+        await zomeCall(alice, "publish_validator_profile", compBioProfile);
+        await zomeCall(bob,   "publish_validator_profile", compBioProfile);
+        await dhtSync([alice, bob], dnaHash);
+
+        // Both profiles indexed under ComputationalBiology → returns 2.
+        const compBioProfiles = await zomeCall<unknown[]>(
+          alice,
+          "get_validators_for_discipline",
+          { type: "ComputationalBiology" },
+        );
+        expect(compBioProfiles).toHaveLength(2);
+
+        // MachineLearning has no profiles published → returns 0.
+        const mlProfiles = await zomeCall<unknown[]>(
+          alice,
+          "get_validators_for_discipline",
+          { type: "MachineLearning" },
+        );
+        expect(mlProfiles).toHaveLength(0);
+      }, true, { timeout: 180_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 16. check_all_commitments_sealed — direct call
+// ---------------------------------------------------------------------------
+//
+// check_all_commitments_sealed is exposed as a public #[hdk_extern] and can
+// be called directly. It compares the number of CommitmentAnchor links under
+// "commitments.{request_ref}" to minimum_validators (DNA property, default 2).
+//
+// Sequence:
+//   1. One validator commits → sealed? false (1 < 2)
+//   2. Second validator commits → sealed? true (2 >= 2)
+
+describe("16. check_all_commitments_sealed direct call", () => {
+  test(
+    "returns false after 1 of 2 commits, true after 2nd commit",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()), // minimum_validators=2 (default)
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const REQUEST_REF = fakeExternalHash(0xc0);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // Only Alice commits — count (1) < minimum_validators (2).
+        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+
+        // Direct check: 1 of 2 committed → false.
+        const afterFirst = await zomeCall<boolean>(
+          alice, "check_all_commitments_sealed", REQUEST_REF,
+        );
+        expect(afterFirst).toBe(false);
+
+        // Bob commits — count (2) >= minimum_validators (2).
+        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash);
+
+        // Direct check: both committed → true.
+        const afterSecond = await zomeCall<boolean>(
+          alice, "check_all_commitments_sealed", REQUEST_REF,
+        );
+        expect(afterSecond).toBe(true);
+      }, true, { timeout: 180_000 });
+    },
+  );
+});

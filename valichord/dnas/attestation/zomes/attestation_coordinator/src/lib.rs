@@ -116,8 +116,24 @@ pub fn publish_validator_profile(
     profile: ValidatorProfile,
 ) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
+    // Extract disciplines before profile is consumed by create_entry.
+    let disciplines = profile.disciplines.clone();
     let profile_hash = create_entry(EntryTypes::ValidatorProfile(profile))?;
     create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, ())?;
+
+    // Index under each discipline path so get_validators_for_discipline can find this profile.
+    for disc in &disciplines {
+        let disc_path = Path::from(format!("validators.{}", discipline_tag(disc)))
+            .typed(LinkTypes::ValidatorTierPath)?;
+        disc_path.ensure()?;
+        create_link(
+            disc_path.path_entry_hash()?,
+            profile_hash.clone(),
+            LinkTypes::ValidatorTierPath,
+            (),
+        )?;
+    }
+
     Ok(profile_hash)
 }
 
@@ -210,9 +226,23 @@ pub fn get_attestations_for_request(
 
 #[hdk_extern]
 pub fn get_validators_for_discipline(
-    _discipline: Discipline,
+    discipline: Discipline,
 ) -> ExternResult<Vec<Record>> {
-    Ok(Vec::new())
+    let disc_path = Path::from(format!("validators.{}", discipline_tag(&discipline)))
+        .typed(LinkTypes::ValidatorTierPath)?;
+    let links = get_links(
+        LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
 }
 
 /// Return all pending ValidationRequest records indexed under a discipline.

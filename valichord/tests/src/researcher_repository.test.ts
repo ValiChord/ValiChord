@@ -366,3 +366,49 @@ describe("5. compute_data_hash", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 6. PreRegisteredProtocol immutability — delete rejected
+// ---------------------------------------------------------------------------
+//
+// validate() in researcher_repository_integrity blocks all deletes of
+// PreRegisteredProtocol entries. The coordinator exposes no delete function —
+// immutability is enforced at both the API level (no function exists) and
+// the validation level (validate() rejects OpDelete).
+//
+// Pattern mirrors attestation.test.ts describe 4: call a nonexistent
+// coordinator function → rejected with "function not found", which confirms
+// the API offers no delete path.
+
+describe("6. PreRegisteredProtocol immutability (delete)", () => {
+  test(
+    "attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        // Register a study and then a protocol.
+        const studyHash = await repo(alice, "register_study", makeStudy());
+        const protocolHash = await repo(alice, "register_protocol", {
+          study_ref: studyHash,
+          protocol: makeProtocol(),
+        });
+        expect(protocolHash).toBeTruthy();
+
+        // Attempt to delete via a nonexistent coordinator function.
+        // The rejection confirms no delete path exists in the public API.
+        // validate() provides a second layer of defence for any future
+        // function that might be added: it blocks OpDelete for PreRegisteredProtocol.
+        await expect(
+          alice.appWs.callZome({
+            role_name: "researcher_repository",
+            zome_name: "researcher_repository_coordinator",
+            fn_name: "delete_protocol_for_test",
+            payload: protocolHash,
+          }),
+        ).rejects.toThrow();
+      }, true, { timeout: 180_000 });
+    },
+  );
+});

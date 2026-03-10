@@ -37,6 +37,7 @@ import {
   HoloHashType,
   hashFrom32AndType,
 } from "@holochain/client";
+import { decode } from "@msgpack/msgpack";
 import { expect, test, describe } from "vitest";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -164,6 +165,36 @@ function makeAttestation(requestRef: Uint8Array) {
       troubleshooting_secs: 300,
     },
     confidence: "High",
+    deviation_flags: [],
+    computational_resources: {
+      personal_hardware_sufficient: true,
+      hpc_required: false,
+      gpu_required: false,
+      cloud_compute_required: false,
+      estimated_compute_cost_pence: null,
+    },
+    discipline: { type: "ComputationalBiology" },
+  };
+}
+
+function makeFailedAttestation(requestRef: Uint8Array) {
+  return {
+    request_ref: requestRef,
+    outcome: { type: "FailedToReproduce", content: { details: "Results do not match." } },
+    outcome_summary: {
+      key_metrics: [],
+      effect_direction_matches: null,
+      confidence_interval_overlap: null,
+      overall_agreement: "ExactMatch",
+    },
+    time_invested_secs: 3600,
+    time_breakdown: {
+      environment_setup_secs: 900,
+      data_acquisition_secs: 600,
+      code_execution_secs: 1800,
+      troubleshooting_secs: 300,
+    },
+    confidence: "Low",
     deviation_flags: [],
     computational_resources: {
       personal_hardware_sufficient: true,
@@ -641,6 +672,96 @@ describe("6. Badge positive case", () => {
         // Exactly one badge should be linked to this study_ref.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(1);
+      }, true, { timeout: 300_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge
+// ---------------------------------------------------------------------------
+//
+// derive_agreement_level thresholds:
+//   rate >= 0.90 → ExactMatch
+//   rate >= 0.70 → WithinTolerance
+//   rate >= 0.50 → DirectionalMatch
+//   rate <  0.50 AND successes > 0 → Divergent
+//   successes == 0 → UnableToAssess
+//
+// With 3 validators (1 Reproduced, 2 FailedToReproduce):
+//   rate = 1/3 ≈ 0.33 → Divergent
+//   evaluate_badge(Divergent, 3) → FailedReproduction (fires for any count)
+//
+// Note: 2 validators with one Reproduced and one FailedToReproduce gives
+// rate = 0.5 → DirectionalMatch (not Divergent). Three validators are used
+// to achieve rate < 0.5 while still having at least one success.
+
+describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge", () => {
+  test(
+    "1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+
+        const [admin, bob, carol] = await scenario.installAppsForPlayers(
+          [
+            makePlayerConfig(adminKeyB64),
+            makePlayerConfig(adminKeyB64),
+            makePlayerConfig(adminKeyB64),
+          ],
+          [adminPlayer, bobPlayer, carolPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(admin, "attestation");
+        // Unique requestRef — avoid collision with describe 6 (0xb1).
+        const requestRef = fakeExternalHash(0xd1);
+
+        // All three validators commit (minimum_validators=2; 3rd commit is fine).
+        await att(admin, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        await att(carol, "notify_commitment_sealed", requestRef);
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        // admin: Reproduced; bob + carol: FailedToReproduce.
+        // success rate = 1/3 → Divergent → FailedReproduction badge.
+        await att(admin, "submit_attestation", makeAttestation(requestRef));
+        await att(bob,   "submit_attestation", makeFailedAttestation(requestRef));
+        await att(carol, "submit_attestation", makeFailedAttestation(requestRef));
+        await dhtSync([admin, bob, carol], attDnaHash);
+
+        // Assemble HarmonyRecord.
+        const harmonyHash = await gov(admin, "check_and_create_harmony_record", requestRef);
+        expect(harmonyHash).not.toBeNull();
+
+        await dhtSync([admin, bob, carol], dnaHashForRole(admin, "governance"));
+
+        // Verify HarmonyRecord exists and agreement_level is Divergent.
+        const harmonyRecord = await gov(admin, "get_harmony_record", requestRef);
+        expect(harmonyRecord).not.toBeNull();
+        const harmonyEntry = (harmonyRecord as any)?.entry;
+        if (harmonyEntry?.Present?.entry_type === "App") {
+          const hr = decode(harmonyEntry.Present.entry as Uint8Array) as {
+            agreement_level: string;
+          };
+          expect(hr.agreement_level).toBe("Divergent");
+        }
+
+        // FailedReproduction badge should be issued (Divergent fires for any count).
+        const badges = await gov(admin, "get_badges_for_study", requestRef);
+        expect(badges).toHaveLength(1);
+        const entry = (badges[0] as any).entry;
+        if (entry?.Present?.entry_type === "App") {
+          const badge = decode(entry.Present.entry as Uint8Array) as {
+            badge_type: string;
+          };
+          expect(badge.badge_type).toBe("FailedReproduction");
+        }
       }, true, { timeout: 300_000 });
     },
   );
