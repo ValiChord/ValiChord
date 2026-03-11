@@ -38,7 +38,82 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     // notify_commitment_sealed is intentionally NOT listed — it is a write
     // function called via call(OtherRole("attestation")) from DNA 2's
     // post_commit. Same-agent cross-DNA calls run under author grant.
+
+    // Verify the membrane proof cryptographically (Ed25519 signature check).
+    // This runs lazily on the first zome call, after the agent has joined the
+    // DHT and the AgentValidationPkg action is on the source chain.
+    // verify_signature is an HDK host function not available in integrity zomes.
+    // Empty issuer = dev/test bypass (matches the governance DNA pattern).
+    if let Err(reason) = verify_membrane_proof() {
+        return Ok(InitCallbackResult::Fail(reason));
+    }
+
     Ok(InitCallbackResult::Pass)
+}
+
+// ---------------------------------------------------------------------------
+// Membrane proof — Ed25519 verification (coordinator-side, HDK only)
+// ---------------------------------------------------------------------------
+
+fn verify_membrane_proof() -> Result<(), String> {
+    let props = DnaProperties::try_from_dna_properties().map_err(|e| e.to_string())?;
+
+    // Empty string = dev/test bypass: skip crypto verification.
+    if props.authorized_joining_certificate_issuer.is_empty() {
+        return Ok(());
+    }
+
+    // Parse the issuer's AgentPubKey from the base64url string in DNA properties.
+    let issuer_b64 = props
+        .authorized_joining_certificate_issuer
+        .parse::<HoloHashB64<hash_type::Agent>>()
+        .map_err(|_| {
+            "authorized_joining_certificate_issuer is not a valid AgentPubKey".to_string()
+        })?;
+    let issuer_key = AgentPubKey::from(issuer_b64);
+
+    // Find the AgentValidationPkg action on our own source chain (genesis action 2).
+    let records = query(ChainQueryFilter::new()).map_err(|e| e.to_string())?;
+    // Use Option<Option<MembraneProof>>: outer None = AVP not found;
+    // inner None = AVP found but membrane_proof field is absent.
+    let mut avp_result: Option<Option<MembraneProof>> = None;
+    for record in &records {
+        if let Action::AgentValidationPkg(avp) = record.action() {
+            avp_result = Some(avp.membrane_proof.clone());
+            break;
+        }
+    }
+    let proof = avp_result
+        .ok_or_else(|| "AgentValidationPkg not found on source chain".to_string())?
+        .ok_or_else(|| "Attestation DNA requires a membrane proof".to_string())?;
+
+    if proof.bytes().len() < 64 {
+        return Err("Membrane proof too short — must be at least 64 bytes".to_string());
+    }
+
+    // Extract the 64-byte Ed25519 signature from the start of the proof.
+    let sig_bytes: [u8; 64] = proof.bytes()[0..64]
+        .try_into()
+        .map_err(|_| "proof slice wrong size".to_string())?;
+    let signature = Signature::from(sig_bytes);
+
+    // Signed data = joining agent's raw 39-byte pubkey as Vec<u8>.
+    // verify_signature serialises data via rmp_serde, which encodes Vec<u8> as
+    // a msgpack array of unsigned integers. The JS test must match by signing
+    // encode(Array.from(agentPubKey)) rather than the raw Uint8Array.
+    let joining_agent = agent_info().map_err(|e| e.to_string())?.agent_initial_pubkey;
+    let raw_bytes: Vec<u8> = joining_agent.get_raw_39().to_vec();
+    let valid = verify_signature(issuer_key, signature, raw_bytes)
+        .map_err(|e| e.to_string())?;
+
+    if !valid {
+        return Err(
+            "Membrane proof signature is invalid — not signed by the authorized issuer"
+                .to_string(),
+        );
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

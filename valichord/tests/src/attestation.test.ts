@@ -16,14 +16,17 @@
  */
 
 import { runScenario, dhtSync, pause } from "@holochain/tryorama";
+import type { Scenario } from "@holochain/tryorama";
 import {
   AppBundleSource,
   ActionHash,
+  AgentPubKey,
   encodeHashToBase64,
   HoloHashType,
   hashFrom32AndType,
 } from "@holochain/client";
-import { decode } from "@msgpack/msgpack";
+import { decode, encode } from "@msgpack/msgpack";
+import * as ed from "@noble/ed25519";
 import { expect, test, describe } from "vitest";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -45,6 +48,28 @@ function validMembraneProof(): Uint8Array {
 /** A membrane proof that fails the format check (only 10 bytes). */
 function shortMembraneProof(): Uint8Array {
   return new Uint8Array(10).fill(0x01);
+}
+
+/**
+ * Create a valid Ed25519 membrane proof for a joining agent.
+ *
+ * The Rust coordinator's verify_membrane_proof() calls:
+ *   verify_signature(issuer_key, sig, raw_bytes_vec)
+ * where raw_bytes_vec: Vec<u8> is the joining agent's 39-byte pubkey.
+ * rmp_serde serialises Vec<u8> as a msgpack array of unsigned integers.
+ * We must sign the same bytes: encode(Array.from(agentPubKey)).
+ *
+ * @param issuerPrivKey - 32-byte @noble/ed25519 private key (seed)
+ * @param joiningAgentPubKey - 39-byte Holochain AgentPubKey of the joining agent
+ */
+async function makeMembraneProof(
+  issuerPrivKey: Uint8Array,
+  joiningAgentPubKey: AgentPubKey,
+): Promise<Uint8Array> {
+  // encode(Array.from(Uint8Array)) → msgpack array of u8 integers,
+  // matching rmp_serde's Vec<u8> serialisation.
+  const signedData = encode(Array.from(joiningAgentPubKey));
+  return ed.signAsync(signedData, issuerPrivKey);
 }
 
 /**
@@ -86,10 +111,9 @@ function playerConfig(membraneProof?: Uint8Array, minValidators: number = 2) {
               properties: {
                 minimum_validators: minValidators,
                 discipline: "genomics",
-                // Placeholder issuer — real signature verification is a TODO
-                // in validate_membrane_proof(). Tests exercise the format check.
-                authorized_joining_certificate_issuer:
-                  "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew",
+                // Empty string = dev/test bypass in coordinator init().
+                // Full Ed25519 verification is tested in tests 1.4 and 1.5.
+                authorized_joining_certificate_issuer: "",
               },
             },
           },
@@ -303,6 +327,130 @@ describe("1. Membrane proof", () => {
       await runScenario(async (scenario) => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(shortMembraneProof())]),
+        ).rejects.toThrow();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "agent with valid real Ed25519 proof is accepted by coordinator init",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const privKey = ed.utils.randomPrivateKey();
+        const pubKeyBytes = await ed.getPublicKeyAsync(privKey);
+        const issuerPubKey = hashFrom32AndType(pubKeyBytes, HoloHashType.Agent);
+        const issuerBase64 = encodeHashToBase64(issuerPubKey);
+
+        // Two-step setup: generate agent key first, then sign it with the issuer.
+        const conductor = await scenario.addConductor();
+        const agentPubKey: AgentPubKey = await conductor.adminWs().generateAgentPubKey();
+        const membraneProof = await makeMembraneProof(privKey, agentPubKey);
+
+        const alice = await (scenario as any).installPlayerApp(conductor, {
+          appBundleSource: { type: "path" as const, value: HAPP_PATH },
+          options: {
+            networkSeed: scenario.networkSeed,
+            agentPubKey,
+            rolesSettings: {
+              attestation: {
+                type: "provisioned" as const,
+                value: {
+                  membrane_proof: membraneProof,
+                  modifiers: {
+                    properties: {
+                      minimum_validators: 2,
+                      discipline: "genomics",
+                      authorized_joining_certificate_issuer: issuerBase64,
+                    },
+                  },
+                },
+              },
+              governance: {
+                type: "provisioned" as const,
+                value: {
+                  modifiers: {
+                    properties: {
+                      system_coordinator_key: "",
+                      harmony_record_creator_key: "",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Valid proof → coordinator init() should pass → zome call succeeds.
+        const result = await alice.appWs.callZome({
+          role_name: "attestation",
+          zome_name: "attestation_coordinator",
+          fn_name: "get_current_phase",
+          payload: fakeExternalHash(0x01),
+        });
+        expect(result).toBeNull();
+      }, true, { timeout: 180_000 });
+    },
+  );
+
+  test(
+    "agent with wrong-signature proof is rejected by coordinator init",
+    { timeout: 180_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const privKey = ed.utils.randomPrivateKey();
+        const pubKeyBytes = await ed.getPublicKeyAsync(privKey);
+        const issuerPubKey = hashFrom32AndType(pubKeyBytes, HoloHashType.Agent);
+        const issuerBase64 = encodeHashToBase64(issuerPubKey);
+
+        const conductor = await scenario.addConductor();
+        const agentPubKey: AgentPubKey = await conductor.adminWs().generateAgentPubKey();
+        // 64 bytes of zeros — passes genesis_self_check (≥ 64 bytes) but is
+        // NOT a valid Ed25519 signature, so coordinator init() must reject it.
+        const invalidProof = new Uint8Array(64).fill(0x00);
+
+        const alice = await (scenario as any).installPlayerApp(conductor, {
+          appBundleSource: { type: "path" as const, value: HAPP_PATH },
+          options: {
+            networkSeed: scenario.networkSeed,
+            agentPubKey,
+            rolesSettings: {
+              attestation: {
+                type: "provisioned" as const,
+                value: {
+                  membrane_proof: invalidProof,
+                  modifiers: {
+                    properties: {
+                      minimum_validators: 2,
+                      discipline: "genomics",
+                      authorized_joining_certificate_issuer: issuerBase64,
+                    },
+                  },
+                },
+              },
+              governance: {
+                type: "provisioned" as const,
+                value: {
+                  modifiers: {
+                    properties: {
+                      system_coordinator_key: "",
+                      harmony_record_creator_key: "",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Invalid proof → coordinator init() returns Fail → zome call throws.
+        await expect(
+          alice.appWs.callZome({
+            role_name: "attestation",
+            zome_name: "attestation_coordinator",
+            fn_name: "get_current_phase",
+            payload: fakeExternalHash(0x01),
+          }),
         ).rejects.toThrow();
       }, true, { timeout: 180_000 });
     },
