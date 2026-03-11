@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+  <img src="../Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 </div>
 
 # ValiChord Phase 0: Validation Workload Discovery
