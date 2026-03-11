@@ -270,7 +270,7 @@ FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
 
 Two-stage validation:
 1. `genesis_self_check` — format check only (runs before network join, no DHT access). Rejects proofs shorter than 64 bytes.
-2. `validate(Op)` → `FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg { membrane_proof })` — full credential check after join. **TODO:** signature verification against `authorized_joining_certificate_issuer` from DNA properties. Currently accepts all ≥64-byte proofs.
+2. `coordinator init()` — full Ed25519 signature verification after join (runs lazily on first zome call, after `AgentValidationPkg` is on the source chain). Queries the source chain for `AgentValidationPkg`, extracts the 64-byte signature from the proof, and calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` bypasses verification for dev/test mode.
 
 ### Capability Grants (init)
 
@@ -421,7 +421,7 @@ hc app pack . -o workdir/valichord.happ
 cd tests && npm test
 ```
 
-**54 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
+**57 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
 
 ---
 
@@ -429,10 +429,8 @@ cd tests && npm test
 
 | Item | Location | Notes |
 |---|---|---|
-| Membrane proof signature verification | DNA 3 `validate_membrane_proof()` | Currently accepts all ≥64-byte proofs. Full implementation requires Ed25519 signature check against `authorized_joining_certificate_issuer` |
 | Validator assignment engine | DNA 3 `select_validators()` | Stub returns empty. Needs conflict-of-interest detection, institutional balance, randomisation |
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
-| Difficulty assessment retrieval | DNA 3 `get_difficulty_assessment()` | Stub returns None |
 | GoldReproducible badge (7 validators) | DNA 4 / test 12.2 | Test logic correct. Skipped in Codespaces — requires 7 simultaneous conductors (≥16 GB RAM). Run on adequately resourced hardware |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
 

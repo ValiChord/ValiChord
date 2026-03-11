@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 55 pass, 1 skipped, 0 fail** (as of 2026-03-10)
+**Status: 57 pass, 1 skipped, 0 fail** (as of 2026-03-11)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -78,13 +78,15 @@ cd tests && npm test
 | 2.2 | get_private_attestation_for_task returns null before any attestation | PASS |
 | 3.1 | get_all_tasks returns all 3 received tasks from the local source chain | PASS |
 
-### DNA 3 — `attestation.test.ts` (26 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (28 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
 | 1.1  | agent with valid membrane proof (≥64 bytes) can join | PASS |
 | 1.2  | agent with no membrane proof is rejected at genesis_self_check | PASS |
 | 1.3  | agent with too-short membrane proof (<64 bytes) is rejected | PASS |
+| 1.4  | agent with valid real Ed25519 proof is accepted by coordinator init | PASS |
+| 1.5  | agent with wrong-signature proof is rejected by coordinator init | PASS |
 | 2.1  | two validators commit, phase opens, both reveal, attestations retrievable | PASS |
 | 3.1  | late-joining validator discovers RevealOpen by polling, not via signal | PASS |
 | 4.1  | attempting to update a ValidationAttestation is rejected | PASS |
@@ -139,19 +141,7 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — real membrane proof signature verification | Rejects a proof not signed by the authorized issuer key | Placeholder accepts all ≥64-byte proofs; test when real crypto is wired in |
 | DNA 4 — GoldReproducible (12.2) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
-
-### Resolved in this session (2026-03-10)
-
-| Area | Resolution |
-|------|-----------|
-| DNA 3 — `get_validators_for_discipline` | Implemented real path-based query (`ValidatorTierPath`); `publish_validator_profile` now indexes by discipline. Test 15.1 passes. |
-| DNA 2 — `get_all_tasks` with multiple tasks | Extended test 3.1 to receive 3 tasks and verify all 3 returned. |
-| DNA 4 — mixed-outcome badge | Test 7.1 added: 1 Reproduced + 2 FailedToReproduce → Divergent + FailedReproduction badge. |
-| DNA 1 — `PreRegisteredProtocol` immutability (delete) | Test 6.1 added: delete attempt rejected at API level (no delete fn). validate() provides second layer. |
-| DNA 3 — `check_all_commitments_sealed` direct call | Test 16.1 added: verifies false after 1st commit, true after 2nd. |
-| DNA 3 — `get_difficulty_assessment` positive path | Implemented: `assess_difficulty` now links via `DifficultyPath`; `get_difficulty_assessment` follows the link. Test 5.3 updated to verify record returned + correct request_ref + null for unassessed ref. |
 
 ---
 
@@ -161,7 +151,7 @@ These are areas not yet covered by tests, ordered by value.
 - `harmony_record_creator_key` and `system_coordinator_key` are set to `""` in
   governance DNA test properties — the empty-string bypass in `governance_integrity`
   allows any agent to write governance entries in test/dev mode.
-- Membrane proof signature verification is a placeholder (accepts all ≥64-byte proofs).
+- Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
 - Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production
   this is triggered by DNA 2's `post_commit` (exercised by test 9.1).
 - `dhtSync` is required between agents for any multi-player read assertion.
