@@ -66,15 +66,19 @@ valichord/
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**57 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
-- Membrane proof acceptance and rejection
+****57 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
+- Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at coordinator init
 - Full blind commit-reveal protocol end-to-end across all four DNAs
 - DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
-- Immutability enforcement on ValidationAttestation, CommitmentAnchor, and PhaseMarker
+- Immutability enforcement on ValidationAttestation, CommitmentAnchor, PhaseMarker, and PreRegisteredProtocol
 - Author key enforcement on HarmonyRecord and GovernanceDecision
 - Privacy across agents — private attestations are not readable by peers
 - Reproducibility badge issuance (Bronze, Silver, Failed thresholds)
 - Cross-DNA post_commit chain: DNA 2 seal → DNA 3 notify → phase open
+- Mixed outcome HarmonyRecord assembly — Divergent agreement level from split validator results
+- Validator discovery by discipline via real path index
+- Difficulty assessment storage and retrieval via DifficultyPath link index
+- Commit phase state detection — check_all_commitments_sealed verified at partial and full threshold
 
 ---
 
