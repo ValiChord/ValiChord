@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+<img src="Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 
 **An Immune System for Science: Distributed Integrity Infrastructure for Computational Research**
 
@@ -61,6 +61,9 @@ valichord/
 ```
 
 **57 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
+
+> **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
+
 - Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at coordinator init
 - Full blind commit-reveal protocol end-to-end across all four DNAs
 - DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
@@ -116,7 +119,7 @@ Before submitting for formal validation, researchers use this tool to scan their
 - **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
 - **Difficulty Prediction:** Uses a weighted rubric to estimate validation labour based on Phase 0 empirical data.
 
-👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo.html)**
+👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo)**
 
 ### 🔍 **Assisted Correction**
 **Automated reproducibility hygiene.**
@@ -188,7 +191,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 ValiChord is built on Holochain — an end-to-end open-source agent-centric P2P application framework.
 
 <a href="https://holochain.org">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png?raw=true" width="1000" alt="Holochain Logo">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png?raw=true" width="750" alt="Holochain Logo">
 </a>
 
 ---
