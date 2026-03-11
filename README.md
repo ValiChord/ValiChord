@@ -122,7 +122,7 @@ Before submitting for formal validation, researchers use this tool to scan their
 - **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
 - **Difficulty Prediction:** Uses a weighted rubric to estimate validation labour based on Phase 0 empirical data.
 
-👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/at-home.html)**
+👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo)**
 
 ### 🔍 **Assisted Correction**
 **Automated reproducibility hygiene.**
