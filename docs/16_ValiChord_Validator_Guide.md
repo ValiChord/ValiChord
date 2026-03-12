@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Valichord%20logo-standard%20v2-1.5x.jpeg" width="500px" alt="Valichord Logo">
+  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="Valichord Logo">
 </div>
 
 # The ValiChord Validator Guide
