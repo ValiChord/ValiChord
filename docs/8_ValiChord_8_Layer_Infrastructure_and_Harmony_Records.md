@@ -1,4 +1,5 @@
-![ValiChord 8-Layer Architecture and Harmony Record](https://github.com/topeuph-ai/ValiChord/blob/main/8%20layer%20infrastructure.jpeg))
+![ValiChord 8-Layer Architecture and Harmony Record](https://github.com/topeuph-ai/ValiChord/blob/main/8%20layer%20infrastructure.jpeg)
+
 
 # ValiChord: Eight-Layer Infrastructure and Harmony Records
 
