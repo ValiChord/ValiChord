@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use ValiChord in your research, please cite it as below."
+title: "ValiChord: Distributed Infrastructure for Computational Research Validation"
+version: 0.1.0-alpha
+date-released: 2026-03-12
+authors:
+  - family-names: John
+    given-names: Ceri
+    orcid: ""
+    email: topeuph@gmail.com
+abstract: >
+  ValiChord is an open-source, distributed infrastructure for computational
+  reproducibility validation built on Holochain. It provides cryptographic
+  pre-registration, blind commit-reveal validation, and permanent tamper-proof
+  Harmony Records that preserve the full texture of agreement and disagreement
+  among independent credentialed validators. GDPR compliance is structural:
+  researcher data never leaves the researcher's own environment.
+repository-code: "https://github.com/topeuph-ai/ValiChord"
+url: "https://topeuph-ai.github.io/ValiChord"
+license: MIT
+keywords:
+  - reproducibility
+  - open-science
+  - holochain
+  - distributed-systems
+  - research-integrity
+  - metascience
+  - peer-review
+  - cryptography
+references:
+  - type: article
+    title: "Governing Against Domestication: A Governance Framework for Distributed Scientific Reproducibility Validation"
+    authors:
+      - family-names: John
+        given-names: Ceri
+    url: "https://doi.org/10.5281/zenodo.18878108"
+    year: 2026
