@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
 </div>
 
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
@@ -59,7 +59,7 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 **What it stores:** HarmonyRecord (the final validated outcome — immutable), ReproducibilityBadge (Gold / Silver / Bronze / Failed), ValidatorReputation, GovernanceDecision.
 
 <div align="center">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/4%20membranes%20alt.jpeg" alt="The 4 DNA Membrane Architecture" width="800">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/4%20membranes%20alt.jpeg" alt="The 4 DNA Membrane Architecture" width="800">
 </div>
 
 ---
