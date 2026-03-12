@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 </div>
 
 # ValiChord: The Verification Crisis Isn't Just in Science
