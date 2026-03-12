@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/4%20DNA%20technical.png" alt="ValiChord 4-DNA Technical Architecture Diagram" width="900">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/4%20DNA%20technical.png" alt="ValiChord 4-DNA Technical Architecture Diagram" width="900">
 </div>
 
 # ValiChord: Technical Architecture — Four-DNA Membrane Design
