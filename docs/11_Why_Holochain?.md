@@ -1,5 +1,5 @@
 <a href="https://holochain.org">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png?raw=true" width="1000" alt="Holochain Logo">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/holochain%20logo.png?raw=true" width="1000" alt="Holochain Logo">
 </a>
 
 # Why Holochain? The Architecture of Trustworthy Validation

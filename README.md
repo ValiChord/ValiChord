@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
+<img src="Images/Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 
 **An Immune System for Science: Distributed Integrity Infrastructure for Computational Research**
 
@@ -191,7 +191,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 ValiChord is built on Holochain — an end-to-end open-source agent-centric P2P application framework.
 
 <a href="https://holochain.org">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/holochain%20logo.png?raw=true" width="750" alt="Holochain Logo">
+<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/holochain%20logo.png?raw=true" width="750" alt="Holochain Logo">
 </a>
 
 ---

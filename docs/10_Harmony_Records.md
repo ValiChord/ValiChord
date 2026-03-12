@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Harmony%20Records.jpeg" width="800" alt="Harmony Record">
+  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Harmony%20Records.jpeg" width="800" alt="Harmony Record">
 </div>
 
 # Harmony Records: The Permanent Verdict of Science
