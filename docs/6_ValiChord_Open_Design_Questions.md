@@ -66,6 +66,38 @@ A secondary tension: if funders or journals use Harmony Records as pass/fail sig
 
 *Resolution phase: Phase 0 generates the empirical foundation (frequency, correlates of indeterminacy). Phase 1 resolves fee structure and re-submission pathway design. Governance communication norms are an ongoing concern from Phase 1 onward.*
 
+**15. How should validator reputation scale — and how do you prevent it becoming permanent authority?**
+
+This is one of the most difficult unsolved design problems in ValiChord's governance model, and one that has no clean precedent in existing reproducibility infrastructure.
+
+The tension is this: validator reputation is necessary. A system that treats a first-time validator identically to someone with a hundred completed rounds and a consistent agreement record is epistemically indefensible. Quality signals must exist. But any reputation system that allows accumulated credibility to become permanent authority replicates the very gatekeeping structures ValiChord is designed to resist. The validators who got in early, did good work, and accumulated high scores become a de facto priesthood — and new validators face a catch-22: you need a track record to gain influence, but you need assignments to build a track record.
+
+A third model is emerging in distributed systems that may fit ValiChord better than either fully open or fully credentialed validation:
+
+- Permissionless entry — anyone with an institutional credential can join
+- Earned credibility through demonstrated track record — influence grows with quality
+- Transparent validator history — all validation records are publicly auditable
+- Credibility must never become permanent authority — the hardest constraint to design
+
+The architecture already has the scaffolding for this: `ValidatorReputation` in DNA 4 tracks agreement rates, tier progression, and discipline coverage. The membrane proof handles entry credentialing. What does not yet exist is the feedback loop connecting reputation back to validator assignment — and a mechanism preventing reputation calcification.
+
+**Three partial approaches, each with known failure modes:**
+
+*Reputation decay* — scores drift toward baseline over time without continued activity. Prevents permanent authority accumulates, but creates perverse incentives: validators are rewarded for quantity of validations rather than quality, and may rush assignments to maintain scores.
+
+*Lottery weighting* — high-reputation validators receive higher probability of assignment, but not certainty. New validators always have a non-zero chance. Influence is probabilistic, not deterministic. This is more defensible than deterministic assignment but still rewards early entrants disproportionately at scale.
+
+*Discipline rotation* — reputation in one discipline does not transfer to another. A validator who is Gold tier in computational biology starts fresh in climate modelling. This prevents cross-domain authority accumulation but may be too restrictive for validators who legitimately work across fields.
+
+**The deeper problem** is that "demonstrated validation quality" requires comparing your findings against ground truth — but in science, ground truth is often exactly what is in dispute. Agreement with the majority is not the same as being correct. A validator who consistently agrees with peers in a field where the field is systematically wrong accumulates high reputation for the wrong reason. This is not a problem ValiChord can solve alone; it reflects a fundamental epistemological limit on peer validation systems.
+
+**ValiChord's current thinking:** The Phase 0 data will reveal how often validators agree with each other and what factors are associated with agreement. This is the empirical foundation the reputation model needs before any weighting scheme can be responsibly designed. The architecture is deliberately agnostic on reputation weighting at this stage — `ValidatorReputation` stores the data, but the function that converts reputation into assignment probability does not yet exist. Designing it without Phase 0 evidence would be premature and potentially harmful.
+
+The governance principle that must be preserved regardless of implementation: **no validator cohort, however experienced, should be able to prevent a credentialed newcomer from receiving assignments.** The entry credential is the floor; reputation is a signal, not a gate.
+
+This question is also a candidate for interdisciplinary collaboration — the mechanism design and political science literature on reputation systems in distributed governance has directly relevant insights. A collaborator from those fields could contribute meaningfully to Phase 1 governance design.
+
+*Resolution phase: Phase 0 generates the empirical foundation (agreement rates, validator consistency, discipline variation). Phase 1 designs the assignment weighting function informed by that data. The anti-calcification constraint is a governance principle applicable from Phase 1 onward.*
 ---
 
 **Companion Documents:**
