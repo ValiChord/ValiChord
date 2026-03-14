@@ -460,6 +460,10 @@ Carol and Dave's identical commitment hashes are flagged as a suspicious pair. T
 
 Scenario 6  Double-Blind Integrity — Researcher Identity Not Visible to Validators
 
+> **Status: NOT YET IMPLEMENTED — Phase 1 target.**
+> Researcher identity blinding is a design goal but is not architecturally enforced in the current implementation. `ValidationRequest.data_access_url` is visible to validators in full — if the URL contains researcher-identifying information the blinding is defeated. A blinding proxy service (opaque URL layer) is required before this test is meaningful. The test below describes the intended behaviour for Phase 1.
+> The *commit-reveal* blindness (validators cannot see each other's findings) is fully implemented and tested. These are two distinct properties — do not conflate them.
+
 What This Tests
 The study materials presented to validators during the validation phase do not contain the researcher's name, institution, or AgentPubKey. Validators assess the science, not the scientist.
 

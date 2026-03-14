@@ -114,7 +114,7 @@ A study moves through ValiChord in a clear sequence:
 
 **Triage.** Automated checks assess the submission: are the files complete? Is the code executable? Are dependencies documented? Studies that fail basic checks receive structured feedback through the Researcher Support pipeline rather than entering the validation queue.
 
-**Assignment.** Validators are selected through constrained randomness — matched for computational competence, screened for conflicts of interest, drawn from different institutions and geographies. Assignment is double-blind: validators don't know whose work they're assessing, and they don't know who else is validating the same study.
+**Assignment.** Validators are selected through constrained randomness — matched for computational competence, screened for conflicts of interest, drawn from different institutions and geographies. Assignment is double-blind: validators don't know whose work they're assessing, and they don't know who else is validating the same study. *(Phase 1: researcher identity blinding requires a proxy layer that serves dataset access without exposing the original URLs or researcher identity. The blind commitment protocol — validators cannot see each other's findings — is implemented and enforced now.)*
 
 **Validation.** Each validator independently downloads the data, sets up the computational environment, runs the code, and records whether they get the same results. They document their process, time invested, barriers encountered, and confidence level. Results are submitted through a blind commitment protocol — each validator privately seals their findings before anyone else's are visible, then all findings are revealed simultaneously when every validator has committed.
 

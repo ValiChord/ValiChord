@@ -1872,7 +1872,11 @@ This is not a design flaw. It is a boundary. No computational validation system 
 
 Even with commit-reveal protocols (which prevent validators from adjusting results after seeing others' findings), a subtler bias exists: a junior validator who knows they are assessing work by a senior figure at a prestigious institution may unconsciously look for reasons to confirm rather than critically assess.
 
-**Mitigation:** Double-blind validation by default. Validators do not see author names, institutional affiliations, or funding sources. They receive the study protocol, code, data, and methodology — nothing that identifies who produced it. Author identity is revealed only in the published Harmony Record, after all validators have submitted final attestations. This does not eliminate all deference bias (a validator might recognise a distinctive methodology or dataset) but it removes the most direct trigger.
+**Mitigation:** Double-blind validation by default — **Phase 1 target, not yet technically enforced.** The design intent is that validators do not see author names, institutional affiliations, or funding sources. Author identity is revealed only in the published Harmony Record, after all validators have submitted final attestations. This removes the most direct trigger for deference bias.
+
+**Current state:** `ValidationRequest` carries `data_access_url` and `protocol_access_url` fields that validators receive in full. If those URLs contain researcher-identifying information (e.g. `osf.io/jsmith/my-study`), the blinding is defeated. Enforcing it technically requires a **blinding proxy** — a service that serves dataset access via opaque URLs, stripping researcher identity before validators see the request. `researcher_institution` is already used server-side only (for COI enforcement in `validate()`) and is not intended to be displayed to validators, but this is a convention, not an architectural constraint in the current implementation.
+
+**Phase 1 engineering task:** Build a blinding proxy layer. Until then, the double-blind guarantee is an operational convention enforced by the ValiChord team, not a structural property of the network.
 
 ### Early-Phase Fragility
 

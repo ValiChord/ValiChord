@@ -113,6 +113,7 @@ These functions exist and compile but return placeholder values. They are design
 | `get_difficulty_assessment` (retrieval) | DNA 3 coordinator | **Now implemented** — returns `None` only when no assessment exists | The `assess_difficulty` function stores real entries; retrieval works via `DifficultyPath` |
 | Cumulative reputation | DNA 4 coordinator | Single-round reputation only | Multi-round cumulative tier progression |
 | Real membrane proof issuance | Outside codebase | Not implemented | A credential issuance service that signs joining agents' pubkeys with the issuer keypair |
+| Researcher identity blinding | Outside codebase | Not enforced — `ValidationRequest.data_access_url` is visible to validators in full; if the URL contains researcher identity it defeats the blinding | A blinding proxy service that serves dataset access via opaque URLs, stripping researcher identity before the `ValidationRequest` is visible to validators. Until built, double-blinding is an operational convention, not an architectural guarantee |
 
 ---
 
@@ -235,6 +236,8 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 **Membrane proof issuance service.** The credential verification is implemented and tested. What does not exist yet is the external service that issues credentials — signs a joining agent's pubkey with the authorised issuer keypair and returns the 64-byte proof. This is a Phase 1 infrastructure component. In dev/test mode, set `authorized_joining_certificate_issuer = ""` to bypass.
 
 **HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. The gateway configuration is not yet deployed. Phase 1.
+
+**Researcher identity blinding proxy.** Double-blind validation (validators cannot see researcher identity) is a design goal but is not architecturally enforced in the current implementation. `ValidationRequest.data_access_url` is visible to validators in full — if it contains researcher-identifying information (e.g. `osf.io/jsmith/my-study`), the blinding is defeated. `researcher_institution` is used server-side only for COI enforcement and is not displayed to validators, but this is a convention not a structural constraint. The fix is a blinding proxy service that replaces the original URL with an opaque token before the `ValidationRequest` is written to the DHT. Until built, double-blinding is an operational convention enforced by the ValiChord team. The commit-reveal blindness (validators cannot see *each other's findings*) is fully implemented and architecturally enforced — these are two distinct properties and only the latter is guaranteed today.
 
 ---
 
