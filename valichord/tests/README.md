@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 57 pass, 1 skipped, 0 fail** (as of 2026-03-11)
+**Status: 57 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -160,3 +160,12 @@ These are areas not yet covered by tests, ordered by value.
 - `Discipline` and `AttestationOutcome` use `#[serde(tag="type", content="content")]`
   (adjacent tagging) → `{ type: "ComputationalBiology" }` / `{ type: "Reproduced" }`.
   All other enums (`ValidationPhase`, `AgreementLevel`, etc.) use no tag → plain strings.
+- `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do **not** store
+  self-reported timestamps (`created_at_secs`, `last_updated_secs`, `issued_at_secs`).
+  Timestamps are read from the Holochain Action, which is tamper-evident. Do not add
+  timestamp fields back — they would be falsifiable.
+- `ReproducibilityBadge.issued_to` is the researcher who submitted the study, resolved
+  via a cross-DNA call to `attestation_coordinator::get_validation_request_for_data_hash`.
+  It is NOT the first participating validator.
+- `get_all_tasks` (DNA 2) uses type-safe deserialization to filter entries — not
+  hardcoded `ZomeIndex`/`EntryDefIndex` values. Do not reintroduce hardcoded indices.

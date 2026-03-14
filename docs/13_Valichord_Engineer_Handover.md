@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.0 — March 2026
+**Version:** 1.1 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 57 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below).
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 57 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -55,6 +55,8 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 `CommitmentAnchor`, `PhaseMarker`, and `ValidationAttestation` are all immutable after creation — enforced in `validate()` and tested.
 
+`get_validation_request_for_data_hash(data_hash: ExternalHash)` is a public extern registered in `init()`. It resolves a `ValidationRequest` record from the `study.{data_hash}` path. Used by DNA 4 to identify the researcher (record author) when issuing a `ReproducibilityBadge`.
+
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
 ---
@@ -67,6 +69,10 @@ Public DHT, HTTP Gateway target. Stores final outcomes — Harmony Records, Repr
 Write access is gated by DNA properties keys (`harmony_record_creator_key`, `system_coordinator_key`) enforced in `validate()`. Author check compares `action.author().to_string()` against the property string. Empty string = dev/test bypass (same pattern as membrane proof).
 
 `HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are immutable. `ValidatorReputation` allows updates (coordinator key enforced).
+
+**No self-reported timestamps.** `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do not store `created_at_secs`, `last_updated_secs`, or `issued_at_secs` fields. These were removed because Holochain Actions carry an authoritative, tamper-evident timestamp — self-reported timestamps in entry content are falsifiable and redundant. Do not add them back.
+
+**Badge recipient is the researcher, not the first validator.** `ReproducibilityBadge.issued_to` is resolved via a cross-DNA call: `call(OtherRole("attestation"), "get_validation_request_for_data_hash", data_hash)`. The record's `action().author()` is the researcher who submitted the study. Falls back to the first participating validator if the cross-DNA call fails.
 
 `check_and_create_harmony_record` is idempotent — checks for an existing record before creating. Called from DNA 3's `post_commit` after a `ValidationAttestation` is written.
 
@@ -130,7 +136,10 @@ There is a `pack_dna.py` script in the repo. It has a bug that embeds the attest
 ### 9. verify_signature is HDK-only — not available in integrity zomes
 Integrity zomes run in a restricted WASM environment without host function access to the keystore. `verify_signature` is an HDK function. All cryptographic verification must go in coordinator zomes, not integrity zomes. The validate() callback in an integrity zome cannot call it.
 
-### 10. dhtSync with 7+ conductors exhausts websocket connections in Codespaces
+### 10. Do not use hardcoded ZomeIndex or EntryDefIndex
+`get_all_tasks` and `post_commit` in DNA 2 previously filtered entries using hardcoded `ZomeIndex(0)` and `EntryDefIndex(0/1)`. These indices break silently if the order of entry type declarations ever changes. The correct pattern is to filter by attempting deserialization: `r.entry().to_app_option::<MyType>().ok().flatten().is_some()`. Any coordinator function that needs to identify a specific entry type from the source chain must use this pattern.
+
+### 11. dhtSync with 7+ conductors exhausts websocket connections in Codespaces
 The Gold badge test (7 validators) is skipped because spinning up 7 simultaneous Holochain conductors exhausts available websocket connections in resource-constrained environments (Codespaces, CI with <16GB RAM). The test logic is correct. Run it on hardware with ≥16GB RAM or a GitHub Actions runner with a large instance.
 
 ---
