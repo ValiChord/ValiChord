@@ -257,3 +257,57 @@ describe("3. get_all_tasks", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 4. get_all_private_attestations
+// ---------------------------------------------------------------------------
+//
+// get_all_private_attestations was missing — no way to list sealed
+// attestations without knowing every attestation ActionHash in advance.
+// Uses query() + deserialization filter, identical pattern to get_all_tasks.
+
+describe("4. get_all_private_attestations", () => {
+  test(
+    "returns empty list when no attestations sealed",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const attestations = await ws(alice, "get_all_private_attestations", null);
+        expect(attestations).toHaveLength(0);
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "returns all sealed attestations across multiple tasks",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const task1Hash = await ws(alice, "receive_task", makeTask(fakeExternalHash(0x01)));
+        const task2Hash = await ws(alice, "receive_task", makeTask(fakeExternalHash(0x02)));
+
+        await ws(alice, "seal_private_attestation", {
+          task_hash: task1Hash,
+          attestation: makePrivateAttestation(fakeExternalHash(0x01)),
+        });
+        await ws(alice, "seal_private_attestation", {
+          task_hash: task2Hash,
+          attestation: makePrivateAttestation(fakeExternalHash(0x02)),
+        });
+
+        const attestations = await ws(alice, "get_all_private_attestations", null);
+        expect(attestations).toHaveLength(2);
+
+        // All ActionHashes must be distinct.
+        const hashes = (attestations as any[]).map((r: any) =>
+          Buffer.from(r?.signed_action?.hashed?.hash as Uint8Array).toString("base64"),
+        );
+        expect(new Set(hashes).size).toBe(2);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});

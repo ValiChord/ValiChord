@@ -410,3 +410,54 @@ describe("6. PreRegisteredProtocol immutability (delete)", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 7. get_all_studies
+// ---------------------------------------------------------------------------
+//
+// get_all_studies was missing from the coordinator — no way to list studies
+// without knowing every ActionHash in advance. Uses query() + deserialization
+// filter, same pattern as validator_workspace's get_all_tasks.
+
+describe("7. get_all_studies", () => {
+  test(
+    "returns empty list when no studies registered",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        const studies = await repo(alice, "get_all_studies", null);
+        expect(studies).toHaveLength(0);
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "returns all registered studies",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
+
+        await repo(alice, "register_study", makeStudy({ title: "Study Alpha" }));
+        await repo(alice, "register_study", makeStudy({ title: "Study Beta" }));
+        await repo(alice, "register_study", makeStudy({ title: "Study Gamma" }));
+
+        const studies = await repo(alice, "get_all_studies", null);
+        expect(studies).toHaveLength(3);
+
+        const titles = (studies as any[]).map((r: any) => {
+          // ResearchStudy is a private entry — entry bytes are present locally.
+          // Title is the first string field; decode via JSON is not available.
+          // Instead verify ActionHashes are distinct (3 unique records).
+          return Buffer.from(
+            r?.signed_action?.hashed?.hash as Uint8Array,
+          ).toString("base64");
+        });
+        // All three ActionHashes must be distinct.
+        expect(new Set(titles).size).toBe(3);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});

@@ -78,6 +78,26 @@ pub fn get_private_attestation_for_task(
     }
 }
 
+/// Return all ValidatorPrivateAttestation records from the local source chain.
+///
+/// Uses query() + deserialization filter — avoids hardcoded ZomeIndex which
+/// breaks silently if entry ordering changes.
+#[hdk_extern]
+pub fn get_all_private_attestations(_: ()) -> ExternResult<Vec<Record>> {
+    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let attestations = records
+        .into_iter()
+        .filter(|r| {
+            r.entry()
+                .to_app_option::<ValidatorPrivateAttestation>()
+                .ok()
+                .flatten()
+                .is_some()
+        })
+        .collect();
+    Ok(attestations)
+}
+
 /// Return all ValidationTask records from the local source chain.
 ///
 /// Queries all private entries and filters by successful deserialization as

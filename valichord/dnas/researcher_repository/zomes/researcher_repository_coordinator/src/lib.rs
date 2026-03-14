@@ -47,6 +47,26 @@ pub fn register_study(study: ResearchStudy) -> ExternResult<ActionHash> {
     create_entry(EntryTypes::ResearchStudy(study))
 }
 
+/// Return all ResearchStudy records from this agent's local source chain.
+///
+/// Uses query() + deserialization filter — avoids hardcoded ZomeIndex which
+/// breaks silently if entry ordering changes.
+#[hdk_extern]
+pub fn get_all_studies(_: ()) -> ExternResult<Vec<Record>> {
+    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let studies = records
+        .into_iter()
+        .filter(|r| {
+            r.entry()
+                .to_app_option::<ResearchStudy>()
+                .ok()
+                .flatten()
+                .is_some()
+        })
+        .collect();
+    Ok(studies)
+}
+
 /// Register a pre-registered protocol and link it from the parent study.
 ///
 /// PreRegisteredProtocol is IMMUTABLE after this call — validate() enforces
