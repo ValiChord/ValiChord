@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 71 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 73 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -83,6 +83,10 @@ Write access is gated by DNA properties keys (`harmony_record_creator_key`, `sys
 `create_governance_decision(input: GovernanceDecision)` writes a `GovernanceDecision` entry and indexes it under the `decisions.all` path anchor via `AllDecisions` link type. Gated by `harmony_record_creator_key` in `validate()`.
 
 `get_all_governance_decisions()` reads via `AllDecisions` links from the path anchor. Network-strategy get.
+
+`get_validators_for_institution(institution: String)` reads via `InstitutionPath` links from "institution.{institution}" anchor. `publish_validator_profile` now writes both `ValidatorTierPath` (discipline) and `InstitutionPath` (institution) links.
+
+`get_attestations_for_discipline(discipline: Discipline)` reads via `DisciplinePath` links from "attestations.{discipline_tag}" anchor. Written by `submit_attestation`.
 
 `get_badges_by_type(badge_type: BadgeType)` reads all badges of a given type via the `BadgePath` link index. Accepts a plain string enum variant (e.g. `"BronzeReproducible"`).
 
@@ -193,11 +197,11 @@ cd tests && npm test
 
 ## Test Inventory Summary
 
-71 tests across 4 files, 1 skipped.
+73 tests across 4 files, 1 skipped.
 
 | File | Tests | Coverage |
 |---|---|---|
-| `attestation.test.ts` | 30 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash` |
+| `attestation.test.ts` | 32 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline` |
 | `governance.test.ts` | 20 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards |
 | `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
 | `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |

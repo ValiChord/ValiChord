@@ -20,7 +20,9 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "recv_remote_signal",
         "get_validation_request",
         "get_attestations_for_request",
+        "get_attestations_for_discipline",
         "get_validators_for_discipline",
+        "get_validators_for_institution",
         "get_pending_requests_for_discipline",
         "get_validator_profile",
         "check_all_commitments_sealed",
@@ -192,8 +194,9 @@ pub fn publish_validator_profile(
     profile: ValidatorProfile,
 ) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
-    // Extract disciplines before profile is consumed by create_entry.
+    // Extract fields before profile is consumed by create_entry.
     let disciplines = profile.disciplines.clone();
+    let institution = profile.institution.clone();
     let profile_hash = create_entry(EntryTypes::ValidatorProfile(profile))?;
     create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, ())?;
 
@@ -209,6 +212,18 @@ pub fn publish_validator_profile(
             (),
         )?;
     }
+
+    // Index by institution so get_validators_for_institution can find this profile.
+    // Used for conflict-of-interest detection in validator assignment.
+    let inst_path = Path::from(format!("institution.{}", institution))
+        .typed(LinkTypes::InstitutionPath)?;
+    inst_path.ensure()?;
+    create_link(
+        inst_path.path_entry_hash()?,
+        profile_hash.clone(),
+        LinkTypes::InstitutionPath,
+        (),
+    )?;
 
     Ok(profile_hash)
 }
@@ -349,6 +364,55 @@ pub fn get_validators_for_discipline(
         .typed(LinkTypes::ValidatorTierPath)?;
     let links = get_links(
         LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
+}
+
+/// Return all ValidatorProfile records for validators affiliated with an institution.
+///
+/// The InstitutionPath index is written by publish_validator_profile under
+/// "institution.{institution}" paths. Used for conflict-of-interest detection
+/// in validator assignment — prevents assigning validators from the same
+/// institution as the researcher.
+#[hdk_extern]
+pub fn get_validators_for_institution(institution: String) -> ExternResult<Vec<Record>> {
+    let inst_path = Path::from(format!("institution.{}", institution))
+        .typed(LinkTypes::InstitutionPath)?;
+    let links = get_links(
+        LinkQuery::try_new(inst_path.path_entry_hash()?, LinkTypes::InstitutionPath)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
+}
+
+/// Return all ValidationAttestation records for a given discipline.
+///
+/// The DisciplinePath index is written by submit_attestation under
+/// "attestations.{discipline_tag}" paths. Useful for cross-study analytics
+/// — e.g. aggregate outcomes across all ComputationalBiology validations.
+#[hdk_extern]
+pub fn get_attestations_for_discipline(discipline: Discipline) -> ExternResult<Vec<Record>> {
+    let disc_path = Path::from(format!("attestations.{}", discipline_tag(&discipline)))
+        .typed(LinkTypes::DisciplinePath)?;
+    let links = get_links(
+        LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::DisciplinePath)?,
         GetStrategy::Network,
     )?;
     let mut records = Vec::new();

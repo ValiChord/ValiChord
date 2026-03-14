@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 71 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 73 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -82,7 +82,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (30 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (32 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -117,6 +117,8 @@ cd tests && npm test
 | 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |
 | 17.1 | get_validation_request_for_data_hash returns the record for a known data_hash | PASS |
 | 17.2 | get_validation_request_for_data_hash returns null for an unknown data_hash | PASS |
+| 18.1 | get_validators_for_institution returns profiles for matching institution, empty for non-matching | PASS |
+| 19.1 | get_attestations_for_discipline returns attestation for matching discipline, empty for non-matching | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
@@ -190,4 +192,10 @@ These are areas not yet covered by tests, ordered by value.
   `check_and_create_harmony_record` and read by `get_badges_by_type`. It indexes
   badges by type for cross-study analytics (e.g. "how many Bronze badges this quarter").
 - `AllDecisions` link type (DNA 4) is written by `create_governance_decision` and
-  read by `get_all_governance_decisions` via an "decisions.all" path anchor.
+  read by `get_all_governance_decisions` via a "decisions.all" path anchor.
+- `InstitutionPath` link type (DNA 3) is written by `publish_validator_profile` under
+  "institution.{institution}" paths and read by `get_validators_for_institution`.
+  Used for conflict-of-interest detection in validator assignment.
+- `DisciplinePath` link type (DNA 3) is written by `submit_attestation` under
+  "attestations.{discipline_tag}" paths and read by `get_attestations_for_discipline`.
+  Provides cross-study analytics on attestation outcomes by discipline.

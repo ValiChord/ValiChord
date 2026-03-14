@@ -1708,3 +1708,107 @@ describe("16. check_all_commitments_sealed direct call", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 18. get_validators_for_institution — InstitutionPath index
+// ---------------------------------------------------------------------------
+//
+// publish_validator_profile now writes two link indexes:
+//   - ValidatorTierPath: "validators.{discipline_tag}" → profile hash
+//   - InstitutionPath:   "institution.{institution}"   → profile hash
+//
+// get_validators_for_institution queries the InstitutionPath index.
+// Used for conflict-of-interest detection in validator assignment.
+
+describe("18. get_validators_for_institution", () => {
+  test(
+    "returns profiles for matching institution, empty for non-matching",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const mitProfile = {
+          institution: "MIT",
+          disciplines: [{ type: "ComputationalBiology" }],
+          certification_tier: "Provisional",
+          available: true,
+          max_concurrent_tasks: 3,
+          orcid: null,
+        };
+        const oxfordProfile = {
+          institution: "Oxford",
+          disciplines: [{ type: "MachineLearning" }],
+          certification_tier: "Provisional",
+          available: true,
+          max_concurrent_tasks: 2,
+          orcid: null,
+        };
+
+        await zomeCall(alice, "publish_validator_profile", mitProfile);
+        await zomeCall(bob,   "publish_validator_profile", oxfordProfile);
+        await dhtSync([alice, bob], dnaHash!);
+
+        // MIT has 1 validator; Oxford has 1; Cambridge has 0.
+        const mitResults = await zomeCall<unknown[]>(alice, "get_validators_for_institution", "MIT");
+        expect(mitResults).toHaveLength(1);
+
+        const oxfordResults = await zomeCall<unknown[]>(alice, "get_validators_for_institution", "Oxford");
+        expect(oxfordResults).toHaveLength(1);
+
+        const cambridgeResults = await zomeCall<unknown[]>(alice, "get_validators_for_institution", "Cambridge");
+        expect(cambridgeResults).toHaveLength(0);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 19. get_attestations_for_discipline — DisciplinePath index
+// ---------------------------------------------------------------------------
+//
+// submit_attestation writes a DisciplinePath link under
+// "attestations.{discipline_tag}" → attestation hash.
+//
+// get_attestations_for_discipline queries that path. Useful for cross-study
+// analytics — e.g. aggregate outcomes across a discipline cohort.
+
+describe("19. get_attestations_for_discipline", () => {
+  test(
+    "returns attestation for matching discipline, empty for non-matching",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xd1);
+
+        // Alice submits a ComputationalBiology attestation.
+        await zomeCall(alice, "submit_attestation", makeAttestation(REQUEST_REF));
+        await dhtSync([alice, bob], dnaHash!);
+
+        // ComputationalBiology has 1 attestation.
+        const compBioAtts = await zomeCall<unknown[]>(
+          alice, "get_attestations_for_discipline", { type: "ComputationalBiology" },
+        );
+        expect(compBioAtts).toHaveLength(1);
+
+        // MachineLearning has no attestations.
+        const mlAtts = await zomeCall<unknown[]>(
+          alice, "get_attestations_for_discipline", { type: "MachineLearning" },
+        );
+        expect(mlAtts).toHaveLength(0);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});
