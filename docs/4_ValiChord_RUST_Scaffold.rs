@@ -2,7 +2,7 @@
 // ValiChord — Distributed Validation Infrastructure for Computational Research
 // =============================================================================
 //
-// ARCHITECTURE SCAFFOLD — v12 — March 2026
+// ARCHITECTURE SCAFFOLD — v13 — March 2026
 //
 // This file is a single-file representation of ValiChord's four Holochain
 // DNA membranes, written for a Holochain engineer to read and work from.
@@ -25,12 +25,45 @@
 //
 // STATUS
 //
-//   Entry types and link types:     Complete — match scaffolding plan
-//   Validate callbacks:             Written — not production-audited
-//   Coordinator functions:          Stubbed — marked TODO for implementation
-//   init() capability grants:       Written — requires review against SDK version
-//   DNA properties:                 Specified — plug in real AgentPubKey values
-//   Tests:                          Placeholder structure — expand with Tryorama
+//   Entry types and link types:     Complete — match implemented code
+//   Validate callbacks:             Implemented and tested
+//   Coordinator functions:          Implemented — 73 integration tests passing
+//   init() capability grants:       Implemented and tested
+//   DNA properties:                 In use — empty string = dev/test bypass pattern
+//   Tests:                          73 pass, 1 skipped (GoldReproducible — hardware limit)
+//
+//   AUTHORITATIVE SOURCE: valichord/dnas/ — this scaffold is an architectural
+//   reference, not a code mirror. Function stubs are structural markers;
+//   see the real crates for full implementations.
+//
+// CHANGES IN v13 (from v12)
+//
+//   IMPLEMENTATION COMPLETE — ALL COORDINATOR FUNCTIONS NOW EXIST:
+//   - DNA 1: get_all_studies() — source-chain list query via deserialization filter
+//   - DNA 2: get_all_private_attestations() — same pattern as get_all_tasks
+//   - DNA 3: get_validators_for_institution(institution: String)
+//            — InstitutionPath index; used for conflict-of-interest detection.
+//            publish_validator_profile() now also writes InstitutionPath links
+//            (alongside ValidatorTierPath discipline links).
+//   - DNA 3: get_attestations_for_discipline(discipline: Discipline)
+//            — DisciplinePath index; cross-study analytics by discipline.
+//   - DNA 4: create_governance_decision() + get_all_governance_decisions()
+//            — AllDecisions link type added to governance_integrity.
+//            Note: this scaffold had record_governance_decision(); real code
+//            uses create_governance_decision() which also writes AllDecisions links.
+//   - DNA 4: get_badges_by_type(badge_type: BadgeType)
+//            — BadgePath index; check_and_create_harmony_record now writes both
+//            StudyToBadge (per-study) and BadgePath (by type) links at issuance.
+//
+//   TIMESTAMP FIELDS REMOVED:
+//   - HarmonyRecord, ValidatorReputation, ReproducibilityBadge no longer store
+//     self-reported timestamps (created_at_secs etc.) — Holochain Action
+//     timestamps are authoritative and tamper-evident. Do not add them back.
+//
+//   BADGE RECIPIENT:
+//   - ReproducibilityBadge.issued_to is the researcher (ValidationRequest author)
+//     resolved via cross-DNA call to get_validation_request_for_data_hash().
+//     It is NOT the first participating validator.
 //
 // CHANGES IN v12 (from v11)
 //
@@ -534,6 +567,16 @@ pub mod researcher_repository {
             Ok(records)
         }
 
+        /// Return all ResearchStudy records from this agent's local source chain.
+        /// Uses query() + deserialization filter — avoids hardcoded ZomeIndex.
+        #[hdk_extern]
+        pub fn get_all_studies(_: ()) -> ExternResult<Vec<Record>> {
+            let records = query(ChainQueryFilter::new().include_entries(true))?;
+            Ok(records.into_iter().filter(|r| {
+                r.entry().to_app_option::<integrity::ResearchStudy>().ok().flatten().is_some()
+            }).collect())
+        }
+
         /// Compute SHA-256 of research materials before transmitting the hash
         /// outward to the Attestation DNA.
         ///
@@ -711,6 +754,17 @@ pub mod validator_workspace {
         #[hdk_extern]
         pub fn get_task(task_hash: ActionHash) -> ExternResult<Option<Record>> {
             get(task_hash, GetOptions::local())
+        }
+
+        /// Return all sealed ValidatorPrivateAttestation records from the local
+        /// source chain. Uses query() + deserialization filter.
+        /// Parallel to get_all_tasks; avoids hardcoded ZomeIndex.
+        #[hdk_extern]
+        pub fn get_all_private_attestations(_: ()) -> ExternResult<Vec<Record>> {
+            let records = query(ChainQueryFilter::new().include_entries(true))?;
+            Ok(records.into_iter().filter(|r| {
+                r.entry().to_app_option::<integrity::ValidatorPrivateAttestation>().ok().flatten().is_some()
+            }).collect())
         }
 
         #[hdk_extern]
@@ -1335,8 +1389,23 @@ pub mod attestation {
             profile: integrity::ValidatorProfile,
         ) -> ExternResult<ActionHash> {
             let agent = agent_info()?.agent_initial_pubkey;
+            let institution = profile.institution.clone();
+            let disciplines = profile.disciplines.clone();
             let profile_hash = create_entry(EntryTypes::ValidatorProfile(profile))?;
             create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, ())?;
+            // Index by discipline (ValidatorTierPath) for get_validators_for_discipline.
+            for disc in &disciplines {
+                let disc_path = Path::from(format!("validators.{}", discipline_tag(disc)))
+                    .typed(LinkTypes::ValidatorTierPath)?;
+                disc_path.ensure()?;
+                create_link(disc_path.path_entry_hash()?, profile_hash.clone(), LinkTypes::ValidatorTierPath, ())?;
+            }
+            // Index by institution (InstitutionPath) for get_validators_for_institution.
+            // Used for conflict-of-interest detection: prevents same-institution validators.
+            let inst_path = Path::from(format!("institution.{}", institution))
+                .typed(LinkTypes::InstitutionPath)?;
+            inst_path.ensure()?;
+            create_link(inst_path.path_entry_hash()?, profile_hash.clone(), LinkTypes::InstitutionPath, ())?;
             Ok(profile_hash)
         }
 
@@ -1388,8 +1457,56 @@ pub mod attestation {
         pub fn get_validators_for_discipline(
             discipline: Discipline,
         ) -> ExternResult<Vec<Record>> {
-            // TODO: Query the discipline path and retrieve profiles.
-            Ok(Vec::new())
+            let disc_path = Path::from(format!("validators.{}", discipline_tag(&discipline)))
+                .typed(LinkTypes::ValidatorTierPath)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
+                }
+            }
+            Ok(records)
+        }
+
+        /// Return ValidatorProfile records for all validators at a given institution.
+        /// InstitutionPath index written by publish_validator_profile.
+        /// Used for conflict-of-interest detection in validator assignment.
+        #[hdk_extern]
+        pub fn get_validators_for_institution(institution: String) -> ExternResult<Vec<Record>> {
+            let inst_path = Path::from(format!("institution.{}", institution))
+                .typed(LinkTypes::InstitutionPath)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(inst_path.path_entry_hash()?, LinkTypes::InstitutionPath)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
+                }
+            }
+            Ok(records)
+        }
+
+        /// Return all ValidationAttestation records for a given discipline.
+        /// DisciplinePath index written by submit_attestation.
+        /// Useful for cross-study analytics — aggregate outcomes by discipline.
+        #[hdk_extern]
+        pub fn get_attestations_for_discipline(discipline: Discipline) -> ExternResult<Vec<Record>> {
+            let disc_path = Path::from(format!("attestations.{}", discipline_tag(&discipline)))
+                .typed(LinkTypes::DisciplinePath)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(disc_path.path_entry_hash()?, LinkTypes::DisciplinePath)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
+                }
+            }
+            Ok(records)
         }
 
         #[hdk_extern]
@@ -2170,11 +2287,59 @@ pub mod governance {
             Ok(badge_hash)
         }
 
+        /// Create a GovernanceDecision entry and index it under the AllDecisions
+        /// path anchor so get_all_governance_decisions can list every decision.
+        /// Note: scaffold v12 had record_governance_decision(); real code uses
+        /// create_governance_decision() which also writes AllDecisions links.
         #[hdk_extern]
-        pub fn record_governance_decision(
+        pub fn create_governance_decision(
             decision: integrity::GovernanceDecision,
         ) -> ExternResult<ActionHash> {
-            create_entry(EntryTypes::GovernanceDecision(decision))
+            let hash = create_entry(EntryTypes::GovernanceDecision(decision))?;
+            let anchor = Path::from("decisions.all").typed(LinkTypes::AllDecisions)?;
+            anchor.ensure()?;
+            create_link(anchor.path_entry_hash()?, hash.clone(), LinkTypes::AllDecisions, ())?;
+            Ok(hash)
+        }
+
+        /// Return all GovernanceDecision records via the AllDecisions path index.
+        #[hdk_extern]
+        pub fn get_all_governance_decisions(_: ()) -> ExternResult<Vec<Record>> {
+            let anchor = Path::from("decisions.all").typed(LinkTypes::AllDecisions)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(anchor.path_entry_hash()?, LinkTypes::AllDecisions)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
+                }
+            }
+            Ok(records)
+        }
+
+        /// Return all ReproducibilityBadge records of a given type via BadgePath index.
+        /// Written by check_and_create_harmony_record at badge issuance.
+        /// Useful for cross-study analytics — e.g. "how many Bronze badges this quarter".
+        #[hdk_extern]
+        pub fn get_badges_by_type(badge_type: integrity::BadgeType) -> ExternResult<Vec<Record>> {
+            let tag = match badge_type {
+                integrity::BadgeType::GoldReproducible   => "gold",
+                integrity::BadgeType::SilverReproducible => "silver",
+                integrity::BadgeType::BronzeReproducible => "bronze",
+                integrity::BadgeType::FailedReproduction => "failed",
+            };
+            let path = Path::from(format!("badge.{}", tag)).typed(LinkTypes::BadgePath)?;
+            let links = get_links(
+                GetLinksInputBuilder::try_new(path.path_entry_hash()?, LinkTypes::BadgePath)?.build(),
+            )?;
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
+                }
+            }
+            Ok(records)
         }
 
         /// Only the system_coordinator_key agent may call this successfully.
