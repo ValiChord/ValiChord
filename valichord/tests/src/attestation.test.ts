@@ -283,7 +283,7 @@ function makeAttestation(requestRef: Uint8Array) {
 describe("1. Membrane proof", () => {
   test(
     "agent with valid membrane proof (>= 64 bytes) can join the attestation DNA",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         // An agent with a sufficiently-long proof joins without error.
@@ -302,13 +302,13 @@ describe("1. Membrane proof", () => {
 
         // No PhaseMarker written yet — should return null/undefined.
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "agent with no membrane proof is rejected at genesis_self_check",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Missing proof should cause genesis_self_check to fail, so
@@ -316,25 +316,25 @@ describe("1. Membrane proof", () => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(undefined)]),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(shortMembraneProof())]),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "agent with valid real Ed25519 proof is accepted by coordinator init",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const privKey = ed.utils.randomPrivateKey();
@@ -389,13 +389,13 @@ describe("1. Membrane proof", () => {
           payload: fakeExternalHash(0x01),
         });
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "agent with wrong-signature proof is rejected by coordinator init",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const privKey = ed.utils.randomPrivateKey();
@@ -452,7 +452,7 @@ describe("1. Membrane proof", () => {
             payload: fakeExternalHash(0x01),
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -473,7 +473,7 @@ describe("1. Membrane proof", () => {
 describe("2. Full commit-reveal round", () => {
   test(
     "two validators commit, phase opens, both reveal, attestations retrievable",
-    { timeout: 240_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -549,7 +549,7 @@ describe("2. Full commit-reveal round", () => {
           REQUEST_REF,
         );
         expect(attestations).toHaveLength(2);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -568,7 +568,7 @@ describe("2. Full commit-reveal round", () => {
 describe("3. DHT-poll phase transition", () => {
   test(
     "late-joining validator discovers RevealOpen by polling, not via signal",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [carol, dave, eve] = await scenario.addPlayersWithApps([
@@ -614,7 +614,7 @@ describe("3. DHT-poll phase transition", () => {
         // The test passes regardless of whether the signal arrived.
         // This confirms the design: DHT state is the source of truth.
         console.log(`[test] Eve received signal: ${eveReceivedSignal} (irrelevant to correctness)`);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -633,7 +633,7 @@ describe("3. DHT-poll phase transition", () => {
 describe("5. ValidatorProfile and DifficultyAssessment", () => {
   test(
     "published validator profile is retrievable by agent public key",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -665,13 +665,13 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           alice.agentPubKey,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_validator_profile returns null when no profile published",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -684,13 +684,13 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           alice.agentPubKey,
         );
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -729,7 +729,7 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
         // A different request_ref that was never assessed still returns null.
         const nullResult = await zomeCall<unknown>(alice, "get_difficulty_assessment", UNASSESSED_REF);
         expect(nullResult).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -741,7 +741,7 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
 describe("6. ValidationRequest lifecycle", () => {
   test(
     "submitted ValidationRequest is retrievable by its ActionHash",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -761,13 +761,13 @@ describe("6. ValidationRequest lifecycle", () => {
           requestHash,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_validation_request returns null for an unknown ActionHash",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -786,7 +786,7 @@ describe("6. ValidationRequest lifecycle", () => {
           unknownHash,
         );
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -806,7 +806,7 @@ describe("6. ValidationRequest lifecycle", () => {
 describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () => {
   test(
     "attempting to update a CommitmentAnchor is rejected (no update function in API)",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -828,13 +828,13 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
           }),
         ).rejects.toThrow();
         // Rejection confirms no update path exists in the public API.
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "attempting to update a PhaseMarker is rejected (no update function in API)",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -866,13 +866,13 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "attempting to delete a PhaseMarker is rejected (no delete function in API)",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -898,7 +898,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -914,7 +914,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
 describe("8. ValidationRequest query by discipline", () => {
   test(
     "get_pending_requests_for_discipline returns submitted request for matching discipline",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -931,13 +931,13 @@ describe("8. ValidationRequest query by discipline", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(1);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_pending_requests_for_discipline returns empty for a different discipline",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -954,7 +954,7 @@ describe("8. ValidationRequest query by discipline", () => {
           { type: "MachineLearning" },
         );
         expect(records).toHaveLength(0);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -963,7 +963,7 @@ describe("8. ValidationRequest query by discipline", () => {
 describe("4. ValidationAttestation immutability", () => {
   test(
     "attempting to update a ValidationAttestation is rejected by validate()",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -999,13 +999,13 @@ describe("4. ValidationAttestation immutability", () => {
         //
         // The rejection of zome_call (function-not-found) is the EXPECTED outcome
         // and is treated as passing this test.
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "attempting to delete a CommitmentAnchor is rejected by validate()",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1031,7 +1031,7 @@ describe("4. ValidationAttestation immutability", () => {
           }),
         ).rejects.toThrow();
         // Rejection confirms no delete path exists in the public API.
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1057,7 +1057,7 @@ describe("4. ValidationAttestation immutability", () => {
 describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
   test(
     "seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1123,7 +1123,7 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
         );
         expect(phase).not.toBeNull();
         expect(phase).toBe("RevealOpen");
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1145,7 +1145,7 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
 describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
   test(
     "Bob cannot read Alice's sealed private attestation from Bob's workspace cell",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1188,7 +1188,7 @@ describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
           bob, "get_private_attestation_for_task", aliceTaskHash,
         );
         expect(bobRecord).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1204,7 +1204,7 @@ describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
 describe("11. Phase threshold — single validator below minimum_validators", () => {
   test(
     "one commit with minimum_validators=2 leaves phase as null",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1230,7 +1230,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
           bob, "get_current_phase", REQUEST_REF,
         );
         expect(phaseBob).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1258,7 +1258,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
 describe("12. Badge thresholds — Silver and Gold", () => {
   test(
     "5 validators all Reproduced → SilverReproducible badge issued",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const N = 5;
@@ -1313,7 +1313,7 @@ describe("12. Badge thresholds — Silver and Gold", () => {
           };
           expect(badge.badge_type).toBe("SilverReproducible");
         }
-      }, true, { timeout: 600_000 });
+      }, true, { timeout: 1_800_000 });
     },
   );
 
@@ -1322,7 +1322,7 @@ describe("12. Badge thresholds — Silver and Gold", () => {
   // RAM). The test logic is correct; run it on adequately resourced hardware.
   test.skip(
     "7 validators all Reproduced → GoldReproducible badge issued",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const N = 7;
@@ -1362,7 +1362,7 @@ describe("12. Badge thresholds — Silver and Gold", () => {
           };
           expect(badge.badge_type).toBe("GoldReproducible");
         }
-      }, true, { timeout: 600_000 });
+      }, true, { timeout: 1_800_000 });
     },
   );
 });
@@ -1378,7 +1378,7 @@ describe("12. Badge thresholds — Silver and Gold", () => {
 describe("13. FailedReproduction badge", () => {
   test(
     "2 validators both FailedToReproduce → FailedReproduction badge issued",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1418,7 +1418,7 @@ describe("13. FailedReproduction badge", () => {
           };
           expect(badge.badge_type).toBe("FailedReproduction");
         }
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1437,7 +1437,7 @@ describe("13. FailedReproduction badge", () => {
 describe("14. Validator reputation", () => {
   test(
     "update then get_validator_reputation returns the written record",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1462,7 +1462,7 @@ describe("14. Validator reputation", () => {
           alice, "get_validator_reputation", alice.agentPubKey,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1478,7 +1478,7 @@ describe("14. Validator reputation", () => {
 describe("15. get_validators_for_discipline", () => {
   test(
     "two profiles published for ComputationalBiology — both returned; MachineLearning returns 0",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1517,7 +1517,7 @@ describe("15. get_validators_for_discipline", () => {
           { type: "MachineLearning" },
         );
         expect(mlProfiles).toHaveLength(0);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -1537,7 +1537,7 @@ describe("15. get_validators_for_discipline", () => {
 describe("16. check_all_commitments_sealed direct call", () => {
   test(
     "returns false after 1 of 2 commits, true after 2nd commit",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1567,7 +1567,7 @@ describe("16. check_all_commitments_sealed direct call", () => {
           alice, "check_all_commitments_sealed", REQUEST_REF,
         );
         expect(afterSecond).toBe(true);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });

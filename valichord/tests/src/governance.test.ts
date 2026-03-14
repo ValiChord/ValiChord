@@ -223,7 +223,7 @@ function dnaHashForRole(player: any, roleName: string): Uint8Array {
 describe("1. check_and_create_harmony_record idempotency", () => {
   test(
     "two calls for the same request_ref with no attestations both return null",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Step 1: create conductor + register key in lair.
@@ -249,13 +249,13 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // No record on the DHT.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "second call short-circuits when HarmonyRecord already exists",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -296,7 +296,7 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // Exactly one record visible.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).not.toBeNull();
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -308,7 +308,7 @@ describe("1. check_and_create_harmony_record idempotency", () => {
 describe("2. Author enforcement", () => {
   test(
     "HarmonyRecord creation from non-creator key is rejected by validate()",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Alice joins with the PLACEHOLDER key (which is not her real key).
@@ -330,13 +330,13 @@ describe("2. Author enforcement", () => {
         await expect(
           gov(alice, "check_and_create_harmony_record", requestRef),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "agent key does not equal placeholder key (validate() precondition)",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer] = await scenario.addPlayers(1);
@@ -347,7 +347,7 @@ describe("2. Author enforcement", () => {
         // Sanity-check: the test relies on alice's actual key being different
         // from the placeholder so validate() fires correctly.
         expect(encodeHashToBase64(alice.agentPubKey)).not.toBe(PLACEHOLDER_KEY);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -359,7 +359,7 @@ describe("2. Author enforcement", () => {
 describe("3. Full end-to-end round", () => {
   test(
     "researcher → request → validator attestations → HarmonyRecord on public DHT",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Pre-register admin key in lair, then bake it into governance DNA props.
@@ -435,7 +435,7 @@ describe("3. Full end-to-end round", () => {
         // 8. HarmonyRecord is visible on the public DHT.
         const harmonyRecord = await gov(admin, "get_harmony_record", requestRef);
         expect(harmonyRecord).not.toBeNull();
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -447,7 +447,7 @@ describe("3. Full end-to-end round", () => {
 describe("4. ValidatorReputation author enforcement", () => {
   test(
     "reputation update from non-coordinator key is rejected by validate()",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer] = await scenario.addPlayers(1);
@@ -465,13 +465,13 @@ describe("4. ValidatorReputation author enforcement", () => {
             time_invested_secs: 3600,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "reputation update from system_coordinator_key is accepted",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -492,7 +492,7 @@ describe("4. ValidatorReputation author enforcement", () => {
 
         const rep = await gov(admin, "get_validator_reputation", admin.agentPubKey);
         expect(rep).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -504,7 +504,7 @@ describe("4. ValidatorReputation author enforcement", () => {
 describe("5. Read queries", () => {
   test(
     "get_harmony_records_by_discipline returns the record after creation",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -542,13 +542,13 @@ describe("5. Read queries", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(1);
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_harmony_records_by_discipline returns empty array when no records exist",
-    { timeout: 180_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -565,13 +565,13 @@ describe("5. Read queries", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(0);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_badges_for_study returns empty when validator count < 3 (no badge threshold met)",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -604,7 +604,7 @@ describe("5. Read queries", () => {
         // No badge should be linked — count too low for any tier.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(0);
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -626,7 +626,7 @@ describe("5. Read queries", () => {
 describe("6. Badge positive case", () => {
   test(
     "get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
@@ -675,7 +675,7 @@ describe("6. Badge positive case", () => {
         // Exactly one badge should be linked to this study_ref.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(1);
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -702,7 +702,7 @@ describe("6. Badge positive case", () => {
 describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge", () => {
   test(
     "1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge",
-    { timeout: 600_000 },
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
@@ -765,7 +765,7 @@ describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction bad
           };
           expect(badge.badge_type).toBe("FailedReproduction");
         }
-      }, true, { timeout: 300_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });

@@ -148,7 +148,7 @@ function makePrivateAttestation(requestRef: Uint8Array) {
 describe("1. receive_task + get_task", () => {
   test(
     "received task is retrievable by its ActionHash",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -159,13 +159,13 @@ describe("1. receive_task + get_task", () => {
 
         const record = await ws(alice, "get_task", taskHash);
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_task returns null for an unknown ActionHash",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -174,7 +174,7 @@ describe("1. receive_task + get_task", () => {
         const unknownHash = fakeActionHash(0xff);
         const result = await ws(alice, "get_task", unknownHash);
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -186,7 +186,7 @@ describe("1. receive_task + get_task", () => {
 describe("2. seal_private_attestation + get_private_attestation_for_task", () => {
   test(
     "sealed private attestation is retrievable via its parent task",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -209,13 +209,13 @@ describe("2. seal_private_attestation + get_private_attestation_for_task", () =>
         // Step 3: retrieve via task link.
         const record = await ws(alice, "get_private_attestation_for_task", taskHash);
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_private_attestation_for_task returns null before any attestation is sealed",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -225,7 +225,7 @@ describe("2. seal_private_attestation + get_private_attestation_for_task", () =>
 
         const result = await ws(alice, "get_private_attestation_for_task", taskHash);
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -237,7 +237,7 @@ describe("2. seal_private_attestation + get_private_attestation_for_task", () =>
 describe("3. get_all_tasks", () => {
   test(
     "returns all received tasks from the local source chain",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -253,7 +253,7 @@ describe("3. get_all_tasks", () => {
 
         const tasks = await ws(alice, "get_all_tasks", null);
         expect(tasks).toHaveLength(3);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });

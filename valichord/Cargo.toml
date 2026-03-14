@@ -28,3 +28,13 @@ getrandom = "0.3"
 # SHA-256 for research file fingerprints (engineering constraint #6).
 # Compiled to wasm32-unknown-unknown; no_std-compatible via features.
 sha2 = { version = "0.10", default-features = false }
+
+# ── WASM size optimisation ────────────────────────────────────────────────────
+# Each coordinator zome is ~5.5 MB unoptimised. With opt-level=z + thin-LTO
+# the WASMs shrink to ~2–3 MB, cutting Holochain JIT-compile time per conductor
+# startup by ~50%. This matters for Tryorama tests where each runScenario starts
+# a fresh conductor that loads all 8 WASMs from scratch (~30 MB total).
+[profile.release]
+opt-level     = "z"     # optimise for size; reduces wasm binary size
+lto           = "thin"  # thin-LTO: better dead-code elim, reasonable build time
+codegen-units = 1       # one codegen unit enables better dead-code elimination

@@ -119,7 +119,7 @@ function makeSnapshot(dataHash: Uint8Array, overrides?: Record<string, unknown>)
 describe("1. register_study + get_study", () => {
   test(
     "registered study is retrievable by its ActionHash",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -129,13 +129,13 @@ describe("1. register_study + get_study", () => {
 
         const record = await repo(alice, "get_study", studyHash);
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_study returns null for an unknown ActionHash",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -144,7 +144,7 @@ describe("1. register_study + get_study", () => {
         const unknownHash = fakeActionHash(0xff);
         const result = await repo(alice, "get_study", unknownHash);
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -156,7 +156,7 @@ describe("1. register_study + get_study", () => {
 describe("2. register_protocol + get_protocol_for_study", () => {
   test(
     "protocol is retrievable via its parent study",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -171,13 +171,13 @@ describe("2. register_protocol + get_protocol_for_study", () => {
 
         const record = await repo(alice, "get_protocol_for_study", studyHash);
         expect(record).not.toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_protocol_for_study returns null when no protocol registered",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -186,7 +186,7 @@ describe("2. register_protocol + get_protocol_for_study", () => {
 
         const result = await repo(alice, "get_protocol_for_study", studyHash);
         expect(result).toBeNull();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -198,7 +198,7 @@ describe("2. register_protocol + get_protocol_for_study", () => {
 describe("3. take_data_snapshot + get_snapshots_for_study", () => {
   test(
     "two snapshots are both retrievable for the same study",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -223,13 +223,13 @@ describe("3. take_data_snapshot + get_snapshots_for_study", () => {
 
         const snapshots = await repo(alice, "get_snapshots_for_study", studyHash);
         expect(snapshots).toHaveLength(2);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_snapshots_for_study returns empty array before any snapshot",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -237,7 +237,7 @@ describe("3. take_data_snapshot + get_snapshots_for_study", () => {
         const studyHash = await repo(alice, "register_study", makeStudy());
         const snapshots = await repo(alice, "get_snapshots_for_study", studyHash);
         expect(snapshots).toHaveLength(0);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -249,7 +249,7 @@ describe("3. take_data_snapshot + get_snapshots_for_study", () => {
 describe("4. declare_deviation + get_deviations_for_study", () => {
   test(
     "declared deviation is retrievable for its parent study",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -279,13 +279,13 @@ describe("4. declare_deviation + get_deviations_for_study", () => {
 
         const deviations = await repo(alice, "get_deviations_for_study", studyHash);
         expect(deviations).toHaveLength(1);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "get_deviations_for_study returns empty array when no deviation declared",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -293,7 +293,7 @@ describe("4. declare_deviation + get_deviations_for_study", () => {
         const studyHash = await repo(alice, "register_study", makeStudy());
         const deviations = await repo(alice, "get_deviations_for_study", studyHash);
         expect(deviations).toHaveLength(0);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -305,7 +305,7 @@ describe("4. declare_deviation + get_deviations_for_study", () => {
 describe("5. compute_data_hash", () => {
   test(
     "returns a 39-byte ExternalHash (SHA-256 of input bytes)",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -323,13 +323,13 @@ describe("5. compute_data_hash", () => {
         expect(hash[0]).toBe(0x84);
         expect(hash[1]).toBe(0x2f);
         expect(hash[2]).toBe(0x24);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "same bytes always produce the same hash (deterministic)",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -340,13 +340,13 @@ describe("5. compute_data_hash", () => {
         const h2 = await repo(alice, "compute_data_hash", data);
 
         expect(h1).toEqual(h2);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 
   test(
     "different bytes produce different hashes (collision resistance)",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -360,7 +360,7 @@ describe("5. compute_data_hash", () => {
           if (h1[i] !== h2[i]) { differ = true; break; }
         }
         expect(differ).toBe(true);
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
@@ -381,7 +381,7 @@ describe("5. compute_data_hash", () => {
 describe("6. PreRegisteredProtocol immutability (delete)", () => {
   test(
     "attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)",
-    { timeout: 300_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
@@ -406,7 +406,7 @@ describe("6. PreRegisteredProtocol immutability (delete)", () => {
             payload: protocolHash,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 180_000 });
+      }, true, { timeout: 900_000 });
     },
   );
 });
