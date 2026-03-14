@@ -23,6 +23,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_harmony_records_by_discipline",
         "get_validator_reputation",
         "get_badges_for_study",
+        "get_badges_by_type",
         "get_all_governance_decisions",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
@@ -197,6 +198,8 @@ pub fn check_and_create_harmony_record(
                     .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
             }
         };
+        // Compute the type-path anchor before badge_type is moved into the struct.
+        let type_anchor = badge_type_anchor(&badge_type)?;
         let badge = ReproducibilityBadge {
             study_ref: request_ref.clone(),
             issued_to,
@@ -204,12 +207,15 @@ pub fn check_and_create_harmony_record(
             harmony_record_ref: record_hash.clone(),
         };
         let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
+        // Index by study for per-study badge lookup.
         create_link(
             request_ref.clone(),
-            badge_hash,
+            badge_hash.clone(),
             LinkTypes::StudyToBadge,
             (),
         )?;
+        // Index by badge type for cross-study analytics.
+        create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
     }
 
     // --- 7. Update validator reputations ------------------------------------
@@ -331,6 +337,28 @@ pub fn get_validator_reputation(
     }
 }
 
+/// Return all ReproducibilityBadge records of a given type across all studies.
+///
+/// Uses the BadgePath index (written by check_and_create_harmony_record).
+/// Useful for analytics: "how many Gold badges have been issued globally?".
+#[hdk_extern]
+pub fn get_badges_by_type(badge_type: BadgeType) -> ExternResult<Vec<Record>> {
+    let anchor = badge_type_anchor(&badge_type)?;
+    let links = get_links(
+        LinkQuery::try_new(anchor, LinkTypes::BadgePath)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
+}
+
 /// Return all GovernanceDecision records (insertion order).
 #[hdk_extern]
 pub fn get_all_governance_decisions(_: ()) -> ExternResult<Vec<Record>> {
@@ -385,6 +413,19 @@ fn anchor_for_request(request_ref: &ExternalHash) -> ExternResult<EntryHash> {
         .collect();
     let path = Path::from(format!("request.{}", hex))
         .typed(LinkTypes::RequestToHarmonyRecord)?;
+    path.ensure()?;
+    path.path_entry_hash()
+}
+
+/// Compute the DHT anchor entry hash for a badge-type path.
+fn badge_type_anchor(badge_type: &BadgeType) -> ExternResult<EntryHash> {
+    let tag = match badge_type {
+        BadgeType::GoldReproducible   => "gold",
+        BadgeType::SilverReproducible => "silver",
+        BadgeType::BronzeReproducible => "bronze",
+        BadgeType::FailedReproduction => "failed",
+    };
+    let path = Path::from(format!("badge.{}", tag)).typed(LinkTypes::BadgePath)?;
     path.ensure()?;
     path.path_entry_hash()
 }
