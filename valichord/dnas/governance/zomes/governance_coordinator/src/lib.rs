@@ -1,4 +1,5 @@
 use hdk::prelude::*;
+use std::collections::HashSet;
 use governance_integrity::{
     BadgeType, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
@@ -25,6 +26,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_badges_for_study",
         "get_badges_by_type",
         "get_all_governance_decisions",
+        "force_finalize_round",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -54,34 +56,33 @@ pub struct ReputationUpdateInput {
 // Write functions
 // ---------------------------------------------------------------------------
 
-/// Idempotent — called from DNA 3 post_commit (may fire multiple times).
+/// After this many seconds a stuck round is eligible for force-finalisation.
+/// Default: 7 days. Override by calling force_finalize_round on a test network
+/// with a shorter-lived ValidationRequest.
+const ROUND_TIMEOUT_SECS: i64 = 7 * 24 * 3600;
+
+/// Idempotent — called automatically from DNA 3 submit_attestation.
 ///
 /// Algorithm:
-///   1. Check if a HarmonyRecord already exists for request_ref — if yes, return None.
-///   2. Call get_attestations_for_request on the attestation role.
-///   3. If no attestations, return None (not yet ready).
-///   4. Derive majority outcome, agreement level, participating validators.
-///   5. Create HarmonyRecord, index via RequestToHarmonyRecord + DisciplinePath.
-///   6. Issue badge if thresholds are met.
-///   7. Update reputation for each validator.
+///   1. Short-circuit if a HarmonyRecord already exists.
+///   2. Fetch attestations from DNA 3.
+///   3. Require ≥ num_validators_required attestations (completeness gate).
+///   4-7. Delegate to write_harmony_record.
 #[hdk_extern]
 pub fn check_and_create_harmony_record(
     request_ref: ExternalHash,
 ) -> ExternResult<Option<ActionHash>> {
-    // --- 1. Idempotency check: bail early if record already exists ----------
+    // 1. Idempotency.
     let anchor_key = anchor_for_request(&request_ref)?;
     let existing = get_links(
-        LinkQuery::try_new(
-            anchor_key.clone(),
-            LinkTypes::RequestToHarmonyRecord,
-        )?,
+        LinkQuery::try_new(anchor_key, LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
     if !existing.is_empty() {
         return Ok(None);
     }
 
-    // --- 2. Fetch attestations from DNA 3 -----------------------------------
+    // 2. Fetch attestations from DNA 3.
     let response = call(
         CallTargetCell::OtherRole("attestation".into()),
         ZomeName::from("attestation_coordinator"),
@@ -95,17 +96,11 @@ pub fn check_and_create_harmony_record(
             .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?,
         _ => return Ok(None),
     };
-
-    // --- 3. Check completeness — only finalise when enough attestations in --
-    //
-    // Query the Attestation DNA for the ValidationRequest to read
-    // num_validators_required.  If the request isn't found (e.g. called before
-    // the request exists) or no attestations have arrived yet, return None so
-    // the caller can retry.  This prevents a premature HarmonyRecord being
-    // written based on partial data.
     if attestation_records.is_empty() {
         return Ok(None);
     }
+
+    // 3. Completeness gate: require all expected attestations before writing.
     let min_validators: u8 = {
         let resp = call(
             CallTargetCell::OtherRole("attestation".into()),
@@ -123,7 +118,94 @@ pub fn check_and_create_harmony_record(
         return Ok(None);
     }
 
-    // --- 4. Derive fields from attestations ---------------------------------
+    // 4-7. Assemble and write.
+    let hash = write_harmony_record(request_ref, attestation_records)?;
+    Ok(Some(hash))
+}
+
+/// Force-finalise a stuck round after ROUND_TIMEOUT_SECS have elapsed.
+///
+/// Called by any participant (researcher, validator, or operator) when a round
+/// is stuck because a validator claimed a study and then went dark.  The absent
+/// validator's slot should first be freed via `reclaim_abandoned_claim` in DNA 3
+/// so a replacement can be found; if no replacement arrives before the timeout,
+/// this function closes the round with whatever attestations are present.
+///
+/// Requires:
+///   - No HarmonyRecord already exists (idempotency).
+///   - At least one attestation has been submitted.
+///   - The ValidationRequest was created ≥ ROUND_TIMEOUT_SECS ago.
+///
+/// The resulting HarmonyRecord is identical in structure to one created by the
+/// normal path. Readers can identify reduced-quorum completion by comparing
+/// `participating_validators.len()` against the study's `num_validators_required`.
+///
+/// Returns None if the conditions above are not met.
+#[hdk_extern]
+pub fn force_finalize_round(
+    request_ref: ExternalHash,
+) -> ExternResult<Option<ActionHash>> {
+    // 1. Idempotency.
+    let anchor_key = anchor_for_request(&request_ref)?;
+    let existing = get_links(
+        LinkQuery::try_new(anchor_key, LinkTypes::RequestToHarmonyRecord)?,
+        GetStrategy::Network,
+    )?;
+    if !existing.is_empty() {
+        return Ok(None);
+    }
+
+    // 2. Fetch attestations — require at least one.
+    let response = call(
+        CallTargetCell::OtherRole("attestation".into()),
+        ZomeName::from("attestation_coordinator"),
+        FunctionName::from("get_attestations_for_request"),
+        None,
+        request_ref.clone(),
+    )?;
+    let attestation_records: Vec<Record> = match response {
+        ZomeCallResponse::Ok(extern_io) => extern_io
+            .decode()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?,
+        _ => return Ok(None),
+    };
+    if attestation_records.is_empty() {
+        return Ok(None);
+    }
+
+    // 3. Check round age via the ValidationRequest's action timestamp.
+    let vr_response = call(
+        CallTargetCell::OtherRole("attestation".into()),
+        ZomeName::from("attestation_coordinator"),
+        FunctionName::from("get_validation_request_for_data_hash"),
+        None,
+        request_ref.clone(),
+    )?;
+    if let ZomeCallResponse::Ok(extern_io) = vr_response {
+        let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
+        if let Some(vr) = maybe_vr {
+            let now = sys_time()?;
+            let vr_time = vr.action().timestamp();
+            let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
+            if elapsed_secs < ROUND_TIMEOUT_SECS {
+                return Ok(None); // Round has not timed out yet.
+            }
+        }
+    }
+
+    // 4-7. Assemble and write with whatever attestations are present.
+    let hash = write_harmony_record(request_ref, attestation_records)?;
+    Ok(Some(hash))
+}
+
+/// Core assembly: derive fields, write HarmonyRecord + links, issue badge,
+/// update reputations.  Called by both check_and_create_harmony_record
+/// (full quorum) and force_finalize_round (reduced quorum after timeout).
+fn write_harmony_record(
+    request_ref: ExternalHash,
+    attestation_records: Vec<Record>,
+) -> ExternResult<ActionHash> {
+    // Derive structured attestation payloads.
     let attestations: Vec<ValidationAttestation> = attestation_records
         .iter()
         .filter_map(|r| {
@@ -134,32 +216,25 @@ pub fn check_and_create_harmony_record(
         })
         .collect();
 
-    // Participating validators = authors of the records.
     let participating_validators: Vec<AgentPubKey> = attestation_records
         .iter()
         .map(|r| r.action().author().clone())
         .collect();
 
-    // Majority outcome (plurality vote).
-    let outcome = derive_majority_outcome(&attestations);
-
-    // Agreement level from success rate.
-    let agreement_level = derive_agreement_level(&attestations);
-
-    // Total validation duration = max time invested.
+    let outcome             = derive_majority_outcome(&attestations);
+    let agreement_level     = derive_agreement_level(&attestations);
     let validation_duration_secs = attestations
         .iter()
         .map(|a| a.time_invested_secs)
         .max()
         .unwrap_or(0);
-
-    // Discipline from first attestation.
     let discipline = attestations
         .first()
         .map(|a| a.discipline.clone())
         .unwrap_or(Discipline::Other("unknown".into()));
 
-    // --- 5. Create HarmonyRecord + links ------------------------------------
+    // Write HarmonyRecord entry and indexes.
+    let anchor_key = anchor_for_request(&request_ref)?;
     let record = HarmonyRecord {
         request_ref: request_ref.clone(),
         outcome,
@@ -170,28 +245,12 @@ pub fn check_and_create_harmony_record(
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
-    // Index by request_ref for direct lookup.
-    create_link(
-        anchor_key,
-        record_hash.clone(),
-        LinkTypes::RequestToHarmonyRecord,
-        (),
-    )?;
-
-    // Index by discipline for analytics.
+    create_link(anchor_key, record_hash.clone(), LinkTypes::RequestToHarmonyRecord, ())?;
     let disc_anchor = discipline_anchor(&discipline)?;
-    create_link(
-        disc_anchor,
-        record_hash.clone(),
-        LinkTypes::DisciplinePath,
-        (),
-    )?;
+    create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
-    // --- 6. Optionally issue badge -------------------------------------------
+    // Optionally issue badge.
     if let Some(badge_type) = evaluate_badge(&agreement_level, participating_validators.len()) {
-        // issued_to = the researcher who submitted the ValidationRequest.
-        // Cross-DNA call (author grant — same-agent cell). Falls back to the
-        // first participating validator if the lookup fails for any reason.
         let issued_to = {
             let resp = call(
                 CallTargetCell::OtherRole("attestation".into()),
@@ -205,14 +264,10 @@ pub fn check_and_create_harmony_record(
                     let maybe_record: Option<Record> = extern_io.decode().unwrap_or(None);
                     maybe_record
                         .map(|r| r.action().author().clone())
-                        .unwrap_or_else(|| {
-                            participating_validators
-                                .first()
-                                .cloned()
-                                .unwrap_or_else(|| {
-                                    agent_info().map(|i| i.agent_initial_pubkey).unwrap()
-                                })
-                        })
+                        .unwrap_or_else(|| participating_validators
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()))
                 }
                 _ => participating_validators
                     .first()
@@ -220,27 +275,19 @@ pub fn check_and_create_harmony_record(
                     .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
             }
         };
-        // Compute the type-path anchor before badge_type is moved into the struct.
         let type_anchor = badge_type_anchor(&badge_type)?;
         let badge = ReproducibilityBadge {
-            study_ref: request_ref.clone(),
+            study_ref:           request_ref.clone(),
             issued_to,
             badge_type,
-            harmony_record_ref: record_hash.clone(),
+            harmony_record_ref:  record_hash.clone(),
         };
         let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
-        // Index by study for per-study badge lookup.
-        create_link(
-            request_ref.clone(),
-            badge_hash.clone(),
-            LinkTypes::StudyToBadge,
-            (),
-        )?;
-        // Index by badge type for cross-study analytics.
+        create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
         create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
     }
 
-    // --- 7. Update validator reputations ------------------------------------
+    // Update validator reputations.
     for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
         let _ = _update_reputation_internal(
             record.action().author().clone(),
@@ -250,7 +297,7 @@ pub fn check_and_create_harmony_record(
         );
     }
 
-    Ok(Some(record_hash))
+    Ok(record_hash)
 }
 
 /// Record a governance vote outcome on-chain.

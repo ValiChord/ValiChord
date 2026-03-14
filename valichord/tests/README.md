@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 80 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -82,7 +82,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (37 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (40 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -124,13 +124,16 @@ cd tests && npm test
 | 20.3 | validator from the same institution as researcher is rejected (COI) | PASS |
 | 20.4 | claiming when all slots are full is rejected | PASS |
 | 20.5 | release_claim removes the claim from get_claims_for_request | PASS |
+| 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
+| 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
+| 21.3 | returns false when validator has already submitted an attestation | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
 > CI with <16 GB RAM). The test logic is correct; run it on adequately
 > resourced hardware.
 
-### DNA 4 — `governance.test.ts` (22 tests)
+### DNA 4 — `governance.test.ts` (24 tests)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -153,6 +156,8 @@ cd tests && npm test
 | 10.1 | no delete function exists for HarmonyRecord in the coordinator API | PASS |
 | 10.2 | no delete function exists for GovernanceDecision in the coordinator API | PASS |
 | 10.3 | no delete function exists for ReproducibilityBadge in the coordinator API | PASS |
+| 11.1 | force_finalize_round returns null when round has not yet timed out (< 7 days old) | PASS |
+| 11.2 | force_finalize_round returns null when no attestations exist yet | PASS |
 
 ---
 
@@ -163,6 +168,7 @@ These are areas not yet covered by tests, ordered by value.
 | Area | What to add | Notes |
 |------|-------------|-------|
 | DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama. Exercise in shadow-track environment with a real conductor running for 7+ days, or temporarily lower the constant for a dedicated integration run |
 
 ---
 
@@ -207,6 +213,8 @@ These are areas not yet covered by tests, ordered by value.
 - `DisciplinePath` link type (DNA 3) is written by `submit_attestation` under
   "attestations.{discipline_tag}" paths and read by `get_attestations_for_discipline`.
   Provides cross-study analytics on attestation outcomes by discipline.
+- `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` (DNA 3) — any participant can free a slot held by a validator who has gone dark, once the claim is older than `timeout_secs` and the validator hasn't attested. Use `timeout_secs=0` in tests; `timeout_secs=604800` (7 days) in production. The StudyClaim entry stays as audit.
+- `force_finalize_round(request_ref)` (DNA 4) — closes a stuck round after `ROUND_TIMEOUT_SECS` (7 days, hardcoded). Requires ≥1 attestation and no existing HarmonyRecord. Produces a normal HarmonyRecord; reduced-quorum completion is identifiable by comparing `participating_validators.len()` against the study's `num_validators_required`. Callable by any participant.
 - `StudyClaim` (DNA 3) — validators self-assign via `claim_study(request_ref)`.
   Two link indexes are written: `RequestToClaim` (base = request_ref) and `ValidatorToClaim`
   (base = agent pubkey). The coordinator enforces capacity and duplicate checks;

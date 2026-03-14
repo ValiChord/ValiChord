@@ -2022,3 +2022,138 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 21. Dropout recovery — reclaim_abandoned_claim
+// ---------------------------------------------------------------------------
+//
+// reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })
+// frees a slot held by a validator who has gone dark.
+//
+// Behaviour:
+//   - Returns false if the claim is too recent (elapsed < timeout_secs).
+//   - Returns false if the validator has already submitted an attestation.
+//   - Returns true and deletes both link indexes when eligible.
+//
+// Tests use timeout_secs=0 so reclamation is immediately eligible (claim
+// age is always ≥ 0 seconds). In production, set timeout_secs=604800 (7 days).
+
+describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
+  // 21.1 — too-recent claim is rejected
+  test(
+    "returns false when claim is younger than timeout_secs",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xf0);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob], dnaHash!);
+
+        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash!);
+
+        // timeout_secs = 999999 (far future) — claim is too recent.
+        const result = await zomeCall<boolean>(alice, "reclaim_abandoned_claim", {
+          request_ref: REQUEST_REF,
+          claim_hash:  claimHash,
+          timeout_secs: 999999,
+        });
+        expect(result).toBe(false);
+
+        // Slot still occupied.
+        const claims = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
+        expect(claims).toHaveLength(1);
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 21.2 — eligible claim is reclaimed
+  test(
+    "returns true and frees the slot when timeout has elapsed",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob, carol] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xf1);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob,   "publish_validator_profile", makeProfile("Oxford"));
+        await zomeCall(carol, "publish_validator_profile", makeProfile("Cambridge"));
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Bob claims, then goes dark (never attests).
+        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Carol reclaims Bob's slot with timeout_secs=0 (immediately eligible).
+        const reclaimed = await zomeCall<boolean>(carol, "reclaim_abandoned_claim", {
+          request_ref:  REQUEST_REF,
+          claim_hash:   claimHash,
+          timeout_secs: 0,
+        });
+        expect(reclaimed).toBe(true);
+
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Slot is now free.
+        const claims = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
+        expect(claims).toHaveLength(0);
+
+        // Carol can now claim the freed slot.
+        const carolClaim = await zomeCall<ActionHash>(carol, "claim_study", REQUEST_REF);
+        expect(carolClaim).toBeTruthy();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 21.3 — validator who already attested cannot be reclaimed
+  test(
+    "returns false when validator has already submitted an attestation",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob, carol] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xf2);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Bob actually attests — he hasn't dropped out.
+        await zomeCall(bob, "submit_attestation", makeAttestation(REQUEST_REF));
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Reclaim attempt must fail — Bob has attested.
+        const result = await zomeCall<boolean>(carol, "reclaim_abandoned_claim", {
+          request_ref:  REQUEST_REF,
+          claim_hash:   claimHash,
+          timeout_secs: 0,
+        });
+        expect(result).toBe(false);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});

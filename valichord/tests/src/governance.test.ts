@@ -1117,3 +1117,79 @@ describe("10. Delete-immutability guards", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 11. force_finalize_round — stuck-round recovery
+// ---------------------------------------------------------------------------
+//
+// force_finalize_round(request_ref) closes a round stuck by validator dropout.
+// Bypasses the num_validators_required gate but requires:
+//   - No HarmonyRecord already exists.
+//   - At least one attestation present.
+//   - ValidationRequest created ≥ ROUND_TIMEOUT_SECS (7 days) ago.
+//
+// ROUND_TIMEOUT_SECS is hardcoded (604800 s). Tests cannot wind the clock so
+// we verify the "not yet timed out" and "no attestations" guard paths.
+// The successful timeout path is exercised in the shadow-track environment.
+
+describe("11. force_finalize_round", () => {
+  test(
+    "returns null when round has not yet timed out (< 7 days old)",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
+
+        const [alice, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(aliceKeyB64), makePlayerConfig(aliceKeyB64)],
+          [alicePlayer, bobPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(alice, "attestation");
+        const dataHash = fakeExternalHash(0x7a);
+
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: dataHash }));
+
+        const requestRef = dataHash;
+
+        // One validator attests — round incomplete but < 7 days old.
+        await att(alice, "notify_commitment_sealed", requestRef);
+        await dhtSync([alice, bob], attDnaHash);
+        await att(alice, "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([alice, bob], attDnaHash);
+
+        // Must return null — round too fresh.
+        const result = await gov(alice, "force_finalize_round", requestRef);
+        expect(result).toBeNull();
+
+        const record = await gov(alice, "get_harmony_record", requestRef);
+        expect(record).toBeNull();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "returns null when no attestations exist yet",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(aliceKeyB64)],
+          [alicePlayer],
+        );
+
+        const dataHash = fakeExternalHash(0x7b);
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: dataHash }));
+
+        // No attestations — must return null.
+        const result = await gov(alice, "force_finalize_round", dataHash);
+        expect(result).toBeNull();
+      }, true, { timeout: 900_000 });
+    },
+  );
+});

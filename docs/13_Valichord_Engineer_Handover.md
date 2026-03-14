@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 80 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 87 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -72,6 +72,8 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
 **Validator self-assignment (`StudyClaim`)** — implemented 2026-03-14. Validators discover studies via `get_pending_requests_for_discipline` and call `claim_study(request_ref: ExternalHash)` to self-assign without any central matchmaker. The coordinator resolves the `ValidationRequest` ActionHash via the `StudyToValidation` path, reads the validator's institution from their `ValidatorProfile`, enforces capacity (no more than `num_validators_required` claims per study) and duplicate (no double-claiming) at the coordinator layer, then writes a `StudyClaim` entry plus two link indexes — `RequestToClaim` (base = request_ref, for `get_claims_for_request`) and `ValidatorToClaim` (base = agent pubkey, for `get_my_claimed_studies`). The integrity zome's `validate()` enforces conflict-of-interest at the network layer: if both `validator_institution` and `researcher_institution` are non-empty and equal, the claim is rejected. `release_claim(request_ref)` deletes both links (freeing the slot for another validator); the `StudyClaim` entry remains permanently as an audit record. Empty institution on either side bypasses the COI check (dev mode / researcher did not declare institution). `ValidationRequest` now also carries `researcher_institution: String` alongside the pointer fields `data_access_url` and `protocol_access_url`.
+
+**Dropout recovery** — implemented 2026-03-14. `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` is callable by any participant. It verifies the claim is older than `timeout_secs` AND the absent validator has not attested, then deletes both link indexes to free the slot. Use `timeout_secs = 604800` (7 days) in production; `0` in tests. The companion function `force_finalize_round(request_ref)` in DNA 4 closes a round that is still stuck after `ROUND_TIMEOUT_SECS` (7 days, hardcoded constant) with whatever attestations are present. Neither function requires special keys — both are open to any participant, consistent with the decentralised governance model.
 
 ---
 
@@ -208,12 +210,12 @@ cd tests && npm test
 
 ## Test Inventory Summary
 
-80 tests across 4 files, 1 skipped.
+87 tests across 4 files, 1 skipped.
 
 | File | Tests | Coverage |
 |---|---|---|
-| `attestation.test.ts` | 37 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim) — happy path, duplicate rejection, COI rejection, capacity rejection, release_claim |
-| `governance.test.ts` | 22 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards |
+| `attestation.test.ts` | 40 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim), dropout recovery (`reclaim_abandoned_claim`) — too-recent guard, eligible reclaim + slot freed, attested validator guard |
+| `governance.test.ts` | 24 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards, `force_finalize_round` — not-yet-timed-out guard, no-attestations guard |
 | `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
 | `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |
 

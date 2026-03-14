@@ -32,6 +32,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_num_validators_required",
         "get_claims_for_request",
         "get_my_claimed_studies",
+        "reclaim_abandoned_claim",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -531,6 +532,91 @@ pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
         }
     }
     Ok(records)
+}
+
+/// Input for reclaim_abandoned_claim.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReclaimInput {
+    /// The study's data_hash (ExternalHash) — same as used in claim_study.
+    pub request_ref:  ExternalHash,
+    /// ActionHash of the abandoned StudyClaim entry.
+    pub claim_hash:   ActionHash,
+    /// How old (in seconds) the claim must be before reclamation is allowed.
+    /// Typical Phase 0 value: 604800 (7 days). Use a shorter value in tests.
+    pub timeout_secs: u64,
+}
+
+/// Reclaim an abandoned validator slot on behalf of a validator who has gone dark.
+///
+/// Any participant may call this once `timeout_secs` have elapsed since the
+/// claim was created AND the absent validator has not submitted an attestation
+/// for this study. Deletes both link indexes, freeing the slot for a replacement.
+/// The StudyClaim entry remains permanently as an audit record.
+///
+/// Returns `true` if the slot was reclaimed, `false` if ineligible
+/// (claim too recent, or validator already attested).
+#[hdk_extern]
+pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
+    // 1. Fetch the claim record to determine the absent validator's pubkey.
+    let claim_record = get(input.claim_hash.clone(), GetOptions::network())?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "StudyClaim record not found".into(),
+        )))?;
+    let absent_validator = claim_record.action().author().clone();
+
+    // 2. Check claim age — sys_time() and Timestamp are both microseconds since epoch.
+    let now = sys_time()?;
+    let claim_time = claim_record.action().timestamp();
+    let elapsed_secs = (now.0 - claim_time.0) / 1_000_000;
+    if elapsed_secs < input.timeout_secs as i64 {
+        return Ok(false); // Too recent — reclamation not yet permitted.
+    }
+
+    // 3. Verify the absent validator has not already attested for this study.
+    let attestation_links = get_links(
+        LinkQuery::try_new(absent_validator.clone(), LinkTypes::ValidatorToAttestation)?,
+        GetStrategy::Network,
+    )?;
+    for link in &attestation_links {
+        if let Some(hash) = link.target.clone().into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                if let Some(att) = record
+                    .entry()
+                    .to_app_option::<ValidationAttestation>()
+                    .ok()
+                    .flatten()
+                {
+                    if att.request_ref == input.request_ref {
+                        return Ok(false); // Already attested — no reclamation needed.
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Delete the RequestToClaim link authored by the absent validator.
+    let request_links = get_links(
+        LinkQuery::try_new(input.request_ref.clone(), LinkTypes::RequestToClaim)?,
+        GetStrategy::Network,
+    )?;
+    for link in request_links.iter().filter(|l| l.author == absent_validator) {
+        if link.target.clone().into_action_hash().as_ref() == Some(&input.claim_hash) {
+            delete_link(link.create_link_hash.clone(), GetOptions::network())?;
+        }
+    }
+
+    // 5. Delete the ValidatorToClaim link from the absent validator's pubkey.
+    let validator_links = get_links(
+        LinkQuery::try_new(absent_validator.clone(), LinkTypes::ValidatorToClaim)?,
+        GetStrategy::Network,
+    )?;
+    for link in validator_links {
+        if link.target.clone().into_action_hash().as_ref() == Some(&input.claim_hash) {
+            delete_link(link.create_link_hash, GetOptions::network())?;
+        }
+    }
+
+    Ok(true)
 }
 
 #[hdk_extern]
