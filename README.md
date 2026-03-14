@@ -109,6 +109,28 @@ The governance framework explicitly addresses what happens when ValiChord itself
 
 ---
 
+## 🗺️ Landscape: Where ValiChord Fits
+
+ValiChord is not a replacement for existing reproducibility tools — it is the coordination, governance, and certification layer that those tools operate within.
+
+| Project / Tool | Focus Area | Validation Model | Incentives | Governance | Integration | Tamper-Evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **ValiChord** | Distributed validation | Multi-party, Harmony Records | ✅ Yes | Transparent, anti-capture | Journals, Funders, Repos | ✅ Yes |
+| Binder | Reproducible environments | Single execution | ❌ No | N/A | Repos | ❌ No |
+| Code Ocean | Executable capsules | Single execution | ❌ No | Proprietary | Journals | ❌ No |
+| FLINC | Reproducibility packaging | Single execution | ❌ No | N/A | Repos | ❌ No |
+| PTU | Process tracing | Single execution | ❌ No | N/A | Repos | ❌ No |
+| ReproZip | Packaging and portability | Single execution | ❌ No | N/A | Repos | ❌ No |
+| RenkuLab | Collaborative science | Single/multi execution | ❌ No | N/A | Repos | ❌ No |
+| Sciunit | Reproducibility packaging | Single execution | ❌ No | N/A | Repos | ❌ No |
+| Whole Tale | Data-driven science | Single/multi execution | ❌ No | N/A | Repos | ❌ No |
+
+*Landscape based on benchmarking by [Zenodo:15167233](https://zenodo.org/records/15167233) (2025), which evaluated these tools against 18 real computational experiments across multiple disciplines.*
+
+Every existing tool facilitates reproducibility — making it easier to run code, package environments, or share data. None of them verify that independent validators reached the same conclusion, preserve disagreement as a first-class output, compensate validators for their work, or resist institutional pressure to soften findings. That is the gap ValiChord fills.
+
+---
+
 ## 🛠️ Researcher Ecosystem: "ValiChord at Home"
 
 We provide a full feedback pipeline to move research from "messy" to "validatable".
