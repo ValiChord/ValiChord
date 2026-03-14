@@ -1534,6 +1534,94 @@ describe("15. get_validators_for_discipline", () => {
 //   1. One validator commits → sealed? false (1 < 2)
 //   2. Second validator commits → sealed? true (2 >= 2)
 
+// ---------------------------------------------------------------------------
+// 17. get_validation_request_for_data_hash
+// ---------------------------------------------------------------------------
+//
+// submit_validation_request writes a StudyToValidation link under the path
+// "study.{data_hash}".  get_validation_request_for_data_hash resolves that
+// path and returns the Record (or null if never submitted).
+//
+// This extern is used by governance's check_and_create_harmony_record to
+// determine the researcher (record author) who becomes the badge recipient
+// (ReproducibilityBadge.issued_to).  A bug here would silently mis-attribute
+// every badge in production.
+
+describe("17. get_validation_request_for_data_hash", () => {
+  test(
+    "returns the ValidationRequest record for a known data_hash",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const DATA_HASH = fakeExternalHash(0xd0);
+
+        // Submit a request whose data_hash is DATA_HASH.
+        const requestHash = await zomeCall<ActionHash>(
+          alice,
+          "submit_validation_request",
+          makeValidationRequest({ data_hash: DATA_HASH }),
+        );
+        expect(requestHash).toBeTruthy();
+
+        // The extern must resolve the path and return the same record.
+        const record = await zomeCall<unknown>(
+          alice,
+          "get_validation_request_for_data_hash",
+          DATA_HASH,
+        );
+        expect(record).not.toBeNull();
+
+        // The returned record's ActionHash must match what submit returned.
+        const returnedHash: Uint8Array = (record as any)?.signed_action?.hashed?.hash;
+        expect(returnedHash).toBeDefined();
+        // Compare as base64 strings — Uint8Array reference equality fails across
+        // the serialisation boundary.
+        expect(Buffer.from(returnedHash).toString("base64")).toBe(
+          Buffer.from(requestHash as Uint8Array).toString("base64"),
+        );
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "returns null for a data_hash that was never submitted",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        // A data_hash for which no ValidationRequest has ever been submitted.
+        const UNKNOWN_HASH = fakeExternalHash(0xd1);
+
+        const result = await zomeCall<unknown>(
+          alice,
+          "get_validation_request_for_data_hash",
+          UNKNOWN_HASH,
+        );
+        expect(result).toBeNull();
+      }, true, { timeout: 900_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 16. check_all_commitments_sealed — direct call
+// ---------------------------------------------------------------------------
+//
+// check_all_commitments_sealed is exposed as a public #[hdk_extern] and can
+// be called directly. It compares the number of CommitmentAnchor links under
+// "commitments.{request_ref}" to minimum_validators (DNA property, default 2).
+//
+// Sequence:
+//   1. One validator commits → sealed? false (1 < 2)
+//   2. Second validator commits → sealed? true (2 >= 2)
+
 describe("16. check_all_commitments_sealed direct call", () => {
   test(
     "returns false after 1 of 2 commits, true after 2nd commit",
