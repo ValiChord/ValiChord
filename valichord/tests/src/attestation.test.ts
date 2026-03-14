@@ -1255,7 +1255,56 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
 // these entries when system_coordinator_key / harmony_record_creator_key
 // are set to "" in the player config (test mode only).
 
-describe("12. Badge thresholds — Silver and Gold", () => {
+describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
+  test(
+    "3 validators all Reproduced → BronzeReproducible badge issued",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const N = 3;
+        const configs = Array.from({ length: N }, () =>
+          playerConfig(validMembraneProof(), N),
+        );
+        const validators = await scenario.addPlayersWithApps(configs);
+
+        const REQUEST_REF = fakeExternalHash(0xb0);
+        const attDnaHash = validators[0].namedCells.get("attestation")?.cell_id[0];
+
+        // All 3 validators post CommitmentAnchors.
+        for (const v of validators) {
+          await zomeCall(v, "notify_commitment_sealed", REQUEST_REF);
+        }
+        await dhtSync(validators, attDnaHash);
+
+        // All 3 validators submit Reproduced attestations.
+        // success_rate = 3/3 = 100% → ExactMatch.
+        for (const v of validators) {
+          await zomeCall(v, "submit_attestation", makeAttestation(REQUEST_REF));
+        }
+        await dhtSync(validators, attDnaHash);
+
+        // ExactMatch + count=3 ≥ 3 (and < 5) → BronzeReproducible.
+        const harmonyHash = await govCall<Uint8Array | null>(
+          validators[0], "check_and_create_harmony_record", REQUEST_REF,
+        );
+        expect(harmonyHash).not.toBeNull();
+
+        const badges = await govCall<any[]>(
+          validators[0], "get_badges_for_study", REQUEST_REF,
+        );
+        expect(badges).toHaveLength(1);
+
+        const entry = (badges[0] as any).entry;
+        if (entry?.Present?.entry_type === "App") {
+          const badge = decode(entry.Present.entry as Uint8Array) as {
+            badge_type: string;
+          };
+          expect(badge.badge_type).toBe("BronzeReproducible");
+        }
+      }, true, { timeout: 900_000 });
+    },
+  );
+
   test(
     "5 validators all Reproduced → SilverReproducible badge issued",
     { timeout: 1_800_000 },
