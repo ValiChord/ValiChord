@@ -1,6 +1,6 @@
 use hdk::prelude::*;
 use governance_integrity::{
-    BadgeType, EntryTypes, HarmonyRecord, LinkTypes,
+    BadgeType, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
 };
 use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation, discipline_tag};
@@ -23,6 +23,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_harmony_records_by_discipline",
         "get_validator_reputation",
         "get_badges_for_study",
+        "get_all_governance_decisions",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -224,6 +225,22 @@ pub fn check_and_create_harmony_record(
     Ok(Some(record_hash))
 }
 
+/// Record a governance vote outcome on-chain.
+///
+/// Only the harmony_record_creator_key agent may write GovernanceDecision
+/// entries — validate() enforces the authorship check.  The entry is
+/// immutable after creation (validate() blocks updates and deletes).
+#[hdk_extern]
+pub fn create_governance_decision(
+    input: GovernanceDecision,
+) -> ExternResult<ActionHash> {
+    let hash = create_entry(EntryTypes::GovernanceDecision(input))?;
+    // Index under a global anchor for bulk retrieval.
+    let anchor = decisions_anchor()?;
+    create_link(anchor, hash.clone(), LinkTypes::AllDecisions, ())?;
+    Ok(hash)
+}
+
 /// Update a validator's reputation record.
 ///
 /// Only the system_coordinator_key agent may call this successfully — the
@@ -314,6 +331,25 @@ pub fn get_validator_reputation(
     }
 }
 
+/// Return all GovernanceDecision records (insertion order).
+#[hdk_extern]
+pub fn get_all_governance_decisions(_: ()) -> ExternResult<Vec<Record>> {
+    let anchor = decisions_anchor()?;
+    let links = get_links(
+        LinkQuery::try_new(anchor, LinkTypes::AllDecisions)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
+}
+
 /// Return all badges linked from a study_ref.
 #[hdk_extern]
 pub fn get_badges_for_study(
@@ -349,6 +385,13 @@ fn anchor_for_request(request_ref: &ExternalHash) -> ExternResult<EntryHash> {
         .collect();
     let path = Path::from(format!("request.{}", hex))
         .typed(LinkTypes::RequestToHarmonyRecord)?;
+    path.ensure()?;
+    path.path_entry_hash()
+}
+
+/// Compute the DHT anchor entry hash for the global decisions index.
+fn decisions_anchor() -> ExternResult<EntryHash> {
+    let path = Path::from("decisions.all").typed(LinkTypes::AllDecisions)?;
     path.ensure()?;
     path.path_entry_hash()
 }

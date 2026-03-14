@@ -137,6 +137,8 @@ pub enum LinkTypes {
     BadgePath,
     /// ExternalHash (study_ref) → ReproducibilityBadge ActionHash
     StudyToBadge,
+    /// Path anchor ("decisions.all") → GovernanceDecision ActionHash
+    AllDecisions,
 }
 
 // ---------------------------------------------------------------------------

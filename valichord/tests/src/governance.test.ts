@@ -769,3 +769,130 @@ describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction bad
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 8. GovernanceDecision — create, read, and author enforcement
+// ---------------------------------------------------------------------------
+//
+// GovernanceDecision is the on-chain audit log for governance votes.
+// validate() restricts creation to harmony_record_creator_key and blocks
+// all updates and deletes (immutable append-only log).
+//
+// The coordinator was missing create_governance_decision and
+// get_all_governance_decisions entirely until these tests were written.
+
+describe("8. GovernanceDecision", () => {
+  test(
+    "create_governance_decision + get_all_governance_decisions round-trip",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer] = await scenario.addPlayers(1);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+        const [admin] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64)],
+          [adminPlayer],
+        );
+
+        const decision = {
+          proposal: "Adopt v2 validation protocol",
+          decision: "Adopted",
+          votes_for: 7,
+          votes_against: 2,
+        };
+
+        const hash = await gov(admin, "create_governance_decision", decision);
+        expect(hash).toBeTruthy();
+
+        // Allow DHT propagation.
+        await pause(500);
+
+        const records = await gov(admin, "get_all_governance_decisions", null);
+        expect(records).toHaveLength(1);
+
+        // Decode and verify field values are preserved.
+        const entry = (records[0] as any)?.entry;
+        if (entry?.Present?.entry_type === "App") {
+          const stored = decode(entry.Present.entry as Uint8Array) as {
+            proposal: string;
+            decision: string;
+            votes_for: number;
+            votes_against: number;
+          };
+          expect(stored.proposal).toBe("Adopt v2 validation protocol");
+          expect(stored.decision).toBe("Adopted");
+          expect(stored.votes_for).toBe(7);
+          expect(stored.votes_against).toBe(2);
+        }
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "multiple GovernanceDecisions are all returned by get_all_governance_decisions",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [adminPlayer] = await scenario.addPlayers(1);
+        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
+        const [admin] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(adminKeyB64)],
+          [adminPlayer],
+        );
+
+        await gov(admin, "create_governance_decision", {
+          proposal: "Proposal A",
+          decision: "Adopted",
+          votes_for: 5,
+          votes_against: 1,
+        });
+        await gov(admin, "create_governance_decision", {
+          proposal: "Proposal B",
+          decision: "Rejected",
+          votes_for: 2,
+          votes_against: 6,
+        });
+
+        await pause(500);
+
+        const records = await gov(admin, "get_all_governance_decisions", null);
+        expect(records).toHaveLength(2);
+
+        const proposals = records.map((r: any) => {
+          const entry = r?.entry;
+          if (entry?.Present?.entry_type === "App") {
+            const d = decode(entry.Present.entry as Uint8Array) as { proposal: string };
+            return d.proposal;
+          }
+          return null;
+        });
+        expect(proposals).toContain("Proposal A");
+        expect(proposals).toContain("Proposal B");
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "non-creator key cannot create GovernanceDecision — rejected by validate()",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        // Install with PLACEHOLDER_KEY so alice's real key ≠ creator key.
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [alicePlayer],
+        );
+
+        await expect(
+          gov(alice, "create_governance_decision", {
+            proposal: "Unauthorised attempt",
+            decision: "Should not land",
+            votes_for: 1,
+            votes_against: 0,
+          }),
+        ).rejects.toThrow();
+      }, true, { timeout: 900_000 });
+    },
+  );
+});
