@@ -3,7 +3,7 @@
 
 # ValiChord: Eight-Layer Infrastructure and Harmony Records
 
-ValiChord is an end-to-end system designed to address the reproducibility crisis by providing a tamper-evident, distributed engine for validating computational research. The core infrastructure is **built and integration-tested**: four Holochain DNAs, compiled to WebAssembly, with 57 passing integration tests including real multi-node network validation.
+ValiChord is an end-to-end system designed to address the reproducibility crisis by providing a tamper-evident, distributed engine for validating computational research. The core infrastructure is **built and integration-tested**: four Holochain DNAs, compiled to WebAssembly, with 80 passing integration tests including real multi-node network validation.
 
 ---
 
@@ -71,7 +71,7 @@ Oversees system-wide standards, disciplinary rules, and the evolution of the pro
 
 The full governance philosophy — including explicit mechanisms against domestication — is documented in the [Governance Framework](2_ValiChord_Governance_Framework.md), published as a Zenodo preprint: [10.5281/zenodo.18878108](https://doi.org/10.5281/zenodo.18878108).
 
-In the engineering implementation: `GovernanceDecision` entries in DNA 4 are immutable and gated by the `harmony_record_creator_key` baked into the DNA at deployment.
+In the engineering implementation: `GovernanceDecision` entries in DNA 4 are immutable and gated by `system_coordinator_key` in DNA properties — governance decisions represent human deliberation outcomes and require a designated recorder. `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` writes are open to any participant — no designated key required. This decentralisation means any validator who participated in a round can trigger finalisation without a central coordinator node.
 
 ---
 
