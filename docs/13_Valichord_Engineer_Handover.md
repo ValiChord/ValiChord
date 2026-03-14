@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.3 — March 2026
+**Version:** 1.4 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 73 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 80 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -71,6 +71,8 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
+**Validator self-assignment (`StudyClaim`)** — implemented 2026-03-14. Validators discover studies via `get_pending_requests_for_discipline` and call `claim_study(request_ref: ExternalHash)` to self-assign without any central matchmaker. The coordinator resolves the `ValidationRequest` ActionHash via the `StudyToValidation` path, reads the validator's institution from their `ValidatorProfile`, enforces capacity (no more than `num_validators_required` claims per study) and duplicate (no double-claiming) at the coordinator layer, then writes a `StudyClaim` entry plus two link indexes — `RequestToClaim` (base = request_ref, for `get_claims_for_request`) and `ValidatorToClaim` (base = agent pubkey, for `get_my_claimed_studies`). The integrity zome's `validate()` enforces conflict-of-interest at the network layer: if both `validator_institution` and `researcher_institution` are non-empty and equal, the claim is rejected. `release_claim(request_ref)` deletes both links (freeing the slot for another validator); the `StudyClaim` entry remains permanently as an audit record. Empty institution on either side bypasses the COI check (dev mode / researcher did not declare institution). `ValidationRequest` now also carries `researcher_institution: String` alongside the pointer fields `data_access_url` and `protocol_access_url`.
+
 ---
 
 ### DNA 4 — Governance & Harmony Records
@@ -106,7 +108,7 @@ These functions exist and compile but return placeholder values. They are design
 
 | Function | Location | Current behaviour | What it needs |
 |---|---|---|---|
-| `select_validators` | DNA 3 coordinator | Returns empty `Vec` | Conflict-of-interest detection, institutional balance, randomisation |
+| `select_validators` | DNA 3 coordinator | Returns empty `Vec` — **validator self-assignment via `claim_study` is now implemented and tested** (replaces central assignment for Phase 0) | Full reputation-weighted constrained randomisation with institutional balance caps for Phase 1 |
 | `detect_gaming_patterns` | DNA 3 coordinator | Returns empty `Vec` | Pattern detection logic — flag definitions exist in shared_types |
 | `get_difficulty_assessment` (retrieval) | DNA 3 coordinator | **Now implemented** — returns `None` only when no assessment exists | The `assess_difficulty` function stores real entries; retrieval works via `DifficultyPath` |
 | Cumulative reputation | DNA 4 coordinator | Single-round reputation only | Multi-round cumulative tier progression |
@@ -205,12 +207,12 @@ cd tests && npm test
 
 ## Test Inventory Summary
 
-73 tests across 4 files, 1 skipped.
+80 tests across 4 files, 1 skipped.
 
 | File | Tests | Coverage |
 |---|---|---|
-| `attestation.test.ts` | 32 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline` |
-| `governance.test.ts` | 20 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards |
+| `attestation.test.ts` | 37 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim) — happy path, duplicate rejection, COI rejection, capacity rejection, release_claim |
+| `governance.test.ts` | 22 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards |
 | `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
 | `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |
 
@@ -224,7 +226,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **Countersigning for simultaneous reveal.** The current design uses DHT-poll-driven sequential reveals. CommitmentAnchor already prevents last-mover advantage — a validator cannot see others' outcomes before committing their own. True Holochain countersigning would enforce mathematical simultaneity but requires all validators online at the same moment, which is operationally inappropriate for Phase 0. Revisit in Phase 2.
 
-**Validator assignment.** `select_validators()` is a stub. The real implementation needs conflict-of-interest detection (institutional affiliation, co-authorship history), domain expertise matching, and randomisation to prevent gaming. The data to calibrate this comes from Phase 0.
+**Validator assignment.** Validator self-assignment via `claim_study` is now implemented — validators discover studies via `get_pending_requests_for_discipline` and self-select, with COI enforcement (same institution as researcher) and capacity limits enforced at the protocol level. `select_validators()` (central algorithmic assignment with reputation-weighted constrained randomisation, institutional balance caps, and co-authorship detection) remains a stub — the data to calibrate it comes from Phase 0.
 
 **Compensation tiers.** `CompensationTier` is defined in shared_types. The actual tier values are placeholders. Phase 0 empirical workload data determines real compensation rates.
 
