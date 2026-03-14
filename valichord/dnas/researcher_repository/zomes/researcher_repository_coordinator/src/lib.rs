@@ -3,7 +3,7 @@ use researcher_repository_integrity::{
     DeclaredDeviation, EntryTypes, LinkTypes, PreRegisteredProtocol, ResearchStudy,
     VerifiedDataSnapshot,
 };
-use valichord_shared_types::{UndeclaredDeviation, discipline_tag};
+use valichord_shared_types::UndeclaredDeviation;
 use sha2::{Sha256, Digest};
 
 // ---------------------------------------------------------------------------
@@ -42,41 +42,9 @@ pub struct DeclareDeviationInput {
 // ---------------------------------------------------------------------------
 
 /// Register a new research study.
-///
-/// Indexes by institution path and discipline path so studies are locally
-/// discoverable without entering any shared DHT.
 #[hdk_extern]
 pub fn register_study(study: ResearchStudy) -> ExternResult<ActionHash> {
-    let institution = study.institution.clone();
-    let discipline  = study.discipline.clone();
-
-    let study_hash = create_entry(EntryTypes::ResearchStudy(study))?;
-
-    // Index by institution for local discovery (private-chain path).
-    let institution_path =
-        Path::from(format!("studies.institution.{}", institution))
-            .typed(LinkTypes::StudyToProtocol)?;
-    institution_path.ensure()?;
-    create_link(
-        institution_path.path_entry_hash()?,
-        study_hash.clone(),
-        LinkTypes::StudyToProtocol,
-        (),
-    )?;
-
-    // Index by discipline for local discovery.
-    let discipline_path =
-        Path::from(format!("studies.discipline.{}", discipline_tag(&discipline)))
-            .typed(LinkTypes::StudyToSnapshot)?;
-    discipline_path.ensure()?;
-    create_link(
-        discipline_path.path_entry_hash()?,
-        study_hash.clone(),
-        LinkTypes::StudyToSnapshot,
-        (),
-    )?;
-
-    Ok(study_hash)
+    create_entry(EntryTypes::ResearchStudy(study))
 }
 
 /// Register a pre-registered protocol and link it from the parent study.

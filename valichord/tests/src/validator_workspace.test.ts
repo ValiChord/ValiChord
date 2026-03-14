@@ -30,7 +30,8 @@ const HAPP_PATH = path.join(__dirname, "../../workdir/valichord.happ");
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PLACEHOLDER_KEY = "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew";
+// Empty string = dev bypass in verify_membrane_proof (skips Ed25519 check).
+const PLACEHOLDER_KEY = "";
 
 function simplePlayerConfig() {
   return {
@@ -95,7 +96,6 @@ async function ws(player: any, fn: string, payload: unknown = null): Promise<any
 function makeTask(requestRef: Uint8Array, overrides?: Record<string, unknown>) {
   return {
     request_ref: requestRef,
-    assigned_at_secs: 1_700_000_000,
     discipline: { type: "ComputationalBiology" },
     deadline_secs: 1_700_100_000,
     validation_focus: "ComputationalReproducibility",
@@ -138,7 +138,6 @@ function makePrivateAttestation(requestRef: Uint8Array) {
       estimated_compute_cost_pence:  null,
     },
     confidence: "High",
-    sealed_at_secs: 1_700_050_000,
   };
 }
 

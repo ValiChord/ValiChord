@@ -79,17 +79,24 @@ pub fn get_private_attestation_for_task(
 }
 
 /// Return all ValidationTask records from the local source chain.
+///
+/// Queries all private entries and filters by successful deserialization as
+/// ValidationTask — avoids hardcoded ZomeIndex/EntryDefIndex which break
+/// silently if entry ordering ever changes.
 #[hdk_extern]
 pub fn get_all_tasks(_: ()) -> ExternResult<Vec<Record>> {
-    let filter = ChainQueryFilter::new()
-        .entry_type(EntryType::App(AppEntryDef {
-            zome_index: ZomeIndex(0),
-            entry_index: EntryDefIndex(0), // ValidationTask is index 0
-            visibility: EntryVisibility::Private,
-        }))
-        .include_entries(true);
-    let records = query(filter)?;
-    Ok(records)
+    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let tasks = records
+        .into_iter()
+        .filter(|r| {
+            r.entry()
+                .to_app_option::<ValidationTask>()
+                .ok()
+                .flatten()
+                .is_some()
+        })
+        .collect();
+    Ok(tasks)
 }
 
 // ---------------------------------------------------------------------------
@@ -111,40 +118,32 @@ pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
 fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResult<()> {
     for signed in committed_actions {
         if let Action::Create(create) = signed.action() {
-            // Private entries embed the entry in the Create action — check
-            // the app entry def index to identify ValidatorPrivateAttestation.
-            if let Some(EntryType::App(app_def)) = Some(create.entry_type.clone()) {
-                // EntryDefIndex 1 = ValidatorPrivateAttestation (0 = ValidationTask)
-                if app_def.entry_index == EntryDefIndex(1) {
-                    // Fetch the entry to extract request_ref.
-                    let record = get(create.entry_hash.clone(), GetOptions::local())?;
-                    if let Some(rec) = record {
-                        if let Some(entry) = rec.entry().as_option() {
-                            if let Ok(Some(EntryTypes::ValidatorPrivateAttestation(
-                                attestation,
-                            ))) = EntryTypes::deserialize_from_type(
-                                app_def.zome_index,
-                                app_def.entry_index,
-                                entry,
-                            ) {
-                                let request_ref = attestation.request_ref.clone();
-                                // Fire-and-forget — notify DNA 3 that this
-                                // validator's commitment is now sealed.
-                                let _result: ExternResult<ZomeCallResponse> = call(
-                                    CallTargetCell::OtherRole("attestation".into()),
-                                    ZomeName::from("attestation_coordinator"),
-                                    FunctionName::from("notify_commitment_sealed"),
-                                    None,
-                                    request_ref,
-                                );
-                                if let Err(e) = _result {
-                                    debug!(
-                                        "notify_commitment_sealed call failed (non-fatal): {:?}",
-                                        e
-                                    );
-                                }
-                            }
-                        }
+            // Fetch the entry and try to deserialize as ValidatorPrivateAttestation.
+            // This avoids hardcoded ZomeIndex/EntryDefIndex which break silently
+            // if entry ordering changes.
+            let record = get(create.entry_hash.clone(), GetOptions::local())?;
+            if let Some(rec) = record {
+                if let Some(attestation) = rec
+                    .entry()
+                    .to_app_option::<ValidatorPrivateAttestation>()
+                    .ok()
+                    .flatten()
+                {
+                    let request_ref = attestation.request_ref.clone();
+                    // Fire-and-forget — notify DNA 3 that this validator's
+                    // commitment is now sealed.
+                    let _result: ExternResult<ZomeCallResponse> = call(
+                        CallTargetCell::OtherRole("attestation".into()),
+                        ZomeName::from("attestation_coordinator"),
+                        FunctionName::from("notify_commitment_sealed"),
+                        None,
+                        request_ref,
+                    );
+                    if let Err(e) = _result {
+                        debug!(
+                            "notify_commitment_sealed call failed (non-fatal): {:?}",
+                            e
+                        );
                     }
                 }
             }

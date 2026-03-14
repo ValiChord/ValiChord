@@ -26,31 +26,33 @@ pub struct ResearchStudy {
 /// IMMUTABLE after creation: validate() blocks all updates and deletes.
 /// This guarantees that the protocol on record is exactly what was filed
 /// before unblinding, not a post-hoc revision.
+///
+/// Note: creation timestamp is available from the Action — do not add
+/// registered_at_secs here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct PreRegisteredProtocol {
     pub analysis_plan:       String,
     pub hypotheses:          Vec<String>,
     pub statistical_methods: String,
-    /// Unix epoch seconds when this protocol was registered.
-    pub registered_at_secs:  u64,
 }
 
 /// A cryptographic snapshot of the dataset used for validation.
 ///
 /// Only the hash and metadata travel anywhere — the data itself
 /// stays inside this private membrane.
+///
+/// Note: snapshot time is available from the Action — do not add
+/// snapshot_taken_at_secs here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct VerifiedDataSnapshot {
     /// ExternalHash (SHA-256 of the data files, wrapped in Holochain's
     /// 39-byte HoloHash format). This is what the researcher shares
     /// with the Attestation DNA's ValidationRequest.data_hash field.
-    pub data_hash:              ExternalHash,
-    /// Unix epoch seconds when the snapshot was taken.
-    pub snapshot_taken_at_secs: u64,
-    pub file_count:             u32,
-    pub total_size_bytes:       u64,
+    pub data_hash:        ExternalHash,
+    pub file_count:       u32,
+    pub total_size_bytes: u64,
 }
 
 /// A deviation from the pre-registered plan that the researcher declares

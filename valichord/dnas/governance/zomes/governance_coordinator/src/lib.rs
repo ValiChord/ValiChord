@@ -135,8 +135,6 @@ pub fn check_and_create_harmony_record(
         .map(|a| a.discipline.clone())
         .unwrap_or(Discipline::Other("unknown".into()));
 
-    let created_at_secs = (sys_time()?.0 / 1_000_000) as u64;
-
     // --- 5. Create HarmonyRecord + links ------------------------------------
     let record = HarmonyRecord {
         request_ref: request_ref.clone(),
@@ -145,7 +143,6 @@ pub fn check_and_create_harmony_record(
         participating_validators: participating_validators.clone(),
         validation_duration_secs,
         discipline: discipline.clone(),
-        created_at_secs,
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
@@ -168,14 +165,41 @@ pub fn check_and_create_harmony_record(
 
     // --- 6. Optionally issue badge -------------------------------------------
     if let Some(badge_type) = evaluate_badge(&agreement_level, participating_validators.len()) {
+        // issued_to = the researcher who submitted the ValidationRequest.
+        // Cross-DNA call (author grant — same-agent cell). Falls back to the
+        // first participating validator if the lookup fails for any reason.
+        let issued_to = {
+            let resp = call(
+                CallTargetCell::OtherRole("attestation".into()),
+                ZomeName::from("attestation_coordinator"),
+                FunctionName::from("get_validation_request_for_data_hash"),
+                None,
+                request_ref.clone(),
+            );
+            match resp {
+                Ok(ZomeCallResponse::Ok(extern_io)) => {
+                    let maybe_record: Option<Record> = extern_io.decode().unwrap_or(None);
+                    maybe_record
+                        .map(|r| r.action().author().clone())
+                        .unwrap_or_else(|| {
+                            participating_validators
+                                .first()
+                                .cloned()
+                                .unwrap_or_else(|| {
+                                    agent_info().map(|i| i.agent_initial_pubkey).unwrap()
+                                })
+                        })
+                }
+                _ => participating_validators
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
+            }
+        };
         let badge = ReproducibilityBadge {
             study_ref: request_ref.clone(),
-            issued_to: participating_validators
-                .first()
-                .cloned()
-                .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
+            issued_to,
             badge_type,
-            issued_at_secs: created_at_secs,
             harmony_record_ref: record_hash.clone(),
         };
         let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
@@ -477,7 +501,6 @@ fn _update_reputation_internal(
             (1, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
         };
 
-    let last_updated_secs = (sys_time()?.0 / 1_000_000) as u64;
     let rep = ValidatorReputation {
         validator: validator.clone(),
         discipline,
@@ -485,7 +508,6 @@ fn _update_reputation_internal(
         agreement_rate,
         avg_time_secs,
         tier,
-        last_updated_secs,
     };
     let rep_hash = create_entry(EntryTypes::ValidatorReputation(rep))?;
     create_link(

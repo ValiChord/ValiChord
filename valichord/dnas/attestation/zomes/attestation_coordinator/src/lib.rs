@@ -26,6 +26,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "check_all_commitments_sealed",
         "get_current_phase",
         "get_difficulty_assessment",
+        "get_validation_request_for_data_hash",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -250,6 +251,36 @@ pub fn assess_difficulty(
 #[hdk_extern]
 pub fn get_validation_request(hash: ActionHash) -> ExternResult<Option<Record>> {
     get(hash, GetOptions::network())
+}
+
+/// Return the ValidationRequest record for a given data hash (study identifier).
+///
+/// The path "study.{data_hash}" is written by submit_validation_request.
+/// Used by governance to identify the researcher who submitted the study
+/// (record author = issued_to for ReproducibilityBadge).
+#[hdk_extern]
+pub fn get_validation_request_for_data_hash(
+    data_hash: ExternalHash,
+) -> ExternResult<Option<Record>> {
+    let study_path = Path::from(format!("study.{}", data_hash))
+        .typed(LinkTypes::StudyToValidation)?;
+    let links = get_links(
+        LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+        GetStrategy::Network,
+    )?;
+    match links.first() {
+        Some(link) => {
+            let hash = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid StudyToValidation link target".into()
+                )))?;
+            get(hash, GetOptions::network())
+        }
+        None => Ok(None),
+    }
 }
 
 #[hdk_extern]

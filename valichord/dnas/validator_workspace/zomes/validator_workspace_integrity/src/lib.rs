@@ -31,17 +31,19 @@ pub enum CompensationTier {
 // Nothing propagates to any shared DHT.
 
 /// A validation assignment received from the Attestation DNA.
+///
+/// Note: assignment time is available from the Action — assigned_at_secs
+/// is not stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ValidationTask {
     /// References the ValidationRequest entry in the Attestation DNA.
-    pub request_ref:         ExternalHash,
-    pub assigned_at_secs:    u64,
-    pub discipline:          Discipline,
-    pub deadline_secs:       u64,
-    pub validation_focus:    ValidationFocus,
-    pub time_cap_secs:       u64,
-    pub compensation_tier:   CompensationTier,
+    pub request_ref:       ExternalHash,
+    pub discipline:        Discipline,
+    pub deadline_secs:     u64,
+    pub validation_focus:  ValidationFocus,
+    pub time_cap_secs:     u64,
+    pub compensation_tier: CompensationTier,
 }
 
 /// THE COMMIT PHASE — the validator's sealed private attestation.
@@ -53,6 +55,9 @@ pub struct ValidationTask {
 ///
 /// IMMUTABLE after creation — validate() blocks all updates and deletes.
 /// This guarantees the commitment is exactly what was filed before unblinding.
+///
+/// Note: sealing time is available from the Action — sealed_at_secs is not
+/// stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ValidatorPrivateAttestation {
@@ -65,7 +70,6 @@ pub struct ValidatorPrivateAttestation {
     pub deviation_flags:         Vec<UndeclaredDeviation>,
     pub computational_resources: ComputationalResources,
     pub confidence:              AttestationConfidence,
-    pub sealed_at_secs:          u64,
 }
 
 // ---------------------------------------------------------------------------

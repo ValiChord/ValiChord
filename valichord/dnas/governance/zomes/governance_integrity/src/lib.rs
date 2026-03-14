@@ -30,6 +30,9 @@ pub struct DnaProperties {
 /// Disagreements are always visible — a non-negotiable governance commitment.
 ///
 /// IMMUTABLE after creation: validate() blocks all updates and deletes.
+///
+/// Note: creation time is available from the Action — created_at_secs is
+/// not stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct HarmonyRecord {
@@ -44,7 +47,6 @@ pub struct HarmonyRecord {
     /// Max time invested across validators (Phase 0 data collection).
     pub validation_duration_secs: u64,
     pub discipline:               Discipline,
-    pub created_at_secs:          u64,
 }
 
 /// Per-validator reputation score.
@@ -52,6 +54,9 @@ pub struct HarmonyRecord {
 /// Only the system_coordinator_key agent may write these entries.
 /// Individual dimensions prevent gaming that a single total score would enable.
 /// Updateable by creating a new entry (linked via ValidatorToReputation).
+///
+/// Note: update time is available from the Action — last_updated_secs is
+/// not stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ValidatorReputation {
@@ -62,19 +67,20 @@ pub struct ValidatorReputation {
     pub agreement_rate:    f64,
     pub avg_time_secs:     u64,
     pub tier:              CertificationTier,
-    pub last_updated_secs: u64,
 }
 
 /// Reproducibility badge issued to researchers.
 ///
 /// IMMUTABLE after creation.
+///
+/// Note: issuance time is available from the Action — issued_at_secs is
+/// not stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ReproducibilityBadge {
     pub study_ref:          ExternalHash,
     pub issued_to:          AgentPubKey,
     pub badge_type:         BadgeType,
-    pub issued_at_secs:     u64,
     /// ActionHash of the HarmonyRecord that triggered this badge.
     pub harmony_record_ref: ActionHash,
 }
@@ -90,14 +96,16 @@ pub enum BadgeType {
 /// Governance vote outcome — every decision is logged immutably.
 ///
 /// IMMUTABLE after creation.
+///
+/// Note: decision time is available from the Action — decided_at_secs is
+/// not stored here (self-reported, falsifiable, redundant).
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct GovernanceDecision {
-    pub proposal:       String,
-    pub decision:       String,
-    pub decided_at_secs: u64,
-    pub votes_for:      u32,
-    pub votes_against:  u32,
+    pub proposal:     String,
+    pub decision:     String,
+    pub votes_for:    u32,
+    pub votes_against: u32,
 }
 
 // ---------------------------------------------------------------------------

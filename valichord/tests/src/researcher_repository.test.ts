@@ -27,7 +27,8 @@ const HAPP_PATH = path.join(__dirname, "../../workdir/valichord.happ");
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PLACEHOLDER_KEY = "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew";
+// Empty string = dev bypass in verify_membrane_proof (skips Ed25519 check).
+const PLACEHOLDER_KEY = "";
 
 function simplePlayerConfig() {
   return {
@@ -98,7 +99,6 @@ function makeProtocol(overrides?: Record<string, unknown>) {
     analysis_plan: "Run the provided R scripts in order.",
     hypotheses: ["H1: Effect size > 0.3", "H2: p < 0.05"],
     statistical_methods: "Linear mixed-effects model with REML estimation.",
-    registered_at_secs: 1_700_000_000,
     ...overrides,
   };
 }
@@ -106,7 +106,6 @@ function makeProtocol(overrides?: Record<string, unknown>) {
 function makeSnapshot(dataHash: Uint8Array, overrides?: Record<string, unknown>) {
   return {
     data_hash: dataHash,
-    snapshot_taken_at_secs: 1_700_050_000,
     file_count: 12,
     total_size_bytes: 524_288_000,
     ...overrides,
@@ -217,7 +216,6 @@ describe("3. take_data_snapshot + get_snapshots_for_study", () => {
         const hash2 = await repo(alice, "take_data_snapshot", {
           study_ref: studyHash,
           snapshot: makeSnapshot(fakeExternalHash(0x02), {
-            snapshot_taken_at_secs: 1_700_100_000,
             file_count: 13,
           }),
         });

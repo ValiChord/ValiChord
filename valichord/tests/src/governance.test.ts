@@ -82,8 +82,9 @@ function makePlayerConfig(adminKeyB64: string) {
               properties: {
                 minimum_validators: 2,
                 discipline: "genomics",
-                authorized_joining_certificate_issuer:
-                  "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew",
+                // Empty string = dev bypass in attestation_coordinator
+                // verify_membrane_proof (skips Ed25519 signature check).
+                authorized_joining_certificate_issuer: "",
               },
             },
           },
@@ -104,9 +105,12 @@ function makePlayerConfig(adminKeyB64: string) {
   };
 }
 
-// Placeholder key baked into happ.yaml — no real agent has this key.
-const PLACEHOLDER_KEY =
-  "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew";
+// A non-empty string that no real agent key will ever equal.
+// Used as harmony_record_creator_key / system_coordinator_key in tests that
+// verify governance writes from an *unauthorised* agent are rejected.
+// Must be non-empty (empty = dev bypass in validate()) and must not equal
+// any real agent's base64 key.
+const PLACEHOLDER_KEY = "not-a-real-key";
 
 /** callZome helper. */
 async function callZome(
@@ -391,7 +395,6 @@ describe("3. Full end-to-end round", () => {
         // 3. Two validators seal private attestation tasks in DNA 2.
         const taskPayload = {
           request_ref: requestRef,
-          assigned_at_secs: 1_700_000_000,
           discipline: { type: "ComputationalBiology" },
           deadline_secs: 1_700_100_000,
           validation_focus: "ComputationalReproducibility",
