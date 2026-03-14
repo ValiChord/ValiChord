@@ -1827,15 +1827,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
 *Governance DNA:*
 
-- Reputation updates: only the system coordinator agent (defined in the membrane proof) may write reputation scores. Individual validators cannot edit their own scores.
-- HarmonyRecord, GovernanceDecision, and ReproducibilityBadge writes: only the `harmony_record_creator_key` agent (baked into DNA 4 properties) may create these entries. This prevents any anonymous HTTP Gateway caller from fabricating public validation records. The `harmony_record_creator_key` is set in `dna.yaml` at deployment and is immutable for the lifetime of that network instance.
+- HarmonyRecord, ReproducibilityBadge, and ValidatorReputation writes: open to any participant. Any validator who participated in the round may trigger finalisation by calling `check_and_create_harmony_record`. No designated coordinator node is required. Content correctness is enforced by a completeness check (must have ≥ `num_validators_required` attestations) and idempotency guard in the coordinator layer.
+- GovernanceDecision writes: only the `system_coordinator_key` agent may create these entries. Governance decisions represent human deliberation outcomes and require a designated recorder. `harmony_record_creator_key` has been removed — it no longer exists.
 
 ```yaml
-# DNA 4 dna.yaml properties (added v12)
+# DNA 4 dna.yaml properties
 properties:
-  system_coordinator_key:      "uhCAk..."  # may write ValidatorReputation
-  harmony_record_creator_key:  "uhCAk..."  # may write HarmonyRecord / GovernanceDecision / Badge
-  authorized_joining_certificate_issuer: "uhCAk..."
+  system_coordinator_key: "uhCAk..."  # may write GovernanceDecision only
+  # Empty string = dev/test bypass (skips the key check entirely)
 ```
 - Warrant records: any peer may create a warrant for another agent, but the warrant must reference a valid action hash pointing to the violation.
 

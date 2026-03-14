@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 73 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 75 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -125,17 +125,17 @@ cd tests && npm test
 > CI with <16 GB RAM). The test logic is correct; run it on adequately
 > resourced hardware.
 
-### DNA 4 — `governance.test.ts` (20 tests)
+### DNA 4 — `governance.test.ts` (22 tests)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
 | 1.1  | two calls for the same request_ref with no attestations both return null | PASS |
 | 1.2  | second call short-circuits when HarmonyRecord already exists | PASS |
-| 2.1  | HarmonyRecord creation from non-creator key is rejected by validate() | PASS |
-| 2.2  | agent key does not equal placeholder key (validate() precondition) | PASS |
+| 2.1  | a validator who did not submit the ValidationRequest can trigger finalisation | PASS |
+| 2.2  | premature finalisation (only 1 of 2 required attestations) returns null | PASS |
 | 3.1  | researcher → request → validator attestations → HarmonyRecord on DHT | PASS |
-| 4.1  | reputation update from non-coordinator key is rejected by validate() | PASS |
-| 4.2  | reputation update from system_coordinator_key is accepted | PASS |
+| 4.1  | any validator can update reputation (not key-gated) | PASS |
+| 4.2  | GovernanceDecision remains key-gated — non-coordinator key is rejected | PASS |
 | 5.1  | get_harmony_records_by_discipline returns the record after creation | PASS |
 | 5.2  | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
 | 5.3  | get_badges_for_study returns empty when validator count < 3 | PASS |
@@ -143,7 +143,6 @@ cd tests && npm test
 | 7.1  | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
 | 8.1  | create_governance_decision + get_all_governance_decisions round-trip | PASS |
 | 8.2  | multiple GovernanceDecisions are all returned by get_all_governance_decisions | PASS |
-| 8.3  | non-creator key cannot create GovernanceDecision — rejected by validate() | PASS |
 | 9.1  | get_badges_by_type returns empty list before any badge of that type is issued | PASS |
 | 9.2  | get_badges_by_type returns the correct badge after check_and_create_harmony_record | PASS |
 | 10.1 | no delete function exists for HarmonyRecord in the coordinator API | PASS |
@@ -165,9 +164,13 @@ These are areas not yet covered by tests, ordered by value.
 ## Architecture notes
 
 - `minimum_validators: 2` is set in test DNA properties (production default is 3–7).
-- `harmony_record_creator_key` and `system_coordinator_key` are set to `""` in
-  governance DNA test properties — the empty-string bypass in `governance_integrity`
-  allows any agent to write governance entries in test/dev mode.
+- `system_coordinator_key` is set to the test admin's base64 pubkey in governance DNA
+  test properties. It gates `GovernanceDecision` writes only. `harmony_record_creator_key`
+  no longer exists — `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation`
+  are open to any participant. Empty string = dev/test bypass for `system_coordinator_key`.
+- `submit_attestation` (DNA 3) automatically fires a same-agent cross-DNA call to
+  `check_and_create_harmony_record` (DNA 4) after writing each attestation. The last
+  validator to reveal triggers HarmonyRecord creation without a central coordinator node.
 - Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
 - Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production
   this is triggered by DNA 2's `post_commit` (exercised by test 9.1).

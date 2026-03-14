@@ -2,22 +2,30 @@ use hdi::prelude::*;
 use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline};
 
 // ---------------------------------------------------------------------------
-// DNA Properties — two keys, baked into the DNA hash.
+// DNA Properties — one key, baked into the DNA hash.
 //
-// Changing either key requires publishing a new DNA (new network seed or new
-// hash), which is a governance decision. The DNA-properties check is the
-// cryptographic backstop: validate() cannot reach into the Attestation DNA
-// to verify the calling agent's credentials, so the key in properties is the
-// authoritative gate.
+// system_coordinator_key gates GovernanceDecision creation only — governance
+// decisions represent human deliberation outcomes and require a designated
+// recorder.
+//
+// HarmonyRecord, ReproducibilityBadge, and ValidatorReputation are NOT
+// author-gated: any participant who was part of the round can trigger
+// finalisation. Content correctness is enforced in the coordinator
+// (completeness check + idempotency) rather than by trusting a single agent.
+// This keeps the system consistent with Holochain's decentralised model —
+// no single node is a required coordinator for protocol completion.
+//
+// Remaining limitation (Phase 1): validate() cannot perform cross-DNA lookups
+// to cryptographically verify HarmonyRecord content against the Attestation
+// DHT. Content correctness is currently enforced in the coordinator layer
+// only, not at the network validation layer.
 // ---------------------------------------------------------------------------
 
 #[dna_properties]
 pub struct DnaProperties {
-    /// Only this key may write ValidatorReputation entries.
-    pub system_coordinator_key:     String,
-    /// Only this key may write HarmonyRecord, GovernanceDecision,
-    /// and ReproducibilityBadge entries.
-    pub harmony_record_creator_key: String,
+    /// Only this key may write GovernanceDecision entries.
+    /// Empty string = dev/test bypass (skips the check entirely).
+    pub system_coordinator_key: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -157,69 +165,45 @@ pub enum LinkTypes {
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
 
-        // --- HarmonyRecord create: only harmony_record_creator_key ----------
+        // --- HarmonyRecord create: open to any participant -------------------
         //
-        // Empty key = unrestricted (test / development mode).
-        // In production, set harmony_record_creator_key to the real coordinator
-        // agent's base64 public key in the governance DNA properties.
+        // Any validator who participated in the round may trigger finalisation.
+        // Content correctness is enforced by the coordinator's completeness
+        // check and idempotency guard, not by an author allowlist.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::HarmonyRecord(_),
-            ref action,
-            ..
-        }) => {
-            let props = DnaProperties::try_from_dna_properties()?;
-            if !props.harmony_record_creator_key.is_empty()
-                && action.author.to_string() != props.harmony_record_creator_key
-            {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "Only harmony_record_creator_key may write HarmonyRecord entries".into(),
-                ));
-            }
-            Ok(ValidateCallbackResult::Valid)
-        }
+            app_entry: EntryTypes::HarmonyRecord(_), ..
+        }) => Ok(ValidateCallbackResult::Valid),
 
-        // --- GovernanceDecision create: only harmony_record_creator_key -----
+        // --- GovernanceDecision create: only system_coordinator_key ---------
+        //
+        // Governance decisions represent human deliberation outcomes. A
+        // designated key-holder records the result of each governance vote.
+        // Empty key = dev/test bypass.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::GovernanceDecision(_),
             ref action,
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
-            if !props.harmony_record_creator_key.is_empty()
-                && action.author.to_string() != props.harmony_record_creator_key
+            if !props.system_coordinator_key.is_empty()
+                && action.author.to_string() != props.system_coordinator_key
             {
                 return Ok(ValidateCallbackResult::Invalid(
-                    "Only harmony_record_creator_key may write GovernanceDecision entries".into(),
+                    "Only system_coordinator_key may write GovernanceDecision entries".into(),
                 ));
             }
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- ReproducibilityBadge create: only harmony_record_creator_key ---
+        // --- ReproducibilityBadge create: open to any participant ------------
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ReproducibilityBadge(_),
-            ref action,
-            ..
-        }) => {
-            let props = DnaProperties::try_from_dna_properties()?;
-            if !props.harmony_record_creator_key.is_empty()
-                && action.author.to_string() != props.harmony_record_creator_key
-            {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "Only harmony_record_creator_key may issue ReproducibilityBadge entries".into(),
-                ));
-            }
-            Ok(ValidateCallbackResult::Valid)
-        }
+            app_entry: EntryTypes::ReproducibilityBadge(_), ..
+        }) => Ok(ValidateCallbackResult::Valid),
 
-        // --- ValidatorReputation create: only system_coordinator_key --------
+        // --- ValidatorReputation create: open to any participant -------------
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ValidatorReputation(_),
-            ref action,
-            ..
-        }) => {
-            validate_reputation_author(&action.author)
-        }
+            app_entry: EntryTypes::ValidatorReputation(_), ..
+        }) => Ok(ValidateCallbackResult::Valid),
 
         // --- Immutability: block updates to HarmonyRecord -------------------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
@@ -242,15 +226,10 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ReproducibilityBadge is immutable — badges cannot be altered after issuance".into(),
         )),
 
-        // --- ValidatorReputation update: only system_coordinator_key --------
-        // Placed AFTER the immutability guards so they fire first.
+        // --- ValidatorReputation update: open to any participant -------------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
-            app_entry: EntryTypes::ValidatorReputation(_),
-            ref action,
-            ..
-        }) => {
-            validate_reputation_author(&action.author)
-        }
+            app_entry: EntryTypes::ValidatorReputation(_), ..
+        }) => Ok(ValidateCallbackResult::Valid),
 
         FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
 
@@ -300,22 +279,6 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     }
 }
 
-fn validate_reputation_author(
-    author: &AgentPubKey,
-) -> ExternResult<ValidateCallbackResult> {
-    let props = DnaProperties::try_from_dna_properties()?;
-    // Empty key = unrestricted (test / development mode).
-    // In production, set system_coordinator_key to the real coordinator's
-    // base64 public key in the governance DNA properties.
-    if !props.system_coordinator_key.is_empty()
-        && author.to_string() != props.system_coordinator_key
-    {
-        return Ok(ValidateCallbackResult::Invalid(
-            "Only the system coordinator may write ValidatorReputation entries".into(),
-        ));
-    }
-    Ok(ValidateCallbackResult::Valid)
-}
 
 // ---------------------------------------------------------------------------
 // genesis_self_check — no membrane proof required (public DHT, open join)

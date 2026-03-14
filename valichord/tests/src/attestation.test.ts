@@ -219,6 +219,10 @@ function makeValidationRequest(overrides?: Record<string, unknown>) {
     // ExternalHash: valid 39-byte Uint8Array (prefix + core + DHT loc).
     // Must be Uint8Array so msgpack encodes as binary (bin), not array.
     data_hash: fakeExternalHash(0xab),
+    // Where validators download the dataset (OSF, Zenodo, institutional repo, etc.).
+    data_access_url: "https://osf.io/example/files",
+    // DOI or URL of the pre-registered analysis plan. null = not yet pre-registered.
+    protocol_access_url: "https://osf.io/example/preregistration",
     num_validators_required: 2,
     // ValidationTier has no serde tag attr → external tag → unit variant = plain string.
     validation_tier: "Basic",

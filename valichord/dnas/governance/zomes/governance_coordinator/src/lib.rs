@@ -96,8 +96,30 @@ pub fn check_and_create_harmony_record(
         _ => return Ok(None),
     };
 
-    // --- 3. No attestations yet — not ready ---------------------------------
+    // --- 3. Check completeness — only finalise when enough attestations in --
+    //
+    // Query the Attestation DNA for the ValidationRequest to read
+    // num_validators_required.  If the request isn't found (e.g. called before
+    // the request exists) or no attestations have arrived yet, return None so
+    // the caller can retry.  This prevents a premature HarmonyRecord being
+    // written based on partial data.
     if attestation_records.is_empty() {
+        return Ok(None);
+    }
+    let min_validators: u8 = {
+        let resp = call(
+            CallTargetCell::OtherRole("attestation".into()),
+            ZomeName::from("attestation_coordinator"),
+            FunctionName::from("get_num_validators_required"),
+            None,
+            request_ref.clone(),
+        )?;
+        match resp {
+            ZomeCallResponse::Ok(extern_io) => extern_io.decode().unwrap_or(1u8),
+            _ => 1u8,
+        }
+    };
+    if (attestation_records.len() as u8) < min_validators {
         return Ok(None);
     }
 

@@ -61,8 +61,12 @@ function fakeExternalHash(coreByte: number): Uint8Array {
 /**
  * Build a player config.
  *
- * adminKeyB64 is baked into governance DNA properties as both
- * harmony_record_creator_key and system_coordinator_key.
+ * adminKeyB64 is baked into governance DNA properties as system_coordinator_key
+ * (gates GovernanceDecision writes only).
+ *
+ * HarmonyRecord, ReproducibilityBadge, and ValidatorReputation are open to
+ * any participant — no harmony_record_creator_key needed.
+ *
  * Do NOT pass agentPubKey here — use addPlayers + installAppsForPlayers
  * so the key is pre-registered in lair before installation.
  */
@@ -94,8 +98,8 @@ function makePlayerConfig(adminKeyB64: string) {
           value: {
             modifiers: {
               properties: {
+                // Only GovernanceDecision is key-gated.
                 system_coordinator_key: adminKeyB64,
-                harmony_record_creator_key: adminKeyB64,
               },
             },
           },
@@ -144,6 +148,8 @@ function makeValidationRequest(overrides?: Record<string, unknown>) {
   return {
     protocol_ref: null,
     data_hash: fakeExternalHash(0xab),
+    data_access_url: "https://osf.io/example/files",
+    protocol_access_url: "https://osf.io/example/preregistration",
     num_validators_required: 2,
     validation_tier: "Basic",
     discipline: { type: "ComputationalBiology" },
@@ -302,51 +308,90 @@ describe("1. check_and_create_harmony_record idempotency", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Author enforcement
+// 2. Any participant can finalise — decentralised model
 // ---------------------------------------------------------------------------
+//
+// HarmonyRecord, ReproducibilityBadge, and ValidatorReputation are open to
+// any participant.  There is no designated coordinator node.  Bob can trigger
+// finalisation just as well as Alice.  The completeness check in
+// check_and_create_harmony_record prevents premature writes.
 
-describe("2. Author enforcement", () => {
+describe("2. Any participant can finalise", () => {
   test(
-    "HarmonyRecord creation from non-creator key is rejected by validate()",
-    { timeout: 900_000 },
+    "a validator who did not submit the ValidationRequest can trigger finalisation",
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
-        // Alice joins with the PLACEHOLDER key (which is not her real key).
-        // Any governance write must be rejected.
-        const [alicePlayer] = await scenario.addPlayers(1);
-        const [alice] = await scenario.installAppsForPlayers(
-          [makePlayerConfig(PLACEHOLDER_KEY)],
-          [alicePlayer],
+        const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
+
+        const [alice, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(aliceKeyB64), makePlayerConfig(aliceKeyB64)],
+          [alicePlayer, bobPlayer],
         );
 
+        const attDnaHash = dnaHashForRole(alice, "attestation");
         const requestRef = fakeExternalHash(0x10);
 
-        // Submit one attestation (but only 1, so we have data; we test governance directly).
+        // Both validators commit.
         await att(alice, "notify_commitment_sealed", requestRef);
-        await att(alice, "submit_attestation", makeAttestation(requestRef));
-        await pause(300);
+        await dhtSync([alice, bob], attDnaHash);
+        await att(bob, "notify_commitment_sealed", requestRef);
+        await dhtSync([alice, bob], attDnaHash);
 
-        // Alice's key != harmony_record_creator_key → validate() must reject.
-        await expect(
-          gov(alice, "check_and_create_harmony_record", requestRef),
-        ).rejects.toThrow();
+        // Both validators reveal.
+        await att(alice, "submit_attestation", makeAttestation(requestRef));
+        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([alice, bob], attDnaHash);
+
+        // Bob triggers finalisation — he is not the "creator key", just a
+        // participant.  This must succeed.
+        const harmonyHash = await gov(bob, "check_and_create_harmony_record", requestRef);
+        expect(harmonyHash).not.toBeNull();
+
+        // Record is visible to alice too.
+        await dhtSync([alice, bob], dnaHashForRole(alice, "governance"));
+        const record = await gov(alice, "get_harmony_record", requestRef);
+        expect(record).not.toBeNull();
       }, true, { timeout: 900_000 });
     },
   );
 
   test(
-    "agent key does not equal placeholder key (validate() precondition)",
-    { timeout: 900_000 },
+    "premature finalisation (only 1 of 2 required attestations) returns null",
+    { timeout: 1_800_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [alicePlayer] = await scenario.addPlayers(1);
-        const [alice] = await scenario.installAppsForPlayers(
-          [makePlayerConfig(PLACEHOLDER_KEY)],
-          [alicePlayer],
+        const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
+
+        const [alice, bob] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(aliceKeyB64), makePlayerConfig(aliceKeyB64)],
+          [alicePlayer, bobPlayer],
         );
-        // Sanity-check: the test relies on alice's actual key being different
-        // from the placeholder so validate() fires correctly.
-        expect(encodeHashToBase64(alice.agentPubKey)).not.toBe(PLACEHOLDER_KEY);
+
+        const attDnaHash = dnaHashForRole(alice, "attestation");
+        // Use a unique request_ref with a ValidationRequest so
+        // get_num_validators_required can find num_validators_required=2.
+        const dataHash = fakeExternalHash(0x1f);
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: dataHash }));
+
+        const requestRef = dataHash;
+
+        // Only Alice commits and reveals — Bob has not submitted yet.
+        await att(alice, "notify_commitment_sealed", requestRef);
+        await dhtSync([alice, bob], attDnaHash);
+        await att(alice, "submit_attestation", makeAttestation(requestRef));
+        await dhtSync([alice, bob], attDnaHash);
+
+        // Premature finalisation: only 1 attestation, need 2 → must return null.
+        const result = await gov(alice, "check_and_create_harmony_record", requestRef);
+        expect(result).toBeNull();
+
+        // No record on DHT.
+        const record = await gov(alice, "get_harmony_record", requestRef);
+        expect(record).toBeNull();
       }, true, { timeout: 900_000 });
     },
   );
@@ -444,54 +489,63 @@ describe("3. Full end-to-end round", () => {
 // 4. ValidatorReputation author enforcement
 // ---------------------------------------------------------------------------
 
-describe("4. ValidatorReputation author enforcement", () => {
+// ---------------------------------------------------------------------------
+// 4. ValidatorReputation — any participant can write
+// ---------------------------------------------------------------------------
+//
+// Reputation is updated automatically inside check_and_create_harmony_record
+// for every validator in a round.  It is not key-gated — any participant
+// may write a reputation entry.  GovernanceDecision remains the only
+// key-gated write in the governance DNA.
+
+describe("4. ValidatorReputation — any participant can write", () => {
   test(
-    "reputation update from non-coordinator key is rejected by validate()",
+    "any validator can update reputation (not key-gated)",
     { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer] = await scenario.addPlayers(1);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
         const [alice] = await scenario.installAppsForPlayers(
-          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [makePlayerConfig(aliceKeyB64)],
           [alicePlayer],
         );
 
-        // Alice's key != system_coordinator_key → validate() must reject.
-        await expect(
-          gov(alice, "update_validator_reputation", {
-            validator: alice.agentPubKey,
-            discipline: { type: "ComputationalBiology" },
-            outcome: { type: "Reproduced" },
-            time_invested_secs: 3600,
-          }),
-        ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
-    },
-  );
-
-  test(
-    "reputation update from system_coordinator_key is accepted",
-    { timeout: 900_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [adminPlayer] = await scenario.addPlayers(1);
-        const adminKeyB64 = encodeHashToBase64(adminPlayer.agentPubKey);
-
-        const [admin] = await scenario.installAppsForPlayers(
-          [makePlayerConfig(adminKeyB64)],
-          [adminPlayer],
-        );
-
-        const repHash = await gov(admin, "update_validator_reputation", {
-          validator: admin.agentPubKey,
+        // Alice writes her own reputation — no key gate.
+        const repHash = await gov(alice, "update_validator_reputation", {
+          validator: alice.agentPubKey,
           discipline: { type: "ComputationalBiology" },
           outcome: { type: "Reproduced" },
           time_invested_secs: 3600,
         });
         expect(repHash).not.toBeNull();
 
-        const rep = await gov(admin, "get_validator_reputation", admin.agentPubKey);
+        const rep = await gov(alice, "get_validator_reputation", alice.agentPubKey);
         expect(rep).not.toBeNull();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  test(
+    "GovernanceDecision remains key-gated — non-coordinator key is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        // Install with PLACEHOLDER_KEY so alice's real key ≠ system_coordinator_key.
+        const [alicePlayer] = await scenario.addPlayers(1);
+        const [alice] = await scenario.installAppsForPlayers(
+          [makePlayerConfig(PLACEHOLDER_KEY)],
+          [alicePlayer],
+        );
+
+        await expect(
+          gov(alice, "create_governance_decision", {
+            proposal: "Unauthorised attempt",
+            decision: "Should not land",
+            votes_for: 1,
+            votes_against: 0,
+          }),
+        ).rejects.toThrow();
       }, true, { timeout: 900_000 });
     },
   );
@@ -872,29 +926,6 @@ describe("8. GovernanceDecision", () => {
     },
   );
 
-  test(
-    "non-creator key cannot create GovernanceDecision — rejected by validate()",
-    { timeout: 900_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        // Install with PLACEHOLDER_KEY so alice's real key ≠ creator key.
-        const [alicePlayer] = await scenario.addPlayers(1);
-        const [alice] = await scenario.installAppsForPlayers(
-          [makePlayerConfig(PLACEHOLDER_KEY)],
-          [alicePlayer],
-        );
-
-        await expect(
-          gov(alice, "create_governance_decision", {
-            proposal: "Unauthorised attempt",
-            decision: "Should not land",
-            votes_for: 1,
-            votes_against: 0,
-          }),
-        ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
-    },
-  );
 });
 
 // ---------------------------------------------------------------------------
@@ -917,8 +948,6 @@ describe("9. get_badges_by_type", () => {
           [makePlayerConfig(adminKeyB64)],
           [adminPlayer],
         );
-
-        const requestRef = fakeExternalHash(0xe0);
 
         // Single player acting as both researcher and validator.
         // ExactMatch (1/1 = 100%) + count=1 < 3 → no badge.

@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.1 — March 2026
+**Version:** 1.3 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -61,6 +61,14 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 `get_validation_request_for_data_hash(data_hash: ExternalHash)` is a public extern registered in `init()`. It resolves a `ValidationRequest` record from the `study.{data_hash}` path. Used by DNA 4 to identify the researcher (record author) when issuing a `ReproducibilityBadge`.
 
+**`ValidationRequest` carries two new pointer fields** added 2026-03-14: `data_access_url: String` (URL where validators download the dataset — OSF, Zenodo, institutional repo, etc.) and `protocol_access_url: Option<String>` (DOI or URL of the pre-registered analysis plan). The actual data never touches the DHT — these are pointers only. The researcher fills these from their private DNA before calling `submit_validation_request`.
+
+**Governance DNA is now fully decentralised** (2026-03-14): `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are no longer author-gated by a designated coordinator key. Any participant who was part of the round can trigger finalisation by calling `check_and_create_harmony_record`. The function enforces completeness (must have ≥ `num_validators_required` attestations before writing) and idempotency (a second call short-circuits if a record already exists). `submit_attestation` in the Attestation DNA now automatically fires a same-agent cross-DNA call to `check_and_create_harmony_record` — the last validator to submit their attestation triggers the HarmonyRecord write without any central coordinator node.
+
+`GovernanceDecision` remains key-gated by `system_coordinator_key` — governance votes are human deliberation outcomes that require a designated recorder. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
+
+**Known remaining limitation (Phase 1):** the Governance integrity zome's `validate()` cannot perform cross-DNA lookups to cryptographically verify that a HarmonyRecord's content is correct against the Attestation DHT. Content correctness is currently enforced at the coordinator layer (completeness check + algorithmic derivation) but not at the network validation layer. Making it trustless at the validation layer requires either moving HarmonyRecord creation into the Attestation DNA or embedding sufficient proof in the entry itself.
+
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
 ---
@@ -70,17 +78,17 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 Public DHT, HTTP Gateway target. Stores final outcomes — Harmony Records, Reproducibility Badges, validator reputation, governance decisions.
 
-Write access is gated by DNA properties keys (`harmony_record_creator_key`, `system_coordinator_key`) enforced in `validate()`. Author check compares `action.author().to_string()` against the property string. Empty string = dev/test bypass (same pattern as membrane proof).
+Write access is decentralised: `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are open to any participant — no author key required. `GovernanceDecision` is the sole exception, gated by `system_coordinator_key` in `validate()` (human deliberation outcomes need a designated recorder). Empty string = dev/test bypass. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
 
-`HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are immutable. `ValidatorReputation` allows updates (coordinator key enforced).
+`HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are immutable. `ValidatorReputation` allows updates (no key gate — updated automatically during round finalisation).
 
 **No self-reported timestamps.** `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do not store `created_at_secs`, `last_updated_secs`, or `issued_at_secs` fields. These were removed because Holochain Actions carry an authoritative, tamper-evident timestamp — self-reported timestamps in entry content are falsifiable and redundant. Do not add them back.
 
 **Badge recipient is the researcher, not the first validator.** `ReproducibilityBadge.issued_to` is resolved via a cross-DNA call: `call(OtherRole("attestation"), "get_validation_request_for_data_hash", data_hash)`. The record's `action().author()` is the researcher who submitted the study. Falls back to the first participating validator if the cross-DNA call fails.
 
-`check_and_create_harmony_record` is idempotent — checks for an existing record before creating. Called from DNA 3's `post_commit` after a `ValidationAttestation` is written. When a badge is issued, it is linked twice: via `StudyToBadge` (for per-study lookup) and via `BadgePath` (for cross-study type-based analytics).
+`check_and_create_harmony_record` is idempotent and decentralised — any participant may call it. It checks for an existing record first, then verifies that enough attestations exist (`attestation_records.len() >= num_validators_required`) before writing. `submit_attestation` in DNA 3 automatically fires this call on the governance role after writing each attestation — the last validator to reveal triggers HarmonyRecord creation without any central coordinator node. When a badge is issued it is linked twice: via `StudyToBadge` (per-study lookup) and via `BadgePath` (cross-study type-based analytics).
 
-`create_governance_decision(input: GovernanceDecision)` writes a `GovernanceDecision` entry and indexes it under the `decisions.all` path anchor via `AllDecisions` link type. Gated by `harmony_record_creator_key` in `validate()`.
+`create_governance_decision(input: GovernanceDecision)` writes a `GovernanceDecision` entry and indexes it under the `decisions.all` path anchor via `AllDecisions` link type. Gated by `system_coordinator_key` in `validate()`.
 
 `get_all_governance_decisions()` reads via `AllDecisions` links from the path anchor. Network-strategy get.
 

@@ -31,6 +31,10 @@ pub struct DnaProperties {
 pub struct ValidationRequest {
     pub protocol_ref:            Option<ExternalHash>,
     pub data_hash:               ExternalHash,
+    /// URL where validators can download the dataset (OSF, Zenodo, institutional repo, etc.).
+    pub data_access_url:         String,
+    /// DOI or URL of the pre-registered analysis plan (OSF, AsPredicted, ClinicalTrials, etc.).
+    pub protocol_access_url:     Option<String>,
     pub num_validators_required: u8,
     pub validation_tier:         ValidationTier,
     pub discipline:              Discipline,

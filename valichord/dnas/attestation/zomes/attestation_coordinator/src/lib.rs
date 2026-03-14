@@ -29,6 +29,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_current_phase",
         "get_difficulty_assessment",
         "get_validation_request_for_data_hash",
+        "get_num_validators_required",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -159,13 +160,22 @@ pub fn submit_validation_request(
 }
 
 /// Submit a public attestation — THE REVEAL PHASE.
-/// IMMUTABLE after write. post_commit triggers HarmonyRecord assembly.
+/// IMMUTABLE after write.
+///
+/// After writing the attestation this function attempts to finalise the
+/// validation round by calling check_and_create_harmony_record on the
+/// Governance DNA.  The call is fire-and-forget: if the round is not yet
+/// complete (fewer attestations than num_validators_required) the governance
+/// function returns null silently.  If the round is complete, any validator
+/// who submits last triggers the HarmonyRecord write — no designated
+/// coordinator node required.
 #[hdk_extern]
 pub fn submit_attestation(
     attestation: ValidationAttestation,
 ) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
     let disc_tag = attestation.discipline_tag();
+    let request_ref = attestation.request_ref.clone();
     let attestation_hash =
         create_entry(EntryTypes::ValidationAttestation(attestation.clone()))?;
 
@@ -185,6 +195,18 @@ pub fn submit_attestation(
         LinkTypes::DisciplinePath,
         (),
     )?;
+
+    // Attempt to finalise the round.  The governance coordinator's idempotency
+    // guard ensures at most one HarmonyRecord is written even if multiple
+    // validators trigger this simultaneously.  Errors are swallowed — a failed
+    // finalisation attempt does not invalidate the attestation itself.
+    let _ = call(
+        CallTargetCell::OtherRole("governance".into()),
+        ZomeName::from("governance_coordinator"),
+        FunctionName::from("check_and_create_harmony_record"),
+        None,
+        request_ref,
+    );
 
     Ok(attestation_hash)
 }
@@ -296,6 +318,19 @@ pub fn get_validation_request_for_data_hash(
         }
         None => Ok(None),
     }
+}
+
+/// Return the num_validators_required for the ValidationRequest identified by
+/// data_hash.  Called by the Governance DNA's check_and_create_harmony_record
+/// to enforce completeness before writing a HarmonyRecord.  Returns 1 as a
+/// safe default if the request is not found (allows finalisation to proceed
+/// rather than blocking indefinitely on a missing request).
+#[hdk_extern]
+pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> {
+    Ok(get_validation_request_for_data_hash(data_hash)?
+        .and_then(|r| r.entry().to_app_option::<ValidationRequest>().ok().flatten())
+        .map(|vr| vr.num_validators_required)
+        .unwrap_or(1))
 }
 
 #[hdk_extern]
