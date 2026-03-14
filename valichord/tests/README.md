@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 57 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 71 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -51,7 +51,7 @@ cd tests && npm test
 
 ## Test inventory
 
-### DNA 1 — `researcher_repository.test.ts` (12 tests)
+### DNA 1 — `researcher_repository.test.ts` (14 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -67,8 +67,10 @@ cd tests && npm test
 | 5.2 | same bytes always produce the same hash (deterministic) | PASS |
 | 5.3 | different bytes produce different hashes (collision resistance) | PASS |
 | 6.1 | attempting to delete a PreRegisteredProtocol is rejected (no delete fn in API) | PASS |
+| 7.1 | get_all_studies returns empty list before any study registered | PASS |
+| 7.2 | get_all_studies returns all 3 registered studies with distinct ActionHashes | PASS |
 
-### DNA 2 — `validator_workspace.test.ts` (5 tests)
+### DNA 2 — `validator_workspace.test.ts` (7 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -77,8 +79,10 @@ cd tests && npm test
 | 2.1 | sealed private attestation is retrievable via its parent task | PASS |
 | 2.2 | get_private_attestation_for_task returns null before any attestation | PASS |
 | 3.1 | get_all_tasks returns all 3 received tasks from the local source chain | PASS |
+| 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
+| 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (28 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (30 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -104,34 +108,45 @@ cd tests && npm test
 | 9.1  | seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA | PASS |
 | 10.1 | Bob cannot read Alice's sealed private attestation from Bob's workspace cell | PASS |
 | 11.1 | one commit with minimum_validators=2 leaves phase as null | PASS |
-| 12.1 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
-| 12.2 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
+| 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
+| 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
+| 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
 | 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
 | 15.1 | two ComputationalBiology profiles published → both returned; MachineLearning returns 0 | PASS |
 | 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |
+| 17.1 | get_validation_request_for_data_hash returns the record for a known data_hash | PASS |
+| 17.2 | get_validation_request_for_data_hash returns null for an unknown data_hash | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
 > CI with <16 GB RAM). The test logic is correct; run it on adequately
 > resourced hardware.
 
-### DNA 4 — `governance.test.ts` (12 tests)
+### DNA 4 — `governance.test.ts` (20 tests)
 
-| ID  | Test name | Status |
-|-----|-----------|--------|
-| 1.1 | two calls for the same request_ref with no attestations both return null | PASS |
-| 1.2 | second call short-circuits when HarmonyRecord already exists | PASS |
-| 2.1 | HarmonyRecord creation from non-creator key is rejected by validate() | PASS |
-| 2.2 | agent key does not equal placeholder key (validate() precondition) | PASS |
-| 3.1 | researcher → request → validator attestations → HarmonyRecord on DHT | PASS |
-| 4.1 | reputation update from non-coordinator key is rejected by validate() | PASS |
-| 4.2 | reputation update from system_coordinator_key is accepted | PASS |
-| 5.1 | get_harmony_records_by_discipline returns the record after creation | PASS |
-| 5.2 | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
-| 5.3 | get_badges_for_study returns empty when validator count < 3 | PASS |
-| 6.1 | get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced | PASS |
-| 7.1 | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
+| ID   | Test name | Status |
+|------|-----------|--------|
+| 1.1  | two calls for the same request_ref with no attestations both return null | PASS |
+| 1.2  | second call short-circuits when HarmonyRecord already exists | PASS |
+| 2.1  | HarmonyRecord creation from non-creator key is rejected by validate() | PASS |
+| 2.2  | agent key does not equal placeholder key (validate() precondition) | PASS |
+| 3.1  | researcher → request → validator attestations → HarmonyRecord on DHT | PASS |
+| 4.1  | reputation update from non-coordinator key is rejected by validate() | PASS |
+| 4.2  | reputation update from system_coordinator_key is accepted | PASS |
+| 5.1  | get_harmony_records_by_discipline returns the record after creation | PASS |
+| 5.2  | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
+| 5.3  | get_badges_for_study returns empty when validator count < 3 | PASS |
+| 6.1  | get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced | PASS |
+| 7.1  | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
+| 8.1  | create_governance_decision + get_all_governance_decisions round-trip | PASS |
+| 8.2  | multiple GovernanceDecisions are all returned by get_all_governance_decisions | PASS |
+| 8.3  | non-creator key cannot create GovernanceDecision — rejected by validate() | PASS |
+| 9.1  | get_badges_by_type returns empty list before any badge of that type is issued | PASS |
+| 9.2  | get_badges_by_type returns the correct badge after check_and_create_harmony_record | PASS |
+| 10.1 | no delete function exists for HarmonyRecord in the coordinator API | PASS |
+| 10.2 | no delete function exists for GovernanceDecision in the coordinator API | PASS |
+| 10.3 | no delete function exists for ReproducibilityBadge in the coordinator API | PASS |
 
 ---
 
@@ -141,7 +156,7 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 4 — GoldReproducible (12.2) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
 
 ---
 
@@ -167,5 +182,12 @@ These are areas not yet covered by tests, ordered by value.
 - `ReproducibilityBadge.issued_to` is the researcher who submitted the study, resolved
   via a cross-DNA call to `attestation_coordinator::get_validation_request_for_data_hash`.
   It is NOT the first participating validator.
-- `get_all_tasks` (DNA 2) uses type-safe deserialization to filter entries — not
-  hardcoded `ZomeIndex`/`EntryDefIndex` values. Do not reintroduce hardcoded indices.
+- `get_all_tasks` and `get_all_private_attestations` (DNA 2), `get_all_studies`
+  (DNA 1), and `get_all_governance_decisions` (DNA 4) all use type-safe
+  deserialization to filter source-chain entries — not hardcoded `ZomeIndex`/
+  `EntryDefIndex` values. Do not reintroduce hardcoded indices.
+- `BadgePath` link type (DNA 4) is written at badge issuance in
+  `check_and_create_harmony_record` and read by `get_badges_by_type`. It indexes
+  badges by type for cross-study analytics (e.g. "how many Bronze badges this quarter").
+- `AllDecisions` link type (DNA 4) is written by `create_governance_decision` and
+  read by `get_all_governance_decisions` via an "decisions.all" path anchor.

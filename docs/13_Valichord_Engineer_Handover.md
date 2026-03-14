@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 57 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 71 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -31,6 +31,8 @@ All entry types are `visibility = "private"`. No DHT. No membrane proof required
 
 `compute_data_hash` uses `sha2::Sha256` and returns a 39-byte `ExternalHash` via `ExternalHash::from_raw_32()`.
 
+`get_all_studies()` returns all `ResearchStudy` records from the local source chain using `query()` + deserialization filter. Same pattern as `get_all_tasks` in DNA 2.
+
 ---
 
 ### DNA 2 — Validator Workspace
@@ -41,6 +43,8 @@ Private, single-agent DNA. The commit phase of the blind commit-reveal protocol 
 `ValidatorPrivateAttestation` is immutable after creation — tested.
 
 **Critical:** `post_commit` fires `call(OtherRole("attestation"), "notify_commitment_sealed")` after a `ValidatorPrivateAttestation` is created. This is the only outward communication from DNA 2. The target attestation cell must be initialised before `post_commit` fires — see the deadlock section below.
+
+`get_all_private_attestations()` returns all `ValidatorPrivateAttestation` records from the local source chain using `query()` + deserialization filter. Parallel to `get_all_tasks`.
 
 ---
 
@@ -74,7 +78,13 @@ Write access is gated by DNA properties keys (`harmony_record_creator_key`, `sys
 
 **Badge recipient is the researcher, not the first validator.** `ReproducibilityBadge.issued_to` is resolved via a cross-DNA call: `call(OtherRole("attestation"), "get_validation_request_for_data_hash", data_hash)`. The record's `action().author()` is the researcher who submitted the study. Falls back to the first participating validator if the cross-DNA call fails.
 
-`check_and_create_harmony_record` is idempotent — checks for an existing record before creating. Called from DNA 3's `post_commit` after a `ValidationAttestation` is written.
+`check_and_create_harmony_record` is idempotent — checks for an existing record before creating. Called from DNA 3's `post_commit` after a `ValidationAttestation` is written. When a badge is issued, it is linked twice: via `StudyToBadge` (for per-study lookup) and via `BadgePath` (for cross-study type-based analytics).
+
+`create_governance_decision(input: GovernanceDecision)` writes a `GovernanceDecision` entry and indexes it under the `decisions.all` path anchor via `AllDecisions` link type. Gated by `harmony_record_creator_key` in `validate()`.
+
+`get_all_governance_decisions()` reads via `AllDecisions` links from the path anchor. Network-strategy get.
+
+`get_badges_by_type(badge_type: BadgeType)` reads all badges of a given type via the `BadgePath` link index. Accepts a plain string enum variant (e.g. `"BronzeReproducible"`).
 
 ---
 
@@ -183,14 +193,14 @@ cd tests && npm test
 
 ## Test Inventory Summary
 
-57 tests across 4 files, 1 skipped.
+71 tests across 4 files, 1 skipped.
 
 | File | Tests | Coverage |
 |---|---|---|
-| `attestation.test.ts` | 26 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification |
-| `governance.test.ts` | 12 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes |
-| `researcher_repository.test.ts` | 12 | All coordinator functions, immutability enforcement |
-| `validator_workspace.test.ts` | 6 | All coordinator functions, multi-task retrieval |
+| `attestation.test.ts` | 30 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash` |
+| `governance.test.ts` | 20 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards |
+| `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
+| `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |
 
 Full test inventory: `valichord/tests/README.md`
 
