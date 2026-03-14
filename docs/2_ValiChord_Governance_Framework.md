@@ -2,7 +2,7 @@
   <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 </div>
 
-# ValiChord — Governance Framework 
+# ValiChord Complete — Governance Framework
 ## How the System Resists Corruption, Capture, and Domestication
 
 **Author:** Ceri John
@@ -88,7 +88,13 @@ COI declarations logged. False declarations = immediate removal from pilot.
 - Fairness adjustment for disproportionately difficult assignments
 - GDPR-compliant data storage at host institution
 
-### 1.5 The Six Non-Negotiable Commitments
+### 1.5 Structural Protection Against Deference Bias
+The most pervasive form of validation failure is not fraud or deliberate rubber-stamping — it is unconscious deference to claimed results. A validator who knows what answer they are supposed to find will tend, without any dishonest intent, to interpret ambiguous evidence in favour of that answer. This is not a character flaw; it is a documented feature of human cognition under uncertainty.
+ValiChord eliminates this failure mode architecturally rather than normatively. Validators receive only what they need to reproduce the work: the data, the code, and the execution instructions. They never receive the researcher's claimed result. They cannot confirm what they have never seen. The commit-reveal protocol then ensures they cannot see each other's independent conclusions before sealing their own.
+This means that the most common form of rubber-stamping in peer review — result-anchored deference — is structurally impossible in ValiChord. No governance commitment or training programme is required to prevent it. The architecture prevents it by default.
+This is the sharpest distinction between ValiChord and every existing reproducibility tool: those tools verify that code runs and produces outputs. ValiChord verifies that independent experts, working without knowledge of what the answer is supposed to be, reached the same conclusion.
+
+### 1.6 The Six Non-Negotiable Commitments
 
 These apply from day one. They are not "aspirational goals for the mature system." They are the minimum conditions under which ValiChord operates at any scale.
 
@@ -622,6 +628,69 @@ What counts as "good pre-registration" varies by field. Physics demands precise 
 **Balance:** Trust disciplinary expertise, but enforce transparency.
 
 ### Challenge 4: International Governance (Phase 3+)
+
+Multi-jurisdictional operation creates legal complexity: GDPR (Europe) vs. CCPA (California) vs. PIPL (China). Research ethics standards vary. Cultural norms around transparency differ.
+
+**Approach:** Minimum global standards (baseline), regional adaptations (where necessary), mutual recognition (federation model), shared principles (transparency, integrity).
+
+### Challenge 5: Governance Capture
+
+The most insidious risk. ValiChord governance could be captured by large institutions (volume dominance), funders (financial pressure), established researchers (prestige bias), or special interests (methodology wars).
+
+**Defences:** The Anti-Domestication Mechanics section above provides nine specific mechanical defences against the two most plausible capture scenarios — institutional soft-capture and journal-led workflow capture. These complement the structural defences: graph-based independence verification, separation of powers, term limits and rotation, diverse representation requirements, the Epistemic Integrity Commitments, and active monitoring of decision patterns.
+
+**Capture is insidious.** It happens gradually through procedurally correct means. The Anti-Domestication Mechanics are designed to make capture visible and costly before it becomes structural. Vigilance is not a phase — it's permanent.
+
+---
+
+## GOVERNANCE EVOLUTION
+
+### Principle
+
+Governance must evolve. The system learns from experience. Edge cases reveal gaps. Gaming strategies adapt. Community needs change.
+
+### Process
+
+1. **Identify need** — Pattern analysis, community feedback, governance bottlenecks, external changes
+2. **Propose change** — Document current state, specify proposed change, explain rationale and evidence, identify risks
+3. **Community input** — Public comment period (30 days minimum), stakeholder consultation, impact assessment
+4. **Decision** — RIO deliberates, rationale published, implementation timeline if approved
+5. **Monitor** — Track metrics post-change. Did it solve the problem? Did it create new ones? Adjust or revert if needed.
+
+### Constraints on Evolution
+
+- Changes must be evidence-based, not ideological
+- Changes must be transparent — the community sees the reasoning
+- Changes must be conservative — requiring justification proportional to impact
+- Changes must be reversible where possible
+- The six non-negotiable commitments cannot be weakened through the evolution process
+
+---
+
+## Conclusion
+
+ValiChord's governance is not an afterthought. It is the immune system that determines whether the technical architecture serves its purpose or gets captured by the forces it was designed to resist.
+
+The tiered approach means governance matches operational scale — minimal overhead during the pilot, enhanced mechanisms as the system grows, and a complete architecture designed in advance so the mature system inherits the right principles.
+
+If governance fails, ValiChord fails. Not because of technical problems. Not because of adoption challenges. Because trust is lost.
+
+This framework is designed to maintain that trust, even under pressure. Even when it's uncomfortable. Especially when it's uncomfortable.
+
+That's what infrastructure requires.
+
+---
+
+**Companion Documents:**
+- *ValiChord Vision & Architecture* — What ValiChord is and why it matters
+- *ValiChord Technical Reference* — Architecture sketches for engineering discussion
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
+- *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
+
+**Contact:** Ceri John — topeuph@gmail.com
+
+**© 2026 Ceri John. All Rights Reserved.**
+
 
 Multi-jurisdictional operation creates legal complexity: GDPR (Europe) vs. CCPA (California) vs. PIPL (China). Research ethics standards vary. Cultural norms around transparency differ.
 
