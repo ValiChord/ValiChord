@@ -229,6 +229,8 @@ function makeValidationRequest(overrides?: Record<string, unknown>) {
     // Discipline uses #[serde(tag="type", content="content")] → adjacent-tagged.
     // Unit variants: {"type": "VariantName"} (no content key for unit variants).
     discipline: { type: "ComputationalBiology" },
+    // Researcher's institution — used for COI checks. Empty string = bypassed.
+    researcher_institution: "MIT",
     ...overrides,
   };
 }
@@ -1812,6 +1814,210 @@ describe("19. get_attestations_for_discipline", () => {
           alice, "get_attestations_for_discipline", { type: "MachineLearning" },
         );
         expect(mlAtts).toHaveLength(0);
+      }, true, { timeout: 900_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 20. Validator self-assignment — claim_study / release_claim /
+//     get_claims_for_request / get_my_claimed_studies
+// ---------------------------------------------------------------------------
+//
+// Validators discover studies via get_pending_requests_for_discipline and
+// call claim_study(request_ref) to self-assign.  The coordinator:
+//   - Resolves the ValidationRequest ActionHash via StudyToValidation path.
+//   - Looks up the validator's institution from their ValidatorProfile.
+//   - Writes a StudyClaim entry + RequestToClaim + ValidatorToClaim links.
+//   - Rejects duplicate claims from the same agent.
+//   - Rejects claims when num_validators_required slots are already filled.
+//
+// validate() in the integrity zome rejects StudyClaim if both validator_institution
+// and researcher_institution are non-empty and equal (COI).
+//
+// release_claim(request_ref) deletes both links (freeing the slot); the
+// StudyClaim entry remains on the DHT as an immutable audit record.
+//
+// Helper: a minimal ValidatorProfile (different institutions avoid COI).
+function makeProfile(institution: string) {
+  return {
+    institution,
+    disciplines: [{ type: "ComputationalBiology" }],
+    certification_tier: "Provisional",
+    available: true,
+    max_concurrent_tasks: 3,
+    orcid: null,
+  };
+}
+
+describe("20. Validator self-assignment (StudyClaim)", () => {
+  // 20.1 — basic happy path
+  test(
+    "validator claims a study and the claim is retrievable",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // Alice is the researcher; Bob is the validator.
+        // researcher_institution="MIT", Bob's profile="Oxford" → no COI.
+        const REQUEST_REF = fakeExternalHash(0xe0);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+
+        await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob], dnaHash!);
+
+        // Bob claims the study.
+        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        expect(claimHash).toBeTruthy();
+
+        await dhtSync([alice, bob], dnaHash!);
+
+        // get_claims_for_request returns the claim.
+        const claims = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
+        expect(claims).toHaveLength(1);
+
+        // get_my_claimed_studies (Bob's view) contains his claim.
+        const mine = await zomeCall<unknown[]>(bob, "get_my_claimed_studies", null);
+        expect(mine).toHaveLength(1);
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 20.2 — duplicate rejection
+  test(
+    "same validator cannot claim the same study twice",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xe1);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob], dnaHash!);
+
+        // First claim succeeds.
+        await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash!);
+
+        // Second claim from the same agent must fail.
+        await expect(
+          zomeCall(bob, "claim_study", REQUEST_REF),
+        ).rejects.toThrow();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 20.3 — conflict-of-interest rejection (same institution)
+  test(
+    "validator from the same institution as researcher is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // Both Alice (researcher) and Bob (validator) are at "MIT".
+        const REQUEST_REF = fakeExternalHash(0xe2);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob, "publish_validator_profile", makeProfile("MIT"));
+        await dhtSync([alice, bob], dnaHash!);
+
+        // Bob's claim must be rejected by validate() (COI).
+        await expect(
+          zomeCall(bob, "claim_study", REQUEST_REF),
+        ).rejects.toThrow();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 20.4 — capacity rejection
+  test(
+    "claiming when all slots are full is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        // num_validators_required=2 (DNA default); add 3 validators so the 3rd is rejected.
+        const [alice, bob, carol, dave] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()), // researcher
+          playerConfig(validMembraneProof()), // validator 1
+          playerConfig(validMembraneProof()), // validator 2
+          playerConfig(validMembraneProof()), // validator 3 — should be rejected
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xe3);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+
+        await zomeCall(bob,  "publish_validator_profile", makeProfile("Oxford"));
+        await zomeCall(carol,"publish_validator_profile", makeProfile("Cambridge"));
+        await zomeCall(dave, "publish_validator_profile", makeProfile("Harvard"));
+        await dhtSync([alice, bob, carol, dave], dnaHash!);
+
+        // First two claims fill all slots (num_validators_required=2).
+        await zomeCall(bob,  "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob, carol, dave], dnaHash!);
+        await zomeCall(carol,"claim_study", REQUEST_REF);
+        await dhtSync([alice, bob, carol, dave], dnaHash!);
+
+        // Third claim must be rejected (capacity exceeded).
+        await expect(
+          zomeCall(dave, "claim_study", REQUEST_REF),
+        ).rejects.toThrow();
+      }, true, { timeout: 900_000 });
+    },
+  );
+
+  // 20.5 — release_claim frees the slot
+  test(
+    "release_claim removes the claim from get_claims_for_request",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice, bob] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+          playerConfig(validMembraneProof()),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const REQUEST_REF = fakeExternalHash(0xe4);
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF, researcher_institution: "MIT" }));
+        await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob], dnaHash!);
+
+        // Claim, verify it appears, then release.
+        await zomeCall(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash!);
+
+        const before = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
+        expect(before).toHaveLength(1);
+
+        await zomeCall(bob, "release_claim", REQUEST_REF);
+        await dhtSync([alice, bob], dnaHash!);
+
+        const after = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
+        expect(after).toHaveLength(0);
+
+        // get_my_claimed_studies should also be empty after release.
+        const mine = await zomeCall<unknown[]>(bob, "get_my_claimed_studies", null);
+        expect(mine).toHaveLength(0);
       }, true, { timeout: 900_000 });
     },
   );

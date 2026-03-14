@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 75 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 80 pass, 1 skipped, 0 fail** (as of 2026-03-14)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -82,7 +82,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (32 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (37 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -119,6 +119,11 @@ cd tests && npm test
 | 17.2 | get_validation_request_for_data_hash returns null for an unknown data_hash | PASS |
 | 18.1 | get_validators_for_institution returns profiles for matching institution, empty for non-matching | PASS |
 | 19.1 | get_attestations_for_discipline returns attestation for matching discipline, empty for non-matching | PASS |
+| 20.1 | validator claims a study and the claim is retrievable | PASS |
+| 20.2 | same validator cannot claim the same study twice | PASS |
+| 20.3 | validator from the same institution as researcher is rejected (COI) | PASS |
+| 20.4 | claiming when all slots are full is rejected | PASS |
+| 20.5 | release_claim removes the claim from get_claims_for_request | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
@@ -202,3 +207,9 @@ These are areas not yet covered by tests, ordered by value.
 - `DisciplinePath` link type (DNA 3) is written by `submit_attestation` under
   "attestations.{discipline_tag}" paths and read by `get_attestations_for_discipline`.
   Provides cross-study analytics on attestation outcomes by discipline.
+- `StudyClaim` (DNA 3) — validators self-assign via `claim_study(request_ref)`.
+  Two link indexes are written: `RequestToClaim` (base = request_ref) and `ValidatorToClaim`
+  (base = agent pubkey). The coordinator enforces capacity and duplicate checks;
+  validate() enforces COI (same institution as researcher → invalid).
+  `release_claim(request_ref)` deletes both links; the StudyClaim entry remains as audit.
+  Empty `researcher_institution` or `validator_institution` bypasses the COI check.

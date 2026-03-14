@@ -153,6 +153,7 @@ function makeValidationRequest(overrides?: Record<string, unknown>) {
     num_validators_required: 2,
     validation_tier: "Basic",
     discipline: { type: "ComputationalBiology" },
+    researcher_institution: "MIT",
     ...overrides,
   };
 }

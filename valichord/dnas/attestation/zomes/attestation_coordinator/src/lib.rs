@@ -1,7 +1,7 @@
 use hdk::prelude::*;
 use attestation_integrity::{
     AssessmentConfidence, CommitmentAnchor, DifficultyAssessment, DifficultyTier,
-    DnaProperties, EntryTypes, LinkTypes, PhaseMarker, ValidatorProfile,
+    DnaProperties, EntryTypes, LinkTypes, PhaseMarker, StudyClaim, ValidatorProfile,
     ValidationRequest,
 };
 use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
@@ -30,6 +30,8 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_difficulty_assessment",
         "get_validation_request_for_data_hash",
         "get_num_validators_required",
+        "get_claims_for_request",
+        "get_my_claimed_studies",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -331,6 +333,204 @@ pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> 
         .and_then(|r| r.entry().to_app_option::<ValidationRequest>().ok().flatten())
         .map(|vr| vr.num_validators_required)
         .unwrap_or(1))
+}
+
+// ---------------------------------------------------------------------------
+// Validator self-assignment
+// ---------------------------------------------------------------------------
+
+/// Claim a study from the pending queue.
+///
+/// The validator passes the data_hash (ExternalHash) they see in
+/// get_pending_requests_for_discipline.  The coordinator resolves the
+/// ValidationRequest ActionHash and their own institution from their
+/// ValidatorProfile, then writes the StudyClaim entry and two link indexes.
+///
+/// Enforced here (coordinator layer):
+///   - Capacity: cannot claim if num_validators_required claims already exist.
+///   - Duplicate: cannot claim the same study twice.
+///
+/// Enforced by validate() (network layer):
+///   - COI: validator and researcher must not share institution.
+#[hdk_extern]
+pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
+    let agent = agent_info()?.agent_initial_pubkey;
+
+    // Resolve the ValidationRequest ActionHash from the study path.
+    let (vr_action_hash, vr) = {
+        let study_path = Path::from(format!("study.{}", request_ref))
+            .typed(LinkTypes::StudyToValidation)?;
+        let links = get_links(
+            LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+            GetStrategy::Network,
+        )?;
+        let link = links.first().ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "No ValidationRequest found for this data_hash — submit_validation_request first"
+                .into(),
+        )))?;
+        let hash = link.target.clone().into_action_hash().ok_or_else(|| {
+            wasm_error!(WasmErrorInner::Guest(
+                "StudyToValidation link target is not an ActionHash".into(),
+            ))
+        })?;
+        let record = get(hash.clone(), GetOptions::network())?.ok_or_else(|| {
+            wasm_error!(WasmErrorInner::Guest(
+                "ValidationRequest record not found on DHT".into(),
+            ))
+        })?;
+        let vr = record
+            .entry()
+            .to_app_option::<ValidationRequest>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+            .ok_or_else(|| {
+                wasm_error!(WasmErrorInner::Guest(
+                    "Link target is not a ValidationRequest".into(),
+                ))
+            })?;
+        (hash, vr)
+    };
+
+    // Capacity check: count existing live claims for this request.
+    let existing_claims = get_claims_for_request(request_ref.clone())?;
+    if existing_claims.len() >= vr.num_validators_required as usize {
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "Study is at capacity ({}/{} validators already claimed)",
+            existing_claims.len(),
+            vr.num_validators_required,
+        ))));
+    }
+
+    // Duplicate check: has this agent already claimed this study?
+    let existing_links = get_links(
+        LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
+        GetStrategy::Network,
+    )?;
+    if existing_links.iter().any(|l| l.author == agent) {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator has already claimed this study".into(),
+        )));
+    }
+
+    // Resolve the validator's institution from their profile.
+    let validator_institution = {
+        let profile_links = get_links(
+            LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
+            GetStrategy::Network,
+        )?;
+        profile_links
+            .last()
+            .and_then(|l| l.target.clone().into_action_hash())
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
+            .map(|p| p.institution)
+            .unwrap_or_default()
+    };
+
+    // Write the claim entry and indexes.
+    let claim = StudyClaim {
+        request_ref: request_ref.clone(),
+        validation_request_hash: vr_action_hash,
+        validator_institution,
+    };
+    let claim_hash = create_entry(EntryTypes::StudyClaim(claim))?;
+
+    // RequestToClaim: base = request_ref (ExternalHash as DHT address).
+    create_link(
+        request_ref.clone(),
+        claim_hash.clone(),
+        LinkTypes::RequestToClaim,
+        (),
+    )?;
+
+    // ValidatorToClaim: base = this agent's pubkey.
+    create_link(
+        agent,
+        claim_hash.clone(),
+        LinkTypes::ValidatorToClaim,
+        (),
+    )?;
+
+    Ok(claim_hash)
+}
+
+/// Release a previously claimed study.
+///
+/// Deletes the RequestToClaim and ValidatorToClaim links so the slot becomes
+/// available again.  The StudyClaim entry itself remains on the DHT as an
+/// immutable audit record.
+#[hdk_extern]
+pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
+    let agent = agent_info()?.agent_initial_pubkey;
+
+    // Delete the RequestToClaim link authored by this agent.
+    let request_links = get_links(
+        LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
+        GetStrategy::Network,
+    )?;
+    for link in request_links.iter().filter(|l| l.author == agent) {
+        delete_link(link.create_link_hash.clone(), GetOptions::network())?;
+    }
+
+    // Delete the corresponding ValidatorToClaim link.
+    let validator_links = get_links(
+        LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
+        GetStrategy::Network,
+    )?;
+    for link in validator_links {
+        if let Some(hash) = link.target.clone().into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::local())? {
+                if let Some(claim) = record
+                    .entry()
+                    .to_app_option::<StudyClaim>()
+                    .ok()
+                    .flatten()
+                {
+                    if claim.request_ref == request_ref {
+                        delete_link(link.create_link_hash, GetOptions::network())?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Return all live StudyClaim records for a given study (request_ref).
+#[hdk_extern]
+pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Record>> {
+    let links = get_links(
+        LinkQuery::try_new(request_ref, LinkTypes::RequestToClaim)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
+}
+
+/// Return all studies this validator has claimed (live ValidatorToClaim links).
+#[hdk_extern]
+pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
+    let agent = agent_info()?.agent_initial_pubkey;
+    let links = get_links(
+        LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
+        GetStrategy::Network,
+    )?;
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
 }
 
 #[hdk_extern]

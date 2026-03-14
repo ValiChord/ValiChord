@@ -38,6 +38,31 @@ pub struct ValidationRequest {
     pub num_validators_required: u8,
     pub validation_tier:         ValidationTier,
     pub discipline:              Discipline,
+    /// Researcher's institution — used for conflict-of-interest checks when
+    /// validators claim the study.  Empty string = COI check bypassed.
+    pub researcher_institution:  String,
+}
+
+/// A validator's self-assignment to a validation study.
+///
+/// Written by the validator when they claim a study from the pending queue.
+/// The coordinator enforces capacity limits and duplicate prevention.
+/// validate() enforces the conflict-of-interest rule: validator and researcher
+/// must not be from the same institution.
+///
+/// Links written alongside this entry:
+///   RequestToClaim:  request_ref  → StudyClaim ActionHash
+///   ValidatorToClaim: AgentPubKey → StudyClaim ActionHash
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct StudyClaim {
+    pub request_ref:             ExternalHash,
+    /// ActionHash of the ValidationRequest — used by validate() to fetch
+    /// researcher_institution for the COI check without a link traversal.
+    pub validation_request_hash: ActionHash,
+    /// Validator's institution at claim time (copied from their ValidatorProfile
+    /// by the coordinator).  Empty string = COI check bypassed.
+    pub validator_institution:   String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -118,6 +143,7 @@ pub enum EntryTypes {
     DifficultyAssessment(DifficultyAssessment),
     CommitmentAnchor(CommitmentAnchor),
     PhaseMarker(PhaseMarker),
+    StudyClaim(StudyClaim),
 }
 
 // ---------------------------------------------------------------------------
@@ -137,9 +163,14 @@ pub enum LinkTypes {
     /// Indexes ValidatorProfile entries under "validators.{discipline_tag}" paths.
     ValidatorTierPath,
     /// Links request_ref (ExternalHash) → DifficultyAssessment ActionHash.
-    /// Allows get_difficulty_assessment to retrieve the most recent assessment
-    /// for a given request without scanning the source chain.
     DifficultyPath,
+    /// Links request_ref (ExternalHash) → StudyClaim ActionHash.
+    /// Base: the study's data_hash (ExternalHash used as DHT address).
+    /// Allows get_claims_for_request to enumerate all validators who claimed a study.
+    RequestToClaim,
+    /// Links AgentPubKey → StudyClaim ActionHash.
+    /// Allows get_my_claimed_studies to enumerate a validator's active claims.
+    ValidatorToClaim,
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +269,40 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- StudyClaim create: conflict-of-interest check ------------------
+        //
+        // Fetch the ValidationRequest via the embedded ActionHash and compare
+        // institutions.  Empty institution on either side bypasses the check
+        // (dev mode / researcher didn't declare institution).
+        //
+        // Capacity and duplicate checks live in the coordinator — they require
+        // link counting, which is not available in validate().
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::StudyClaim(ref claim), ..
+        }) => {
+            let req_record =
+                must_get_valid_record(claim.validation_request_hash.clone())?;
+            let req: ValidationRequest = req_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "StudyClaim.validation_request_hash does not point to a ValidationRequest"
+                        .into(),
+                )))?;
+            if !claim.validator_institution.is_empty()
+                && !req.researcher_institution.is_empty()
+                && claim.validator_institution == req.researcher_institution
+            {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "Conflict of interest: validator institution '{}' matches \
+                     researcher institution — claim rejected",
+                    claim.validator_institution,
+                )));
             }
             Ok(ValidateCallbackResult::Valid)
         }
