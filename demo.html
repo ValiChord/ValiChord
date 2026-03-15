@@ -216,7 +216,7 @@
         <div class="file-icon">🔴</div>
         <div>
           <div class="file-name">CLEANING_REPORT.md <span class="file-tag tag-report">The report</span></div>
-          <div class="file-desc">Every finding specific to your repository, categorised as CRITICAL, SIGNIFICANT, or LOW CONFIDENCE, with explanations and fix instructions.</div>
+          <div class="file-desc">Opens with a 🚨 <strong style="color:#c87070;">Reproduction Blockers</strong> section listing only the findings that would prevent a validator from starting — then every finding categorised as CRITICAL, SIGNIFICANT, or LOW CONFIDENCE, with explanations and fix instructions.</div>
         </div>
       </div>
       <div class="file-item">
@@ -283,6 +283,13 @@
     <div class="card-intro">Every finding in your CLEANING_REPORT.md is given one of three confidence levels. Here is what each means in practice.</div>
 
     <div class="severity-list">
+      <div class="severity-item">
+        <div><span class="severity-badge" style="background:#1a0808;color:#c87070;border:1px solid #4a1818;white-space:nowrap;">🚨 BLOCKERS</span></div>
+        <div class="severity-text">
+          <strong>Validator cannot begin work.</strong>
+          Your report opens with a dedicated Reproduction Blockers section — a filtered view of only the findings that cause outright failure: no README, missing dependencies, absolute paths, no entry point, missing referenced files, or inaccessible data. Fix these first. Everything else may slow or inconvenience a validator, but won't stop them attempting your work.
+        </div>
+      </div>
       <div class="severity-item">
         <div><span class="severity-badge sev-critical">CRITICAL</span></div>
         <div class="severity-text">
