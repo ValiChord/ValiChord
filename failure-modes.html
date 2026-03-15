@@ -75,6 +75,13 @@
   .count-line { text-align: center; color: #4a4448; font-size: 0.82em; margin-bottom: 24px; }
   .count-line span { color: #6a6468; }
 
+  /* Reproduction blocker badge */
+  .blocker-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.72em; font-weight: 500; letter-spacing: 0.02em;
+    color: #c87070; margin-top: 9px;
+  }
+
   /* Hidden */
   .card.hidden { display: none; }
 </style>
@@ -100,6 +107,7 @@
     <div class="legend-item"><span class="sev sev-critical">CRITICAL</span> Blocks reproduction outright</div>
     <div class="legend-item"><span class="sev sev-significant">SIGNIFICANT</span> Likely to cause failure</div>
     <div class="legend-item"><span class="sev sev-low">LOW CONFIDENCE</span> Worth reviewing</div>
+    <div class="legend-item"><span style="color:#c87070;font-size:0.95em">🚨</span> Reproduction blocker — validator cannot begin work</div>
   </div>
 
   <div class="filter-bar">
@@ -107,30 +115,35 @@
     <button class="filter-btn" data-filter="critical">Critical <span id="count-critical"></span></button>
     <button class="filter-btn" data-filter="significant">Significant <span id="count-significant"></span></button>
     <button class="filter-btn" data-filter="low">Low confidence <span id="count-low"></span></button>
+    <button class="filter-btn" data-filter="blocker">🚨 Reproduction blockers <span id="count-blocker"></span></button>
   </div>
 
   <p class="count-line">Showing <span id="visible-count">128</span> of 128 detectors</p>
 
   <div class="grid" id="grid">
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">A</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">No README file found</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
-    <div class="card" data-sev="significant">
+    <div class="card" data-sev="significant" data-blocker="true">
       <div class="card-top"><span class="code-badge">B</span><span class="sev sev-significant">SIGNIFICANT</span></div>
       <div class="card-title">Unpinned or missing dependency file</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
-    <div class="card" data-sev="significant">
+    <div class="card" data-sev="significant" data-blocker="true">
       <div class="card-top"><span class="code-badge">C</span><span class="sev sev-significant">SIGNIFICANT</span></div>
       <div class="card-title">Absolute paths that only work on the researcher's machine</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
-    <div class="card" data-sev="significant">
+    <div class="card" data-sev="significant" data-blocker="true">
       <div class="card-top"><span class="code-badge">D</span><span class="sev sev-significant">SIGNIFICANT</span></div>
       <div class="card-title">No execution order or entry point documented</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="significant">
@@ -168,9 +181,10 @@
       <div class="card-title">Compute environment (OS, RAM, GPU) not documented</div>
     </div>
 
-    <div class="card" data-sev="significant">
+    <div class="card" data-sev="significant" data-blocker="true">
       <div class="card-top"><span class="code-badge">L</span><span class="sev sev-significant">SIGNIFICANT</span></div>
       <div class="card-title">Code references files that appear to be missing from the repository</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="significant">
@@ -213,9 +227,10 @@
       <div class="card-title">No tests present for analysis code</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">U</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">Undocumented environment variables or credentials referenced in code</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="significant">
@@ -223,9 +238,10 @@
       <div class="card-title">No virtual environment specification (conda env, venv, renv)</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">W</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">Git LFS pointer files present without LFS setup instructions</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="low">
@@ -233,9 +249,10 @@
       <div class="card-title">No containerisation or environment isolation (Docker, Singularity)</div>
     </div>
 
-    <div class="card" data-sev="low">
+    <div class="card" data-sev="low" data-blocker="true">
       <div class="card-top"><span class="code-badge">Y</span><span class="sev sev-low">LOW CONFIDENCE</span></div>
       <div class="card-title">Data files present but no source, provenance, or download instructions</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="significant">
@@ -278,9 +295,10 @@
       <div class="card-title">Output file format not documented</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">AG</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">API keys or tokens hardcoded in source files</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="low">
@@ -423,19 +441,22 @@
       <div class="card-title">Unicode characters in file paths — may break on some operating systems</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">BJ</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">Encrypted or high-entropy data files — content cannot be validated</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
-    <div class="card" data-sev="significant">
+    <div class="card" data-sev="significant" data-blocker="true">
       <div class="card-top"><span class="code-badge">BK</span><span class="sev sev-significant">SIGNIFICANT</span></div>
       <div class="card-title">System clock dependency — results vary by run date</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">BL</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">Code depends on full git history — fails with shallow clone</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="low">
@@ -453,9 +474,10 @@
       <div class="card-title">Licence only in README — no separate LICENSE file</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">BR</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">Credentials or secrets exposed in committed files</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="low">
@@ -703,9 +725,10 @@
       <div class="card-title">Inconsistent spacing conventions across filenames</div>
     </div>
 
-    <div class="card" data-sev="critical">
+    <div class="card" data-sev="critical" data-blocker="true">
       <div class="card-top"><span class="code-badge">ND</span><span class="sev sev-critical">CRITICAL</span></div>
       <div class="card-title">No data files found — cannot reproduce results without data</div>
+      <div class="blocker-badge">🚨 Reproduction blocker</div>
     </div>
 
     <div class="card" data-sev="low">
@@ -750,13 +773,17 @@
   const cards = Array.from(document.querySelectorAll('.card'));
   const visibleCount = document.getElementById('visible-count');
 
-  // Count by severity
-  const counts = { all: cards.length, critical: 0, significant: 0, low: 0 };
-  cards.forEach(c => { counts[c.dataset.sev]++; });
-  document.getElementById('count-all').textContent        = `(${counts.all})`;
-  document.getElementById('count-critical').textContent   = `(${counts.critical})`;
+  // Count by severity and blocker status
+  const counts = { all: cards.length, critical: 0, significant: 0, low: 0, blocker: 0 };
+  cards.forEach(c => {
+    counts[c.dataset.sev]++;
+    if (c.dataset.blocker === 'true') counts.blocker++;
+  });
+  document.getElementById('count-all').textContent         = `(${counts.all})`;
+  document.getElementById('count-critical').textContent    = `(${counts.critical})`;
   document.getElementById('count-significant').textContent = `(${counts.significant})`;
-  document.getElementById('count-low').textContent        = `(${counts.low})`;
+  document.getElementById('count-low').textContent         = `(${counts.low})`;
+  document.getElementById('count-blocker').textContent     = `(${counts.blocker})`;
 
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -765,7 +792,10 @@
       const filter = btn.dataset.filter;
       let shown = 0;
       cards.forEach(c => {
-        const hide = filter !== 'all' && c.dataset.sev !== filter;
+        let hide;
+        if (filter === 'all')     hide = false;
+        else if (filter === 'blocker') hide = c.dataset.blocker !== 'true';
+        else                      hide = c.dataset.sev !== filter;
         c.classList.toggle('hidden', hide);
         if (!hide) shown++;
       });
