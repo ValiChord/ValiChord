@@ -9,6 +9,33 @@ from pathlib import Path
 from datetime import datetime
 
 
+# ---------------------------------------------------------------------------
+# Reproduction Blockers
+# Detectors whose findings indicate that an independent validator would fail
+# outright — not merely be slowed or inconvenienced.  All CRITICAL-severity
+# detectors are implicit blockers; this set also includes SIGNIFICANT detectors
+# that represent hard execution failures.
+# ---------------------------------------------------------------------------
+REPRODUCTION_BLOCKER_CODES = frozenset({
+    # ── CRITICAL tier (all) ──────────────────────────────────────────────────
+    'AG',   # Hardcoded credentials — validator needs working credentials
+    'BJ',   # Encrypted files — data inaccessible without decryption key
+    'BK',   # System clock dependency — outputs change on every run
+    'BL',   # Git history dependency — version package cannot be built
+    'BR',   # Credentials exposed — security blocker
+    'ND',   # No data files — nothing to reproduce
+    'U',    # Undocumented environment variables — validator cannot configure env
+    'W',    # Git LFS — data files not present in deposit
+    # ── SIGNIFICANT tier (hard failures, not just friction) ──────────────────
+    'A',    # No README — validator has no starting point
+    'B',    # Missing dependencies — environment cannot be set up
+    'C',    # Absolute paths — scripts fail with FileNotFoundError
+    'D',    # No entry point — validator does not know which script to run
+    'L',    # Missing file references — scripts fail loading required files
+    'Y',    # Data source missing — data cannot be obtained
+})
+
+
 _CODE_TXT_STEM_KW = frozenset({
     'code', 'script', 'analysis', 'replication', 'pipeline', 'main', 'run'
 })
@@ -234,6 +261,41 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
             '> the repository is verified as reproducible. Running '
             'the complete pipeline',
             '> on a clean machine remains the only reliable test.',
+            '',
+        ]
+
+    # ── reproduction blockers ─────────────────────────────────────────
+    blocker_findings = [f for f in findings
+                        if f['mode'] in REPRODUCTION_BLOCKER_CODES
+                        and f['severity'] != 'INFO']
+
+    lines += ['---', '', '## 🚨 Reproduction Blockers', '']
+    if blocker_findings:
+        lines += [
+            f'**{len(blocker_findings)} reproduction '
+            f'blocker{"s" if len(blocker_findings) != 1 else ""} detected. '
+            f'Fix {"these" if len(blocker_findings) != 1 else "this"} first — '
+            f'an independent validator cannot begin work until '
+            f'{"these issues are" if len(blocker_findings) != 1 else "this issue is"} resolved.**',
+            '',
+        ]
+        for f in blocker_findings:
+            emoji = _severity_emoji(f['severity'])
+            lines.append(f'- {emoji} **[{f["mode"]}]** {f["title"]}')
+        lines += [
+            '',
+            '> The remaining findings below are best-practice improvements. '
+            'They may slow or inconvenience a validator but will not cause outright failure.',
+            '',
+        ]
+    else:
+        lines += [
+            '✅ **No reproduction blockers detected.**',
+            '',
+            'No findings were identified that would prevent a validator from '
+            'attempting reproduction. The issues below are best-practice '
+            'improvements — they may slow or inconvenience a validator but '
+            'will not cause outright failure.',
             '',
         ]
 

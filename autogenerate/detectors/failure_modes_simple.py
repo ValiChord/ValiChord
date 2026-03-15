@@ -1526,11 +1526,13 @@ def detect_N_no_licence(repo_dir, all_files):
 
     if not names_lower.intersection(LICENCE_NAMES):
         findings.append(finding(
-            'N', 'SIGNIFICANT',
+            'N', 'LOW CONFIDENCE',
             'No licence file found',
             'Without a licence, validators have no legal clarity '
             'on whether they can use, reproduce, or share this work. '
-            'A LICENCE_DRAFT.txt will be generated.',
+            'A LICENCE_DRAFT.txt will be generated. '
+            'Note: this is a legal concern, not a reproducibility blocker — '
+            'a validator can still attempt reproduction without a licence file.',
             ['No LICENCE, LICENSE, licence.md, or license.txt found']
         ))
 
@@ -5857,7 +5859,7 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
             names = ', '.join(sorted(f.name for f in group))
             details.append(f'Duplicate formats: {names}')
         findings.append(finding(
-            'FD', 'SIGNIFICANT',
+            'FD', 'LOW CONFIDENCE',
             f'Duplicate-format file pairs ({len(pairs)} stem{"s" if len(pairs) != 1 else ""})',
             'Files with the same name but different extensions are present. '
             'Two common causes require different actions: '
@@ -5867,7 +5869,9 @@ def detect_FD_duplicate_format_pairs(repo_dir, all_files):
             '(2) Deliberate multi-format export — e.g. the same SPSS dataset '
             'exported as .sav + .por + .csv for cross-software compatibility. '
             'Action: confirm in the README that all copies are in sync and '
-            'explain why each format is provided.',
+            'explain why each format is provided. '
+            'Note: duplicate formats do not block reproduction — a validator '
+            'can always choose the most accessible format and proceed.',
             details
         ))
     return findings

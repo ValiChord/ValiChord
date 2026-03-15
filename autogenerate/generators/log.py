@@ -12,6 +12,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from generators.report import REPRODUCTION_BLOCKER_CODES
+
 
 VALICHORD_VERSION = "v15"
 
@@ -277,6 +279,10 @@ def generate_valichord_log(repo_name, repo_dir, all_files, findings, output_dir)
         significant = sum(1 for f in non_info if f.get('severity') == 'SIGNIFICANT')
         low         = sum(1 for f in non_info if f.get('severity') == 'LOW CONFIDENCE')
 
+        blocker_codes_fired = sorted(
+            c for c in fired_set if c in REPRODUCTION_BLOCKER_CODES
+        )
+
         log = {
             "valichord_version":  VALICHORD_VERSION,
             "timestamp":          datetime.now().isoformat(timespec='seconds'),
@@ -290,9 +296,10 @@ def generate_valichord_log(repo_name, repo_dir, all_files, findings, output_dir)
                 "low_confidence": low,
                 "total":          critical + significant + low,
             },
-            "detectors_fired":      fired_codes,
-            "detectors_suppressed": suppressed_codes,
-            "surface_features":     _surface_features(repo_dir, all_files, findings),
+            "detectors_fired":        fired_codes,
+            "detectors_suppressed":   suppressed_codes,
+            "reproduction_blockers":  blocker_codes_fired,
+            "surface_features":       _surface_features(repo_dir, all_files, findings),
         }
 
         out = output_dir / 'VALICHORD_LOG.json'
