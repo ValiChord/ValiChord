@@ -174,7 +174,7 @@ These are areas not yet covered by tests, ordered by value.
 
 ## Architecture notes
 
-- `minimum_validators: 2` is set in test DNA properties (production default is 3–7).
+- `minimum_validators: 2` is set in test DNA properties (production default is 3–7). `check_all_commitments_sealed_inner` uses `num_validators_required` from the `ValidationRequest` entry (not the DNA-property `minimum_validators`) — phase opens when the study's own validator count has committed.
 - `system_coordinator_key` is set to the test admin's base64 pubkey in governance DNA
   test properties. It gates `GovernanceDecision` writes only. `harmony_record_creator_key`
   no longer exists — `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation`
@@ -214,7 +214,7 @@ These are areas not yet covered by tests, ordered by value.
   "attestations.{discipline_tag}" paths and read by `get_attestations_for_discipline`.
   Provides cross-study analytics on attestation outcomes by discipline.
 - `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` (DNA 3) — any participant can free a slot held by a validator who has gone dark, once the claim is older than `timeout_secs` and the validator hasn't attested. Use `timeout_secs=0` in tests; `timeout_secs=604800` (7 days) in production. The StudyClaim entry stays as audit.
-- `force_finalize_round(request_ref)` (DNA 4) — closes a stuck round after `ROUND_TIMEOUT_SECS` (7 days, hardcoded). Requires ≥1 attestation and no existing HarmonyRecord. Produces a normal HarmonyRecord; reduced-quorum completion is identifiable by comparing `participating_validators.len()` against the study's `num_validators_required`. Callable by any participant.
+- `force_finalize_round(request_ref)` (DNA 4) — closes a stuck round after `ROUND_TIMEOUT_SECS` (7 days, hardcoded). Requires `attestation_count >= min_attestations_for_finalization` (governance `DnaProperties`) and no existing HarmonyRecord. Policy: set `min_attestations_for_finalization` equal to panel size for ≤4 validators (no dropout); one lower for larger panels (one dropout tolerated). Value `0` = at-least-one fallback. Produces a normal HarmonyRecord; reduced-quorum completion is identifiable by comparing `participating_validators.len()` against the study's `num_validators_required`. Callable by any participant.
 - `StudyClaim` (DNA 3) — validators self-assign via `claim_study(request_ref)`.
   Two link indexes are written: `RequestToClaim` (base = request_ref) and `ValidatorToClaim`
   (base = agent pubkey). The coordinator enforces capacity and duplicate checks;

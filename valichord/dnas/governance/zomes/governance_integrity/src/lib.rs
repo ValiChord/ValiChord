@@ -26,6 +26,12 @@ pub struct DnaProperties {
     /// Only this key may write GovernanceDecision entries.
     /// Empty string = dev/test bypass (skips the check entirely).
     pub system_coordinator_key: String,
+    /// Minimum attestations required for force_finalize_round to write a
+    /// HarmonyRecord. Set equal to minimum_validators (attestation DNA) to
+    /// disallow any dropout; set lower to permit reduced-quorum finalization
+    /// after the reveal timeout. Typical values: 7 for an 8-validator panel,
+    /// 4 for a 4-validator panel (no dropout). 0 = use at-least-one default.
+    pub min_attestations_for_finalization: u32,
 }
 
 // ---------------------------------------------------------------------------

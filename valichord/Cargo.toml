@@ -17,17 +17,18 @@ hdi = "0.7"
 hdk = "0.6"
 serde = { version = "1", features = ["derive"] }
 holochain_serialized_bytes = "=0.0.56"
-
 # getrandom 0.3 requires an explicit backend for wasm32-unknown-unknown.
 # The custom backend is activated via --cfg getrandom_backend="custom" in
 # .cargo/config.toml (wasm32 target). The coordinator zome provides the
 # required __getrandom_v03_custom stub (never called at runtime — HDK
 # provides randomness via host functions).
 getrandom = "0.3"
-
 # SHA-256 for research file fingerprints (engineering constraint #6).
 # Compiled to wasm32-unknown-unknown; no_std-compatible via features.
 sha2 = { version = "0.10", default-features = false }
+
+[workspace.dev-dependencies]
+fixt = "0.6"
 
 # ── WASM size optimisation ────────────────────────────────────────────────────
 # Each coordinator zome is ~5.5 MB unoptimised. With opt-level=z + thin-LTO

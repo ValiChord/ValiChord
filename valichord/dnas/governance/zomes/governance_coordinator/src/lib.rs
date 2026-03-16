@@ -1,7 +1,7 @@
 use hdk::prelude::*;
 use std::collections::HashSet;
 use governance_integrity::{
-    BadgeType, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
+    BadgeType, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
 };
 use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation, discipline_tag};
@@ -155,7 +155,7 @@ pub fn force_finalize_round(
         return Ok(None);
     }
 
-    // 2. Fetch attestations — require at least one.
+    // 2. Fetch attestations and apply min_attestations_for_finalization threshold.
     let response = call(
         CallTargetCell::OtherRole("attestation".into()),
         ZomeName::from("attestation_coordinator"),
@@ -170,6 +170,15 @@ pub fn force_finalize_round(
         _ => return Ok(None),
     };
     if attestation_records.is_empty() {
+        return Ok(None);
+    }
+    let props = DnaProperties::try_from_dna_properties()?;
+    let min_required = if props.min_attestations_for_finalization == 0 {
+        1u32
+    } else {
+        props.min_attestations_for_finalization
+    };
+    if (attestation_records.len() as u32) < min_required {
         return Ok(None);
     }
 

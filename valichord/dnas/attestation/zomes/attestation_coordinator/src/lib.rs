@@ -937,8 +937,8 @@ fn check_all_commitments_sealed_inner(
         )?,
         GetStrategy::Network,
     )?;
-    let props = DnaProperties::try_from_dna_properties()?;
-    Ok(commitment_links.len() >= props.minimum_validators as usize)
+    let required = get_num_validators_required(request_ref)?;
+    Ok(commitment_links.len() >= required as usize)
 }
 
 // ---------------------------------------------------------------------------
