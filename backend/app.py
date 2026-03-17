@@ -13,7 +13,7 @@ from flask_cors import CORS
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'autogenerate'))
 
 from detectors.failure_modes_simple import run_simple_detectors
-from generators.report import generate_cleaning_report
+from generators.report import generate_cleaning_report, compute_prs
 from generators.drafts import generate_all_drafts
 from generators.log import generate_valichord_log
 
@@ -108,6 +108,7 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         )
 
         findings = run_simple_detectors(repo_dir, all_files, zip_name=original_filename)
+        prs = compute_prs(findings)
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
         generate_cleaning_report(original_filename, repo_dir, all_files, findings, output_dir)
         generate_valichord_log(original_filename, repo_dir, all_files, findings, output_dir)
@@ -123,6 +124,7 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
             _jobs[job_id]['status'] = 'done'
             _jobs[job_id]['output_zip'] = output_zip
             _jobs[job_id]['stem'] = stem
+            _jobs[job_id]['prs'] = prs
 
     except Exception as e:
         with _jobs_lock:
@@ -238,7 +240,7 @@ def status(job_id):
         return jsonify({'status': 'running'})
     if job['status'] == 'error':
         return jsonify({'status': 'error', 'error': job['error']})
-    return jsonify({'status': 'done'})
+    return jsonify({'status': 'done', 'prs': job.get('prs')})
 
 
 @app.route('/download/<job_id>', methods=['GET'])

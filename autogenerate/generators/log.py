@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from generators.report import REPRODUCTION_BLOCKER_CODES
+from generators.report import REPRODUCTION_BLOCKER_CODES, compute_prs
 
 
 VALICHORD_VERSION = "v15"
@@ -299,6 +299,7 @@ def generate_valichord_log(repo_name, repo_dir, all_files, findings, output_dir)
             "detectors_fired":        fired_codes,
             "detectors_suppressed":   suppressed_codes,
             "reproduction_blockers":  blocker_codes_fired,
+            "process_reproducibility_score": compute_prs(findings),
             "surface_features":       _surface_features(repo_dir, all_files, findings),
         }
 

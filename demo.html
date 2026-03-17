@@ -130,6 +130,81 @@
     text-align: center;
     letter-spacing: 0.04em;
   }
+  /* PRS Score Card */
+  .score-card {
+    display: none;
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    text-align: center;
+    border: 1px solid;
+  }
+  .score-card.band-high     { background: #091a0d; border-color: #1a4a22; }
+  .score-card.band-moderate { background: #1a1208; border-color: #5a3d10; }
+  .score-card.band-low      { background: #1a0e06; border-color: #5a2e0a; }
+  .score-card.band-critical { background: #150808; border-color: #5a1818; }
+
+  .score-label {
+    font-size: 0.78em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    opacity: 0.65;
+  }
+  .score-number {
+    font-family: "Newsreader", serif;
+    font-weight: 300;
+    font-size: 4em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .band-high     .score-number { color: #5ad96a; }
+  .band-moderate .score-number { color: #d9a040; }
+  .band-low      .score-number { color: #d97040; }
+  .band-critical .score-number { color: #d96060; }
+
+  .score-band {
+    font-size: 1.05em;
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+  .band-high     .score-band { color: #5ad96a; }
+  .band-moderate .score-band { color: #d9a040; }
+  .band-low      .score-band { color: #d97040; }
+  .band-critical .score-band { color: #d96060; }
+
+  .score-bar-track {
+    height: 6px;
+    border-radius: 3px;
+    background: #1a1a2a;
+    margin: 0 auto 14px;
+    max-width: 300px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .band-high     .score-bar-fill { background: #5ad96a; }
+  .band-moderate .score-bar-fill { background: #d9a040; }
+  .band-low      .score-bar-fill { background: #d97040; }
+  .band-critical .score-bar-fill { background: #d96060; }
+
+  .score-breakdown {
+    font-size: 0.82em;
+    color: #5a5450;
+    margin-bottom: 12px;
+    line-height: 1.7;
+  }
+  .score-note {
+    font-size: 0.75em;
+    color: #3a3430;
+    line-height: 1.5;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
   .sev-critical { background: #2a0808; color: #e06060; border: 1px solid #5a1818; }
   .sev-significant { background: #1e1208; color: #d99040; border: 1px solid #5a3010; }
   .sev-low { background: #141420; color: #6a90c8; border: 1px solid #1e2848; }
@@ -187,6 +262,20 @@
 <div class="container">
 
   <!-- Upload area -->
+  <!-- PRS score card — hidden until analysis completes -->
+  <div class="score-card" id="scoreCard">
+    <div class="score-label">Process Reproducibility Score</div>
+    <div class="score-number" id="scoreNumber">—</div>
+    <div class="score-band" id="scoreBand"></div>
+    <div class="score-bar-track"><div class="score-bar-fill" id="scoreBar" style="width:0%"></div></div>
+    <div class="score-breakdown" id="scoreBreakdown"></div>
+    <div class="score-note">
+      Estimates whether an independent validator could <em>attempt</em> reproduction —
+      not whether results are correct. v0 uncalibrated score; weights will be
+      calibrated against real validation outcomes in Phase 0.
+    </div>
+  </div>
+
   <div class="upload-box" id="dropZone" onclick="document.getElementById('fileInput').click()"
        ondragover="ev(event,'drag-over',true)" ondragleave="ev(event,'drag-over',false)" ondrop="drop(event)">
     <div class="upload-icon">📦</div>
@@ -432,7 +521,10 @@ async function analyse() {
       }
       const poll = await pollRes.json();
       if (poll.status === "error") throw new Error(poll.error || "Processing error");
-      if (poll.status === "done") break;
+      if (poll.status === "done") {
+        if (poll.prs) showScore(poll.prs);
+        break;
+      }
     }
 
     // Phase 3: download result
@@ -454,6 +546,32 @@ async function analyse() {
     showError(err.message);
     analyseBtn.disabled = false;
   }
+}
+
+function showScore(prs) {
+  const card = document.getElementById("scoreCard");
+  const bandClass = {
+    "High": "band-high",
+    "Moderate": "band-moderate",
+    "Low": "band-low",
+    "Critical": "band-critical"
+  }[prs.band] || "band-critical";
+
+  card.className = "score-card " + bandClass;
+  document.getElementById("scoreNumber").textContent = prs.score.toFixed(2);
+  document.getElementById("scoreBand").textContent = prs.band;
+  document.getElementById("scoreBar").style.width = (prs.score * 100).toFixed(0) + "%";
+
+  const parts = [];
+  if (prs.blockers > 0)    parts.push(prs.blockers + " reproduction blocker" + (prs.blockers !== 1 ? "s" : ""));
+  if (prs.critical > 0)    parts.push(prs.critical + " critical finding" + (prs.critical !== 1 ? "s" : ""));
+  if (prs.significant > 0) parts.push(prs.significant + " significant finding" + (prs.significant !== 1 ? "s" : ""));
+  if (prs.low > 0)         parts.push(prs.low + " low-confidence finding" + (prs.low !== 1 ? "s" : ""));
+  if (prs.positives > 0)   parts.push(prs.positives + " positive signal" + (prs.positives !== 1 ? "s" : ""));
+  document.getElementById("scoreBreakdown").textContent = parts.length ? parts.join(" · ") : "No issues found";
+
+  card.style.display = "block";
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function show(id) { document.getElementById(id).style.display = "block"; }

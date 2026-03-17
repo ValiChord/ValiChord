@@ -16,6 +16,82 @@ from datetime import datetime
 # detectors are implicit blockers; this set also includes SIGNIFICANT detectors
 # that represent hard execution failures.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Process Reproducibility Score (PRS)
+# A SCORE-aligned 0–1 confidence indicator for process reproducibility.
+# "Process reproducibility" is the lowest rung of the SCORE credibility
+# hierarchy: whether it is even *possible* to attempt outcome reproducibility.
+#
+# v0 — UNCALIBRATED.  Weights reflect severity judgements only.
+# Empirical calibration against real validation outcomes is planned for
+# Phase 0 of the ValiChord project.  See the ValiChord Phase 0 Proposal.
+# ---------------------------------------------------------------------------
+_PRS_WEIGHT_BLOCKER     = 0.20   # per reproduction-blocker finding
+_PRS_WEIGHT_CRITICAL    = 0.10   # per CRITICAL non-blocker finding
+_PRS_WEIGHT_SIGNIFICANT = 0.05   # per SIGNIFICANT non-blocker finding
+_PRS_WEIGHT_LOW         = 0.01   # per LOW CONFIDENCE finding
+_PRS_BONUS_INFO         = 0.02   # per positive INFO finding
+_PRS_BONUS_CAP          = 0.06   # maximum bonus
+
+
+def compute_prs(findings):
+    """Return a dict describing the Process Reproducibility Score.
+
+    Keys: score, blockers, critical, significant, low, positives,
+          deduction, bonus, band.
+
+    v0 — uncalibrated.  Weights are based on severity judgements and will be
+    empirically calibrated against Phase 0 validation outcomes.
+    """
+    non_info = [f for f in findings if f.get('severity') != 'INFO']
+    info     = [f for f in findings if f.get('severity') == 'INFO']
+
+    # REPRODUCTION_BLOCKER_CODES is defined below — forward reference resolved
+    # at call time, not import time, so this works fine.
+    blocker_f  = [f for f in non_info if f['mode'] in REPRODUCTION_BLOCKER_CODES]
+    critical_f = [f for f in non_info
+                  if f.get('severity') == 'CRITICAL'
+                  and f['mode'] not in REPRODUCTION_BLOCKER_CODES]
+    sig_f      = [f for f in non_info
+                  if f.get('severity') == 'SIGNIFICANT'
+                  and f['mode'] not in REPRODUCTION_BLOCKER_CODES]
+    low_f      = [f for f in non_info if f.get('severity') == 'LOW CONFIDENCE']
+
+    n_bl  = len(blocker_f)
+    n_cr  = len(critical_f)
+    n_si  = len(sig_f)
+    n_lo  = len(low_f)
+    n_pos = len(info)
+
+    deduction = (n_bl  * _PRS_WEIGHT_BLOCKER
+               + n_cr  * _PRS_WEIGHT_CRITICAL
+               + n_si  * _PRS_WEIGHT_SIGNIFICANT
+               + n_lo  * _PRS_WEIGHT_LOW)
+    bonus = min(n_pos * _PRS_BONUS_INFO, _PRS_BONUS_CAP)
+    score = round(max(0.0, min(1.0, 1.0 - deduction + bonus)), 2)
+
+    if score >= 0.90:
+        band = 'High'
+    elif score >= 0.70:
+        band = 'Moderate'
+    elif score >= 0.40:
+        band = 'Low'
+    else:
+        band = 'Critical'
+
+    return {
+        'score':       score,
+        'band':        band,
+        'blockers':    n_bl,
+        'critical':    n_cr,
+        'significant': n_si,
+        'low':         n_lo,
+        'positives':   n_pos,
+        'deduction':   round(deduction, 2),
+        'bonus':       round(bonus, 2),
+    }
+
+
 REPRODUCTION_BLOCKER_CODES = frozenset({
     # ── CRITICAL tier (all) ──────────────────────────────────────────────────
     'AG',   # Hardcoded credentials — validator needs working credentials
@@ -263,6 +339,54 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
             '> on a clean machine remains the only reliable test.',
             '',
         ]
+
+    # ── process reproducibility score ────────────────────────────────
+    prs = compute_prs(findings)
+    _prs_bar_filled = round(prs['score'] * 20)
+    _prs_bar = '█' * _prs_bar_filled + '░' * (20 - _prs_bar_filled)
+    _band_emoji = {
+        'High': '🟢', 'Moderate': '🟡', 'Low': '🟠', 'Critical': '🔴'
+    }.get(prs['band'], '⚪')
+
+    lines += [
+        '---',
+        '',
+        '## Process Reproducibility Score',
+        '',
+        f'**{prs["score"]:.2f} / 1.00 — {_band_emoji} {prs["band"]}**',
+        '',
+        f'`{_prs_bar}` {int(prs["score"] * 100)}%',
+        '',
+        '| Component | Count | Weight | Contribution |',
+        '|---|---|---|---|',
+        f'| Reproduction Blockers | {prs["blockers"]} '
+        f'| −0.20 each | −{prs["blockers"] * _PRS_WEIGHT_BLOCKER:.2f} |',
+        f'| CRITICAL findings | {prs["critical"]} '
+        f'| −0.10 each | −{prs["critical"] * _PRS_WEIGHT_CRITICAL:.2f} |',
+        f'| SIGNIFICANT findings | {prs["significant"]} '
+        f'| −0.05 each | −{prs["significant"] * _PRS_WEIGHT_SIGNIFICANT:.2f} |',
+        f'| LOW CONFIDENCE findings | {prs["low"]} '
+        f'| −0.01 each | −{prs["low"] * _PRS_WEIGHT_LOW:.2f} |',
+        f'| Positive signals | {prs["positives"]} '
+        f'| +0.02 each (cap +0.06) | +{prs["bonus"]:.2f} |',
+        f'| **Score** | | | **{prs["score"]:.2f}** |',
+        '',
+        '> **What this measures:** The Process Reproducibility Score estimates '
+        'how likely it is that an independent validator could *attempt* to '
+        'reproduce this work — whether the materials are sufficiently complete '
+        'and documented to begin. It does not assess whether results are '
+        'correct, or whether the underlying scientific claim would replicate '
+        'with new data. This corresponds to the "Process Reproducible" level '
+        'of the SCORE credibility hierarchy (Nosek et al., 2021).',
+        '',
+        '> ⚗️ **Calibration notice — v0 score:** Weights are based on '
+        'severity judgements, not empirical evidence. Calibration against '
+        'real validation outcomes (time taken, barriers encountered, '
+        'success/failure) is planned for Phase 0 of the ValiChord project. '
+        'The score should be read as a structured summary of findings, '
+        'not a precise probability.',
+        '',
+    ]
 
     # ── reproduction blockers ─────────────────────────────────────────
     blocker_findings = [f for f in findings
