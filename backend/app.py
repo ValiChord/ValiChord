@@ -22,6 +22,7 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024   # 100 MB hard cap
 CORS(app)
 
 MAX_SIZE_MB = 100
+JOB_TIMEOUT_SECONDS = 1200  # 20 minutes — enough for a 100 MB deposit
 
 # ── job store ────────────────────────────────────────────────────────────────
 _jobs: dict = {}
@@ -30,6 +31,18 @@ _jobs_lock = threading.Lock()
 # ── in-progress uploads (chunked) ────────────────────────────────────────────
 _uploads: dict = {}
 _uploads_lock = threading.Lock()
+
+
+def _watchdog(job_id: str, thread: threading.Thread, work_dir: Path):
+    """Mark job as timed-out if the worker thread hasn't finished within JOB_TIMEOUT_SECONDS."""
+    thread.join(timeout=JOB_TIMEOUT_SECONDS)
+    if thread.is_alive():
+        with _jobs_lock:
+            job = _jobs.get(job_id, {})
+            if job.get('status') == 'processing':
+                job['status'] = 'error'
+                job['error'] = f'Processing timed out after {JOB_TIMEOUT_SECONDS // 60} minutes.'
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str):
@@ -221,11 +234,13 @@ def upload_chunk():
     with _uploads_lock:
         _uploads.pop(upload_id, None)
 
-    threading.Thread(
+    worker = threading.Thread(
         target=_process_job,
         args=(job_id, upload_path, work_dir, filename),
         daemon=True
-    ).start()
+    )
+    worker.start()
+    threading.Thread(target=_watchdog, args=(job_id, worker, work_dir), daemon=True).start()
 
     return jsonify({'status': 'processing', 'job_id': job_id}), 202
 
