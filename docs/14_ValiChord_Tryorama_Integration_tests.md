@@ -4,7 +4,7 @@
 
 # ValiChord — Tryorama Integration Tests
 
-**Status: 57 pass, 1 skipped, 0 fail** (as of 2026-03-11)
+**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-18)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -55,7 +55,7 @@ cd tests && npm test
 
 ## Test inventory
 
-### DNA 1 — `researcher_repository.test.ts` (12 tests)
+### DNA 1 — `researcher_repository.test.ts` (14 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -71,8 +71,10 @@ cd tests && npm test
 | 5.2 | same bytes always produce the same hash (deterministic) | PASS |
 | 5.3 | different bytes produce different hashes (collision resistance) | PASS |
 | 6.1 | attempting to delete a PreRegisteredProtocol is rejected (no delete fn in API) | PASS |
+| 7.1 | get_all_studies returns empty list before any study registered | PASS |
+| 7.2 | get_all_studies returns all 3 registered studies with distinct ActionHashes | PASS |
 
-### DNA 2 — `validator_workspace.test.ts` (5 tests)
+### DNA 2 — `validator_workspace.test.ts` (7 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -81,8 +83,10 @@ cd tests && npm test
 | 2.1 | sealed private attestation is retrievable via its parent task | PASS |
 | 2.2 | get_private_attestation_for_task returns null before any attestation | PASS |
 | 3.1 | get_all_tasks returns all 3 received tasks from the local source chain | PASS |
+| 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
+| 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (28 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (40 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -108,34 +112,56 @@ cd tests && npm test
 | 9.1  | seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA | PASS |
 | 10.1 | Bob cannot read Alice's sealed private attestation from Bob's workspace cell | PASS |
 | 11.1 | one commit with minimum_validators=2 leaves phase as null | PASS |
-| 12.1 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
-| 12.2 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
+| 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
+| 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
+| 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
 | 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
 | 15.1 | two ComputationalBiology profiles published → both returned; MachineLearning returns 0 | PASS |
 | 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |
+| 17.1 | get_validation_request_for_data_hash returns the record for a known data_hash | PASS |
+| 17.2 | get_validation_request_for_data_hash returns null for an unknown data_hash | PASS |
+| 18.1 | get_validators_for_institution returns profiles for matching institution, empty for non-matching | PASS |
+| 19.1 | get_attestations_for_discipline returns attestation for matching discipline, empty for non-matching | PASS |
+| 20.1 | validator claims a study and the claim is retrievable | PASS |
+| 20.2 | same validator cannot claim the same study twice | PASS |
+| 20.3 | validator from the same institution as researcher is rejected (COI) | PASS |
+| 20.4 | claiming when all slots are full is rejected | PASS |
+| 20.5 | release_claim removes the claim from get_claims_for_request | PASS |
+| 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
+| 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
+| 21.3 | returns false when validator has already submitted an attestation | PASS |
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
 > CI with <16 GB RAM). The test logic is correct; run it on adequately
 > resourced hardware.
 
-### DNA 4 — `governance.test.ts` (12 tests)
+### DNA 4 — `governance.test.ts` (24 tests)
 
-| ID  | Test name | Status |
-|-----|-----------|--------|
-| 1.1 | two calls for the same request_ref with no attestations both return null | PASS |
-| 1.2 | second call short-circuits when HarmonyRecord already exists | PASS |
-| 2.1 | HarmonyRecord creation from non-creator key is rejected by validate() | PASS |
-| 2.2 | agent key does not equal placeholder key (validate() precondition) | PASS |
-| 3.1 | researcher → request → validator attestations → HarmonyRecord on DHT | PASS |
-| 4.1 | reputation update from non-coordinator key is rejected by validate() | PASS |
-| 4.2 | reputation update from system_coordinator_key is accepted | PASS |
-| 5.1 | get_harmony_records_by_discipline returns the record after creation | PASS |
-| 5.2 | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
-| 5.3 | get_badges_for_study returns empty when validator count < 3 | PASS |
-| 6.1 | get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced | PASS |
-| 7.1 | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
+| ID   | Test name | Status |
+|------|-----------|--------|
+| 1.1  | two calls for the same request_ref with no attestations both return null | PASS |
+| 1.2  | second call short-circuits when HarmonyRecord already exists | PASS |
+| 2.1  | a validator who did not submit the ValidationRequest can trigger finalisation | PASS |
+| 2.2  | premature finalisation (only 1 of 2 required attestations) returns null | PASS |
+| 3.1  | researcher → request → validator attestations → HarmonyRecord on DHT | PASS |
+| 4.1  | any validator can update reputation (not key-gated) | PASS |
+| 4.2  | GovernanceDecision remains key-gated — non-coordinator key is rejected | PASS |
+| 5.1  | get_harmony_records_by_discipline returns the record after creation | PASS |
+| 5.2  | get_harmony_records_by_discipline returns empty array when no records exist | PASS |
+| 5.3  | get_badges_for_study returns empty when validator count < 3 | PASS |
+| 6.1  | get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced | PASS |
+| 7.1  | 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge | PASS |
+| 8.1  | create_governance_decision + get_all_governance_decisions round-trip | PASS |
+| 8.2  | multiple GovernanceDecisions are all returned by get_all_governance_decisions | PASS |
+| 9.1  | get_badges_by_type returns empty list before any badge of that type is issued | PASS |
+| 9.2  | get_badges_by_type returns the correct badge after check_and_create_harmony_record | PASS |
+| 10.1 | no delete function exists for HarmonyRecord in the coordinator API | PASS |
+| 10.2 | no delete function exists for GovernanceDecision in the coordinator API | PASS |
+| 10.3 | no delete function exists for ReproducibilityBadge in the coordinator API | PASS |
+| 11.1 | force_finalize_round returns null when round has not yet timed out (< 7 days old) | PASS |
+| 11.2 | force_finalize_round returns null when no attestations exist yet | PASS |
 
 ---
 
@@ -145,24 +171,22 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 4 — GoldReproducible (12.2) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 3 — researcher commitment | publish_researcher_commitment + get_researcher_commitment round-trip; verify commitment blocks validators before it exists | New entry type implemented; tests not yet written |
+| DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama |
 
 ---
 
 ## Architecture notes
 
-- `minimum_validators: 2` is set in test DNA properties (production default is 3–7).
-- `harmony_record_creator_key` and `system_coordinator_key` are set to `""` in
-  governance DNA test properties — the empty-string bypass in `governance_integrity`
-  allows any agent to write governance entries in test/dev mode.
+- `minimum_validators: 2` is set in test DNA properties (production default is 3–7). `check_all_commitments_sealed_inner` uses `num_validators_required` from the `ValidationRequest` entry (not the DNA-property `minimum_validators`) — phase opens when the study's own validator count has committed.
+- `system_coordinator_key` is set to the test admin's base64 pubkey in governance DNA test properties. It gates `GovernanceDecision` writes only. `harmony_record_creator_key` no longer exists — `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are open to any participant. Empty string = dev/test bypass for `system_coordinator_key`.
 - Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
-- Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production
-  this is triggered by DNA 2's `post_commit` (exercised by test 9.1).
+- Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production this is triggered by DNA 2's `post_commit` (exercised by test 9.1). The function now takes `CommitmentSealedInput { request_ref, commitment_hash }` — pass the commitment hash alongside the request reference.
 - `dhtSync` is required between agents for any multi-player read assertion.
-- ExternalHash in JS: use `hashFrom32AndType(core32, HoloHashType.External)` — never
-  `new Uint8Array(39).fill(byte)` (DHT location bytes must be a valid blake2b checksum).
-- `Discipline` and `AttestationOutcome` use `#[serde(tag="type", content="content")]`
-  (adjacent tagging) → `{ type: "ComputationalBiology" }` / `{ type: "Reproduced" }`.
-  All other enums (`ValidationPhase`, `AgreementLevel`, etc.) use no tag → plain strings.
+- ExternalHash in JS: use `hashFrom32AndType(core32, HoloHashType.External)` — never `new Uint8Array(39).fill(byte)` (DHT location bytes must be a valid blake2b checksum).
+- `Discipline` and `AttestationOutcome` use `#[serde(tag="type", content="content")]` (adjacent tagging) → `{ type: "ComputationalBiology" }` / `{ type: "Reproduced" }`. All other enums (`ValidationPhase`, `AgreementLevel`, etc.) use no tag → plain strings.
+- `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do **not** store self-reported timestamps. Timestamps are read from the Holochain Action. Do not add timestamp fields back.
+- `CommitmentAnchor` now carries `commitment_hash: Vec<u8>` — the SHA-256 of the validator's serialised `ValidationAttestation` concatenated with a private nonce. At reveal time, verifying `SHA-256(msgpack(attestation) || nonce) == commitment_hash` closes the last-mover-advantage gap at the architectural level, not just the UX level.
 
 

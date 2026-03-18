@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-14)
+**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-18)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -184,7 +184,14 @@ These are areas not yet covered by tests, ordered by value.
   validator to reveal triggers HarmonyRecord creation without a central coordinator node.
 - Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
 - Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production
-  this is triggered by DNA 2's `post_commit` (exercised by test 9.1).
+  this is triggered by DNA 2's `post_commit` (exercised by test 9.1). The function now
+  takes `CommitmentSealedInput { request_ref: ExternalHash, commitment_hash: Vec<u8> }` —
+  pass a real SHA-256 hash (32 bytes) for the `commitment_hash` field. In tests that don't
+  exercise reveal verification a dummy `new Uint8Array(32).fill(0)` is acceptable.
+- `CommitmentAnchor` now stores `commitment_hash` on the DHT. At reveal time,
+  `SHA-256(msgpack(ValidationAttestation) || nonce) == commitment_hash` must hold.
+  `seal_private_attestation` generates the nonce and computes the hash automatically —
+  the caller only supplies the `ValidationAttestation` and `task_hash`.
 - `dhtSync` is required between agents for any multi-player read assertion.
 - ExternalHash in JS: use `hashFrom32AndType(core32, HoloHashType.External)` — never
   `new Uint8Array(39).fill(byte)` (DHT location bytes must be a valid blake2b checksum).

@@ -67,11 +67,11 @@ valichord/
 - Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at coordinator init
 - Full blind commit-reveal protocol end-to-end across all four DNAs
 - DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
-- Immutability enforcement on ValidationAttestation, CommitmentAnchor, PhaseMarker, and PreRegisteredProtocol
+- Immutability enforcement on ValidationAttestation, CommitmentAnchor, PhaseMarker, ResearcherResultCommitment, and PreRegisteredProtocol
 - Author key enforcement on GovernanceDecision (HarmonyRecord/Badge/Reputation open to any participant — fully decentralised)
 - Privacy across agents — private attestations are not readable by peers
 - Reproducibility badge issuance (Bronze, Silver, Failed thresholds)
-- Cross-DNA post_commit chain: DNA 2 seal → DNA 3 notify → phase open
+- Cross-DNA post_commit chain: DNA 2 seal (generates nonce + SHA-256 commitment_hash) → DNA 3 notify (CommitmentAnchor carries hash) → phase open
 - Mixed outcome HarmonyRecord assembly — Divergent agreement level from split validator results
 - Validator discovery by discipline via real path index
 - Difficulty assessment storage and retrieval via DifficultyPath link index
@@ -90,12 +90,13 @@ valichord/
 
 ## 🔐 The Blind Commit-Reveal Protocol
 
-To prevent last-mover advantage, ValiChord implements a blind commit-reveal protocol across DNA 2 and DNA 3:
+To prevent last-mover advantage, ValiChord implements a cryptographic blind commit-reveal protocol across DNA 2 and DNA 3:
 
-1. **Commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. The entry never leaves their machine.
-2. **Anchor** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT. Everyone can see the commitment happened, but not the outcome.
+0. **Researcher locks result** — before validation begins, the researcher publishes a `ResearcherResultCommitment` to DNA 3: `SHA-256(result_data || nonce)`. Their actual result stays in their private DNA 1. Validators can verify this commitment exists before starting work, preventing the researcher from adjusting their claimed result after seeing validator findings.
+1. **Commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine.
+2. **Anchor** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT containing the `commitment_hash`. Everyone can verify the commitment happened and that it is cryptographically bound to a specific assessment — but the assessment content remains hidden.
 3. **Phase open** — when all expected `CommitmentAnchor` entries are present, DNA 3 writes a `PhaseMarker(RevealOpen)` to the DHT. Validators discover this by polling, not by signal — ensuring no validator is disadvantaged by network latency.
-4. **Reveal** — validators submit their public `ValidationAttestation` entries to DNA 3. These are immutable after publication.
+4. **Reveal** — validators submit their public `ValidationAttestation` entries to DNA 3. These are immutable after publication. The commitment hash in the anchor binds the reveal to the pre-declared assessment.
 5. **Harmony** — once all attestations are present, DNA 4 assembles a `HarmonyRecord` on the public DHT, assesses agreement, and optionally issues a `ReproducibilityBadge`.
 
 ---

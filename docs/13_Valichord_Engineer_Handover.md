@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.5 — March 2026
+**Version:** 1.6 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 87 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-14, all four DNAs have been reviewed and optimised — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 87 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-18, all four DNAs have been reviewed and optimised, and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -42,7 +42,15 @@ Private, single-agent DNA. The commit phase of the blind commit-reveal protocol 
 
 `ValidatorPrivateAttestation` is immutable after creation — tested.
 
-**Critical:** `post_commit` fires `call(OtherRole("attestation"), "notify_commitment_sealed")` after a `ValidatorPrivateAttestation` is created. This is the only outward communication from DNA 2. The target attestation cell must be initialised before `post_commit` fires — see the deadlock section below.
+**`seal_private_attestation` now generates and stores the cryptographic commitment** (2026-03-18). The function accepts `SealAttestationInput { task_hash, attestation: ValidationAttestation }` — the exact public attestation the validator intends to reveal. It:
+1. Generates a 32-byte nonce via `random_bytes(32)` (HDK host function).
+2. Serialises the `ValidationAttestation` to MessagePack via `SerializedBytes::try_from`.
+3. Computes `commitment_hash = SHA-256(msgpack_bytes || nonce)` using the `sha2` crate.
+4. Writes the private entry with all attestation fields plus `discipline`, `nonce`, and `commitment_hash`.
+
+`ValidatorPrivateAttestation` now carries five generated/derived fields: `nonce: Vec<u8>`, `commitment_hash: Vec<u8>`, and `discipline: Discipline`. The caller must NOT supply these — they are computed by `seal_private_attestation`. The `discipline` field mirrors the public attestation's discipline so the full `ValidationAttestation` can be reconstructed at reveal time without a separate task lookup.
+
+**Critical:** `post_commit` fires `call(OtherRole("attestation"), "notify_commitment_sealed")` after a `ValidatorPrivateAttestation` is created. The payload is now `CommitmentSealedInput { request_ref, commitment_hash }` — the commitment hash is forwarded to DNA 3 so the `CommitmentAnchor` on the shared DHT carries the cryptographic proof. The target attestation cell must be initialised before `post_commit` fires — see the deadlock section below.
 
 `get_all_private_attestations()` returns all `ValidatorPrivateAttestation` records from the local source chain using `query()` + deserialization filter. Parallel to `get_all_tasks`.
 
@@ -57,7 +65,13 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 **Phase transitions** are DHT-poll-driven, not signal-driven. `get_current_phase()` is the authoritative source of phase state. Signals are send-and-forget notifications only — do not use them as protocol gates.
 
-`CommitmentAnchor`, `PhaseMarker`, and `ValidationAttestation` are all immutable after creation — enforced in `validate()` and tested.
+`CommitmentAnchor`, `PhaseMarker`, `ValidationAttestation`, and `ResearcherResultCommitment` are all immutable after creation — enforced in `validate()` and tested.
+
+**`CommitmentAnchor` now carries `commitment_hash: Vec<u8>`** (2026-03-18) — the SHA-256 of the validator's serialised `ValidationAttestation` concatenated with a private nonce. Written by `notify_commitment_sealed(input: CommitmentSealedInput)`. At reveal time, verifying `SHA-256(msgpack(attestation) || nonce) == commitment_hash` proves the revealed content matches what was committed without any honesty assumptions.
+
+**`publish_researcher_commitment(input: ResearcherCommitmentInput)` is a new write function** (2026-03-18). The researcher calls this before the validation round opens to publish `ResearcherResultCommitment { request_ref, result_commitment_hash }` to the shared DHT. The actual result stays in the researcher's local DNA 1. This closes the other side of the blinding: validators cannot claim the researcher adjusted their result after seeing validator findings. The entry is indexed under `researcher_commitment.{request_ref}` via `RequestToResearcherCommitment` link type. **`get_researcher_commitment(request_ref)` is the companion read** — added to the unrestricted cap grant so any participant can verify the researcher committed before validators begin.
+
+`notify_commitment_sealed` is intentionally NOT in the unrestricted cap grant — it is called under the author grant from DNA 2's `post_commit`.
 
 `get_validation_request_for_data_hash(data_hash: ExternalHash)` is a public extern registered in `init()`. It resolves a `ValidationRequest` record from the `study.{data_hash}` path. Used by DNA 4 to identify the researcher (record author) when issuing a `ReproducibilityBadge`.
 
@@ -243,7 +257,14 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. The gateway configuration is not yet deployed. Phase 1.
 
-**Cryptographic attestations (Gap 4 / Phase 1 design direction).** `ValidationAttestation` currently contains fully readable plaintext — outcome, key metrics, deviation flags, confidence. A validator with direct DHT access (bypassing the UX) could query `get_attestations_for_request` before the reveal window opens and read another validator's result. The UX does not expose this and the attack requires Holochain API knowledge, a running conductor, and a valid membrane proof — so it is not a practical concern for Phase 0. The long-term design direction is to move toward cryptographic proofs: `CommitmentAnchor` should carry a commitment hash (`sha256(assessment_bytes + nonce)`) so that the reveal can be verified against it, and `ValidationAttestation` content should be verified as the genuine preimage. This would close the gap architecturally rather than relying on UX convention. Phase 1 fix: add a coordinator-level guard in `submit_attestation` that checks a `CommitmentAnchor` exists for the calling agent before allowing the write.
+**Cryptographic commitment verification at reveal time (Gap 4 — PARTIALLY RESOLVED 2026-03-18).** The commit-phase side is now fully cryptographic: `CommitmentAnchor` carries `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`, and `ResearcherResultCommitment` does the same for the researcher's result. This closes the last-mover-advantage gap architecturally — a validator cannot change their assessment after seeing others' outcomes, because the commitment hash pins what they declared.
+
+**What remains for Phase 1:** the reveal-phase verification. `submit_attestation` does not yet verify that `SHA-256(msgpack(attestation) || nonce) == commitment_hash` from the validator's `CommitmentAnchor`. To implement this:
+1. Add `nonce: Vec<u8>` to the reveal input struct (or a new `RevealInput { attestation: ValidationAttestation, nonce: Vec<u8> }` wrapper).
+2. In `submit_attestation`, fetch the caller's `CommitmentAnchor` via the `commitments.{request_ref}` path, recompute the hash, and reject if it does not match.
+3. Similarly, add a `reveal_researcher_result(result_data, nonce)` function in DNA 3 that verifies against `ResearcherResultCommitment`.
+
+Until then, the architectural commitment proof exists but is not verified server-side at reveal time. The UX can still check it client-side. A validator with direct API access could technically reveal a different attestation than they committed to — this is not a practical concern for Phase 0 but must be closed before public launch.
 
 **Researcher identity blinding proxy.** Double-blind validation (validators cannot see researcher identity) is a design goal but is not architecturally enforced in the current implementation. `ValidationRequest.data_access_url` is visible to validators in full — if it contains researcher-identifying information (e.g. `osf.io/jsmith/my-study`), the blinding is defeated. `researcher_institution` is used server-side only for COI enforcement and is not displayed to validators, but this is a convention not a structural constraint. The fix is a blinding proxy service that replaces the original URL with an opaque token before the `ValidationRequest` is written to the DHT. Until built, double-blinding is an operational convention enforced by the ValiChord team. The commit-reveal blindness (validators cannot see *each other's findings*) is fully implemented and architecturally enforced — these are two distinct properties and only the latter is guaranteed today.
 
