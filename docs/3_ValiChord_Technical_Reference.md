@@ -22,7 +22,19 @@
 
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They are illustrative sketches developed during twelve months of architectural design, intended to communicate system intent to engineers clearly and precisely.
 
-**Implementation update (March 2026):** The four-DNA hApp described in this document has been fully implemented and tested. 87 integration tests pass against live Holochain conductors (Tryorama). The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. For the authoritative implementation, see the source files under `valichord/dnas/` and the engineering handover in `docs/13_Valichord_Engineer_Handover.md`. Key divergences from this document: self-reported timestamp fields were removed from `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` (Holochain Action timestamps are authoritative); `ReproducibilityBadge.issued_to` resolves the researcher via cross-DNA lookup, not the first validator; `GovernanceDecision` write/list API and `get_badges_by_type` BadgePath index are implemented and tested; validator self-assignment (`StudyClaim`) is implemented — validators claim studies directly with COI enforcement in the integrity zome's `validate()`; `ValidationRequest` carries `researcher_institution`, `data_access_url`, and `protocol_access_url` fields; governance `DnaProperties` now includes `min_attestations_for_finalization: u32` — the minimum attestations required for `force_finalize_round` to write a HarmonyRecord (set equal to panel size to disallow dropout on small panels, one lower to permit one dropout on larger panels); `check_all_commitments_sealed_inner` uses `num_validators_required` from the per-study `ValidationRequest` rather than the network-wide `minimum_validators` DNA property — phase transition now respects the study's own validator count; the reveal step is automatic — the frontend detects `RevealOpen` phase and calls `submit_attestation` without user action; researcher UI is intentionally minimal: submit and final result only, no intermediate state visible.
+**Implementation update (March 2026):** The four-DNA hApp described in this document has been fully implemented and tested. 87 integration tests pass against live Holochain conductors (Tryorama). The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. For the authoritative implementation, see the source files under `valichord/dnas/` and the engineering handover in `docs/13_Valichord_Engineer_Handover.md`. Key divergences from this document:
+
+- Self-reported timestamp fields were removed from `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` — Holochain Action timestamps are authoritative and tamper-evident; do not add them back.
+- `ReproducibilityBadge.issued_to` resolves the researcher via cross-DNA lookup, not the first validator.
+- `GovernanceDecision` write/list API and `get_badges_by_type` `BadgePath` index are implemented and tested.
+- Validator self-assignment (`StudyClaim`) is implemented — validators claim studies directly with COI enforcement in the integrity zome's `validate()`.
+- `ValidationRequest` carries `researcher_institution`, `data_access_url`, and `protocol_access_url` fields.
+- Governance `DnaProperties` includes `min_attestations_for_finalization: u32`.
+- `check_all_commitments_sealed_inner` uses `num_validators_required` from the per-study `ValidationRequest`, not the network-wide `minimum_validators` DNA property.
+- The reveal step is automatic — the frontend detects `RevealOpen` phase and calls `submit_attestation` without user action.
+- **Cryptographic commit-reveal is now implemented (March 2026):** `CommitmentAnchor` carries `commitment_hash: Vec<u8>` — `SHA-256(msgpack(ValidationAttestation) || nonce)` — computed by `seal_private_attestation` in DNA 2 and forwarded to DNA 3 via `CommitmentSealedInput`. The `CommitmentAnchor` struct in this document predates this and is missing the `commitment_hash` field — see updated struct below. `ValidatorPrivateAttestation` now includes `nonce: Vec<u8>`, `commitment_hash: Vec<u8>`, and `discipline: Discipline` (to allow full `ValidationAttestation` reconstruction at reveal time). `SealAttestationInput` takes a `ValidationAttestation` (the public form to be revealed), not a raw `ValidatorPrivateAttestation`.
+- **`ResearcherResultCommitment` is a new immutable entry type** (March 2026): published by the researcher before validators begin work, it records `result_commitment_hash = SHA-256(result_data || nonce)` on the shared DHT. New functions: `publish_researcher_commitment(ResearcherCommitmentInput)` and `get_researcher_commitment(request_ref)` (added to the unrestricted cap grant).
+- The "countersigning session" design described in this document (simultaneous atomic reveal) has been **deferred to Phase 2**. The implemented approach uses SHA-256 hash commitments on a DHT-poll-driven protocol, which provides equivalent anti-manipulation guarantees without the operational constraint of requiring all validators online simultaneously.
 
 **What this document is for:** An engineer reading this should understand what ValiChord needs to do, what data it handles, how components interact, and where the hard problems are. It should save weeks of explanation and allow technical discussion to begin at the right level.
 
@@ -789,7 +801,7 @@ pub enum ValidationFocus {
 - Institutional caps (max 40% from one institution)
 - Inverse size weighting (smaller institutions get proportionally more slots)
 - **Double-blind by default.** Validators do not see author names, institutional affiliations, or funding sources. They receive the study protocol, code, data, and methodology — nothing that identifies who produced it. This prevents career deference: a junior validator who sees a Nobel laureate's name on a protocol may unconsciously look for reasons to confirm rather than critically assess. The commit-reveal protocol prevents validators from adjusting results after seeing others' findings, but only double-blinding prevents the subtler bias of knowing whose work you are assessing. Author identity is revealed only in the published Harmony Record, after all validators have submitted their final attestations.
-- Blind commitment protocol prevents coordination between validators: findings are sealed as private source chain entries before any simultaneous reveal
+- Blind commitment protocol prevents coordination between validators: findings are sealed as private source chain entries with a SHA-256 hash commitment published before any reveal
 - Validators do not know who else is validating the same study
 
 > **Engineering question:** How much domain expertise do validators actually need? ValiChord validates computation, not scientific methodology. A chemist who can set up a Python environment and run a script can check whether a climate model produces the claimed outputs just as well as a climate scientist — the numbers either match or they don't. This suggests the validator pool could be much larger than domain-matched selection implies. However, a domain expert might notice that code ran successfully but produced intermediate values that are physically impossible (e.g. negative absolute temperature, impossible protein structure) — something a non-expert would miss. A possible model: "find three computationally competent researchers, at least one with domain familiarity" rather than "find three domain specialists." This would significantly ease panel assembly and reduce queue times, but the trade-off between computational-only and domain-informed validation needs empirical evidence. This is a question for the PI and should be explored in Phase 0 study design.
@@ -802,15 +814,26 @@ pub enum ValidationFocus {
 /// on the validator's source chain; its contents are not visible until reveal.
 /// validator_id and validation_id are omitted — the Holochain Action carries
 /// author key and ActionHash natively.
+///
+/// Implementation note (March 2026): `nonce`, `commitment_hash`, and `discipline`
+/// have been added to the actual implementation (see validator_workspace_integrity).
+/// `nonce` and `commitment_hash` are GENERATED by `seal_private_attestation` —
+/// the caller supplies only the `ValidationAttestation` to be revealed.
+/// `discipline` is stored here so the full `ValidationAttestation` can be
+/// reconstructed at reveal time without a separate task lookup.
+/// `SealAttestationInput` takes `ValidationAttestation`, not this struct directly.
 pub struct ValidatorPrivateAttestation {
-    pub task_ref:               ExternalHash,
-    pub outcome:                AttestationOutcome,
-    pub detailed_report:        String,  // stays private — never enters shared DHT
-    pub time_invested_secs:     u64,     // u64 seconds avoids WASM serialisation complexity
-    pub time_breakdown:         TimeBreakdown,
-    pub confidence:             AttestationConfidence,  // simple High/Medium/Low
-    pub deviation_flags:        Vec<UndeclaredDeviation>,
+    pub request_ref:             ExternalHash,
+    pub outcome:                 AttestationOutcome,
+    pub outcome_summary:         OutcomeSummary,
+    pub time_invested_secs:      u64,
+    pub time_breakdown:          TimeBreakdown,
+    pub confidence:              AttestationConfidence,
+    pub deviation_flags:         Vec<UndeclaredDeviation>,
     pub computational_resources: ComputationalResources,
+    pub discipline:              Discipline,     // mirrored from public form for reconstruction
+    pub nonce:                   Vec<u8>,        // 32-byte random nonce, generated at seal time
+    pub commitment_hash:         Vec<u8>,        // SHA-256(msgpack(ValidationAttestation) || nonce)
 }
 
 /// THE REVEAL PHASE — written to the shared Attestation DNA once all validators
@@ -842,21 +865,23 @@ pub struct UndeclaredDeviation {
 Two entry types were added to the Attestation DNA in scaffold v12 to resolve the commit-reveal phase detection problem.
 
 ```rust
-/// Public, immutable, zero-content proof that a specific validator has sealed
+/// Public, cryptographically binding proof that a specific validator has sealed
 /// their private attestation for a specific study. Written to the shared DHT
-/// at commit time — everyone can see the commitment happened and which study
-/// it is for, but not the actual outcome (which remains in the private
-/// ValidatorPrivateAttestation in DNA 2).
+/// at commit time — everyone can see the commitment happened, which study it is
+/// for, and the hash that binds the reveal to the declared content. The actual
+/// assessment remains in the private ValidatorPrivateAttestation in DNA 2.
 ///
-/// This replaces the earlier approach of using get_agent_activity() to count
-/// private actions — which was unresolvable because private entry content is
-/// inaccessible to peers, making it impossible to confirm the private action
-/// was specifically a ValidatorPrivateAttestation rather than any other entry.
+/// `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`
+/// computed in DNA 2 before any content leaves the validator's device.
+/// At reveal time, verifying this hash against the submitted attestation + nonce
+/// proves the validator did not adjust their assessment after committing.
+///
+/// IMMUTABLE after publication — enforced by validate() callback.
 #[entry_type(required_validations = 5)]
 pub struct CommitmentAnchor {
-    pub request_ref:  ExternalHash,   // which study this commitment is for
-    pub validator_id: AgentPubKey,    // which validator committed
-    // No outcome content — the commitment is the proof of action, not of result
+    pub request_ref:     ExternalHash,  // which study this commitment is for
+    pub validator:       AgentPubKey,   // which validator committed (field name: validator, not validator_id)
+    pub commitment_hash: Vec<u8>,       // SHA-256(msgpack(ValidationAttestation) || nonce)
 }
 
 /// DHT-persistent record of the current phase for a validation round.
@@ -877,13 +902,15 @@ pub enum ValidationPhase {
 }
 ```
 
-Both `CommitmentAnchor` and `PhaseMarker` are immutable after creation — the validate() callback blocks all updates and deletes, enforcing the same immutability guarantee as `ValidationAttestation`.
+Both `CommitmentAnchor` and `PhaseMarker` are immutable after creation — the validate() callback blocks all updates and deletes, enforcing the same immutability guarantee as `ValidationAttestation`. `ResearcherResultCommitment` (a new entry type, March 2026 — not shown in this scaffold) is also immutable: it records the researcher's pre-declared result hash before any validator begins work.
 
 ### Gaming & Collusion Detection Mechanisms
 
-**Blind commitment via private source chain entries, followed by simultaneous countersigned reveal (commit-reveal):** Each validator records their findings as a *private entry* on their own Holochain source chain — visible only to them, cryptographically sealed by their signing key, and immutable from the moment of recording. This is the commitment: it cannot be changed after the fact, and its existence is verifiable on-chain even before its contents are shared. Once all assigned validators have recorded private entries, a *countersigning session* is initiated: all validators simultaneously contribute their findings to construct the shared Harmony Record entry, with each validator's chain locked during the session to prevent any party from adjusting their position after seeing others' results. All parties countersign the single Harmony Record entry atomically — no validator's findings are visible to the others until all findings are simultaneously committed to the shared Attestation DNA. This prevents last-mover advantage: a validator cannot see others' conclusions and adjust their own, because the private source chain entry is already sealed before the countersigning session begins.
+**Blind commitment via private source chain entries and SHA-256 hash commitments (commit-reveal):** Each validator records their findings as a *private entry* (`ValidatorPrivateAttestation`) on their own Holochain source chain — visible only to them, cryptographically sealed by their signing key, and immutable from the moment of recording. `seal_private_attestation` generates a 32-byte random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. This hash is forwarded to the shared Attestation DNA via `notify_commitment_sealed`, where it is stored in a `CommitmentAnchor` entry visible to all participants. The hash proves the validator committed to a specific assessment without revealing its content. Once all validators have sealed private entries (detected by polling `check_all_commitments_sealed`), a `PhaseMarker(RevealOpen)` entry is written to the DHT. Validators discover the open reveal window by polling `get_current_phase()` — no signal is required, ensuring validators who were offline when the phase opened can still participate. Validators then submit their public `ValidationAttestation`; the nonce from the private entry, provided at reveal time, allows anyone to verify `SHA-256(msgpack(submitted_attestation) || nonce) == commitment_hash`. This closes last-mover advantage: a validator who tries to change their assessment after seeing others' commits will produce a hash mismatch detectable by every peer.
 
-> **In plain terms:** Each validator privately records their findings in a sealed, tamper-proof log before anyone else can see them. Only once every validator has sealed their own record does a joint session open — at which point all findings become visible simultaneously, and all validators sign the shared Harmony Record together. No validator can see what others found and adjust their own position. This is the standard cryptographic pattern known as commit-reveal, implemented here using Holochain's native private entries and countersigning mechanism rather than the hash-based approach common in blockchain systems.
+> **Countersigning deferred to Phase 2.** The original design called for Holochain's native countersigning — a mathematically enforced simultaneous atomic reveal where all validators must be online together. This is operationally inappropriate for Phase 0/1 (validators work asynchronously across time zones). The SHA-256 hash-commitment approach provides equivalent anti-manipulation guarantees — a validator cannot change a committed assessment — without requiring synchronous participation. Countersigning remains on the Phase 2 roadmap as a stronger variant for high-stakes validation panels.
+
+> **In plain terms:** Each validator privately records their findings in a sealed, tamper-proof log and posts a cryptographic hash of those findings to the shared network. Only once every validator has posted their hash does the reveal window open — at which point validators publish their actual findings. Anyone can verify that each validator's published finding matches their pre-committed hash. No validator can adjust their position after seeing others' results, because their hash was already posted before the reveal window opened.
 
 **Result comparison and agreement detection:** Validators submit structured outcome summaries from their private Workspace DNA to the shared Attestation DNA. Agreement detection operates on these summaries — not by comparing raw result hashes. This is architecturally necessary: computational reproduction almost never produces bit-identical outputs due to floating point differences, non-deterministic operations, and hardware variation. Requiring exact hash matches would flag every validation as a disagreement. Instead, the Attestation DNA compares structured outcome summaries (key metrics, direction of effect, confidence intervals) and assesses whether results are within acceptable margins. What constitutes agreement is defined by discipline-specific standards in the Governance DNA.
 
