@@ -169,6 +169,8 @@ These are areas not yet covered by tests, ordered by value.
 |------|-------------|-------|
 | DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
 | DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama. Exercise in shadow-track environment with a real conductor running for 7+ days, or temporarily lower the constant for a dedicated integration run |
+| DNA 1 — lock_researcher_result | `lock_researcher_result` stores LockedResult + calls `publish_researcher_commitment` in DNA 3; `get_locked_result` returns the private record | Requires a cross-DNA call to DNA 3 in the test scenario |
+| DNA 3 — reveal_researcher_result | Correct metrics+nonce → `ResearcherReveal` on DHT; wrong nonce → error; `get_researcher_reveal` returns reveal | Must call all validators `notify_commitment_sealed` first (gate: all validators committed) |
 
 ---
 
@@ -228,3 +230,9 @@ These are areas not yet covered by tests, ordered by value.
   validate() enforces COI (same institution as researcher → invalid).
   `release_claim(request_ref)` deletes both links; the StudyClaim entry remains as audit.
   Empty `researcher_institution` or `validator_institution` bypasses the COI check.
+- **Researcher commit-reveal (symmetric protocol, March 2026):**
+  - DNA 1 `lock_researcher_result(LockResultInput { request_ref, metrics: Vec<MetricResult> })` — generates 32-byte nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores private `LockedResult { request_ref, metrics, nonce, commitment_hash }`, then calls `publish_researcher_commitment` in DNA 3. Returns the ActionHash of the private entry.
+  - DNA 1 `get_locked_result(request_ref: ExternalHash)` — retrieves the private LockedResult (metrics + nonce) needed at reveal time. Uses `GetStrategy::Local` and `GetOptions::local()`.
+  - DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on `check_all_commitments_sealed` (all validators must have committed first), fetches `ResearcherResultCommitment`, verifies `SHA-256(rmp_serde::to_vec_named(metrics) || nonce) == result_commitment_hash`, writes `ResearcherReveal { request_ref, metrics }` to DHT, indexes under `"researcher_reveal.{request_ref}"` path. `ResearcherReveal` is immutable (update + delete both rejected by validate()).
+  - DNA 3 `get_researcher_reveal(request_ref)` — unrestricted cap grant read function. Returns `None` if researcher has not yet revealed.
+  - Serialization: both sides use `rmp_serde::to_vec_named` so the hash computed at lock time matches the verification at reveal time.

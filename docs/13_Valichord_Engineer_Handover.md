@@ -257,14 +257,20 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. The gateway configuration is not yet deployed. Phase 1.
 
-**Cryptographic commitment verification at reveal time (Gap 4 — PARTIALLY RESOLVED 2026-03-18).** The commit-phase side is now fully cryptographic: `CommitmentAnchor` carries `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`, and `ResearcherResultCommitment` does the same for the researcher's result. This closes the last-mover-advantage gap architecturally — a validator cannot change their assessment after seeing others' outcomes, because the commitment hash pins what they declared.
+**Cryptographic commitment verification — researcher side RESOLVED 2026-03-18. Validator reveal-side remains Phase 1.**
 
-**What remains for Phase 1:** the reveal-phase verification. `submit_attestation` does not yet verify that `SHA-256(msgpack(attestation) || nonce) == commitment_hash` from the validator's `CommitmentAnchor`. To implement this:
-1. Add `nonce: Vec<u8>` to the reveal input struct (or a new `RevealInput { attestation: ValidationAttestation, nonce: Vec<u8> }` wrapper).
+**Researcher side (fully implemented):** The full symmetric researcher commit-reveal is complete:
+- DNA 1 `lock_researcher_result(LockResultInput { request_ref, metrics: Vec<MetricResult> })` — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores private `LockedResult { request_ref, metrics, nonce, commitment_hash }` (immutable, private, never leaves device), calls `publish_researcher_commitment` in DNA 3.
+- DNA 1 `get_locked_result(request_ref)` — retrieves the private entry at reveal time.
+- DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on `check_all_commitments_sealed`, verifies hash on-chain against `ResearcherResultCommitment`, writes immutable `ResearcherReveal { request_ref, metrics }` to DHT.
+- DNA 3 `get_researcher_reveal(request_ref)` — unrestricted read.
+- `ResearcherReveal` is immutable — update + delete both rejected by `validate()`.
+
+**Validator reveal-side (Phase 1):** `submit_attestation` does not yet verify that `SHA-256(msgpack(attestation) || nonce) == commitment_hash` from the validator's `CommitmentAnchor`. To implement:
+1. Add `nonce: Vec<u8>` to the reveal input (new `RevealInput { attestation: ValidationAttestation, nonce: Vec<u8> }` wrapper).
 2. In `submit_attestation`, fetch the caller's `CommitmentAnchor` via the `commitments.{request_ref}` path, recompute the hash, and reject if it does not match.
-3. Similarly, add a `reveal_researcher_result(result_data, nonce)` function in DNA 3 that verifies against `ResearcherResultCommitment`.
 
-Until then, the architectural commitment proof exists but is not verified server-side at reveal time. The UX can still check it client-side. A validator with direct API access could technically reveal a different attestation than they committed to — this is not a practical concern for Phase 0 but must be closed before public launch.
+Until then, validator reveal-side verification exists architecturally but is not enforced server-side. A validator with direct API access could technically reveal a different attestation than they committed to — not a practical concern for Phase 0, but must be closed before public launch.
 
 **Researcher identity blinding proxy.** Double-blind validation (validators cannot see researcher identity) is a design goal but is not architecturally enforced in the current implementation. `ValidationRequest.data_access_url` is visible to validators in full — if it contains researcher-identifying information (e.g. `osf.io/jsmith/my-study`), the blinding is defeated. `researcher_institution` is used server-side only for COI enforcement and is not displayed to validators, but this is a convention not a structural constraint. The fix is a blinding proxy service that replaces the original URL with an opaque token before the `ValidationRequest` is written to the DHT. Until built, double-blinding is an operational convention enforced by the ValiChord team. The commit-reveal blindness (validators cannot see *each other's findings*) is fully implemented and architecturally enforced — these are two distinct properties and only the latter is guaranteed today.
 
