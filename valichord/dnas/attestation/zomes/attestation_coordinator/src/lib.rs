@@ -1213,6 +1213,11 @@ pub enum GamingFlag {
     UnrealisticallyFast        { expected_min_secs: u64, actual_secs: u64 },
     RubberStamping             { approval_rate: f64, avg_time_secs: u64 },
     SocialProximity            { distance: u8, shared_publications: u32 },
+    /// Validator is persistently the outlier across diverse studies — not
+    /// necessarily bad faith, but warrants investigation and support.
+    /// Response is quality assurance (investigate cause, help correct) rather
+    /// than punitive unless deliberate manipulation is established.
+    PersistentOutlier          { divergence_rate: f64, rounds_analysed: u32 },
 }
 
 // ---------------------------------------------------------------------------
