@@ -8,7 +8,7 @@
 
 **Author:** Ceri John
 **Date:** March 2026
-**Version:** 12
+**Version:** 13
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -303,6 +303,48 @@ Better still — a researcher runs *ValiChord at Home* (working name) before the
 The sophistication is in the plumbing, not the taps. Every design decision about the user experience follows one principle: the complexity exists to protect the integrity of the system, not to be visible to the people using it. If a user needs to understand Holochain to submit a study, the UX has failed. If a validator needs to understand collusion-detection algorithms to do their job, the UX has failed. If a funder needs to read this document to interpret a Harmony Record, the UX has failed.
 
 The eight layers are there so that the people who use ValiChord don't have to think about the eight layers.
+
+---
+
+## How the System Resists Gaming
+
+ValiChord's security philosophy is built on a deliberate choice: **detection over prevention**. This is not a compromise forced by technical limitations — it is the right architecture for this problem.
+
+Claims that a system is "unhackable" are always falsifiable and always get tested. A system that instead says "gaming is detectable, attributable, and permanently on record" is making a claim that is architecturally guaranteed and grows stronger over time. In a professional community where careers are long and the validator pool is relatively small, the expected cost of a single caught attempt almost always exceeds any plausible benefit. This asymmetry is the system's primary defence.
+
+### What the Blind Commit-Reveal Actually Prevents
+
+The protocol — where each validator seals their finding privately before anyone's result is published — is often described as preventing validators from "peeking" at what others found. This is correct, but it understates the guarantee.
+
+Consider the strongest plausible attack: a validator waits until others publish their results, then adjusts their own submission to match or strategically contradict. This attack does not work — and not simply because results are hidden during the working phase. The deeper reason is that **the seal is binding**. When a validator seals their finding, a mathematical fingerprint of that finding is recorded on the shared network. When they later reveal, the network checks that what they are revealing matches the fingerprint exactly. If it doesn't — if they have changed a single word of their assessment — every participant on the network independently rejects it. The validator's answer was fixed permanently at the moment they sealed it. By the time anyone else's result is visible, there is nothing left to game.
+
+This means the protocol prevents not just peeking, but the entire idea of adjusting your answer based on what others found. There is no mechanism by which seeing someone else's result can help you — your answer is already locked.
+
+### Strategic Abstention: A Weak Attack
+
+A validator can seal their finding and then simply never publish it — going quiet in the reveal phase. This sounds like a potential exploit but is in practice a poor strategy.
+
+What does the attacker actually gain? They cannot change their answer — it is sealed. They could not see others' answers before sealing — the protocol prevents that. The only effect of staying silent is to withhold their data point from the network. If their result was honest and methodologically sound, silence costs them the professional credit for completing the round and gains them nothing.
+
+More importantly, silence is **permanently and provably on the record**. When a validator seals their finding, a public notice — signed by their professional identity — is written to the shared network. That notice says: this validator committed to an answer. If they never reveal, every future participant in the network can see exactly what happened: this person sealed their finding and then disappeared. That record cannot be removed or altered. In a field where professional reputation is a long-term asset, a permanent public record of non-completion is a real cost.
+
+A financial staking mechanism — planned for Phase 1 — will convert this reputational cost into an economic one, requiring validators to lodge a bond that is forfeited if they seal but do not reveal. But even without it, going silent offers no advantage and leaves a permanent mark.
+
+### What the Protocol Cannot Prevent
+
+Honesty requires acknowledging one genuine hard limit: **pre-commitment collusion**. If a group of validators agree on their findings before any of them seals — coordinating informally beforehand, sharing draft results privately — the blind protocol cannot detect this. The coordination happened before the sealed records were created, so there is nothing in those records to reveal it.
+
+In a large, diverse field, this risk is manageable through validator selection: different institutions, different geographies, no shared publication histories. In a very small or specialised field with only a handful of qualified validators worldwide, it is a genuine structural constraint that no technology can fully solve. ValiChord's response to this is honest: validator diversity is enforced as an architectural requirement (validators cannot be assigned to rounds where independence criteria are not met), but a field with five qualified validators in the world is a field where any validation protocol faces this limit. The mitigation is growing the validator community and enforcing genuine independence — not pretending the problem away with cryptographic engineering.
+
+### Rubber-Stamping: The Longitudinal Audit
+
+Individual rounds can be gamed in subtle ways that are invisible in isolation. A validator who always agrees with the majority. One who completes assessments in a fraction of the time the work genuinely requires. One whose findings consistently favour researchers from particular institutions. None of these patterns is necessarily detectable in a single round. All of them become statistically visible over time.
+
+Because every validation action is permanently recorded against each validator's professional identity, ValiChord passively builds a long-term record of how each validator behaves across all the rounds they participate in. The governance layer analyses this record continuously: how often does this validator agree with the consensus? How does their time-to-completion compare to others working on the same type of study? Are their results correlated with specific research groups? Patterns that suggest rubber-stamping, systematic bias, or coordinated behaviour emerge from the accumulated evidence — even when each individual round looks entirely clean.
+
+This is a capability that does not exist in any current peer review or verification system. Traditional review produces one-off judgements that leave no persistent record of the reviewer's behaviour across time. ValiChord makes systematic bias **auditable for the first time** — not by catching anyone in the act, but by making the evidence accumulate automatically in the background.
+
+A validator who games the system cannot quietly rehabilitate their history. The record is immutable. Every future participant can see it. This permanence is not a secondary safeguard — it is the primary deterrent, and it gets stronger the longer the system runs.
 
 ---
 
