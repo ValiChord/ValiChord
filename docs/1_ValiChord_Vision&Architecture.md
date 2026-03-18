@@ -346,6 +346,10 @@ This is a capability that does not exist in any current peer review or verificat
 
 A validator who games the system cannot quietly rehabilitate their history. The record is immutable. Every future participant can see it. This permanence is not a secondary safeguard — it is the primary deterrent, and it gets stronger the longer the system runs.
 
+The same longitudinal audit catches the opposite pattern too. A validator who is persistently the outlier — consistently producing results that diverge from the other validators across many different studies — is also a signal worth monitoring. A single anomalous result from a validator is valuable data: it may reflect a genuine environmental difference, a fragile dependency in the original study, or a finding the field needs to hear. But a validator who is *always* the outlier across diverse studies is telling us something different — something systemic about their setup, their methodology, or how they are interpreting the validation brief.
+
+The appropriate response to this pattern is not punishment — it is investigation and support. The most likely explanations are benign: an undetected difference in their computational environment, a habitual methodological step that introduces consistent drift, or a misunderstanding of what the validation task requires. The system flags the pattern; the governance layer investigates the cause; the validator is helped to correct it. The longitudinal record therefore functions not just as a deterrent against bad faith, but as a quality assurance mechanism that makes the validator community more reliable over time. Only where investigation reveals deliberate manipulation does the response become disciplinary.
+
 ---
 
 ## The Staged Approach
