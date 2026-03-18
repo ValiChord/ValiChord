@@ -1,7 +1,8 @@
 use hdk::prelude::*;
 use attestation_integrity::{
-    AssessmentConfidence, CommitmentAnchor, DifficultyAssessment, DifficultyTier,
-    DnaProperties, EntryTypes, LinkTypes, PhaseMarker, StudyClaim, ValidatorProfile,
+    AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
+    DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
+    ResearcherCommitmentInput, ResearcherResultCommitment, StudyClaim, ValidatorProfile,
     ValidationRequest,
 };
 use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
@@ -33,6 +34,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_claims_for_request",
         "get_my_claimed_studies",
         "reclaim_abandoned_claim",
+        "get_researcher_commitment",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -825,19 +827,26 @@ pub fn get_difficulty_assessment(
 
 /// Called by validator's Workspace DNA post_commit via call(OtherRole("attestation")).
 /// NOT in Unrestricted cap grant — called under author grant.
+///
+/// Writes a `CommitmentAnchor` to the shared DHT containing only the
+/// `commitment_hash` — the SHA-256 of the validator's serialised attestation
+/// concatenated with a private nonce.  No assessment content leaves the
+/// validator's device during this phase.
 #[hdk_extern]
 pub fn notify_commitment_sealed(
-    request_ref: ExternalHash,
+    input: CommitmentSealedInput,
 ) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
 
     // Step 1: write CommitmentAnchor to shared DHT.
     let anchor = CommitmentAnchor {
-        request_ref: request_ref.clone(),
-        validator:   agent,
+        request_ref:     input.request_ref.clone(),
+        validator:       agent,
+        commitment_hash: input.commitment_hash,
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
+    let request_ref = input.request_ref;
     let commit_path = Path::from(format!("commitments.{}", request_ref))
         .typed(LinkTypes::RequestToCommitment)?;
     commit_path.ensure()?;
@@ -913,6 +922,75 @@ pub fn get_current_phase(
                     "Record is not a PhaseMarker".into()
                 )))?;
             Ok(Some(marker.phase))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Publish the researcher's cryptographic commitment to their result.
+///
+/// Called by the researcher from their own Attestation cell (author grant —
+/// no explicit capability grant required).  Must be called BEFORE the
+/// validation round opens so validators cannot be influenced by the result.
+///
+/// Writes a `ResearcherResultCommitment` to the shared DHT containing only
+/// `result_commitment_hash = SHA-256(result_data_bytes || nonce)`.  The actual
+/// result stays in the researcher's local Researcher Repository DNA and is
+/// only revealed (and verified against this hash) after all validators have
+/// submitted their public reveals.
+#[hdk_extern]
+pub fn publish_researcher_commitment(
+    input: ResearcherCommitmentInput,
+) -> ExternResult<ActionHash> {
+    let commitment = ResearcherResultCommitment {
+        request_ref:            input.request_ref.clone(),
+        result_commitment_hash: input.result_commitment_hash,
+    };
+    let commitment_hash = create_entry(EntryTypes::ResearcherResultCommitment(commitment))?;
+
+    // Index under a deterministic path so validators can retrieve the
+    // commitment by request_ref without knowing the entry's ActionHash.
+    let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
+        .typed(LinkTypes::RequestToResearcherCommitment)?;
+    path.ensure()?;
+    create_link(
+        path.path_entry_hash()?,
+        commitment_hash.clone(),
+        LinkTypes::RequestToResearcherCommitment,
+        (),
+    )?;
+
+    Ok(commitment_hash)
+}
+
+/// Return the researcher's committed result hash for a given request, if published.
+///
+/// Returns `None` if the researcher has not yet published their commitment —
+/// validators can use this to guard the start of their work (the protocol
+/// requires the researcher's commitment to precede any validation).
+#[hdk_extern]
+pub fn get_researcher_commitment(
+    request_ref: ExternalHash,
+) -> ExternResult<Option<Record>> {
+    let path = Path::from(format!("researcher_commitment.{}", request_ref))
+        .typed(LinkTypes::RequestToResearcherCommitment)?;
+    let links = get_links(
+        LinkQuery::try_new(
+            path.path_entry_hash()?,
+            LinkTypes::RequestToResearcherCommitment,
+        )?,
+        GetStrategy::Network,
+    )?;
+    match links.last() {
+        Some(link) => {
+            let hash = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid RequestToResearcherCommitment link target".into()
+                )))?;
+            get(hash, GetOptions::network())
         }
         None => Ok(None),
     }

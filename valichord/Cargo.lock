@@ -1066,6 +1066,7 @@ dependencies = [
  "hdk",
  "holochain_serialized_bytes",
  "serde",
+ "sha2",
  "valichord_shared_types",
  "validator_workspace_integrity",
 ]

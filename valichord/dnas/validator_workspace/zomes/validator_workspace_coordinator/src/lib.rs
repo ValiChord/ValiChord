@@ -1,5 +1,8 @@
 use hdk::prelude::*;
 use validator_workspace_integrity::{EntryTypes, LinkTypes, ValidationTask, ValidatorPrivateAttestation};
+use valichord_shared_types::ValidationAttestation;
+use attestation_integrity::CommitmentSealedInput;
+use sha2::{Digest, Sha256};
 
 // ---------------------------------------------------------------------------
 // No init() needed.
@@ -11,11 +14,17 @@ use validator_workspace_integrity::{EntryTypes, LinkTypes, ValidationTask, Valid
 // Input struct for seal_private_attestation
 // ---------------------------------------------------------------------------
 
-/// Input for seal_private_attestation: task to link from + the attestation to create.
+/// Input for seal_private_attestation.
+///
+/// `attestation` is the EXACT `ValidationAttestation` that will be revealed
+/// publicly during the reveal phase.  The coordinator serialises it and
+/// hashes it (with a generated nonce) to produce the `commitment_hash` that
+/// goes to the shared Attestation DHT.  The caller must NOT supply `nonce` or
+/// `commitment_hash` — they are generated here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SealAttestationInput {
     pub task_hash:   ActionHash,
-    pub attestation: ValidatorPrivateAttestation,
+    pub attestation: ValidationAttestation,
 }
 
 // ---------------------------------------------------------------------------
@@ -30,12 +39,55 @@ pub fn receive_task(task: ValidationTask) -> ExternResult<ActionHash> {
 
 /// Seal the validator's private attestation — the COMMIT PHASE.
 ///
-/// Writes a private entry: visible only on this validator's own source chain.
-/// post_commit fires after the write and notifies the Attestation DNA.
+/// 1. Generates a random 32-byte nonce via Holochain's `random_bytes` host function.
+/// 2. Serialises `input.attestation` to MessagePack (same encoding Holochain
+///    uses for all DHT entries, so the commitment hash is reproducible at
+///    reveal time using only the public attestation + nonce).
+/// 3. Computes `commitment_hash = SHA-256(msgpack_bytes || nonce)`.
+/// 4. Stores the full `ValidatorPrivateAttestation` (including nonce and hash)
+///    as a PRIVATE entry — content never leaves this device.
+/// 5. `post_commit` fires after the write and cross-calls the Attestation DNA's
+///    `notify_commitment_sealed` with the commitment_hash so the shared DHT
+///    records that this validator has committed (without revealing any content).
 #[hdk_extern]
 pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<ActionHash> {
+    // 1. Random 32-byte nonce — HDK host function, never available in validate().
+    let nonce: Vec<u8> = random_bytes(32)?.to_vec();
+
+    // 2. Serialise the public attestation to MessagePack.
+    //    SerializedBytes uses rmp_serde::to_vec_named internally — the same
+    //    codec the Attestation DNA will use when verifying the reveal.
+    let msgpack_bytes: Vec<u8> = SerializedBytes::try_from(&input.attestation)
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .bytes()
+        .to_vec();
+
+    // 3. commitment_hash = SHA-256(msgpack_bytes || nonce)
+    let mut hasher = Sha256::new();
+    hasher.update(&msgpack_bytes);
+    hasher.update(&nonce);
+    let commitment_hash: Vec<u8> = hasher.finalize().to_vec();
+
+    // 4. Build the private entry — all public attestation fields are mirrored
+    //    here so the full ValidationAttestation can be reconstructed at reveal
+    //    time without a separate task lookup.
+    let att = &input.attestation;
+    let private_attestation = ValidatorPrivateAttestation {
+        request_ref:             att.request_ref.clone(),
+        outcome:                 att.outcome.clone(),
+        outcome_summary:         att.outcome_summary.clone(),
+        time_invested_secs:      att.time_invested_secs,
+        time_breakdown:          att.time_breakdown.clone(),
+        deviation_flags:         att.deviation_flags.clone(),
+        computational_resources: att.computational_resources.clone(),
+        confidence:              att.confidence.clone(),
+        discipline:              att.discipline.clone(),
+        nonce,
+        commitment_hash,
+    };
+
     let attestation_hash =
-        create_entry(EntryTypes::ValidatorPrivateAttestation(input.attestation))?;
+        create_entry(EntryTypes::ValidatorPrivateAttestation(private_attestation))?;
     create_link(
         input.task_hash,
         attestation_hash.clone(),
@@ -149,15 +201,19 @@ fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResul
                     .ok()
                     .flatten()
                 {
-                    let request_ref = attestation.request_ref.clone();
-                    // Fire-and-forget — notify DNA 3 that this validator's
-                    // commitment is now sealed.
+                    // Pass both the request identifier AND the commitment_hash
+                    // so the Attestation DNA can record a fully-formed
+                    // CommitmentAnchor without knowing the private content.
+                    let sealed_input = CommitmentSealedInput {
+                        request_ref:     attestation.request_ref.clone(),
+                        commitment_hash: attestation.commitment_hash.clone(),
+                    };
                     let _result: ExternResult<ZomeCallResponse> = call(
                         CallTargetCell::OtherRole("attestation".into()),
                         ZomeName::from("attestation_coordinator"),
                         FunctionName::from("notify_commitment_sealed"),
                         None,
-                        request_ref,
+                        sealed_input,
                     );
                     if let Err(e) = _result {
                         debug!(

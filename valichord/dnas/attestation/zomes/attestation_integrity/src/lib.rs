@@ -110,12 +110,56 @@ pub enum DifficultyTier {
 pub enum AssessmentConfidence { High, Medium, Low }
 
 /// Public commitment anchor — proof a validator sealed their private attestation.
+///
+/// `commitment_hash` = SHA-256(msgpack(ValidationAttestation) || nonce)
+/// computed in the validator's local Workspace DNA before any content leaves
+/// their device. The hash is the ONLY piece of their assessment that ever
+/// touches the shared DHT during the commit phase.
 /// IMMUTABLE after publication.
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct CommitmentAnchor {
-    pub request_ref: ExternalHash,
-    pub validator:   AgentPubKey,
+    pub request_ref:     ExternalHash,
+    pub validator:       AgentPubKey,
+    /// SHA-256 of (msgpack(ValidationAttestation) || nonce). Verified on reveal.
+    pub commitment_hash: Vec<u8>,
+}
+
+/// Cryptographic commitment to the researcher's result.
+///
+/// Published to the shared Attestation DHT at the same time as the
+/// ValidationRequest — before any validator begins work.  The actual result
+/// stays in the researcher's local Researcher Repository DNA (private entry).
+/// Only revealed (and verified against this hash) after all validators have
+/// submitted their reveals.
+/// IMMUTABLE after publication.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ResearcherResultCommitment {
+    pub request_ref:           ExternalHash,
+    /// SHA-256 of (result_data.as_bytes() || nonce). Verified on researcher reveal.
+    pub result_commitment_hash: Vec<u8>,
+}
+
+// ---------------------------------------------------------------------------
+// Cross-DNA input structs (defined here so coordinator zomes on both sides
+// can import the same type without a coordinator→coordinator dependency).
+// ---------------------------------------------------------------------------
+
+/// Payload sent from validator_workspace post_commit to attestation
+/// `notify_commitment_sealed`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitmentSealedInput {
+    pub request_ref:     ExternalHash,
+    pub commitment_hash: Vec<u8>,
+}
+
+/// Payload sent from researcher_repository `lock_result` to attestation
+/// `publish_researcher_commitment`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearcherCommitmentInput {
+    pub request_ref:           ExternalHash,
+    pub result_commitment_hash: Vec<u8>,
 }
 
 /// DHT-persisted record of the current validation phase.
@@ -144,6 +188,7 @@ pub enum EntryTypes {
     CommitmentAnchor(CommitmentAnchor),
     PhaseMarker(PhaseMarker),
     StudyClaim(StudyClaim),
+    ResearcherResultCommitment(ResearcherResultCommitment),
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +216,8 @@ pub enum LinkTypes {
     /// Links AgentPubKey → StudyClaim ActionHash.
     /// Allows get_my_claimed_studies to enumerate a validator's active claims.
     ValidatorToClaim,
+    /// Links path("researcher_commitment.{request_ref}") → ResearcherResultCommitment ActionHash.
+    RequestToResearcherCommitment,
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +255,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::PhaseMarker(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "PhaseMarker is immutable — phase history is append-only".into(),
+        )),
+
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ResearcherResultCommitment(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "ResearcherResultCommitment is immutable — the locked result commitment cannot be changed".into(),
         )),
 
         // Generic update: only the original author may update other entry types.
@@ -258,6 +311,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         Some(EntryTypes::PhaseMarker(_)) => {
                             return Ok(ValidateCallbackResult::Invalid(
                                 "PhaseMarker is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::ResearcherResultCommitment(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ResearcherResultCommitment is immutable — cannot be deleted".into(),
                             ));
                         }
                         _ => {}
