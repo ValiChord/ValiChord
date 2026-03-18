@@ -2,10 +2,12 @@ use hdk::prelude::*;
 use attestation_integrity::{
     AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
     DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
-    ResearcherCommitmentInput, ResearcherResultCommitment, StudyClaim, ValidatorProfile,
-    ValidationRequest,
+    ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
+    StudyClaim, ValidatorProfile, ValidationRequest,
 };
 use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
+use sha2::{Digest, Sha256};
+use rmp_serde as rmps;
 use std::collections::HashSet;
 
 // ---------------------------------------------------------------------------
@@ -35,6 +37,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_my_claimed_studies",
         "reclaim_abandoned_claim",
         "get_researcher_commitment",
+        "get_researcher_reveal",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -989,6 +992,114 @@ pub fn get_researcher_commitment(
                 .into_action_hash()
                 .ok_or(wasm_error!(WasmErrorInner::Guest(
                     "Invalid RequestToResearcherCommitment link target".into()
+                )))?;
+            get(hash, GetOptions::network())
+        }
+        None => Ok(None),
+    }
+}
+
+/// Verify the researcher's commitment and publish their structured results.
+///
+/// Protocol gate: all validators must have committed before the researcher can
+/// reveal.  This prevents the researcher from updating their stated expected
+/// values after seeing validator behaviour.
+///
+/// Verification: `SHA-256(msgpack(metrics) || nonce) == result_commitment_hash`
+/// If the hash does not match, the call fails with a Guest error — the reveal
+/// is NOT written to the DHT.
+///
+/// Once written, `ResearcherReveal` is immutable (enforced by validate()).
+/// Validators can then fetch the reveal via `get_researcher_reveal` and compare
+/// the researcher's `metrics[i].produced_value` against their own
+/// `MetricResult.produced_value` for the same metric names.
+#[hdk_extern]
+pub fn reveal_researcher_result(
+    input: ResearcherRevealInput,
+) -> ExternResult<ActionHash> {
+    // Gate: all validators must have committed first.
+    if !check_all_commitments_sealed_inner(input.request_ref.clone())? {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Cannot reveal — not all validators have committed yet".into()
+        )));
+    }
+
+    // Fetch the previously published commitment.
+    let commitment_record = get_researcher_commitment(input.request_ref.clone())?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "No ResearcherResultCommitment found for this request — \
+             publish_researcher_commitment must be called before reveal".into()
+        )))?;
+    let commitment: ResearcherResultCommitment = commitment_record
+        .entry()
+        .to_app_option()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "Record is not a ResearcherResultCommitment".into()
+        )))?;
+
+    // Verify: SHA-256(msgpack(metrics) || nonce) == result_commitment_hash
+    let msgpack_bytes: Vec<u8> = rmps::to_vec_named(&input.metrics)
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&msgpack_bytes);
+    hasher.update(&input.nonce);
+    let computed: Vec<u8> = hasher.finalize().to_vec();
+
+    if computed != commitment.result_commitment_hash {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Hash mismatch — the provided metrics and nonce do not match \
+             the previously published commitment".into()
+        )));
+    }
+
+    // Write the verified reveal to the shared DHT.
+    let reveal = ResearcherReveal {
+        request_ref: input.request_ref.clone(),
+        metrics:     input.metrics,
+    };
+    let reveal_hash = create_entry(EntryTypes::ResearcherReveal(reveal))?;
+
+    let path = Path::from(format!("researcher_reveal.{}", input.request_ref))
+        .typed(LinkTypes::RequestToResearcherReveal)?;
+    path.ensure()?;
+    create_link(
+        path.path_entry_hash()?,
+        reveal_hash.clone(),
+        LinkTypes::RequestToResearcherReveal,
+        (),
+    )?;
+
+    Ok(reveal_hash)
+}
+
+/// Return the researcher's verified reveal for a given request, if published.
+///
+/// Returns `None` if the researcher has not yet called `reveal_researcher_result`.
+/// The `ResearcherReveal.metrics` field contains the structured per-metric
+/// results from the researcher's original run, verified against the hash
+/// committed in `ResearcherResultCommitment`.
+#[hdk_extern]
+pub fn get_researcher_reveal(
+    request_ref: ExternalHash,
+) -> ExternResult<Option<Record>> {
+    let path = Path::from(format!("researcher_reveal.{}", request_ref))
+        .typed(LinkTypes::RequestToResearcherReveal)?;
+    let links = get_links(
+        LinkQuery::try_new(
+            path.path_entry_hash()?,
+            LinkTypes::RequestToResearcherReveal,
+        )?,
+        GetStrategy::Network,
+    )?;
+    match links.last() {
+        Some(link) => {
+            let hash = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid RequestToResearcherReveal link target".into()
                 )))?;
             get(hash, GetOptions::network())
         }

@@ -1,5 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{CertificationTier, Discipline, ValidationAttestation, ValidationPhase};
+use valichord_shared_types::{CertificationTier, Discipline, MetricResult, ValidationAttestation, ValidationPhase};
 
 // ---------------------------------------------------------------------------
 // DNA Properties (baked into DNA hash — immutable per network instance)
@@ -158,8 +158,36 @@ pub struct CommitmentSealedInput {
 /// `publish_researcher_commitment`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResearcherCommitmentInput {
-    pub request_ref:           ExternalHash,
+    pub request_ref:            ExternalHash,
     pub result_commitment_hash: Vec<u8>,
+}
+
+/// Payload for `reveal_researcher_result`.
+///
+/// The coordinator verifies `SHA-256(msgpack(metrics) || nonce) == result_commitment_hash`
+/// before writing the `ResearcherReveal` entry to the DHT.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearcherRevealInput {
+    pub request_ref: ExternalHash,
+    pub metrics:     Vec<MetricResult>,
+    pub nonce:       Vec<u8>,
+}
+
+/// Researcher's verified reveal — the structured metrics that were hashed into
+/// `ResearcherResultCommitment.result_commitment_hash`, now published on the
+/// shared DHT after all validators have committed.
+///
+/// Only accepted by the coordinator once `check_all_commitments_sealed` returns
+/// true and the SHA-256 hash of `msgpack(metrics) || nonce` matches the
+/// previously published commitment.
+/// IMMUTABLE after publication.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ResearcherReveal {
+    pub request_ref: ExternalHash,
+    /// The structured per-metric results the researcher produced originally.
+    /// Validators can compare their own `produced_value` fields against these.
+    pub metrics:     Vec<MetricResult>,
 }
 
 /// DHT-persisted record of the current validation phase.
@@ -189,6 +217,7 @@ pub enum EntryTypes {
     PhaseMarker(PhaseMarker),
     StudyClaim(StudyClaim),
     ResearcherResultCommitment(ResearcherResultCommitment),
+    ResearcherReveal(ResearcherReveal),
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +247,8 @@ pub enum LinkTypes {
     ValidatorToClaim,
     /// Links path("researcher_commitment.{request_ref}") → ResearcherResultCommitment ActionHash.
     RequestToResearcherCommitment,
+    /// Links path("researcher_reveal.{request_ref}") → ResearcherReveal ActionHash.
+    RequestToResearcherReveal,
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +292,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ResearcherResultCommitment(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ResearcherResultCommitment is immutable — the locked result commitment cannot be changed".into(),
+        )),
+
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ResearcherReveal(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "ResearcherReveal is immutable — the verified reveal cannot be changed".into(),
         )),
 
         // Generic update: only the original author may update other entry types.
@@ -316,6 +353,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         Some(EntryTypes::ResearcherResultCommitment(_)) => {
                             return Ok(ValidateCallbackResult::Invalid(
                                 "ResearcherResultCommitment is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::ResearcherReveal(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ResearcherReveal is immutable — cannot be deleted".into(),
                             ));
                         }
                         _ => {}

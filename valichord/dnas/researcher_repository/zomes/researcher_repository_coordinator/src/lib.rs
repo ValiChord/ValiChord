@@ -1,10 +1,12 @@
 use hdk::prelude::*;
 use researcher_repository_integrity::{
-    DeclaredDeviation, EntryTypes, LinkTypes, PreRegisteredProtocol, ResearchStudy,
+    DeclaredDeviation, EntryTypes, LinkTypes, LockedResult, PreRegisteredProtocol, ResearchStudy,
     VerifiedDataSnapshot,
 };
-use valichord_shared_types::UndeclaredDeviation;
+use valichord_shared_types::{MetricResult, UndeclaredDeviation};
+use attestation_integrity::ResearcherCommitmentInput;
 use sha2::{Sha256, Digest};
+use rmp_serde as rmps;
 
 // ---------------------------------------------------------------------------
 // No init() needed.
@@ -35,6 +37,16 @@ pub struct TakeDataSnapshotInput {
 pub struct DeclareDeviationInput {
     pub study_ref: ActionHash,
     pub deviation: UndeclaredDeviation,
+}
+
+/// Input for lock_researcher_result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockResultInput {
+    /// The same ExternalHash used in the ValidationRequest.data_hash field
+    /// (identifies the study on the shared Attestation DHT).
+    pub request_ref: ExternalHash,
+    /// The structured per-metric results from the researcher's original run.
+    pub metrics:     Vec<MetricResult>,
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +195,99 @@ pub fn get_deviations_for_study(study_hash: ActionHash) -> ExternResult<Vec<Reco
         }
     }
     Ok(records)
+}
+
+// ---------------------------------------------------------------------------
+// Commit-reveal — researcher side
+// ---------------------------------------------------------------------------
+
+/// Lock the researcher's result at study submission time.
+///
+/// Workflow:
+///   1. Generate a 32-byte random nonce.
+///   2. Compute `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`.
+///   3. Store a private `LockedResult` entry on this device (metrics + nonce +
+///      hash — never leaves this DNA).
+///   4. Publish only the hash to the shared Attestation DHT via
+///      `publish_researcher_commitment`.
+///   5. Return the ActionHash of the private entry (used later to retrieve
+///      the nonce for reveal).
+///
+/// Must be called BEFORE the validation round opens.  Validators can check that
+/// a commitment exists via `get_researcher_commitment` on the Attestation DNA
+/// before accepting a study claim.
+#[hdk_extern]
+pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash> {
+    // 1. Random nonce.
+    let nonce: Vec<u8> = random_bytes(32)?.to_vec();
+
+    // 2. Commitment hash: SHA-256(msgpack(metrics) || nonce).
+    let msgpack_bytes: Vec<u8> = rmps::to_vec_named(&input.metrics)
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&msgpack_bytes);
+    hasher.update(&nonce);
+    let commitment_hash: Vec<u8> = hasher.finalize().to_vec();
+
+    // 3. Store privately.
+    let locked = LockedResult {
+        request_ref:     input.request_ref.clone(),
+        metrics:         input.metrics,
+        nonce:           nonce.clone(),
+        commitment_hash: commitment_hash.clone(),
+    };
+    let locked_hash = create_entry(EntryTypes::LockedResult(locked))?;
+
+    // Index so get_locked_result can find it by request_ref.
+    create_link(
+        input.request_ref.clone(),
+        locked_hash.clone(),
+        LinkTypes::RequestToLockedResult,
+        (),
+    )?;
+
+    // 4. Publish only the hash to the shared Attestation DHT.
+    let commitment_input = ResearcherCommitmentInput {
+        request_ref:            input.request_ref,
+        result_commitment_hash: commitment_hash,
+    };
+    let _ = call(
+        CallTargetCell::OtherRole("attestation".into()),
+        ZomeName::from("attestation_coordinator"),
+        FunctionName::from("publish_researcher_commitment"),
+        None,
+        commitment_input,
+    )?;
+
+    Ok(locked_hash)
+}
+
+/// Retrieve the researcher's private locked result for a given request.
+///
+/// Returns the `LockedResult` record (containing metrics + nonce) so the
+/// researcher can pass those fields to `reveal_researcher_result` on the
+/// Attestation DNA once all validators have committed.
+///
+/// Returns `None` if no lock has been created for this request yet.
+#[hdk_extern]
+pub fn get_locked_result(request_ref: ExternalHash) -> ExternResult<Option<Record>> {
+    let links = get_links(
+        LinkQuery::try_new(request_ref, LinkTypes::RequestToLockedResult)?,
+        GetStrategy::Local,
+    )?;
+    match links.last() {
+        Some(link) => {
+            let hash = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid RequestToLockedResult link target".into()
+                )))?;
+            get(hash, GetOptions::local())
+        }
+        None => Ok(None),
+    }
 }
 
 /// Compute SHA-256 of data bytes and return as a Holochain ExternalHash.

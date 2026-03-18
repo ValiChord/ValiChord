@@ -1,5 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{Discipline, UndeclaredDeviation};
+use valichord_shared_types::{Discipline, MetricResult, UndeclaredDeviation};
 
 // ---------------------------------------------------------------------------
 // Entry Types
@@ -55,6 +55,30 @@ pub struct VerifiedDataSnapshot {
     pub total_size_bytes: u64,
 }
 
+/// The researcher's private locked result — created by `lock_researcher_result`
+/// at study submission time.
+///
+/// Stores the structured metrics, the random nonce, and the pre-computed
+/// commitment hash that was published to the Attestation DHT via
+/// `publish_researcher_commitment`.  At reveal time the researcher calls
+/// `reveal_researcher_result` (DNA 3) using these fields; the commitment hash
+/// is verified on-chain before the structured metrics land on the shared DHT.
+///
+/// IMMUTABLE — the blanket `PrivateEntry` update guard in validate() covers this.
+/// PRIVATE — never leaves this device; GDPR-safe.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct LockedResult {
+    pub request_ref:           ExternalHash,
+    /// The per-metric results from the researcher's original run.
+    pub metrics:               Vec<MetricResult>,
+    /// 32-byte random nonce generated at lock time.
+    pub nonce:                 Vec<u8>,
+    /// SHA-256(rmp_serde::to_vec_named(metrics) || nonce) — already published
+    /// to the Attestation DHT.  Stored here for local reference only.
+    pub commitment_hash:       Vec<u8>,
+}
+
 /// A deviation from the pre-registered plan that the researcher declares
 /// before the validation round begins.
 ///
@@ -83,6 +107,8 @@ pub enum EntryTypes {
     VerifiedDataSnapshot(VerifiedDataSnapshot),
     #[entry_type(visibility = "private")]
     DeclaredDeviation(DeclaredDeviation),
+    #[entry_type(visibility = "private")]
+    LockedResult(LockedResult),
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +123,8 @@ pub enum LinkTypes {
     StudyToSnapshot,
     /// ResearchStudy ActionHash → DeclaredDeviation ActionHash
     StudyToDeviation,
+    /// ExternalHash (request_ref) → LockedResult ActionHash
+    RequestToLockedResult,
 }
 
 // ---------------------------------------------------------------------------

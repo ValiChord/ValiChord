@@ -30,7 +30,9 @@ dependencies = [
  "attestation_integrity",
  "getrandom",
  "hdk",
+ "rmp-serde",
  "serde",
+ "sha2",
  "valichord_shared_types",
 ]
 
@@ -780,10 +782,12 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 name = "researcher_repository_coordinator"
 version = "0.1.0"
 dependencies = [
+ "attestation_integrity",
  "getrandom",
  "hdk",
  "holochain_serialized_bytes",
  "researcher_repository_integrity",
+ "rmp-serde",
  "serde",
  "sha2",
  "valichord_shared_types",
