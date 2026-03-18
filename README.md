@@ -7,6 +7,7 @@
 [![Status](https://img.shields.io/badge/Status-Infrastructure_Built-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-87_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
+[![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
 ---
@@ -33,7 +34,7 @@ ValiChord is built as four distinct Holochain DNAs — four separate peer-to-pee
 
 | DNA | Purpose | Access Control |
 | :--- | :--- | :--- |
-| **DNA 1 — Researcher Repository** | Private storage of raw code, data, protocols, and snapshots. Nothing leaves except a SHA-256 hash. | **Private** — single agent, never enters DHT |
+| **DNA 1 — Researcher Repository** | Private storage of raw code, data, protocols, and snapshots. At submission, `lock_researcher_result` seals result metrics with a cryptographic nonce — only the hash leaves. | **Private** — single agent, never enters DHT |
 | **DNA 2 — Validator Workspace** | Where the reproduction work happens. Private attestation sealed here during the commit phase. | **Private** — single agent, never enters DHT |
 | **DNA 3 — Attestation** | Shared DHT for validation requests, blind commitment anchors, and public attestations. Credentialed membrane. | **Credentialed** — institutional membrane proof required |
 | **DNA 4 — Governance & Harmony** | Public results, Harmony Records, Reproducibility Badges, and validator reputation. HTTP Gateway target. | **Open read** — no Holochain node required |
@@ -89,16 +90,25 @@ valichord/
 
 ---
 
-## 🔐 The Blind Commit-Reveal Protocol
+## 🔐 The Blind Commit-Reveal Protocol — Fully Symmetric (March 2026)
 
-To prevent last-mover advantage, ValiChord implements a cryptographic blind commit-reveal protocol across DNA 2 and DNA 3:
+> **This is the core anti-gaming guarantee that makes ValiChord different from every other reproducibility system.**
+>
+> For the first time, a computational reproducibility system provides cryptographic proof of three things simultaneously:
+> - Validators could not see each other's findings before committing their own
+> - The researcher could not change their claimed results after seeing any validator's findings
+> - The comparison of researcher-declared values against validator-reproduced values is cryptographically genuine — not self-reported or trust-based
+>
+> Neither party can move the goalposts. The envelopes are sealed before anyone opens theirs.
 
-0. **Researcher locks result** — at study submission time, the researcher calls `lock_researcher_result` in DNA 1. This generates a nonce, computes `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores the structured metrics and nonce as a private `LockedResult` entry (never leaves their device), and automatically publishes only the hash to DNA 3 via `publish_researcher_commitment` (`ResearcherResultCommitment`). Validators can check this commitment exists before starting work — the researcher cannot adjust their claimed result after seeing validator findings.
-1. **Commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine.
-2. **Anchor** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT containing the `commitment_hash`. Everyone can verify the commitment happened and that it is cryptographically bound to a specific assessment — but the assessment content remains hidden.
-3. **Phase open** — when all expected `CommitmentAnchor` entries are present, DNA 3 writes a `PhaseMarker(RevealOpen)` to the DHT. Validators discover this by polling, not by signal — ensuring no validator is disadvantaged by network latency.
-4. **Dual reveal** — validators submit their public `ValidationAttestation` entries to DNA 3 (immutable after publication). Simultaneously, the researcher retrieves their private `LockedResult` from DNA 1 and calls `reveal_researcher_result` in DNA 3, which verifies `SHA-256(msgpack(metrics) || nonce) == result_commitment_hash` and writes a `ResearcherReveal` entry to the DHT. Both reveals happen at the same phase; neither party can see the other's content before committing.
-5. **Harmony** — once all attestations are present, DNA 4 assembles a `HarmonyRecord` on the public DHT, assesses agreement, and optionally issues a `ReproducibilityBadge`. The researcher's verified `ResearcherReveal` metrics are available on the DHT for comparison against each validator's `produced_value` fields.
+The protocol is implemented across all four DNAs and is fully tested:
+
+0. **Researcher seals result** *(at submission, months before validators begin)* — `lock_researcher_result` in DNA 1 generates a 32-byte random nonce, computes `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores the structured metrics and nonce as a private `LockedResult` entry that never leaves the researcher's device, and automatically publishes only the hash to DNA 3 as a `ResearcherResultCommitment`. Validators can verify this commitment exists before accepting a study — the researcher is bound to their result from day one.
+1. **Validators commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine.
+2. **Anchors published** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT containing the `commitment_hash`. Everyone can verify the commitment happened and that it is cryptographically bound to a specific assessment — but the assessment content remains hidden.
+3. **Phase opens** — when all expected `CommitmentAnchor` entries are present, DNA 3 writes a `PhaseMarker(RevealOpen)` to the DHT. Validators discover this by polling, not by signal — ensuring no validator is disadvantaged by network latency.
+4. **Dual reveal** *(both parties simultaneously)* — validators submit their public `ValidationAttestation` entries to DNA 3 (immutable after publication). The researcher retrieves their private `LockedResult` from DNA 1 and calls `reveal_researcher_result` in DNA 3, which verifies `SHA-256(rmp_serde::to_vec_named(metrics) || nonce) == result_commitment_hash` **on-chain** and writes an immutable `ResearcherReveal` entry to the DHT. Neither party can see the other's content before committing to their own.
+5. **Harmony** — once all attestations are present, DNA 4 assembles a `HarmonyRecord` on the public DHT, assesses agreement, and optionally issues a `ReproducibilityBadge`. The researcher's verified `ResearcherReveal` metrics and each validator's `produced_value` fields are both on the public DHT — the comparison is genuine and independently verifiable by anyone.
 
 ---
 

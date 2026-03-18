@@ -421,7 +421,7 @@ hc app pack . -o workdir/valichord.happ
 cd tests && npm test
 ```
 
-**57 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
+**87 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
 
 ---
 

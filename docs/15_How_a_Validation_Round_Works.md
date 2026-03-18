@@ -26,6 +26,8 @@ ValiChord does not store any of this. It computes a SHA-256 cryptographic finger
 
 She submits a Validation Request to the shared network, attaching the fingerprint, specifying her discipline (Computational Biology), and indicating the number of validators required. The request appears on the shared network — visible to credentialed validators in her field.
 
+There is one more step that happens at submission, invisible to the validators: Sarah **locks her result**. ValiChord generates a random nonce and computes a cryptographic hash of her structured result metrics — the exact numbers from her paper. Only that hash travels to the shared network, recorded as a `ResearcherResultCommitment`. The metrics and nonce stay sealed in Sarah's private workspace. The validators cannot see what Sarah found. Sarah cannot change what she claimed to have found. The envelope is sealed.
+
 <div align="center">
   <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20round%201.jpeg" width="800px" alt="Validator Round 1">
 </div>
@@ -90,7 +92,9 @@ James submits his public `ValidationAttestation`. It is permanent the moment it 
 
 Fatima submits hers. Marcus submits his.
 
-The three attestations are now public, permanent, and independently verifiable by anyone on the network.
+At the same time, Sarah receives a notification that all validators have committed. She opens her private workspace, retrieves the nonce and metrics she locked at submission, and calls `reveal_researcher_result`. ValiChord verifies the hash on the shared network — confirming that the metrics she is now publishing match exactly what she committed to before any validator started work — and writes her `ResearcherReveal` to the DHT.
+
+The three validator attestations and Sarah's verified result are now all public, permanent, and independently verifiable by anyone on the network. Neither Sarah nor the validators could have adjusted their numbers after seeing anyone else's. The comparison is genuine.
 
 <div align="center">
   <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20Round%205.jpeg" width="800px" alt="Validator Round 5">

@@ -16,7 +16,7 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **Privacy:** Sensitive information (such as private patient records or commercially sensitive data) stays inside this bubble permanently. It never touches the shared network, making the system GDPR compliant by its very nature — not as a policy overlay, but as a structural fact.
 
-**What it stores:** ResearchStudy, PreRegisteredProtocol (locked and immutable once registered), VerifiedDataSnapshot (a timestamped hash of the dataset at the moment of validation).
+**What it stores:** ResearchStudy, PreRegisteredProtocol (locked and immutable once registered), VerifiedDataSnapshot (a timestamped hash of the dataset at the moment of validation), LockedResult (the researcher's sealed result metrics and cryptographic nonce — immutable, never leaves this DNA).
 
 ---
 
@@ -38,13 +38,21 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **Role:** This DNA manages the blind commit-reveal protocol and records the public outcome of each validator's work. It does not store the research itself — only the acts of validation.
 
-**How the commit-reveal works:**
+**How the commit-reveal works — fully symmetric for both validators and researcher:**
+
+**At submission (before any validator starts work):**
+- The researcher seals a hash of their result metrics to the shared network (`ResearcherResultCommitment`). Their actual metrics stay in DNA 1. The hash is the envelope — sealed before anyone else acts.
+
+**During validation (commit phase):**
 1. Each validator seals their private assessment in DNA 2 (the Commit).
 2. This automatically writes a **CommitmentAnchor** to DNA 3 — a public, zero-content proof that a commitment was made, without revealing what was found.
 3. When all validators have committed, a **PhaseMarker** is written to the shared network, opening the reveal window. Validators discover this by checking the network (polling), not by receiving a message — so no validator can gain an advantage from faster internet.
-4. Validators then publish their **ValidationAttestation** — their full public findings — to DNA 3. These are permanent and cannot be changed.
 
-**What it stores:** ValidationRequest, CommitmentAnchor, PhaseMarker, ValidationAttestation (all immutable after publication), ValidatorProfile.
+**At reveal (all parties simultaneously):**
+4. Validators publish their **ValidationAttestation** — their full public findings — to DNA 3. These are permanent and cannot be changed.
+5. The researcher publishes their **ResearcherReveal** — the structured result metrics, verified on-chain against the hash committed at submission. Anyone can now compare what Sarah originally claimed against what each validator independently reproduced.
+
+**What it stores:** ValidationRequest, ResearcherResultCommitment, ResearcherReveal, CommitmentAnchor, PhaseMarker, ValidationAttestation (all immutable after publication), ValidatorProfile, StudyClaim.
 
 ---
 
@@ -75,9 +83,11 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 | **Shared DHT** | A Neighbourhood Bulletin Board. A way for people to share information without a central "Big Brother" server; every participant holds a small piece of the board. |
 | **Cryptographic Hash** | A Digital Fingerprint. A unique code representing a file. If even one comma changes in the file, the fingerprint changes completely — making tampering immediately detectable. |
 | **Commit-Reveal** | The Sealed Envelope. You put your answer in an envelope on the table (Commit) and only open it (Reveal) once everyone else has done the same. No-one can change their answer after seeing others'. |
-| **CommitmentAnchor** | The Envelope on the Table. A public, zero-content record that a specific validator has sealed their assessment — visible to all, but revealing nothing about what was found. |
+| **CommitmentAnchor** | The Validator's Envelope on the Table. A public, zero-content record that a specific validator has sealed their assessment — visible to all, but revealing nothing about what was found. |
+| **ResearcherResultCommitment** | The Researcher's Sealed Envelope. A hash of the researcher's result metrics published to the shared network at submission — before any validator starts work. The actual numbers stay private until the reveal. |
+| **ResearcherReveal** | The Researcher's Open Envelope. The researcher's verified result metrics, published at reveal time and cryptographically proven to match what was committed at submission. Anyone can now compare researcher-declared vs validator-reproduced values. |
 | **PhaseMarker** | The Starting Pistol. A permanent record written to the shared network when all validators have committed, opening the reveal window for everyone simultaneously. |
-| **ValidationAttestation** | The Open Envelope. A validator's full public findings, permanently recorded on the shared network. Cannot be changed or deleted. |
+| **ValidationAttestation** | The Validator's Open Envelope. A validator's full public findings, permanently recorded on the shared network. Cannot be changed or deleted. |
 | **Harmony Record** | The Verdict. The final permanent record of a completed validation round — including the outcome, the level of agreement between validators, and who participated. Publicly readable by anyone. |
 | **Reproducibility Badge** | The Hallmark. A Gold, Silver, Bronze, or Failed stamp issued to a study based on how many validators reproduced it and how closely their findings agreed. |
 | **Data Locality** | Keeping it at Home. Keeping data on your own device rather than sending it to a cloud server — the architecture enforces this, it is not just a policy. |

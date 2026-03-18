@@ -172,7 +172,8 @@ These are areas not yet covered by tests, ordered by value.
 | Area | What to add | Notes |
 |------|-------------|-------|
 | DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
-| DNA 3 — researcher commitment | publish_researcher_commitment + get_researcher_commitment round-trip; verify commitment blocks validators before it exists | New entry type implemented; tests not yet written |
+| DNA 1 — lock_researcher_result | lock_researcher_result → LockedResult stored privately + ResearcherResultCommitment on DNA 3; get_locked_result returns private record | Cross-DNA call in test scenario required |
+| DNA 3 — reveal_researcher_result | Correct metrics+nonce → ResearcherReveal on DHT; wrong nonce → error rejected; get_researcher_reveal returns verified reveal | Must call all validators notify_commitment_sealed first (gate: check_all_commitments_sealed) |
 | DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama |
 
 ---
