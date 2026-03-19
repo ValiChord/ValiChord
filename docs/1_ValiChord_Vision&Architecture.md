@@ -481,7 +481,7 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **No empirical evidence.** The critical assumption — that validators will participate — is untested. Phase 0 exists specifically to test it.
 
-This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. It is a thoroughly designed concept, not an operational system. The next step is to test its most critical assumption.
+This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. The core infrastructure is built and integration-tested; what remains is the user-facing layer, the team, the institutional partnerships, and — most importantly — the empirical test of whether validators will actually participate. The next step is to test that assumption.
 
 ---
 
