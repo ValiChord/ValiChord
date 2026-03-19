@@ -30,6 +30,9 @@ The tool provides **Level 1: Pre-Submission Self-Assessment** through a local, p
 * **Actionable Triage:** It identifies exactly what a validator would need to find and provides specific guidance on how to fix each gap before submission.
 
 
+* **Environment Fingerprinting:** The tool automatically captures a standardised snapshot of the researcher's computational environment — OS family, CPU architecture, GPU presence, and RAM class — alongside the software environment inferred from the deposit's dependency files (requirements.txt, environment.yml, sessionInfo() output, Dockerfile, or similar). This fingerprint is stored locally and only transmitted to the ValiChord network at submission time, with the researcher's explicit consent. It is used by the validator selection algorithm to prioritise validators whose setup is closest to the researcher's, reducing setup-attributable divergence before validation begins. Researchers who submit without ValiChord at Home can provide the hardware portion (OS, CPU architecture, GPU) via a short form at submission; the software portion is inferred automatically from a well-prepared deposit.
+
+
 
 ### 🛡️ The "Anti-Authority" Philosophy
 
@@ -58,10 +61,10 @@ Consistent with the broader ValiChord architecture, the "at Home" tool is design
 
 ### 📅 Development Roadmap
 
-* **Stage A (Early Preview):** A lightweight best-practice checklist to build community engagement and generate ecosystem data.
+* **Stage A (Early Preview):** A lightweight best-practice checklist to build community engagement and generate ecosystem data. Stage A also captures environment fingerprints from the outset, even before the validator matching algorithm is automated. The Phase 0 data on environment diversity across researchers and validators is itself valuable metascience — it reveals how heterogeneous the computational landscape is across fields, and grounds the matching thresholds that Phase 1 will need to design.
 
 
-* **Stage B (Calibrated Tool):** An advanced version using empirical data from Phase 0 to predict validation difficulty and estimate time ranges.
+* **Stage B (Calibrated Tool):** An advanced version using empirical data from Phase 0 to predict validation difficulty and estimate time ranges. Stage B activates automated environment matching: the fingerprint captured at submission is compared against the registered validator pool, and the selection algorithm prioritises validators by setup similarity before applying the discipline and independence filters.
 
 
 

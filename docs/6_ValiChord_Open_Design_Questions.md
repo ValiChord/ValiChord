@@ -98,6 +98,25 @@ The governance principle that must be preserved regardless of implementation: **
 This question is also a candidate for interdisciplinary collaboration — the mechanism design and political science literature on reputation systems in distributed governance has directly relevant insights. A collaborator from those fields could contribute meaningfully to Phase 1 governance design.
 
 *Resolution phase: Phase 0 generates the empirical foundation (agreement rates, validator consistency, discipline variation). Phase 1 designs the assignment weighting function informed by that data. The anti-calcification constraint is a governance principle applicable from Phase 1 onward.*
+
+---
+
+**16. What constitutes a sufficient environment match for validator priority assignment — and at what granularity?**
+
+The environment fingerprinting and priority matching design (described in the Vision & Architecture Layer 2 section) requires answers to questions that are currently unresolved: how precisely must two environments match to qualify as "priority" rather than "standard"? And which dimensions of the environment actually matter for which types of study?
+
+For some studies, OS and CPU architecture are the dominant axes — a climate model or genomics pipeline that produces bitwise-identical output on Linux x86 may diverge meaningfully on macOS ARM. For others, library version is the critical variable — a machine learning pipeline where PyTorch 1.x and 2.x produce different gradient calculations, rendering OS and hardware irrelevant. For others still, GPU model matters more than anything — certain numerical operations differ between GPU manufacturers even with identical library versions. The right matching granularity is field- and study-specific, and no principled a priori answer exists without empirical data.
+
+There is a secondary tension: finer-grained matching produces higher-confidence Harmony Records, but requires a larger and more diverse validator pool to find well-matched validators. At Phase 0 and Phase 1 scale, the pool is small, and demanding exact matches may leave studies unvalidatable. The matching algorithm must balance epistemic ideal against practical availability.
+
+A third consideration is what counts as "the researcher's environment." ValiChord at Home captures the environment at pre-submission time — typically the machine the research was run on, or a close proxy. For older submitted studies, the researcher's current environment may have evolved since the computation was originally performed. The fingerprint should be understood as the environment at submission, not necessarily the environment at original computation, and the Harmony Record should reflect that distinction where it matters.
+
+ValiChord's current thinking: environment fingerprinting should be captured from Phase 0 onward, even before the matching algorithm is automated, as a data collection exercise. The Phase 0 record will reveal the actual distribution of researcher and validator environments across fields — how homogeneous or heterogeneous the computational landscape is, and which environment axes correlate with agreement rates. That evidence grounds the matching thresholds and granularity decisions that Phase 1 will need to make. The discipline-specific standards committees are the right bodies to set field-level matching thresholds, since what constitutes a meaningful environment difference varies by domain.
+
+The fallback in all cases is the same as for the double-blind and validator-pool constraints: where matching is not possible, the Harmony Record is transparent about which condition applied. A Harmony Record produced without environment matching is not invalid — it is a Harmony Record with a characterised limitation.
+
+*Resolution phase: Phase 0 captures environment fingerprints and agreement rates as a data collection exercise. Phase 1 designs the matching algorithm and initial thresholds informed by that data. Field-level matching granularity is a Phase 1 governance question for the discipline-specific standards committees.*
+
 ---
 
 **Companion Documents:**
