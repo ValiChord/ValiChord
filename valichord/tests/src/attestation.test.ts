@@ -229,7 +229,7 @@ function makeValidationRequest(overrides?: Record<string, unknown>) {
     // Discipline uses #[serde(tag="type", content="content")] → adjacent-tagged.
     // Unit variants: {"type": "VariantName"} (no content key for unit variants).
     discipline: { type: "ComputationalBiology" },
-    // Researcher's institution — used for COI checks. Empty string = bypassed.
+    // Researcher's institution — used for COI checks. Empty string = independent researcher (no institutional COI).
     researcher_institution: "MIT",
     ...overrides,
   };
@@ -1832,8 +1832,9 @@ describe("19. get_attestations_for_discipline", () => {
 //   - Rejects duplicate claims from the same agent.
 //   - Rejects claims when num_validators_required slots are already filled.
 //
-// validate() in the integrity zome rejects StudyClaim if both validator_institution
-// and researcher_institution are non-empty and equal (COI).
+// validate() in the integrity zome rejects StudyClaim if validator_institution is
+// empty (validators must declare affiliation) or if validator_institution matches
+// researcher_institution (COI). Empty researcher_institution is permitted.
 //
 // release_claim(request_ref) deletes both links (freeing the slot); the
 // StudyClaim entry remains on the DHT as an immutable audit record.

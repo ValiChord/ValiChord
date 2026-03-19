@@ -376,8 +376,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // --- StudyClaim create: conflict-of-interest check ------------------
         //
         // Fetch the ValidationRequest via the embedded ActionHash and compare
-        // institutions.  Empty institution on either side bypasses the check
-        // (dev mode / researcher didn't declare institution).
+        // institutions.
+        //
+        // Validators must always declare their institutional affiliation —
+        // an undeclared validator institution cannot be checked for conflicts
+        // and is therefore rejected outright.
+        //
+        // Empty researcher_institution is permitted (independent researchers
+        // have no institutional affiliation to conflict with).
         //
         // Capacity and duplicate checks live in the coordinator — they require
         // link counting, which is not available in validate().
@@ -394,8 +400,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "StudyClaim.validation_request_hash does not point to a ValidationRequest"
                         .into(),
                 )))?;
-            if !claim.validator_institution.is_empty()
-                && !req.researcher_institution.is_empty()
+            if claim.validator_institution.trim().is_empty() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Validators must declare an institutional affiliation \
+                     before claiming a study".into(),
+                ));
+            }
+            if !req.researcher_institution.is_empty()
                 && claim.validator_institution == req.researcher_institution
             {
                 return Ok(ValidateCallbackResult::Invalid(format!(
