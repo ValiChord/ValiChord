@@ -147,6 +147,18 @@ A designated function (not necessarily a separate office at this scale) responsi
 
 **Staffing:** Part-time governance lead + 3–5 advisory RIO members drawn from the advisory board and external network.
 
+**Fraud investigation threshold and process.** Because a finding of validator fraud is the only grounds for authorising a `FraudDetected` HarmonyRecordCorrection — a significant and permanent action — the investigation standard must be explicit.
+
+*Trigger:* Any participant may raise a fraud concern in writing. The RIO acknowledges within 5 business days and makes a preliminary triage decision: proceed to investigation or dismiss with written rationale.
+
+*Evidence standard for a finding of fraud:* The RIO must establish, on the balance of probabilities, that one or more validators submitted attestations they knew to be false or fabricated. Disagreement between validators, even significant disagreement, does not constitute evidence of fraud — it is an expected outcome that the system is designed to preserve. The evidence standard requires positive evidence of fabrication (e.g., attestations that could not have resulted from the described reproduction attempt, coordinated identical false outputs, demonstrably impossible time records) rather than mere implausibility of the result.
+
+*Voting:* A fraud finding requires a simple majority of the RIO panel (minimum 3 members voting, no member with a conflict of interest). The finding and the evidence basis are published in full — the vote count, the evidence cited, and any dissenting views. No fraud finding is made without a published rationale.
+
+*Partial fraud (subset of validators):* Where fraud is established for some but not all validators in a round, the HarmonyRecordCorrection records which validators' attestations are considered fraudulent. The remaining validators' attestations stand. If the remaining attestations are sufficient to constitute a valid round under the original quorum rules, a corrected HarmonyRecord may be issued reflecting only the non-fraudulent attestations. If not, the record is marked as process-compromised with no replacement outcome — the honest finding is that the round cannot be evaluated.
+
+*Consequence:* A fraud finding triggers immediate removal from the validator pool and a permanent `FraudDetected` entry in the validator's reputation record on the Governance DHT. Appeal is permitted through the standard appeals process but does not suspend the removal during review.
+
 ### 2.3 Validator Cartel Detection
 
 As the validator pool grows, systematic monitoring for:
