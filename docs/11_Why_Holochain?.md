@@ -76,7 +76,7 @@ Holochain-based infrastructure scales differently. Each new validator who joins 
 
 Holochain is not a cryptocurrency platform. There are no tokens, no mining, no speculative financial instruments involved in ValiChord's use of it. ValiChord uses Holochain as infrastructure — the same way a web application uses a database — for its technical properties, not for any association with cryptocurrency markets.
 
-Holochain is also not experimental in the sense of being unproven. It is a mature open-source framework maintained by the Holochain Foundation, with an active developer community and a growing ecosystem of applications. ValiChord's architectural direction has been reviewed and confirmed as technically feasible by Holochain Foundation engineers.
+Holochain is also not experimental in the sense of being unproven. It is a mature open-source framework maintained by the Holochain Foundation, with an active developer community and a growing ecosystem of applications. ValiChord's architectural direction has been reviewed and confirmed as technically feasible by Holochain Foundation engineers (Paul D'Aoust, January 2026). Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, confirming the overall direction and providing implementation guidance that shaped the four-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the architecture and confirmed the approach is sound (February 2026). The four-DNA Holochain infrastructure has since been implemented in Rust and integration-tested — 87 tests pass against live Holochain conductors as of March 2026.
 
 You can learn more about Holochain at [www.holochain.org](https://www.holochain.org).
 

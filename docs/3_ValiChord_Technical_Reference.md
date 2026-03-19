@@ -593,7 +593,7 @@ Once Phase 1 generates 200+ validations with linked surface features and actual 
 - Model improves as data accumulates — each completed validation is a new training example
 - Can eventually identify non-obvious predictors that rule-based systems miss
 
-This requires volume that Phase 0 and early Phase 1 cannot provide. 16–20 validation events from Phase 0 establish which features matter; 200+ from Phase 1 start making statistical prediction viable; Phase 2's scale makes it reliable.
+This requires volume that Phase 0 and early Phase 1 cannot provide. 60–75 validation events from Phase 0 establish which features matter; 200+ from Phase 1 start making statistical prediction viable; Phase 2's scale makes it reliable.
 
 > **Engineering note:** The three stages are not replacements but layers. Stage 1 provides the initial rubric. Stage 2 automates data collection for the rubric. Stage 3 learns from accumulated evidence to refine predictions beyond what any rubric captures. All three can coexist — the rule-based system provides explainable baseline scores while the statistical model flags cases where its predictions diverge from the rubric, indicating non-obvious difficulty.
 
@@ -1879,7 +1879,7 @@ properties:
 
 ### Phase 0 Pragmatism
 
-Phase 0 uses PostgreSQL, not Holochain. This isolates the critical test (will validators participate?) from distributed systems complexity. Holochain migration happens in Phase 1, only after participation is proven and performance requirements are specified from actual usage data.
+*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 87 tests pass. The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
 
 ---
 

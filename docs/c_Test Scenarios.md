@@ -15,7 +15,8 @@ Ceri John — Independent Researcher & Documentary Filmmaker
 Project
 ValiChord — Distributed Validation Infrastructure
 Status
-Specification Draft — Not Yet Executed
+Specification Draft — February 2026
+Implementation Update (March 2026): The trust guarantees specified in this document have been verified in the actual implementation. 87 integration tests pass against live Holochain conductors via Tryorama. See valichord/tests/ for the authoritative test suite and docs/14_ValiChord_Tryorama_Integration_tests.md for the full test inventory. Function names in the implementation may differ slightly from the placeholder names used in this specification document.
 Date
 February 2026
 Framework
