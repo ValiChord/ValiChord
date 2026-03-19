@@ -160,7 +160,7 @@ We provide a full feedback pipeline to move research from "messy" to "validatabl
 **Private, local pre-vetting for researchers.**
 Before submitting for formal validation, researchers use this tool to scan their repositories privately.
 - **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
-- **Difficulty Prediction:** Uses a weighted rubric to estimate validation labour based on Phase 0 empirical data.
+- **Difficulty Prediction:** Stage B (post-Phase 0) will use an empirically calibrated rubric to estimate validation labour. Stage A (current prototype) provides best-practice gap analysis without scoring.
 
 👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo)**
 
@@ -176,7 +176,7 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 
 | Document | Description |
 | :--- | :--- |
-| [Vision & Architecture v11](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md) | What ValiChord is and why it matters |
+| [Vision & Architecture v13](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md) | What ValiChord is and why it matters |
 | [Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md) | How the system resists corruption |
 | [Harmony Records](https://github.com/topeuph-ai/ValiChord/blob/main/docs/10_Harmony_Records.md) | What a Harmony Record is and why it matters |
 | [How a Validation Round Works](https://github.com/topeuph-ai/ValiChord/blob/main/docs/15_How_a_Validation_Round_Works.md) | Step-by-step narrative from submission to Harmony Record |
@@ -192,15 +192,15 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [4-DNA Architecture — Technical](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) | Full technical architecture document for engineers |
 | [4-DNA Architecture — Plain English](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7a_ValiChord_4-DNA_architecture_nontechnical.md) | Non-technical explanation of the four-membrane design |
 | [Eight-Layer Infrastructure](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_8_Layer_Infrastructure_and_Harmony_Records.md) | The full eight-layer conceptual architecture |
-| [Technical Reference v16](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
+| [Technical Reference v19](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v12 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 
 ### Funding & Research
 
 | Document | Description |
 | :--- | :--- |
-| [Phase 0 Proposal v9](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md) | UKRI Metascience Round 2 funding proposal |
-| [Open Design Questions](https://github.com/topeuph-ai/ValiChord/blob/main/docs/6_ValiChord_Open_Design_uestions.md) | Outstanding design decisions and open questions |
+| [Phase 0 Proposal v3.1](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md) | UKRI Metascience Round 2 funding proposal |
+| [Open Design Questions](https://github.com/topeuph-ai/ValiChord/blob/main/docs/6_ValiChord_Open_Design_Questions.md) | Outstanding design decisions and open questions |
 
 ---
 
@@ -214,7 +214,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
-| Technical Reference v16 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
+| Technical Reference v19 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Engineer Handover | [`docs/13_ValiChord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_ValiChord_Engineer_Handover.md) |
 
 > **Note:** This is infrastructure-stage code — four compiled, tested Holochain DNAs with no UI layer yet. There is no application to run as a standalone tool. The codebase is here for technical review and collaboration. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
@@ -225,7 +225,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
-| **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£150K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
+| **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure complete — awaiting Phase 0 funding** |
 | **Phase 2** | **Integration:** Journal and funder API deployments via HTTP Gateway. | **In planning** |
 
