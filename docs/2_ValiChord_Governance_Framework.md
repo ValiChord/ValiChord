@@ -434,6 +434,20 @@ Regardless of who asks — funders, partner institutions, journal editors, gover
 
 4. **No forced closure on ambiguous results.** The pressure will come as: "We need a decision for this grant review" or "The paper is being held up." The answer is: the system provides the best evidence available, honestly described. If that evidence is ambiguous, the honest description is "ambiguous." Forcing certainty where none exists is the fundamental failure mode of the current system.
 
+5. **A HarmonyRecord cannot be retracted because a researcher dislikes the outcome.** The pressure will come as: "The study didn't reproduce because of a dependency issue we've now fixed" or "The validators misunderstood our methodology" or, most dangerously, through institutional channels exerting quiet pressure on the project team. The answer is no — in all forms.
+
+   This requires understanding what a HarmonyRecord actually is. It is not a verdict on whether the science is good or bad. It is a factual record of what happened when independent validators attempted to reproduce specific computational work at a specific point in time. That record is correct even if the study later proves wrong, even if the original paper is retracted by a journal, even if the researcher publishes a correction. It accurately describes what validators found when they looked. That fact does not expire.
+
+   The only legitimate grounds for retracting or superseding a HarmonyRecord are:
+
+   - **Process corruption by system error:** a software bug in ValiChord's own finalize_round logic produced a record that does not accurately reflect what validators attested. The HarmonyRecord is factually wrong about ValiChord's own process.
+   - **Process corruption by fraud:** validators fabricated attestations. The HarmonyRecord correctly reflects those attestations, but the attestations themselves were fraudulent. Requires a governance investigation with an evidence standard before any retraction is authorised.
+   - **Legal obligation:** a court order or GDPR right-to-erasure claim. Notably, this is not about the scientific content — the finding may be entirely valid. This is a data minimisation action, not a retraction of the record.
+
+   What is not a legitimate ground: the researcher disagrees with the outcome; the study was later shown to be flawed; the original paper was retracted; an institution applied pressure; the result is inconvenient for a career, a grant application, or a funder relationship. These are precisely the situations the permanent record was designed to survive.
+
+   The right of reply (Question 4 in the Open Design Questions) exists for a reason: a researcher who believes validators made an error can say so, permanently, in the record itself. That is the avenue for dispute. It preserves the honest texture of the disagreement. Retraction erases it.
+
 ### Safe Concessions (Things That Can Be Negotiated)
 
 - Individual validator anonymity (as long as institutional attribution is preserved)
@@ -451,6 +465,9 @@ Regardless of who asks — funders, partner institutions, journal editors, gover
 
 **When an institution says:** "Our validators want full anonymity."
 **Response:** "We protect individual validator identity by default. What we can't hide is institutional affiliation, because institutional patterns are how we detect systematic problems. If an institution's validators consistently produce soft reviews, that needs to be visible — not to shame the institution, but to maintain the system's integrity. Without this, we can't distinguish genuine validation from rubber-stamping."
+
+**When a researcher says:** "I want my Harmony Record retracted — the validators got it wrong / the dependency is fixed now / this is damaging my career."
+**Response:** "We understand this result is difficult, and we take seriously the possibility that validators made a specific error. The right pathway is the right of reply: you can submit a written response, and it will be attached permanently to the Harmony Record so that anyone who reads it sees your perspective alongside the validators' findings. What we cannot do is remove the record. A HarmonyRecord documents what happened when validators attempted reproduction. That is a historical fact. If validators made a specific identifiable error, document it — that documentation becomes part of the permanent record and carries weight. If the issue is that the result is simply unfavourable, then the record is correct and retraction is not available. The entire point of this system is that validation outcomes are not subject to veto by the people being validated."
 
 **When a journal says:** "We just want to know pass or fail."
 **Response:** "We can give you a clear reproducibility status — and for most studies, that will be straightforward. But for studies where validators genuinely disagree, we'll say so — because that disagreement might be the most important finding. A study where five validators succeed and one fails might be telling you something about hidden assumptions, software versions, or genuine fragility. That's information your editors need, not noise to be averaged away."
