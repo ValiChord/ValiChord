@@ -159,6 +159,8 @@ This is a step change from a 2-validator design. Three validators per study enab
 
 **Baseline competence capture:** At recruitment, validators complete a brief self-assessment: primary programming languages and years of experience, familiarity with version control and environment management (Docker, conda, etc.), typical computational work (data analysis scripts, simulation models, machine learning pipelines, etc.), and self-rated troubleshooting confidence. This is not a screening tool — all recruited validators participate regardless of responses. The purpose is to capture whether validator competence explains more variance in validation time than study characteristics do. If a senior research software engineer and a second-year PhD student both take 20 hours on the same study, the study is genuinely hard. If the engineer takes 4 hours and the student takes 20, the variance is about the validator, not the study. With 25–30 validators across a range of experience levels, this comparison becomes meaningful rather than anecdotal.
 
+**Environment fingerprint capture:** Also at recruitment, validators record their hardware environment: operating system, CPU architecture (x86 or ARM), GPU presence and model if applicable, and RAM class. This takes a minute to complete and is not a screening tool. It serves two purposes. First, it is metascience data in its own right — Phase 0 will reveal how homogeneous or heterogeneous the computational landscape is across validators in different institutions and disciplines, and whether environment differences correlate with agreement rates or validation time. Second, it is the foundation for the environment-matched validator selection that Phase 1 will design: the algorithm that prioritises validators whose setup is closest to the researcher's, reducing setup-attributable differences before validation begins rather than trying to explain them afterward. Capturing this from Phase 0 onward means the matching thresholds Phase 1 needs can be calibrated on real data rather than guessed.
+
 **Recruitment:**
 - Host institution computational research community
 - UK Reproducibility Network (local and national)
@@ -510,10 +512,12 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 
 **Designed around:** Phase 0 workload evidence, difficulty predictors, inter-rater reliability findings, and compensation estimates.
 
+*(Note: The four-DNA Holochain infrastructure — including the cryptographic commit-reveal protocol — was implemented and integration-tested prior to Phase 1. 87 integration tests pass against live Holochain conductors. Phase 1 builds the user-facing layer on top of that foundation.)*
+
 **Build:**
-- Holochain-based distributed infrastructure
+- Researcher and validator dashboards and submission interface
 - Validator identity and credentialing system
-- Study submission and matching system  
+- Study submission and matching system
 - Validation execution and recording
 - Beta with 50 validators, 200 studies
 
@@ -590,7 +594,7 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 
 ### Current Status
 
-**Technical Validation:** Holochain Foundation confirmed architecture feasible (January 2026)
+**Technical Validation:** Holochain Foundation confirmed architecture feasible (January 2026). Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review (February 2026), confirming the overall direction and providing implementation guidance that shaped the four-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the architecture and MVP Specification and confirmed the approach is sound (February 2026). The four-DNA Holochain infrastructure has since been implemented in Rust and integration-tested — 87 tests pass against live Holochain conductors as of March 2026.
 
 **Academic Partnership:** Discussions initiated with Cardiff University (Dr. Gillian Bristow, Sustainable Places Research Institute) and Swansea University (UKRN local lead; Secure eResearch Platform). Institutional home to be confirmed.
 
@@ -683,8 +687,8 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 ### Phases 1–3 Risks
 
 **Technical development fails**
-- Likelihood: Low (Holochain validated)
-- Mitigation: Experienced team, Foundation support
+- Likelihood: Very Low — the four-DNA Holochain infrastructure is implemented and integration-tested (87 tests pass against live conductors as of March 2026). The remaining Phase 1 technical work is the user-facing layer on top of a working, tested foundation — not greenfield infrastructure development.
+- Mitigation: Existing codebase, Holochain Foundation support, tested architecture
 
 **Validator recruitment at scale fails**
 - Likelihood: Medium
