@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ValiChord — Phase 0: Validation Workload Discovery</title>
+<meta name="description" content="Phase 0: The empirical study that measures what computational validation actually costs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0a0e1a;
+  color: #e0e0e0;
+  font-family: 'Newsreader', Georgia, serif;
+  min-height: 100vh;
+}
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 60px 28px 80px;
+}
+.back {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #556;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  display: inline-block;
+  margin-bottom: 48px;
+}
+.back:hover { color: #889; }
+.label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #556;
+  margin-bottom: 16px;
+}
+h1 {
+  font-size: 32px;
+  font-weight: 400;
+  color: #e8e8e4;
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+.subtitle {
+  font-size: 18px;
+  color: #889;
+  line-height: 1.6;
+  margin-bottom: 48px;
+}
+.divider {
+  width: 48px;
+  height: 1px;
+  background: #334;
+  margin: 48px 0;
+}
+h2 {
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #667;
+  margin-bottom: 20px;
+}
+p {
+  font-size: 17px;
+  color: #9aa;
+  line-height: 1.75;
+  margin-bottom: 20px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.stat {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 20px 16px;
+}
+.stat-value {
+  font-size: 24px;
+  color: #e8e8e4;
+  font-weight: 400;
+  margin-bottom: 6px;
+}
+.stat-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: #556;
+  letter-spacing: 0.05em;
+}
+.question-list {
+  list-style: none;
+  margin-bottom: 32px;
+}
+.question-list li {
+  font-size: 16px;
+  color: #9aa;
+  line-height: 1.6;
+  padding: 12px 0;
+  border-bottom: 1px solid #1a1e2e;
+}
+.question-list li:last-child { border-bottom: none; }
+.question-list li::before {
+  content: "→";
+  color: #445;
+  margin-right: 12px;
+  font-family: 'DM Mono', monospace;
+}
+.cta {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 32px;
+  text-align: center;
+  margin-top: 48px;
+}
+.cta p {
+  font-size: 15px;
+  color: #778;
+  margin-bottom: 20px;
+}
+.cta-button {
+  display: inline-block;
+  padding: 14px 36px;
+  background: #e8e8e4;
+  color: #0a0e1a;
+  text-decoration: none;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+}
+.cta-button:hover { background: #fff; }
+.footer {
+  margin-top: 80px;
+  padding-top: 32px;
+  border-top: 1px solid #1a1e2e;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #445;
+  text-align: center;
+}
+.footer a { color: #556; text-decoration: none; border-bottom: 1px solid #334; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a href="index.html" class="back">← ValiChord</a>
+
+  <div class="label">Funding Proposal &mdash; UKRI Metascience Round 2</div>
+  <h1>Phase 0: Validation Workload Discovery</h1>
+  <p class="subtitle">How long does it take to check whether published computational research actually works? Nobody knows. This study finds out.</p>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-value">~£158K</div>
+      <div class="stat-label">FEC budget</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">12 mo</div>
+      <div class="stat-label">Duration</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">60&ndash;75</div>
+      <div class="stat-label">Validation events</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2>The Gap</h2>
+  <p>Funders mandate data sharing. Journals require code availability. Registered Reports pre-register hypotheses. All of these initiatives share one untested assumption: that someone can sit down with a published study — the code, the data, the methods — and check whether the results are correct, at a cost someone is willing to pay.</p>
+  <p>No one has ever measured whether that&rsquo;s true. Without workload data, you can&rsquo;t design infrastructure. You can&rsquo;t set compensation rates. You can&rsquo;t tell a funder what validation will cost per study.</p>
+
+  <div class="divider"></div>
+
+  <h2>The Study</h2>
+  <p>We recruit 25&ndash;30 UK-based computational researchers, pay them at professional rates (£500 per task) to validate published studies across a difficulty spectrum, and measure what happens.</p>
+  <ul class="question-list">
+    <li>20&ndash;25 studies across a difficulty spectrum (easy to extreme)</li>
+    <li>3 independent validators per study — enables inter-rater reliability analysis</li>
+    <li>Structured time tracking: setup, data, execution, troubleshooting</li>
+    <li>Exploratory regression on which study features track with validation time</li>
+    <li>Validator environment fingerprint captured at recruitment for Phase 1 matching</li>
+    <li>Exit survey on sustainable participation and incentive adequacy</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h2>Primary Research Questions</h2>
+  <ul class="question-list">
+    <li>What is the distribution of validation workload across computational studies?</li>
+    <li>What task characteristics are associated with validation time?</li>
+    <li>What proportion of studies are validatable within reasonable timeframes?</li>
+    <li>Does validator competence explain more variance than study characteristics?</li>
+    <li>What support do validators need, and what are common barriers?</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h2>What Phase 0 Produces</h2>
+  <ul class="question-list">
+    <li>Time ranges by difficulty tier with inter-rater reliability metrics (ICC)</li>
+    <li>Candidate predictors for a future difficulty-assessment system</li>
+    <li>Exclusion criteria: study types uneconomical to validate</li>
+    <li>Preliminary compensation estimates grounded in observed time</li>
+    <li>Academic publication — first systematic dataset on validation workload</li>
+    <li>Policy briefing for UKRI and the UK Metascience Unit</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h2>Context: The Infrastructure Already Exists</h2>
+  <p>Phase 0 is not a proof of concept for whether ValiChord can be built — it has been built. The four-DNA Holochain infrastructure is implemented and integration-tested (87 tests pass against live conductors). Phase 0 provides the empirical evidence needed to design the operational layer: what to accept, what to exclude, what validators need, and what the economics look like.</p>
+
+  <div class="cta">
+    <p>Full proposal — study design, budget breakdown, analysis plan, and deliverables</p>
+    <a href="https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md" class="cta-button">Read the full proposal →</a>
+  </div>
+
+  <div class="footer">
+    <p><a href="index.html">ValiChord</a> &nbsp;&bull;&nbsp; <a href="vision.html">Vision &amp; Architecture</a> &nbsp;&bull;&nbsp; <a href="https://github.com/topeuph-ai/ValiChord">GitHub</a></p>
+    <p style="margin-top: 12px;">Contact: <a href="mailto:topeuph@gmail.com">topeuph@gmail.com</a></p>
+  </div>
+
+</div>
+</body>
+</html>

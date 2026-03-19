@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ValiChord — Open Design Questions</title>
+<meta name="description" content="Sixteen unresolved design problems in ValiChord — with precedents, likely approaches, and resolution phases.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0a0e1a;
+  color: #e0e0e0;
+  font-family: 'Newsreader', Georgia, serif;
+  min-height: 100vh;
+}
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 60px 28px 80px;
+}
+.back {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #556;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  display: inline-block;
+  margin-bottom: 48px;
+}
+.back:hover { color: #889; }
+.label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #556;
+  margin-bottom: 16px;
+}
+h1 {
+  font-size: 32px;
+  font-weight: 400;
+  color: #e8e8e4;
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+.subtitle {
+  font-size: 17px;
+  color: #889;
+  line-height: 1.7;
+  margin-bottom: 48px;
+}
+.divider {
+  width: 48px;
+  height: 1px;
+  background: #334;
+  margin: 48px 0;
+}
+.question {
+  padding: 24px 0;
+  border-bottom: 1px solid #1a1e2e;
+}
+.question:last-of-type { border-bottom: none; }
+.q-number {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #445;
+  margin-bottom: 8px;
+}
+.q-title {
+  font-size: 18px;
+  color: #ccd;
+  line-height: 1.45;
+  margin-bottom: 8px;
+  font-weight: 400;
+}
+.q-phase {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: #556;
+  letter-spacing: 0.04em;
+}
+.cta {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 32px;
+  text-align: center;
+  margin-top: 48px;
+}
+.cta p {
+  font-size: 15px;
+  color: #778;
+  margin-bottom: 20px;
+  font-family: 'DM Sans', sans-serif;
+}
+.cta-button {
+  display: inline-block;
+  padding: 14px 36px;
+  background: #e8e8e4;
+  color: #0a0e1a;
+  text-decoration: none;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+}
+.cta-button:hover { background: #fff; }
+.footer {
+  margin-top: 80px;
+  padding-top: 32px;
+  border-top: 1px solid #1a1e2e;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: #445;
+  text-align: center;
+}
+.footer a { color: #556; text-decoration: none; border-bottom: 1px solid #334; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a href="index.html" class="back">← ValiChord</a>
+
+  <div class="label">Design Transparency</div>
+  <h1>Open Design Questions</h1>
+  <p class="subtitle">Sixteen unresolved problems in ValiChord&rsquo;s design — documented because funders, ethics boards, and institutional partners will ask first, and because honest acknowledgment of open problems is more credible than silence. Each includes precedents from existing initiatives, ValiChord&rsquo;s current thinking, and which phase resolves it.</p>
+
+  <div class="divider"></div>
+
+  <div class="question">
+    <div class="q-number">01</div>
+    <div class="q-title">Do original authors need to consent to validation?</div>
+    <div class="q-phase">Resolves: Phase 1 governance</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">02</div>
+    <div class="q-title">Who pays for compute?</div>
+    <div class="q-phase">Resolves: Phase 0 captures compute requirements as a data dimension</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">03</div>
+    <div class="q-title">What happens after a negative Harmony Record?</div>
+    <div class="q-phase">Resolves: Phase 1 governance</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">04</div>
+    <div class="q-title">Original author&rsquo;s right of reply</div>
+    <div class="q-phase">Resolves: Phase 1 process design</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">05</div>
+    <div class="q-title">How are Phase 0 studies selected without bias?</div>
+    <div class="q-phase">Resolves: Phase 0 governance — external advisor review</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">06</div>
+    <div class="q-title">Restricted and sensitive research</div>
+    <div class="q-phase">Resolves: Phase 2+</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">07</div>
+    <div class="q-title">Holochain platform dependency</div>
+    <div class="q-phase">Mitigation: architectural separation of concepts from implementation</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">08</div>
+    <div class="q-title">Validator training and calibration</div>
+    <div class="q-phase">Resolves: Phase 0 reveals what validators found unclear</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">09</div>
+    <div class="q-title">Correcting a flawed Harmony Record</div>
+    <div class="q-phase">Resolves: Phase 1 annotation format and governance trigger</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">10</div>
+    <div class="q-title">Long-term record preservation</div>
+    <div class="q-phase">Resolves: Phase 2 — archival format and institutional partnerships</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">11</div>
+    <div class="q-title">Validator identity verification at scale</div>
+    <div class="q-phase">Resolves: Phase 1 — ORCID or institutional email linking</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">12</div>
+    <div class="q-title">Submission-side cherry-picking</div>
+    <div class="q-phase">Ongoing — mitigated by funder mandates in Phase 2+</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">13</div>
+    <div class="q-title">Cross-border data jurisdiction</div>
+    <div class="q-phase">Resolves: Phase 2+ — requires legal expertise</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">14</div>
+    <div class="q-title">Who pays for persistently indeterminate validation outcomes?</div>
+    <div class="q-phase">Resolves: Phase 0 reveals frequency; Phase 1 resolves fee structure</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">15</div>
+    <div class="q-title">How should validator reputation scale without becoming permanent authority?</div>
+    <div class="q-phase">Resolves: Phase 0 generates agreement data; Phase 1 designs weighting function</div>
+  </div>
+
+  <div class="question">
+    <div class="q-number">16</div>
+    <div class="q-title">What constitutes a sufficient environment match for validator priority assignment — and at what granularity?</div>
+    <div class="q-phase">Resolves: Phase 0 captures environment data; Phase 1 designs matching thresholds</div>
+  </div>
+
+  <div class="cta">
+    <p>Full treatment of each question — precedents from existing initiatives, ValiChord&rsquo;s current thinking, and resolution phases</p>
+    <a href="https://github.com/topeuph-ai/ValiChord/blob/main/docs/6_ValiChord_Open_Design_Questions.md" class="cta-button">Read the full document →</a>
+  </div>
+
+  <div class="footer">
+    <p><a href="index.html">ValiChord</a> &nbsp;&bull;&nbsp; <a href="vision.html">Vision &amp; Architecture</a> &nbsp;&bull;&nbsp; <a href="phase0.html">Phase 0</a> &nbsp;&bull;&nbsp; <a href="https://github.com/topeuph-ai/ValiChord">GitHub</a></p>
+    <p style="margin-top: 12px;">Contact: <a href="mailto:topeuph@gmail.com">topeuph@gmail.com</a></p>
+  </div>
+
+</div>
+</body>
+</html>
