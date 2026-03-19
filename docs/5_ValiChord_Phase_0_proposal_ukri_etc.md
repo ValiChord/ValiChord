@@ -3,7 +3,7 @@
 </div>
 
 # ValiChord Phase 0: Validation Workload Discovery
-## Scaled Design — 12 Months, £150K FEC
+## Scaled Design — 12 Months, £158K FEC
 
 **How long does it take to check whether published computational research actually works?**
 
@@ -31,9 +31,9 @@ The results of Phase 0 do not determine whether ValiChord proceeds — they dete
 
 In all scenarios, Phase 0 generates the design evidence that any reproducibility infrastructure needs — and that currently does not exist.
 
-**Budget:** ~£150,000 Full Economic Cost (FEC)
-**UKRI contribution (80%):** ~£120,000
-**Institutional contribution (20%):** ~£30,000
+**Budget:** ~£158,000 Full Economic Cost (FEC)
+**UKRI contribution (80%):** ~£126,000
+**Institutional contribution (20%):** ~£32,000
 **Duration:** 12 months
 **Funder target:** UKRI Metascience Research Grants, Round 2
 **Theme:** Scientometric approaches to understanding research excellence, efficiency, and equity
@@ -443,9 +443,9 @@ The checklist produces a report, not a score. It identifies what's present, what
   - Report writing and publication drafting
   - ValiChord at Home tool development
   - Dissemination and community engagement
-- Host institution statistician (consultant hours): £5,000
+- Host institution statistician (consultant hours, ~25 days): £10,000
 - PI oversight and supervision (120 hours across 12 months): £6,000
-- **Personnel subtotal: £56,000**
+- **Personnel subtotal: £61,000**
 
 **Infrastructure & Tools:**
 - Professional time tracking platform (12 months): £2,500
@@ -462,22 +462,22 @@ The checklist produces a report, not a score. It identifies what's present, what
 - Dissemination costs (open access publication fees, conference): £2,000
 - **Admin subtotal: £6,000**
 
-**Contingency (8%):** £8,700
+**Contingency (8%):** £9,100
 
-**Total Direct Costs: £117,700**
+**Total Direct Costs: £123,100**
 
-**Institutional Overheads (estimated 28%): £32,960**
+**Institutional Overheads (estimated 28%): £34,500**
 
 *(Note: Exact overhead rate depends on host institution and UKRI FEC calculation. This estimate should be confirmed with the host university's research office.)*
 
-**Total Phase 0 FEC: ~£150,660 (rounded to ~£150,000)**
+**Total Phase 0 FEC: ~£157,600 (rounded to ~£158,000)**
 
-**UKRI contribution (80% FEC): ~£120,000**
-**Institutional contribution (20% FEC): ~£30,000**
+**UKRI contribution (80% FEC): ~£126,000**
+**Institutional contribution (20% FEC): ~£32,000**
 
 ### 3.9 Budget Justification
 
-**~£150K FEC = well under the £250K cap, with strong value-for-money:**
+**~£158K FEC = well under the £250K cap, with strong value-for-money:**
 
 This budget funds 60–75 validation events with 3 validators per study — enough data for inter-rater reliability analysis, exploratory regression, and a publication with genuine empirical weight. A smaller study (16–20 events, 2 validators per study) would produce preliminary signals; this study produces findings the metascience community can build on.
 
@@ -492,6 +492,12 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 - Without this evidence, the infrastructure is guesswork
 - With it, every subsequent design decision is grounded in data
 - The publication alone — the first systematic dataset linking study features to validation workload — has standalone value to the metascience field regardless of ValiChord's future
+
+**The statistical consultant appointment (£10,000, ~25 days) reflects the scope of statistical work involved:**
+- Inter-rater reliability analysis (ICC calculation across 20+ studies with 3 raters each) requires statistical expertise beyond standard RA training
+- Exploratory regression across 60–75 observations with multiple surface feature predictors requires methodological oversight to avoid overfitting and misinterpretation
+- Variance decomposition between validator competence and study characteristics is a non-trivial analytical task
+- The statistician reviews the analysis plan before data collection, advises during analysis, and signs off on the regression approach before publication — this is substantive involvement across the study, not a single consultation session
 
 **The Research Associate appointment is the backbone of the study:**
 - 12 months at 1.0 FTE provides adequate time for ethics, recruitment, coordination of 60–75 validation events, analysis, and write-up
@@ -566,7 +572,7 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 
 | Phase | Duration | FEC | % | Informed by |
 |-------|----------|-----|---|-------------|
-| **Phase 0: Workload Discovery** | **12 months** | **~£150K** | **7%** | **This proposal** |
+| **Phase 0: Workload Discovery** | **12 months** | **~£158K** | **7%** | **This proposal** |
 | Phase 1: Core Infrastructure | 24 months | ~£680K | 33% | Phase 0 evidence |
 | Phase 2: Integration | 18 months | ~£420K | 20% | Phase 1 evidence |
 | Phase 3: Scale | 24 months | ~£800K | 39% | Phase 2 evidence |
@@ -664,7 +670,8 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 
 **Validator opportunity cost is higher than compensation**
 - Likelihood: Unknown — this is a central question Phase 0 tests
-- The incentive mix (professional fees, CRediT credit, reputation, publication co-authorship) competes with grant writing, teaching, consulting, reviewing, and actual research. A computational researcher earning £50–100/hour consulting may not find validation work attractive at lower effective rates. The emotional cost of publicly disagreeing with high-status labs is real and not fully offset by governance mechanisms alone. Phase 0 directly tests whether the current incentive mix is sufficient to attract and retain qualified validators. If it isn't, the compensation model and non-financial incentives need redesigning before Phase 1 — and Phase 0's qualitative data (exit surveys, experience reports) will reveal exactly where the incentive structure falls short.
+- The incentive mix competes with grant writing, teaching, consulting, reviewing, and actual research. A computational researcher earning £50–100/hour consulting may not find validation work attractive at lower effective rates. The emotional cost of publicly disagreeing with high-status labs is real and not fully offset by governance mechanisms alone. Phase 0 directly tests whether the current incentive mix is sufficient to attract and retain qualified validators. If it isn't, the compensation model and non-financial incentives need redesigning before Phase 1 — and Phase 0's qualitative data (exit surveys, experience reports) will reveal exactly where the incentive structure falls short.
+- The non-financial incentive package is strongest for early-career researchers, who are also the most likely recruits: CRediT taxonomy credit for validation work counts toward research output portfolios; co-authorship on the Phase 0 publication is a concrete career output; and Phase 0 validators become founding members of what is designed to become a recognised professional track — Research Validator — at a point where being early confers real reputational advantage. These are not token benefits. For a postdoc or PhD student, a peer-reviewed publication, a CRediT credit, and founding-member status in a new professional infrastructure are competitive with many alternative uses of their time. The financial compensation is a floor, not the ceiling of the incentive case.
 
 **Validators drop out mid-study**
 - Likelihood: Medium (tasks may frustrate, life intervenes over 12 months)
@@ -744,7 +751,7 @@ This budget funds 60–75 validation events with 3 validators per study — enou
 
 ### The Ask
 
-**We seek ~£120,000 (UKRI 80% of ~£150,000 FEC) for Phase 0: Validation Workload Discovery**
+**We seek ~£126,000 (UKRI 80% of ~£158,000 FEC) for Phase 0: Validation Workload Discovery**
 
 A 12-month study measuring validation time and difficulty across 60–75 validation events (20–25 studies × 3 validators), producing the first systematic empirical dataset on computational reproducibility workload — including inter-rater reliability data, candidate difficulty predictors, exclusion criteria, compensation estimates, and infrastructure design constraints.
 
@@ -791,7 +798,7 @@ The evidence produced is valuable to the entire metascience community regardless
 
 **END OF PROPOSAL**
 
-**Version:** 3.0 — Scaled Phase 0 for UKRI Metascience Round 2  
+**Version:** 3.1 — Scaled Phase 0 for UKRI Metascience Round 2  
 **Date:** February 2026  
 **Contact:** [PI details TBD]  
 **Funding Target:** UKRI Metascience Research Grants, Round 2
