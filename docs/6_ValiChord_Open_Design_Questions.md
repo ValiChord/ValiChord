@@ -16,7 +16,7 @@
 
 ## Purpose
 
-The following fourteen questions do not have complete answers yet. They are documented because they are the questions that funders, ethics boards, journal editors, and institutional partners will ask first — and because honest acknowledgment of open problems is more credible than silence.
+The following seventeen questions do not have complete answers yet. They are documented because they are the questions that funders, ethics boards, journal editors, and institutional partners will ask first — and because honest acknowledgment of open problems is more credible than silence.
 
 Each question includes: the problem, precedents from existing reproducibility initiatives that inform the design space, ValiChord's likely approach, and which phase resolves it.
 
@@ -116,6 +116,28 @@ ValiChord's current thinking: environment fingerprinting should be captured from
 The fallback in all cases is the same as for the double-blind and validator-pool constraints: where matching is not possible, the Harmony Record is transparent about which condition applied. A Harmony Record produced without environment matching is not invalid — it is a Harmony Record with a characterised limitation.
 
 *Resolution phase: Phase 0 captures environment fingerprints and agreement rates as a data collection exercise. Phase 1 designs the matching algorithm and initial thresholds informed by that data. Field-level matching granularity is a Phase 1 governance question for the discipline-specific standards committees.*
+
+---
+
+**17. No retraction pathway — and why true deletion is architecturally impossible.**
+
+Six entry types are permanently immutable at the network validation layer: `HarmonyRecord`, `ReproducibilityBadge`, `GovernanceDecision`, `ValidationAttestation`, `CommitmentAnchor`, and `ResearcherResultCommitment`/`ResearcherReveal`. The immutability enforcement is not a policy — it is in the `validate()` callback that every DHT peer runs independently. This is a design strength (tamper-evidence, domestication resistance) but it creates four concrete scenarios with no current resolution pathway.
+
+**Scenario 1 — Software bug produces a wrong HarmonyRecord.** The coordinator's `finalize_round()` contains a bug that miscomputes the majority vote outcome or `AgreementLevel`. The incorrect record is written to the Governance DHT. It is permanent. The only option is to re-run the round, but the bad record remains on the DHT indefinitely — visible to any journal, funder, or researcher who queries it, with no mechanism to flag it as erroneous. This is explicitly acknowledged as a current limitation in the governance integrity zome: "Content correctness is currently enforced in the coordinator layer only, not at the network validation layer."
+
+**Scenario 2 — GDPR / court-ordered retraction.** `ValidationAttestation` entries in the Attestation DNA store both `validator_institution` (a plain institutional name string, e.g. "Oxford") and the validator's `AgentPubKey`. Together these are attributable to a real person. Under GDPR Article 17 (right to erasure), a validator could assert a right to have these entries removed. There is currently no pathway — not even a governance vote can produce a deletion, because deletion is rejected at every node on the network. The GDPR exposure is partially mitigated by Holochain's credentialed membrane architecture (the network is not publicly accessible), but it is not eliminated.
+
+**Scenario 3 — Fraudulent record.** A group of colluding validators running a modified coordinator bypasses the coordinator-layer completeness checks and writes a fabricated `HarmonyRecord` with invented content. Because `validate()` in the governance integrity zome cannot perform cross-DNA lookups, the record passes network validation and is written permanently. Once fraud is detected — via governance investigation — there is no mechanism to retract or quarantine the record.
+
+**Scenario 4 — Researcher withdraws consent.** A researcher discovers after the round completes that their dataset contained inadequately anonymised personal data. They wish to withdraw the study entirely. The `ResearcherResultCommitment` and `ResearcherReveal` are immutable. All downstream records — attestations, commitment anchors, the HarmonyRecord — are permanent.
+
+**Why true deletion is impossible in Holochain.** In a conventional database, an administrator deletes a row and it is gone. In Holochain's DHT, every peer holds a copy of every record it has gossiped, and independently runs `validate()` to evaluate every incoming operation. A `RegisterDelete` operation for an immutable entry would be rejected by every peer running current WASM. Even if the WASM were updated to permit deletion, network upgrades are not atomic — old nodes running old WASM would continue to hold and serve the original record. There is no mechanism to perform a coordinated, network-wide deletion in a DHT without controlling every node.
+
+**The likely resolution — superseding records, not deletion.** The correct Holochain-idiomatic approach is append-only correction: the original record remains on the DHT, but an authoritative statement is written alongside it marking it as superseded. Any client or query function checks for corrections before displaying results. This would require adding `HarmonyRecordCorrection` and `BadgeRevocation` entry types to the Governance DNA — each pointing to the original record via `ActionHash`, requiring a `GovernanceDecision` reference as authorisation, and carrying a typed reason (`SoftwareBug`, `LegalRetraction`, `FraudDetected`, `ResearcherWithdrawal`). The original record remains permanently visible (preserving the honest historical record), but downstream consumers see it as superseded.
+
+**The GDPR gap superseding does not close.** Marking a record as superseded still leaves the personal data on the DHT, served by every peer that holds it. For `ValidationAttestation` entries containing institution names, the real question is whether the entry should store the institution name as a plain string at all, or only a keyed hash — where the key is held separately and can be destroyed, achieving functional unlinkability without touching the DHT. This is a data minimisation architecture decision that must be resolved before Phase 1 deployment, when validators who are real identified individuals will begin creating immutable records containing their institutional affiliations.
+
+*Resolution phase: The superseding-record mechanism (HarmonyRecordCorrection, BadgeRevocation) is a Phase 1 implementation task — the governance design exists; it requires Rust entry types, link types, and coordinator functions. The data minimisation question for ValidationAttestation is an architecture decision that should be resolved before Phase 1 deployment and may require legal input on GDPR Article 25 (data protection by design).*
 
 ---
 
