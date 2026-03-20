@@ -329,7 +329,7 @@ Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-aud
 | Assessment spam (`assess_difficulty`) | Gemini (second) | `DifficultyAssessment` is a scaffold stub (all hardcoded values). It does not gate any protocol step. Add per-agent guard when real assessment logic is implemented. |
 | post_commit cross-DNA call deadlock | Gemini (second) | Cross-DNA `call(OtherRole(...))` from `post_commit` is the intended Holochain pattern. "Must not write data" means local source chain only. Error is already non-fatal. |
 | Empty issuer bypass | Gemini (second) | Already documented as dev/test bypass — same pattern as governance `system_coordinator_key`. Not new. |
-| Credential revocation gap | Grok / Gemini (second) | Fundamental Holochain DHT architecture limitation. No CRL mechanism possible without significant additional infrastructure. Phase 2. |
+| Credential revocation gap | Grok / Gemini (second) | Was: fundamental Holochain DHT architecture limitation — no CRL mechanism possible. **Status changed (2026-03-20):** Holochain roadmap item #5131 ("Validate memproofs on demand") is actively in progress with no milestone (could ship any release). If it lands, post-join credential re-validation becomes possible and a proper revocation mechanism can be built on top. Also watch #5132 / kitsune2 #263–#265 — the Kitsune2 Access module will add network-layer membrane proof enforcement, meaning revoked agents are denied DHT gossip at the transport layer rather than just at the HDI validate() layer. Revisit this gap when these items close. |
 | Self-assignment collusion | Grok (first/second) | Acknowledged architectural trade-off. Requires trusted randomness oracle for Phase 1 `select_validators`. |
 | HarmonyRecord full content forgery | Grok (second) | Partial fix (author ∈ participants) is in place. Full content verification requires cross-DNA calls in `validate()`, which is architecturally impossible in Holochain HDI. Phase 2. |
 | Cross-link deletion by non-author | Grok (second) | Not real in Holochain — only the link author can delete their own links. Any agent who creates a link owns it; non-authors cannot delete it. |
@@ -337,7 +337,7 @@ Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-aud
 ### Known architectural gaps (Phase 1 / Phase 2)
 
 - **Full HarmonyRecord content verification at validate() layer** — cross-DNA calls unavailable in HDI; content correctness is coordinator-layer only. The partial fix (author ∈ participating_validators) is in place.
-- **Credential revocation** — once an agent joins the Attestation DHT, they cannot be removed retroactively without governance intervention.
+- **Credential revocation** — once an agent joins the Attestation DHT, they cannot be removed retroactively without governance intervention. **Watch:** Holochain roadmap item #5131 ("Validate memproofs on demand", no milestone — actively in progress as of 2026-03-20) would enable post-join re-validation and is the missing infrastructure for a proper CRL. The Kitsune2 Access module (#5132, kitsune2 #263–265) would additionally enforce membrane proof validity at the network/transport layer, denying gossip to revoked peers before they reach the DHT. When these land, revisit this gap — the Phase 2 revocation design depends on which of these ships first.
 - **Validator self-assignment collusion** — COI institution check enforced; cartel from distinct institutions is not preventable without random assignment (Phase 1 `select_validators`).
 - **`get_current_phase` not authoritative** — clients must not treat `PhaseMarker` as a protocol gate; always verify via `check_all_commitments_sealed`. Any credentialed agent can write a `PhaseMarker` (validate() cannot gate creates without also blocking the coordinator). Protocol itself is unaffected — only UIs that trust `get_current_phase` blindly are at risk.
 
@@ -396,6 +396,16 @@ Six items covering agent key rotation and DNA migration land in 1.0:
 - **`agent_initial_pubkey` / `agent_latest_pubkey` consolidation (#4105):** Once Deepkey lands, a single `AgentPubKey` may resolve to either the initial or current key depending on context. Any place ValiChord compares validator identity (particularly `HarmonyRecord.participating_validators` and the `StudyClaim` COI check) will need to resolve through Deepkey rather than comparing raw pubkeys directly.
 
 No action needed now. Flag this for the Phase 1 architecture review.
+
+### Unversioned — Membrane Proofs epic (actively in progress, could ship any release)
+
+Eight items with no milestone assigned, all actively in progress. The most consequential for ValiChord:
+
+- **#5131 — Validate memproofs on demand:** Currently membrane proofs are validated once at join time (`genesis_self_check` + `RegisterAgentActivity` in `validate()`). On-demand re-validation is the missing infrastructure for a credential revocation list — once this lands, it becomes possible to check whether a joined agent's credential is still valid and deny them continued access if it has been revoked. This directly addresses the "Credential revocation" known architectural gap (see Security Audit Summary below). **No code changes required to benefit — but the Phase 2 revocation design should wait until this is available.**
+
+- **#5132 + kitsune2 #263–265 — Kitsune2 Access module:** Adds network-layer membrane proof enforcement. Peers without a valid proof are denied gossip/DHT access at the transport layer, before they can write to the DHT. ValiChord gets this strengthening automatically — no code changes needed. Watch for whether the Access module requires membrane proofs to be registered with Kitsune2 separately (e.g. in conductor config or happ.yaml); if so, ValiChord's join flow would need updating.
+
+- **#1613 — hc sandbox doesn't support membrane proofs:** Dev ergonomics fix. Once resolved, `hc sandbox` can be used for quick local testing without the full Tryorama test harness.
 
 ---
 
