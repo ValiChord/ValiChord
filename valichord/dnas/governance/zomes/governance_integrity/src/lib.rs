@@ -171,14 +171,31 @@ pub enum LinkTypes {
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
 
-        // --- HarmonyRecord create: open to any participant -------------------
+        // --- HarmonyRecord create: author must be a declared participant -----
         //
-        // Any validator who participated in the round may trigger finalisation.
-        // Content correctness is enforced by the coordinator's completeness
-        // check and idempotency guard, not by an author allowlist.
+        // Any validator who participated in the round may trigger finalisation,
+        // but they must name themselves in participating_validators.  This prevents
+        // non-participants from anonymously forging a record and winning the first-
+        // write race that would permanently block legitimate finalisation.
+        //
+        // Full content verification against the Attestation DHT is a Phase 2 goal —
+        // cross-DNA calls are not available in validate(), so the participating_validators
+        // list itself cannot be cryptographically checked here.  Content correctness
+        // is enforced by the coordinator's completeness check and idempotency guard.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::HarmonyRecord(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::HarmonyRecord(ref record),
+            ref action,
+            ..
+        }) => {
+            if !record.participating_validators.contains(&action.author) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "HarmonyRecord author must be listed in participating_validators — \
+                     only validators who participated in the round may write the record"
+                        .into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- GovernanceDecision create: only system_coordinator_key ---------
         //

@@ -110,9 +110,12 @@ fn verify_membrane_proof() -> Result<(), String> {
     let signature = Signature::from(sig_bytes);
 
     // Signed data = joining agent's raw 39-byte pubkey as Vec<u8>.
-    // verify_signature serialises data via rmp_serde, which encodes Vec<u8> as
-    // a msgpack array of unsigned integers. The JS test must match by signing
-    // encode(Array.from(agentPubKey)) rather than the raw Uint8Array.
+    // verify_signature serialises the data parameter via rmp_serde (SerializedBytes).
+    // rmp_serde encodes Vec<u8> using serialize_bytes → msgpack BIN format (not a
+    // fixarray of fixints). The JS issuer tool must therefore sign the msgpack-bin-
+    // encoded key, e.g. encode(Buffer.from(agentPubKey)) with a msgpack library
+    // that treats Buffer/Uint8Array as bytes — NOT encode(Array.from(agentPubKey)),
+    // which would produce a fixarray and fail verification.
     let joining_agent = agent_info().map_err(|e| e.to_string())?.agent_initial_pubkey;
     let raw_bytes: Vec<u8> = joining_agent.get_raw_39().to_vec();
     let valid = verify_signature(issuer_key, signature, raw_bytes)

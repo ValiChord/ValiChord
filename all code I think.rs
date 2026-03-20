@@ -110,9 +110,12 @@ fn verify_membrane_proof() -> Result<(), String> {
     let signature = Signature::from(sig_bytes);
 
     // Signed data = joining agent's raw 39-byte pubkey as Vec<u8>.
-    // verify_signature serialises data via rmp_serde, which encodes Vec<u8> as
-    // a msgpack array of unsigned integers. The JS test must match by signing
-    // encode(Array.from(agentPubKey)) rather than the raw Uint8Array.
+    // verify_signature serialises the data parameter via rmp_serde (SerializedBytes).
+    // rmp_serde encodes Vec<u8> using serialize_bytes → msgpack BIN format (not a
+    // fixarray of fixints). The JS issuer tool must therefore sign the msgpack-bin-
+    // encoded key, e.g. encode(Buffer.from(agentPubKey)) with a msgpack library
+    // that treats Buffer/Uint8Array as bytes — NOT encode(Array.from(agentPubKey)),
+    // which would produce a fixarray and fail verification.
     let joining_agent = agent_info().map_err(|e| e.to_string())?.agent_initial_pubkey;
     let raw_bytes: Vec<u8> = joining_agent.get_raw_39().to_vec();
     let valid = verify_signature(issuer_key, signature, raw_bytes)
@@ -2733,14 +2736,31 @@ pub enum LinkTypes {
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
 
-        // --- HarmonyRecord create: open to any participant -------------------
+        // --- HarmonyRecord create: author must be a declared participant -----
         //
-        // Any validator who participated in the round may trigger finalisation.
-        // Content correctness is enforced by the coordinator's completeness
-        // check and idempotency guard, not by an author allowlist.
+        // Any validator who participated in the round may trigger finalisation,
+        // but they must name themselves in participating_validators.  This prevents
+        // non-participants from anonymously forging a record and winning the first-
+        // write race that would permanently block legitimate finalisation.
+        //
+        // Full content verification against the Attestation DHT is a Phase 2 goal —
+        // cross-DNA calls are not available in validate(), so the participating_validators
+        // list itself cannot be cryptographically checked here.  Content correctness
+        // is enforced by the coordinator's completeness check and idempotency guard.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::HarmonyRecord(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::HarmonyRecord(ref record),
+            ref action,
+            ..
+        }) => {
+            if !record.participating_validators.contains(&action.author) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "HarmonyRecord author must be listed in participating_validators — \
+                     only validators who participated in the round may write the record"
+                        .into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- GovernanceDecision create: only system_coordinator_key ---------
         //
