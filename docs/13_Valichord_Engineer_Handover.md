@@ -343,6 +343,62 @@ Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-aud
 
 ---
 
+## Holochain Upgrade Radar (as of 2026-03-20)
+
+Holochain's public roadmap (github.com/orgs/holochain/projects/11) has four upcoming milestones that affect this codebase in different ways. Read this before upgrading `holochain` / `hdk` / `hdi` versions in `Cargo.toml`.
+
+### 0.6.1 — No API changes
+Wind Tunnel performance infrastructure (RAM reduction, metric interval reporting). Zero impact on ValiChord.
+
+### 0.7 — Low impact / watch Cargo paths
+Quality-of-life improvements, docs, mobile build support. One structural change: Holochain crates may be split across repositories for independent versioning. If you upgrade to 0.7 and `cargo build` fails with "crate not found", check that `hdk`, `hdi`, and `holochain_integrity_types` dependency paths/names haven't changed in the new release.
+
+### 0.8 — **Breaking change expected: validate() API**
+
+**Issue #5010: "Modify validate callback to take a Record and context instead of an Op"**
+
+This is the single most important upstream change for ValiChord. All four integrity zomes currently use:
+
+```rust
+pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
+        FlatOp::StoreEntry(OpEntry::CreateEntry { entry, action }) => { ... }
+        FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => { ... }
+        FlatOp::RegisterDelete(OpDelete { action }) => { ... }
+        FlatOp::RegisterDeleteLink { ... } => { ... }
+        FlatOp::RegisterAgentActivity(...) => { ... }  // membrane proof — DNA 3 only
+        _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
+```
+
+If #5010 ships, this signature changes to something like `validate(record: Record, ctx: ValidationContext)`. **This is a breaking compile error, not a silent behaviour change** — the build will fail immediately. The migration is mechanical but spans all four integrity zomes (~400 lines of pattern-matching). The replacement API is expected to be simpler — `Record + context` is more direct than unpacking a DHT operation — so the migration is an upgrade, not a regression. The membrane proof handler in DNA 3 (`RegisterAgentActivity` → `validate_membrane_proof`) will need the most care; check what replaces that variant in the new API.
+
+**What to do:** When a Holochain 0.8 release candidate appears, read the migration guide before touching any other code. The four files to update are:
+- `dnas/attestation/zomes/attestation_integrity/src/lib.rs`
+- `dnas/governance/zomes/governance_integrity/src/lib.rs`
+- `dnas/validator_workspace/zomes/validator_workspace_integrity/src/lib.rs`
+- `dnas/researcher_repository/zomes/researcher_repository_integrity/src/lib.rs`
+
+**Issue #4345: "[BUG] Private entry wrongly rejected if hash collides with public entry hash"**
+
+ValiChord uses private entries extensively (all of DNA 1; `ValidatorPrivateAttestation` in DNA 2). The collision probability is negligible but non-zero. If you see spurious validation rejections on private entries that your code cannot explain, this upstream bug is the likely cause. It is fixed in 0.8; upgrading resolves it.
+
+**Issues #4911 + #4912: Coordinator updates — capability tokens and remote calls**
+
+ValiChord's `init()` sets up `CapAccess::Unrestricted` grants, and six cross-DNA `call(OtherRole(...))` sites exist across the codebase. "Coordinator updates" (the hot-swap coordinator-without-DHT-reset feature) may tighten the capability or call API. Review the 0.8 changelog for these two issues before upgrading. The `OtherRole` call pattern itself is unlikely to be removed — it's fundamental to the multi-DNA architecture — but grant semantics could change.
+
+### 1.0 — Deepkey / key rotation (Phase 2 planning item)
+
+Six items covering agent key rotation and DNA migration land in 1.0:
+
+- **Agent migration (#4126, #4128):** Validators will eventually need to rotate keys (device loss, hardware failure, compromise). Deepkey is Holochain's key-rotation infrastructure. The current codebase has no key-rotation path — this is expected for Phase 0 but must be designed into Phase 1. `system_coordinator_key` in DNA 4 would also need a rotation mechanism.
+- **`agent_initial_pubkey` / `agent_latest_pubkey` consolidation (#4105):** Once Deepkey lands, a single `AgentPubKey` may resolve to either the initial or current key depending on context. Any place ValiChord compares validator identity (particularly `HarmonyRecord.participating_validators` and the `StudyClaim` COI check) will need to resolve through Deepkey rather than comparing raw pubkeys directly.
+
+No action needed now. Flag this for the Phase 1 architecture review.
+
+---
+
 ## Key Files
 
 | File | Description |
