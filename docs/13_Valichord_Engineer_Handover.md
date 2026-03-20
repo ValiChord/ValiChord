@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.8 — March 2026
+**Version:** 1.9 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -278,7 +278,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 ## Security Audit Summary (March 2026)
 
-Four LLM red-team audits were run against the full codebase (ChatGPT, Gemini, Grok ×2). Findings and dispositions are recorded here for future auditors.
+Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-audit were run against the full codebase. Findings and dispositions are recorded here for future auditors.
 
 ### Implemented fixes
 
@@ -296,6 +296,16 @@ Four LLM red-team audits were run against the full codebase (ChatGPT, Gemini, Gr
 | `ValidatorReputation` write gate | Grok (second) | High | `validate()` arms for `ValidatorReputation` create and update were `Valid` unconditionally — anyone could mint or alter reputation scores. Both now check `action.author == system_coordinator_key` (empty = dev/test bypass) |
 | `get_harmony_record` uses `.last()` | Grok (second) | Low | Was `.first()` — defensive: idempotency guard should prevent duplicates, but `.last()` is consistent with `get_validator_reputation` and more robust if gossip delivers links out of order |
 | Stale `harmony_record_creator_key` removed | Grok (second) | Low | Key was present in `governance/dna.yaml` and `happ.yaml` but absent from `DnaProperties` struct (silently ignored). Removed to eliminate confusion; doc comments updated |
+| `reclaim_abandoned_claim` timeout bypass | Self-audit | High | `timeout_secs` was fully caller-controlled — anyone could pass `0` to instantly reclaim any live claim. Added `min_claim_timeout_secs` DNA property (`#[serde(default)]` preserves test behaviour; `0` = bypass). |
+| `publish_researcher_commitment` idempotency | Self-audit | High | Researcher could publish multiple commitments, changing their locked prediction after validators started work. Guard now rejects a second commitment for the same `request_ref`. |
+| `submit_attestation` double-vote | Self-audit | High | Validator could submit the same attestation+nonce multiple times (one CommitmentAnchor, N identical reveals), gaining N-fold vote weight in the HarmonyRecord plurality tally. Guard prevents duplicate reveals. |
+| `force_finalize_round` timeout bypass when VR absent | Self-audit | High | When `get_validation_request_for_data_hash` returned `None`, the `if let` fell through silently and immediately finalised the round without checking the 7-day timeout. Replaced with `match`; `None` → `return Ok(None)` conservatively. |
+| `RequestToCommitment` link deletion griefing | Self-audit | High | No validate() guard blocked validators from deleting their own commitment links, dropping the commitment count below the reveal-phase threshold and blocking `reveal_researcher_result` indefinitely. `RegisterDeleteLink` guard added. |
+| `ReproducibilityBadge` open create | Self-audit | High | Any credentialed participant could issue a fake badge for any study. `validate()` now requires: (a) `harmony_record_ref` points to a live `HarmonyRecord`, (b) `badge.study_ref == HarmonyRecord.request_ref`, (c) badge author is in `participating_validators`. |
+| `RequestToHarmonyRecord` / `StudyToBadge` / `AllDecisions` link deletion | Self-audit | High | A validator who triggered finalisation could delete these index links, hiding outcomes and badges from all future queries (entries themselves are immutable, but their index links were not). `RegisterDeleteLink` guards added in governance_integrity. |
+| Badge recipient fallback to wrong agent | Self-audit | Medium | If the researcher's pubkey could not be resolved, `write_harmony_record` issued the badge to the first participating validator. Badge issuance is now skipped entirely if researcher identity is unknown. |
+| Automatic reputation update silently fails in production | Self-audit | Medium | `_update_reputation_internal` is called from `write_harmony_record` but always fails if `system_coordinator_key` is set (validate() rejects non-coordinator creates). Wrapped in `system_coordinator_key.is_empty()` guard; production uses `update_validator_reputation` explicitly. |
+| `StudyClaim.request_ref` ↔ `ValidationRequest.data_hash` cross-check | Self-audit | Low (defence-in-depth) | validate() now confirms these two fields reference the same study, closing a theoretical COI-bypass where a crafted claim references a benign `ValidationRequest` for the COI check while targeting a different study. |
 
 ### Dismissed findings (with reasoning)
 
