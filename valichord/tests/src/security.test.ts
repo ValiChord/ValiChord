@@ -375,6 +375,71 @@ describe("S4. reclaim_abandoned_claim min_claim_timeout_secs floor", () => {
 });
 
 // ---------------------------------------------------------------------------
+// S6. reveal_researcher_result idempotency guard
+// ---------------------------------------------------------------------------
+//
+// Fix: reveal_researcher_result now checks RequestToResearcherReveal links
+// before writing a new ResearcherReveal entry. A second call for the same
+// study is rejected, preventing link-table bloat and non-determinism in
+// get_researcher_reveal (which uses links.last()).
+//
+// Commitment hash: SHA256(msgpack([]) || []) where msgpack([]) = 0x90.
+// Pre-computed: 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd
+
+describe("S6. reveal_researcher_result idempotency", () => {
+  test(
+    "second reveal_researcher_result for the same study rejects",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          // minimum_validators=1 so alice can be the sole validator and
+          // check_all_commitments_sealed passes after her single commit.
+          playerConfig(validMembraneProof(), 1),
+        ]);
+
+        const requestRef = fakeExternalHash(0x56);
+
+        // SHA256(msgpack([]) || []) — msgpack encodes empty Vec as 0x90.
+        // This matches reveal payload of metrics=[], nonce=[].
+        const commitmentHash = new Uint8Array(
+          "9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd"
+            .match(/.{2}/g)!
+            .map((b) => parseInt(b, 16)),
+        );
+
+        await att(alice, "publish_researcher_commitment", {
+          request_ref: requestRef,
+          result_commitment_hash: commitmentHash,
+        });
+
+        // ValidationRequest so check_all_commitments_sealed_inner can resolve
+        // num_validators_required=1.
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: requestRef, num_validators_required: 1 }));
+
+        // Alice commits as the sole validator.
+        await att(alice, "notify_commitment_sealed", commitInput(requestRef));
+
+        const revealPayload = {
+          request_ref: requestRef,
+          metrics: [],
+          nonce: new Uint8Array(0),
+        };
+
+        // First reveal — must succeed (hash matches, all preconditions met).
+        await att(alice, "reveal_researcher_result", revealPayload);
+
+        // Second reveal — idempotency guard fires before hash check.
+        await expect(
+          att(alice, "reveal_researcher_result", revealPayload),
+        ).rejects.toThrow(/already exists/);
+      }, true, { timeout: 300_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
 // S5. force_finalize_round — missing ValidationRequest returns null
 // ---------------------------------------------------------------------------
 //

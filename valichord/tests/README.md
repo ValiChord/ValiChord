@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 93 pass, 1 skipped, 0 fail** (as of 2026-03-20)
+**Status: 94 pass, 1 skipped, 0 fail** (as of 2026-03-20)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -161,7 +161,7 @@ cd tests && npm test
 | 11.1 | force_finalize_round returns null when round has not yet timed out (< 7 days old) | PASS |
 | 11.2 | force_finalize_round returns null when no attestations exist yet | PASS |
 
-### Security — `security.test.ts` (6 tests)
+### Security — `security.test.ts` (7 tests)
 
 | ID  | Test name | Status |
 |-----|-----------|--------|
@@ -171,6 +171,7 @@ cd tests && npm test
 | S4.1 | reclaim_abandoned_claim min_claim_timeout_secs floor — caller-supplied timeout below DNA floor is overridden — reclaim returns false | PASS |
 | S4.2 | when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately | PASS |
 | S5  | force_finalize_round conservative abort on missing VR — returns null when no ValidationRequest exists for the request_ref | PASS |
+| S6  | reveal_researcher_result idempotency — second reveal for the same study rejects | PASS |
 
 ---
 
@@ -183,7 +184,7 @@ These are areas not yet covered by tests, ordered by value.
 | DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
 | DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama. Exercise in shadow-track environment with a real conductor running for 7+ days, or temporarily lower the constant for a dedicated integration run |
 | DNA 1 — lock_researcher_result | `lock_researcher_result` stores LockedResult + calls `publish_researcher_commitment` in DNA 3; `get_locked_result` returns the private record | Requires a cross-DNA call to DNA 3 in the test scenario |
-| DNA 3 — reveal_researcher_result | Correct metrics+nonce → `ResearcherReveal` on DHT; wrong nonce → error; `get_researcher_reveal` returns reveal | Must call all validators `notify_commitment_sealed` first (gate: all validators committed) |
+| DNA 3 — reveal_researcher_result happy path | Correct metrics+nonce → `ResearcherReveal` on DHT; `get_researcher_reveal` returns reveal across multiple validators | Idempotency guard (S6) and error path covered; happy-path multi-validator scenario not yet tested |
 
 ---
 

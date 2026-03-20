@@ -1188,6 +1188,29 @@ pub fn get_researcher_commitment(
 pub fn reveal_researcher_result(
     input: ResearcherRevealInput,
 ) -> ExternResult<ActionHash> {
+    // Idempotency guard: only one reveal may be published per study.
+    // A second call would create a duplicate ResearcherReveal entry and an
+    // additional RequestToResearcherReveal link, making get_researcher_reveal
+    // non-deterministic (links.last() is DHT-order-dependent under concurrent
+    // propagation). The hash check below would still force content to match
+    // the commitment, but bloating the link table is unnecessary and confusing.
+    let reveal_path = Path::from(format!("researcher_reveal.{}", input.request_ref))
+        .typed(LinkTypes::RequestToResearcherReveal)?;
+    reveal_path.ensure()?;
+    let existing_reveal_links = get_links(
+        LinkQuery::try_new(
+            reveal_path.path_entry_hash()?,
+            LinkTypes::RequestToResearcherReveal,
+        )?,
+        GetStrategy::Network,
+    )?;
+    if !existing_reveal_links.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A researcher reveal already exists for this study — \
+             the reveal cannot be published more than once".into()
+        )));
+    }
+
     // Gate: all validators must have committed first.
     if !check_all_commitments_sealed_inner(input.request_ref.clone())? {
         return Err(wasm_error!(WasmErrorInner::Guest(
@@ -1231,11 +1254,8 @@ pub fn reveal_researcher_result(
     };
     let reveal_hash = create_entry(EntryTypes::ResearcherReveal(reveal))?;
 
-    let path = Path::from(format!("researcher_reveal.{}", input.request_ref))
-        .typed(LinkTypes::RequestToResearcherReveal)?;
-    path.ensure()?;
     create_link(
-        path.path_entry_hash()?,
+        reveal_path.path_entry_hash()?,
         reveal_hash.clone(),
         LinkTypes::RequestToResearcherReveal,
         (),
