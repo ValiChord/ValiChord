@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.6 — March 2026
+**Version:** 1.7 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -81,7 +81,7 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 `GovernanceDecision` remains key-gated by `system_coordinator_key` — governance votes are human deliberation outcomes that require a designated recorder. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
 
-**Known remaining limitation (Phase 1):** the Governance integrity zome's `validate()` cannot perform cross-DNA lookups to cryptographically verify that a HarmonyRecord's content is correct against the Attestation DHT. Content correctness is currently enforced at the coordinator layer (completeness check + algorithmic derivation) but not at the network validation layer. Making it trustless at the validation layer requires either moving HarmonyRecord creation into the Attestation DNA or embedding sufficient proof in the entry itself.
+**Known remaining limitation (Phase 1):** the Governance integrity zome's `validate()` cannot perform cross-DNA lookups to cryptographically verify that a HarmonyRecord's content is correct against the Attestation DHT. Content correctness is currently enforced at the coordinator layer (completeness check + algorithmic derivation) but not at the network validation layer. Making it trustless at the validation layer requires either moving HarmonyRecord creation into the Attestation DNA or embedding sufficient proof in the entry itself. A partial guard IS enforced (2026-03-20): `validate()` requires the HarmonyRecord author to be listed in `record.participating_validators` — prevents non-participants from anonymously forging a record and winning the first-write idempotency race.
 
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
@@ -257,22 +257,65 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. The gateway configuration is not yet deployed. Phase 1.
 
-**Cryptographic commitment verification — researcher side RESOLVED 2026-03-18. Validator reveal-side remains Phase 1.**
+**Cryptographic commitment verification — FULLY RESOLVED 2026-03-18/20.**
 
-**Researcher side (fully implemented):** The full symmetric researcher commit-reveal is complete:
+**Researcher side (fully implemented, 2026-03-18):** The full symmetric researcher commit-reveal is complete:
 - DNA 1 `lock_researcher_result(LockResultInput { request_ref, metrics: Vec<MetricResult> })` — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores private `LockedResult { request_ref, metrics, nonce, commitment_hash }` (immutable, private, never leaves device), calls `publish_researcher_commitment` in DNA 3.
 - DNA 1 `get_locked_result(request_ref)` — retrieves the private entry at reveal time.
 - DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on `check_all_commitments_sealed`, verifies hash on-chain against `ResearcherResultCommitment`, writes immutable `ResearcherReveal { request_ref, metrics }` to DHT.
 - DNA 3 `get_researcher_reveal(request_ref)` — unrestricted read.
 - `ResearcherReveal` is immutable — update + delete both rejected by `validate()`.
 
-**Validator reveal-side (Phase 1):** `submit_attestation` does not yet verify that `SHA-256(msgpack(attestation) || nonce) == commitment_hash` from the validator's `CommitmentAnchor`. To implement:
-1. Add `nonce: Vec<u8>` to the reveal input (new `RevealInput { attestation: ValidationAttestation, nonce: Vec<u8> }` wrapper).
-2. In `submit_attestation`, fetch the caller's `CommitmentAnchor` via the `commitments.{request_ref}` path, recompute the hash, and reject if it does not match.
+**Validator reveal-side (RESOLVED 2026-03-20):** `submit_attestation` now takes `AttestationRevealInput { attestation: ValidationAttestation, nonce: Vec<u8> }`. It recomputes `SHA-256(msgpack(attestation) || nonce)` and compares against the `CommitmentAnchor.commitment_hash` written during the commit phase. A hash mismatch or missing anchor is rejected with a hard error. This closes the adaptive-reveal attack — a validator cannot reveal a different attestation than they committed to.
 
-Until then, validator reveal-side verification exists architecturally but is not enforced server-side. A validator with direct API access could technically reveal a different attestation than they committed to — not a practical concern for Phase 0, but must be closed before public launch.
+**Commit-phase guards (RESOLVED 2026-03-20):** `notify_commitment_sealed` now enforces two guards before writing a `CommitmentAnchor`:
+1. The caller must hold a live `StudyClaim` for the study (prevents non-claimants from inflating the commitment quorum).
+2. Each validator may only submit one commitment per study (prevents a single agent satisfying the quorum alone).
 
 **Researcher identity blinding proxy.** Double-blind validation (validators cannot see researcher identity) is a design goal but is not architecturally enforced in the current implementation. `ValidationRequest.data_access_url` is visible to validators in full — if it contains researcher-identifying information (e.g. `osf.io/jsmith/my-study`), the blinding is defeated. `researcher_institution` is used server-side only for COI enforcement and is not displayed to validators, but this is a convention not a structural constraint. The fix is a blinding proxy service that replaces the original URL with an opaque token before the `ValidationRequest` is written to the DHT. Until built, double-blinding is an operational convention enforced by the ValiChord team. The commit-reveal blindness (validators cannot see *each other's findings*) is fully implemented and architecturally enforced — these are two distinct properties and only the latter is guaranteed today.
+
+---
+
+## Security Audit Summary (March 2026)
+
+Three LLM red-team audits (Gemini, ChatGPT, Grok) were run against the full codebase. Findings and dispositions are recorded here for future auditors.
+
+### Implemented fixes
+
+| Fix | Finding source | Severity | What was done |
+|---|---|---|---|
+| `ValidationRequest` immutability | Gemini | High | `validate()` now rejects updates and deletes — researchers cannot silently lower `num_validators_required` after submission |
+| `get_num_validators_required` safe default | Gemini | High | `unwrap_or(1)` removed; function now returns `Err` if the ValidationRequest is not found, preventing a single attestation from finalising any study |
+| `force_finalize_round` removed from Unrestricted cap grant | Gemini | Medium | Write function was previously callable by anonymous HTTP Gateway clients |
+| Conservative quorum fallback in governance | Gemini | Medium | `Err(_) => return Ok(None)` instead of `unwrap_or(1u8)` — a decode failure no longer allows premature finalisation |
+| Validator reveal binding (`submit_attestation`) | ChatGPT | Critical | Now takes `AttestationRevealInput { attestation, nonce }`; verifies `SHA-256(msgpack(attestation) \|\| nonce) == CommitmentAnchor.commitment_hash` before writing |
+| Commitment uniqueness + claim binding (`notify_commitment_sealed`) | ChatGPT | High | Two new guards: (1) caller must hold a live `StudyClaim`; (2) one commitment per validator per study |
+| HarmonyRecord author guard | Grok | High | `validate()` in governance_integrity now requires `action.author ∈ record.participating_validators` — prevents outsider forgery winning the idempotency race |
+| `num_validators_required` minimum enforcement | Gemini (second audit) | High | New `validate()` arm for `ValidationRequest` create checks `vr.num_validators_required >= props.minimum_validators`; `minimum_validators = 0` is the dev/test bypass |
+| Membrane proof comment corrected | Grok | Low | Comment incorrectly said `rmp_serde` encodes `Vec<u8>` as "msgpack array of unsigned integers" — it encodes as msgpack **bin** format. JS issuer must use `Buffer.from`/`Uint8Array`, not `Array.from` |
+
+### Dismissed findings (with reasoning)
+
+| Finding | Source | Why dismissed |
+|---|---|---|
+| PhaseMarker forgery | Grok | PhaseMarker is explicitly UI-only; `validate()` cannot gate creates without also blocking the coordinator. Protocol gates on commitment count only, not PhaseMarker. |
+| Phase-marker race condition | Gemini (second) | Multiple simultaneous PhaseMarkers for RevealOpen are harmless — all identical, `get_current_phase` returns last link. Not a protocol gate. |
+| Researcher early-reveal breaks blind reveal | Grok | Validators already committed their outcomes (bound by SHA-256 hash); researcher revealing first cannot influence committed validators. |
+| CommitmentSealedInput accidental leakage | Gemini (second) | Hypothetical future dev error, not a current vulnerability. Addressed with a doc comment on the struct (see `attestation_integrity/src/lib.rs`). |
+| Nonce entropy weakness | Gemini (second) | `random_bytes(32)` uses OS RNG — 256-bit entropy. No WASM-specific entropy degradation in Holochain conductors. |
+| StudyClaim delete/recreate resets timeout | Gemini (second) | `force_finalize_round` computes age from `ValidationRequest.action().timestamp()` — immutable. StudyClaim timestamps are irrelevant. |
+| Assessment spam (`assess_difficulty`) | Gemini (second) | `DifficultyAssessment` is a scaffold stub (all hardcoded values). It does not gate any protocol step. Add per-agent guard when real assessment logic is implemented. |
+| post_commit cross-DNA call deadlock | Gemini (second) | Cross-DNA `call(OtherRole(...))` from `post_commit` is the intended Holochain pattern. "Must not write data" means local source chain only. Error is already non-fatal. |
+| Empty issuer bypass | Gemini (second) | Already documented as dev/test bypass — same pattern as governance `system_coordinator_key`. Not new. |
+| Credential revocation gap | Grok / Gemini (second) | Fundamental Holochain DHT architecture limitation. No CRL mechanism possible without significant additional infrastructure. Phase 2. |
+| Self-assignment collusion | Grok | Acknowledged architectural trade-off. Requires trusted randomness oracle for Phase 1 `select_validators`. |
+
+### Known architectural gaps (Phase 1 / Phase 2)
+
+- **Full HarmonyRecord content verification at validate() layer** — cross-DNA calls unavailable in HDI; content correctness is coordinator-layer only. The partial fix (author ∈ participating_validators) is in place.
+- **Credential revocation** — once an agent joins the Attestation DHT, they cannot be removed retroactively without governance intervention.
+- **Validator self-assignment collusion** — COI institution check enforced; cartel from distinct institutions is not preventable without random assignment (Phase 1 `select_validators`).
+- **`get_current_phase` not authoritative** — clients must not treat `PhaseMarker` as a protocol gate; always verify via `check_all_commitments_sealed`. Any credentialed agent can write a `PhaseMarker` (validate() cannot gate creates without also blocking the coordinator). Protocol itself is unaffected — only UIs that trust `get_current_phase` blindly are at risk.
 
 ---
 

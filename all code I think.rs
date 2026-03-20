@@ -1508,6 +1508,14 @@ pub struct ResearcherResultCommitment {
 
 /// Payload sent from validator_workspace post_commit to attestation
 /// `notify_commitment_sealed`.
+///
+/// **Membrane boundary — do NOT add fields here.**
+/// This struct crosses from the private Validator Workspace DNA to the shared
+/// Attestation DHT via a cross-DNA call in post_commit.  Any field added to
+/// this struct is automatically transmitted to the shared network.  The only
+/// safe fields are public identifiers (request_ref) and opaque hashes
+/// (commitment_hash).  Never add assessment content, scores, or any data
+/// derived from the private `ValidatorPrivateAttestation`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitmentSealedInput {
     pub request_ref:     ExternalHash,
@@ -1742,6 +1750,32 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- ValidationRequest create: enforce minimum validator quorum ------
+        //
+        // The DNA property `minimum_validators` is the network-wide lower bound
+        // baked into the DNA hash.  A researcher cannot submit a request with a
+        // lower quorum than the network allows — doing so would let a single
+        // (potentially colluding) validator satisfy the commitment gate and
+        // open the reveal window unilaterally.
+        //
+        // If minimum_validators is 0 (dev/test bypass, same pattern as the
+        // empty issuer), the check is skipped.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ValidationRequest(ref vr), ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if props.minimum_validators > 0
+                && (vr.num_validators_required as u32) < props.minimum_validators
+            {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "num_validators_required ({}) is below the DNA minimum ({}) — \
+                     increase the quorum or reconfigure the network",
+                    vr.num_validators_required, props.minimum_validators,
+                )));
             }
             Ok(ValidateCallbackResult::Valid)
         }
