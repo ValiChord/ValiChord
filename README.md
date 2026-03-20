@@ -6,7 +6,7 @@
 
 [![Status](https://img.shields.io/badge/Status-Infrastructure_Built-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
-[![Tests](https://img.shields.io/badge/Tests-87_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
+[![Tests](https://img.shields.io/badge/Tests-93_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
@@ -57,11 +57,12 @@ valichord/
 │   ├── attestation.test.ts          — 40 tests (1 skipped)
 │   ├── governance.test.ts           — 24 tests
 │   ├── researcher_repository.test.ts — 14 tests
+│   ├── security.test.ts             — 6 tests
 │   └── validator_workspace.test.ts   — 7 tests
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**87 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
+**93 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
@@ -87,6 +88,7 @@ valichord/
 - `DisciplinePath` attestation index — attestations indexed by discipline for cross-study analytics (`get_attestations_for_discipline`)
 - Validator self-assignment (`StudyClaim`) — validators claim studies from the queue via `claim_study(request_ref)`; coordinator enforces capacity and duplicate checks; integrity zome's `validate()` enforces conflict-of-interest (same institution as researcher → rejected); `release_claim` frees the slot while preserving the audit record
 - Dropout recovery — `reclaim_abandoned_claim` frees a slot held by a validator who has gone dark (any participant, after configurable timeout); `force_finalize_round` closes a stuck round after 7 days subject to `min_attestations_for_finalization` (governance DNA property — set equal to panel size for ≤4-validator panels, one lower for larger panels), producing a normal HarmonyRecord identifiable as reduced-quorum by validator count
+- Security protocol guards — duplicate attestation rejection, duplicate commitment rejection, researcher commitment idempotency, reclaim timeout floor enforcement, force_finalize_round conservative abort
 
 ---
 
@@ -192,7 +194,7 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [4-DNA Architecture — Technical](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) | Full technical architecture document for engineers |
 | [4-DNA Architecture — Plain English](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7a_ValiChord_4-DNA_architecture_nontechnical.md) | Non-technical explanation of the four-membrane design |
 | [Eight-Layer Infrastructure](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_8_Layer_Infrastructure_and_Harmony_Records.md) | The full eight-layer conceptual architecture |
-| [Technical Reference v19](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
+| [Technical Reference v21](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v12 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 
 ### Funding & Research
@@ -214,7 +216,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
-| Technical Reference v19 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
+| Technical Reference v21 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Engineer Handover | [`docs/13_ValiChord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_ValiChord_Engineer_Handover.md) |
 
 > **Note:** This is infrastructure-stage code — four compiled, tested Holochain DNAs with no UI layer yet. There is no application to run as a standalone tool. The codebase is here for technical review and collaboration. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)

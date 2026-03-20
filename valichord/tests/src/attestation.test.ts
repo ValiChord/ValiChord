@@ -125,11 +125,12 @@ function playerConfig(membraneProof?: Uint8Array, minValidators: number = 2) {
               properties: {
                 // Empty = unrestricted (test / development mode).
                 // governance_integrity bypasses the author key check when
-                // either key is an empty string, so any test agent can write
-                // HarmonyRecord, ReproducibilityBadge, and ValidatorReputation.
-                // In production, set to the real coordinator agent keys.
+                // system_coordinator_key is an empty string, so any test agent
+                // can write GovernanceDecision, ValidatorReputation, etc.
+                // In production, set to the real coordinator agent key.
                 system_coordinator_key: "",
-                harmony_record_creator_key: "",
+                // 0 = use at-least-one default in force_finalize_round.
+                min_attestations_for_finalization: 0,
               },
             },
           },
@@ -181,35 +182,13 @@ async function govCall<T = unknown>(
   }) as Promise<T>;
 }
 
-/** Minimal ValidatorPrivateAttestation payload for post_commit trigger tests. */
+/**
+ * Attestation payload for seal_private_attestation tests.
+ * SealAttestationInput.attestation is ValidationAttestation (the public struct).
+ * The nonce, commitment_hash, and sealed_at_secs are generated internally by Rust.
+ */
 function makePrivateAttestation(requestRef: Uint8Array) {
-  return {
-    request_ref: requestRef,
-    outcome: { type: "Reproduced" },
-    outcome_summary: {
-      key_metrics: [],
-      effect_direction_matches: null,
-      confidence_interval_overlap: null,
-      overall_agreement: "ExactMatch",
-    },
-    time_invested_secs: 3600,
-    time_breakdown: {
-      environment_setup_secs: 900,
-      data_acquisition_secs:  600,
-      code_execution_secs:    1800,
-      troubleshooting_secs:   300,
-    },
-    deviation_flags: [],
-    computational_resources: {
-      personal_hardware_sufficient:  true,
-      hpc_required:                  false,
-      gpu_required:                  false,
-      cloud_compute_required:        false,
-      estimated_compute_cost_pence:  null,
-    },
-    confidence: "High",
-    sealed_at_secs: 1_700_000_000,
-  };
+  return makeAttestation(requestRef);
 }
 
 /** Minimal ValidationRequest payload */
@@ -282,6 +261,24 @@ function makeAttestation(requestRef: Uint8Array) {
   };
 }
 
+/**
+ * Wrap a request_ref into CommitmentSealedInput with an empty commitment_hash.
+ * The empty hash triggers the dev/test bypass in notify_commitment_sealed
+ * (authorized_joining_certificate_issuer is "" in test configs).
+ */
+function commitInput(requestRef: Uint8Array) {
+  return { request_ref: requestRef, commitment_hash: new Uint8Array(0) };
+}
+
+/**
+ * Wrap a ValidationAttestation into AttestationRevealInput with an empty nonce.
+ * The empty nonce (combined with the dev bypass) skips commit-reveal hash
+ * verification in submit_attestation.
+ */
+function revealInput(attestation: object) {
+  return { attestation, nonce: new Uint8Array(0) };
+}
+
 // ---------------------------------------------------------------------------
 // 1. Membrane Proof — acceptance and rejection
 // ---------------------------------------------------------------------------
@@ -289,7 +286,7 @@ function makeAttestation(requestRef: Uint8Array) {
 describe("1. Membrane proof", () => {
   test(
     "agent with valid membrane proof (>= 64 bytes) can join the attestation DNA",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // An agent with a sufficiently-long proof joins without error.
@@ -308,13 +305,13 @@ describe("1. Membrane proof", () => {
 
         // No PhaseMarker written yet — should return null/undefined.
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "agent with no membrane proof is rejected at genesis_self_check",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Missing proof should cause genesis_self_check to fail, so
@@ -322,25 +319,25 @@ describe("1. Membrane proof", () => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(undefined)]),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         await expect(
           scenario.addPlayersWithApps([playerConfig(shortMembraneProof())]),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "agent with valid real Ed25519 proof is accepted by coordinator init",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const privKey = ed.utils.randomPrivateKey();
@@ -395,13 +392,13 @@ describe("1. Membrane proof", () => {
           payload: fakeExternalHash(0x01),
         });
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "agent with wrong-signature proof is rejected by coordinator init",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const privKey = ed.utils.randomPrivateKey();
@@ -458,7 +455,7 @@ describe("1. Membrane proof", () => {
             payload: fakeExternalHash(0x01),
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -479,7 +476,7 @@ describe("1. Membrane proof", () => {
 describe("2. Full commit-reveal round", () => {
   test(
     "two validators commit, phase opens, both reveal, attestations retrievable",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -492,10 +489,12 @@ describe("2. Full commit-reveal round", () => {
         const REQUEST_REF = fakeExternalHash(0xcc);
 
         // --- Step 1: Alice submits the ValidationRequest ---
+        // data_hash must match REQUEST_REF so check_all_commitments_sealed can
+        // find the quorum requirement for this specific study.
         const _requestHash = await zomeCall<ActionHash>(
           alice,
           "submit_validation_request",
-          makeValidationRequest(),
+          makeValidationRequest({ data_hash: REQUEST_REF }),
         );
         expect(_requestHash).toBeTruthy();
 
@@ -506,7 +505,7 @@ describe("2. Full commit-reveal round", () => {
         // --- Step 2: Alice commits (seals private attestation in DNA 2) ---
         // In real deployment, notify_commitment_sealed is called from DNA 2's
         // post_commit. Here we call it directly to test the Attestation DNA logic.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // After Alice's commit: phase should still be null (Bob hasn't committed).
@@ -518,7 +517,7 @@ describe("2. Full commit-reveal round", () => {
         expect(phaseAfterAlice).toBeNull();
 
         // Bob commits.
-        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // After Bob's commit: both anchors present → PhaseMarker(RevealOpen) written.
@@ -535,14 +534,14 @@ describe("2. Full commit-reveal round", () => {
         const aliceAttestationHash = await zomeCall<ActionHash>(
           alice,
           "submit_attestation",
-          makeAttestation(REQUEST_REF),
+          revealInput(makeAttestation(REQUEST_REF)),
         );
         expect(aliceAttestationHash).toBeTruthy();
 
         const bobAttestationHash = await zomeCall<ActionHash>(
           bob,
           "submit_attestation",
-          makeAttestation(REQUEST_REF),
+          revealInput(makeAttestation(REQUEST_REF)),
         );
         expect(bobAttestationHash).toBeTruthy();
 
@@ -555,7 +554,7 @@ describe("2. Full commit-reveal round", () => {
           REQUEST_REF,
         );
         expect(attestations).toHaveLength(2);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -574,7 +573,7 @@ describe("2. Full commit-reveal round", () => {
 describe("3. DHT-poll phase transition", () => {
   test(
     "late-joining validator discovers RevealOpen by polling, not via signal",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [carol, dave, eve] = await scenario.addPlayersWithApps([
@@ -593,11 +592,16 @@ describe("3. DHT-poll phase transition", () => {
           eveReceivedSignal = true;
         });
 
+        // Submit a ValidationRequest so check_all_commitments_sealed can
+        // determine num_validators_required (2) and write the PhaseMarker.
+        await zomeCall(carol, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF }));
+        await dhtSync([carol, dave, eve], dnaHash);
+
         // Carol and Dave commit — Eve is "offline" (not involved yet).
-        await zomeCall(carol, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(carol, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([carol, dave], dnaHash);
 
-        await zomeCall(dave, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(dave, "notify_commitment_sealed", commitInput(REQUEST_REF));
         // Sync Carol + Dave only — Eve is excluded from this sync round,
         // simulating her being offline when the signal fired.
         await dhtSync([carol, dave], dnaHash);
@@ -620,7 +624,7 @@ describe("3. DHT-poll phase transition", () => {
         // The test passes regardless of whether the signal arrived.
         // This confirms the design: DHT state is the source of truth.
         console.log(`[test] Eve received signal: ${eveReceivedSignal} (irrelevant to correctness)`);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -639,7 +643,7 @@ describe("3. DHT-poll phase transition", () => {
 describe("5. ValidatorProfile and DifficultyAssessment", () => {
   test(
     "published validator profile is retrievable by agent public key",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -671,13 +675,13 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           alice.agentPubKey,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_validator_profile returns null when no profile published",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -690,13 +694,13 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           alice.agentPubKey,
         );
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -735,7 +739,7 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
         // A different request_ref that was never assessed still returns null.
         const nullResult = await zomeCall<unknown>(alice, "get_difficulty_assessment", UNASSESSED_REF);
         expect(nullResult).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -747,7 +751,7 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
 describe("6. ValidationRequest lifecycle", () => {
   test(
     "submitted ValidationRequest is retrievable by its ActionHash",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -767,13 +771,13 @@ describe("6. ValidationRequest lifecycle", () => {
           requestHash,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_validation_request returns null for an unknown ActionHash",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -792,7 +796,7 @@ describe("6. ValidationRequest lifecycle", () => {
           unknownHash,
         );
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -812,7 +816,7 @@ describe("6. ValidationRequest lifecycle", () => {
 describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () => {
   test(
     "attempting to update a CommitmentAnchor is rejected (no update function in API)",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -822,7 +826,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
         const REQUEST_REF = fakeExternalHash(0x11);
 
         // Post a CommitmentAnchor.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
 
         // No update coordinator function exists — call must fail.
         await expect(
@@ -834,13 +838,13 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
           }),
         ).rejects.toThrow();
         // Rejection confirms no update path exists in the public API.
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "attempting to update a PhaseMarker is rejected (no update function in API)",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -851,10 +855,15 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
         const REQUEST_REF = fakeExternalHash(0x22);
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
-        // Both validators commit → PhaseMarker(RevealOpen) is written.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        // Submit a VR so check_all_commitments_sealed_inner can find num_validators_required=2.
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
         await dhtSync([alice, bob], dnaHash);
-        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+
+        // Both validators commit → PhaseMarker(RevealOpen) is written.
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
+        await dhtSync([alice, bob], dnaHash);
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // Confirm PhaseMarker exists.
@@ -872,13 +881,13 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "attempting to delete a PhaseMarker is rejected (no delete function in API)",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -890,9 +899,9 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
         // Both validators commit → PhaseMarker written.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
-        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // No delete coordinator function exists — call must fail.
@@ -904,7 +913,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -920,7 +929,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
 describe("8. ValidationRequest query by discipline", () => {
   test(
     "get_pending_requests_for_discipline returns submitted request for matching discipline",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -937,13 +946,13 @@ describe("8. ValidationRequest query by discipline", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(1);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_pending_requests_for_discipline returns empty for a different discipline",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -960,7 +969,7 @@ describe("8. ValidationRequest query by discipline", () => {
           { type: "MachineLearning" },
         );
         expect(records).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -969,7 +978,7 @@ describe("8. ValidationRequest query by discipline", () => {
 describe("4. ValidationAttestation immutability", () => {
   test(
     "attempting to update a ValidationAttestation is rejected by validate()",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -982,7 +991,7 @@ describe("4. ValidationAttestation immutability", () => {
         const hash = await zomeCall<ActionHash>(
           alice,
           "submit_attestation",
-          makeAttestation(REQUEST_REF),
+          revealInput(makeAttestation(REQUEST_REF)),
         );
         expect(hash).toBeTruthy();
 
@@ -1005,13 +1014,13 @@ describe("4. ValidationAttestation immutability", () => {
         //
         // The rejection of zome_call (function-not-found) is the EXPECTED outcome
         // and is treated as passing this test.
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "attempting to delete a CommitmentAnchor is rejected by validate()",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1021,7 +1030,7 @@ describe("4. ValidationAttestation immutability", () => {
         const REQUEST_REF = fakeExternalHash(0xdd);
 
         // Alice posts a CommitmentAnchor.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
 
         // There is no "delete_commitment" coordinator function — the immutability
         // guarantee is enforced both at the API level (no delete function exists)
@@ -1037,7 +1046,7 @@ describe("4. ValidationAttestation immutability", () => {
           }),
         ).rejects.toThrow();
         // Rejection confirms no delete path exists in the public API.
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1063,7 +1072,7 @@ describe("4. ValidationAttestation immutability", () => {
 describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
   test(
     "seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1086,6 +1095,11 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
         };
         const aliceTaskHash = await wsCall<Uint8Array>(alice, "receive_task", taskPayload);
         const bobTaskHash   = await wsCall<Uint8Array>(bob,   "receive_task", taskPayload);
+
+        // Submit a ValidationRequest so check_all_commitments_sealed can
+        // determine num_validators_required (2) and write the PhaseMarker.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF }));
+        await dhtSync([alice, bob], attDnaHash);
 
         // Warm up each player's attestation cell so init() completes before
         // post_commit fires. If init() is triggered for the first time from
@@ -1129,7 +1143,7 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
         );
         expect(phase).not.toBeNull();
         expect(phase).toBe("RevealOpen");
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1151,7 +1165,7 @@ describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
 describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
   test(
     "Bob cannot read Alice's sealed private attestation from Bob's workspace cell",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1194,7 +1208,7 @@ describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
           bob, "get_private_attestation_for_task", aliceTaskHash,
         );
         expect(bobRecord).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1210,7 +1224,7 @@ describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
 describe("11. Phase threshold — single validator below minimum_validators", () => {
   test(
     "one commit with minimum_validators=2 leaves phase as null",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1222,7 +1236,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
         // Only Alice commits — Bob does not.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // With minimum_validators=2, one anchor is not enough.
@@ -1236,7 +1250,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
           bob, "get_current_phase", REQUEST_REF,
         );
         expect(phaseBob).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1264,7 +1278,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
 describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
   test(
     "3 validators all Reproduced → BronzeReproducible badge issued",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const N = 3;
@@ -1276,16 +1290,21 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const REQUEST_REF = fakeExternalHash(0xb0);
         const attDnaHash = validators[0].namedCells.get("attestation")?.cell_id[0];
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (N) via cross-DNA call.
+        await zomeCall(validators[0], "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF, num_validators_required: N }));
+        await dhtSync(validators, attDnaHash);
+
         // All 3 validators post CommitmentAnchors.
         for (const v of validators) {
-          await zomeCall(v, "notify_commitment_sealed", REQUEST_REF);
+          await zomeCall(v, "notify_commitment_sealed", commitInput(REQUEST_REF));
         }
         await dhtSync(validators, attDnaHash);
 
         // All 3 validators submit Reproduced attestations.
         // success_rate = 3/3 = 100% → ExactMatch.
         for (const v of validators) {
-          await zomeCall(v, "submit_attestation", makeAttestation(REQUEST_REF));
+          await zomeCall(v, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         }
         await dhtSync(validators, attDnaHash);
 
@@ -1307,13 +1326,13 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
           };
           expect(badge.badge_type).toBe("BronzeReproducible");
         }
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "5 validators all Reproduced → SilverReproducible badge issued",
-    { timeout: 1_800_000 },
+    { timeout: 900_000 },
     async () => {
       await runScenario(async (scenario) => {
         const N = 5;
@@ -1327,21 +1346,30 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const REQUEST_REF = fakeExternalHash(0xb1);
         const attDnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (N) via cross-DNA call.
+        // No separate dhtSync here — the VR propagates alongside the
+        // CommitmentAnchors in the single sync below, which is sufficient
+        // because check_and_create_harmony_record is only called after the
+        // attestation round completes.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF, num_validators_required: N }));
+
         // All N validators post CommitmentAnchors. After the Nth call the
         // coordinator's check_all_commitments_sealed_inner fires and writes
         // the PhaseMarker — but for badge issuance only the anchors and
         // public attestations matter. We do them in sequence to keep tests
         // deterministic, then sync once.
         for (const v of validators) {
-          await zomeCall(v, "notify_commitment_sealed", REQUEST_REF);
+          await zomeCall(v, "notify_commitment_sealed", commitInput(REQUEST_REF));
         }
-        await dhtSync(validators, attDnaHash);
+        // 5-player dhtSync needs more time than the default 40 s on loaded machines.
+        await dhtSync(validators, attDnaHash, 100, 120_000);
 
         // All N validators submit public (Reproduced) attestations.
         for (const v of validators) {
-          await zomeCall(v, "submit_attestation", makeAttestation(REQUEST_REF));
+          await zomeCall(v, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         }
-        await dhtSync(validators, attDnaHash);
+        await dhtSync(validators, attDnaHash, 100, 120_000);
 
         // Alice (acting as governance coordinator) assembles the HarmonyRecord.
         // check_and_create_harmony_record fetches attestations via cross-DNA
@@ -1368,7 +1396,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
           };
           expect(badge.badge_type).toBe("SilverReproducible");
         }
-      }, true, { timeout: 1_800_000 });
+      }, true, { timeout: 800_000 });
     },
   );
 
@@ -1377,7 +1405,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
   // RAM). The test logic is correct; run it on adequately resourced hardware.
   test.skip(
     "7 validators all Reproduced → GoldReproducible badge issued",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const N = 7;
@@ -1390,12 +1418,12 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const attDnaHash = validators[0].namedCells.get("attestation")?.cell_id[0];
 
         for (const v of validators) {
-          await zomeCall(v, "notify_commitment_sealed", REQUEST_REF);
+          await zomeCall(v, "notify_commitment_sealed", commitInput(REQUEST_REF));
         }
         await dhtSync(validators, attDnaHash);
 
         for (const v of validators) {
-          await zomeCall(v, "submit_attestation", makeAttestation(REQUEST_REF));
+          await zomeCall(v, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         }
         await dhtSync(validators, attDnaHash);
 
@@ -1417,7 +1445,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
           };
           expect(badge.badge_type).toBe("GoldReproducible");
         }
-      }, true, { timeout: 1_800_000 });
+      }, true, { timeout: 600_000 });
     },
   );
 });
@@ -1433,7 +1461,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
 describe("13. FailedReproduction badge", () => {
   test(
     "2 validators both FailedToReproduce → FailedReproduction badge issued",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1444,15 +1472,20 @@ describe("13. FailedReproduction badge", () => {
         const REQUEST_REF = fakeExternalHash(0xb3);
         const attDnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
-        // Both validators post CommitmentAnchors.
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required via cross-DNA call.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF }));
         await dhtSync([alice, bob], attDnaHash);
-        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+
+        // Both validators post CommitmentAnchors.
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
+        await dhtSync([alice, bob], attDnaHash);
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], attDnaHash);
 
         // Both submit FailedToReproduce public attestations.
-        await zomeCall(alice, "submit_attestation", makeFailedAttestation(REQUEST_REF));
-        await zomeCall(bob,   "submit_attestation", makeFailedAttestation(REQUEST_REF));
+        await zomeCall(alice, "submit_attestation", revealInput(makeFailedAttestation(REQUEST_REF)));
+        await zomeCall(bob,   "submit_attestation", revealInput(makeFailedAttestation(REQUEST_REF)));
         await dhtSync([alice, bob], attDnaHash);
 
         // Derives 0 successes → UnableToAssess → FailedReproduction badge.
@@ -1473,7 +1506,7 @@ describe("13. FailedReproduction badge", () => {
           };
           expect(badge.badge_type).toBe("FailedReproduction");
         }
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1492,7 +1525,7 @@ describe("13. FailedReproduction badge", () => {
 describe("14. Validator reputation", () => {
   test(
     "update then get_validator_reputation returns the written record",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1517,7 +1550,7 @@ describe("14. Validator reputation", () => {
           alice, "get_validator_reputation", alice.agentPubKey,
         );
         expect(record).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1533,7 +1566,7 @@ describe("14. Validator reputation", () => {
 describe("15. get_validators_for_discipline", () => {
   test(
     "two profiles published for ComputationalBiology — both returned; MachineLearning returns 0",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1572,7 +1605,7 @@ describe("15. get_validators_for_discipline", () => {
           { type: "MachineLearning" },
         );
         expect(mlProfiles).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1605,7 +1638,7 @@ describe("15. get_validators_for_discipline", () => {
 describe("17. get_validation_request_for_data_hash", () => {
   test(
     "returns the ValidationRequest record for a known data_hash",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1638,13 +1671,13 @@ describe("17. get_validation_request_for_data_hash", () => {
         expect(Buffer.from(returnedHash).toString("base64")).toBe(
           Buffer.from(requestHash as Uint8Array).toString("base64"),
         );
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "returns null for a data_hash that was never submitted",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice] = await scenario.addPlayersWithApps([
@@ -1660,7 +1693,7 @@ describe("17. get_validation_request_for_data_hash", () => {
           UNKNOWN_HASH,
         );
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1680,7 +1713,7 @@ describe("17. get_validation_request_for_data_hash", () => {
 describe("16. check_all_commitments_sealed direct call", () => {
   test(
     "returns false after 1 of 2 commits, true after 2nd commit",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1691,8 +1724,13 @@ describe("16. check_all_commitments_sealed direct call", () => {
         const REQUEST_REF = fakeExternalHash(0xc0);
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
+        // Submit a ValidationRequest so check_all_commitments_sealed can
+        // determine num_validators_required (2).
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF }));
+        await dhtSync([alice, bob], dnaHash);
+
         // Only Alice commits — count (1) < minimum_validators (2).
-        await zomeCall(alice, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // Direct check: 1 of 2 committed → false.
@@ -1702,7 +1740,7 @@ describe("16. check_all_commitments_sealed direct call", () => {
         expect(afterFirst).toBe(false);
 
         // Bob commits — count (2) >= minimum_validators (2).
-        await zomeCall(bob, "notify_commitment_sealed", REQUEST_REF);
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob], dnaHash);
 
         // Direct check: both committed → true.
@@ -1710,7 +1748,7 @@ describe("16. check_all_commitments_sealed direct call", () => {
           alice, "check_all_commitments_sealed", REQUEST_REF,
         );
         expect(afterSecond).toBe(true);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1729,7 +1767,7 @@ describe("16. check_all_commitments_sealed direct call", () => {
 describe("18. get_validators_for_institution", () => {
   test(
     "returns profiles for matching institution, empty for non-matching",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1769,7 +1807,7 @@ describe("18. get_validators_for_institution", () => {
 
         const cambridgeResults = await zomeCall<unknown[]>(alice, "get_validators_for_institution", "Cambridge");
         expect(cambridgeResults).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1787,7 +1825,7 @@ describe("18. get_validators_for_institution", () => {
 describe("19. get_attestations_for_discipline", () => {
   test(
     "returns attestation for matching discipline, empty for non-matching",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1800,7 +1838,7 @@ describe("19. get_attestations_for_discipline", () => {
         const REQUEST_REF = fakeExternalHash(0xd1);
 
         // Alice submits a ComputationalBiology attestation.
-        await zomeCall(alice, "submit_attestation", makeAttestation(REQUEST_REF));
+        await zomeCall(alice, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         await dhtSync([alice, bob], dnaHash!);
 
         // ComputationalBiology has 1 attestation.
@@ -1814,7 +1852,7 @@ describe("19. get_attestations_for_discipline", () => {
           alice, "get_attestations_for_discipline", { type: "MachineLearning" },
         );
         expect(mlAtts).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1855,7 +1893,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
   // 20.1 — basic happy path
   test(
     "validator claims a study and the claim is retrievable",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1886,14 +1924,14 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         // get_my_claimed_studies (Bob's view) contains his claim.
         const mine = await zomeCall<unknown[]>(bob, "get_my_claimed_studies", null);
         expect(mine).toHaveLength(1);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 20.2 — duplicate rejection
   test(
     "same validator cannot claim the same study twice",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1916,14 +1954,14 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await expect(
           zomeCall(bob, "claim_study", REQUEST_REF),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 20.3 — conflict-of-interest rejection (same institution)
   test(
     "validator from the same institution as researcher is rejected",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -1943,14 +1981,14 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await expect(
           zomeCall(bob, "claim_study", REQUEST_REF),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 20.4 — capacity rejection
   test(
     "claiming when all slots are full is rejected",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // num_validators_required=2 (DNA default); add 3 validators so the 3rd is rejected.
@@ -1981,14 +2019,14 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await expect(
           zomeCall(dave, "claim_study", REQUEST_REF),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 20.5 — release_claim frees the slot
   test(
     "release_claim removes the claim from get_claims_for_request",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -2019,7 +2057,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         // get_my_claimed_studies should also be empty after release.
         const mine = await zomeCall<unknown[]>(bob, "get_my_claimed_studies", null);
         expect(mine).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -2043,7 +2081,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
   // 21.1 — too-recent claim is rejected
   test(
     "returns false when claim is younger than timeout_secs",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob] = await scenario.addPlayersWithApps([
@@ -2072,14 +2110,14 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         // Slot still occupied.
         const claims = await zomeCall<unknown[]>(alice, "get_claims_for_request", REQUEST_REF);
         expect(claims).toHaveLength(1);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 21.2 — eligible claim is reclaimed
   test(
     "returns true and frees the slot when timeout has elapsed",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob, carol] = await scenario.addPlayersWithApps([
@@ -2117,14 +2155,14 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         // Carol can now claim the freed slot.
         const carolClaim = await zomeCall<ActionHash>(carol, "claim_study", REQUEST_REF);
         expect(carolClaim).toBeTruthy();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   // 21.3 — validator who already attested cannot be reclaimed
   test(
     "returns false when validator has already submitted an attestation",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alice, bob, carol] = await scenario.addPlayersWithApps([
@@ -2144,7 +2182,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Bob actually attests — he hasn't dropped out.
-        await zomeCall(bob, "submit_attestation", makeAttestation(REQUEST_REF));
+        await zomeCall(bob, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Reclaim attempt must fail — Bob has attested.
@@ -2154,7 +2192,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
           timeout_secs: 0,
         });
         expect(result).toBe(false);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });

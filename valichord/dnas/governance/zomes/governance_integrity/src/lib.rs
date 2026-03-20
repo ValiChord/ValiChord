@@ -32,6 +32,8 @@ pub struct DnaProperties {
     /// disallow any dropout; set lower to permit reduced-quorum finalization
     /// after the reveal timeout. Typical values: 7 for an 8-validator panel,
     /// 4 for a 4-validator panel (no dropout). 0 = use at-least-one default.
+    /// #[serde(default)] allows omitting this field in DNA properties YAML.
+    #[serde(default)]
     pub min_attestations_for_finalization: u32,
 }
 

@@ -8,7 +8,7 @@
 
 **Author:** Ceri John
 **Date:** March 2026
-**Version:** 20
+**Version:** 21
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -22,7 +22,7 @@
 
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They are illustrative sketches developed during twelve months of architectural design, intended to communicate system intent to engineers clearly and precisely.
 
-**Implementation update (March 2026):** The four-DNA hApp described in this document has been fully implemented and tested. 87 integration tests pass against live Holochain conductors (Tryorama). The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. For the authoritative implementation, see the source files under `valichord/dnas/` and the engineering handover in `docs/13_Valichord_Engineer_Handover.md`. Key divergences from this document:
+**Implementation update (March 2026):** The four-DNA hApp described in this document has been fully implemented and tested. 93 integration tests pass against live Holochain conductors (Tryorama). The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. For the authoritative implementation, see the source files under `valichord/dnas/` and the engineering handover in `docs/13_Valichord_Engineer_Handover.md`. Key divergences from this document:
 
 - Self-reported timestamp fields were removed from `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` — Holochain Action timestamps are authoritative and tamper-evident; do not add them back.
 - `ReproducibilityBadge.issued_to` resolves the researcher via cross-DNA lookup, not the first validator.
@@ -41,6 +41,8 @@ The Rust structures and functions in this document describe the *shape* of ValiC
 - **`ValidationRequest` quorum minimum enforced at validate() layer (March 2026):** `attestation_integrity::validate()` now rejects `ValidationRequest` creates where `num_validators_required < minimum_validators` (the DNA property). Previously `minimum_validators` existed in DNA properties but was never checked against what a researcher submitted — a researcher could declare `num_validators_required = 1` and bypass the multi-party protocol. `minimum_validators = 0` is the dev/test bypass (same pattern as the empty issuer key).
 - **`PhaseMarker` is UI-only — not a protocol gate (design clarification March 2026):** The `validate()` callback cannot gate `PhaseMarker` creates without also blocking the coordinator's own writes. Any credentialed agent can write a `PhaseMarker` for any phase. Clients must NOT treat `get_current_phase()` as authoritative — always verify against `check_all_commitments_sealed` for protocol decisions. The protocol itself never gates on `PhaseMarker` existence; it is purely a UI polling convenience. Three independent adversarial security audits (Gemini, ChatGPT, Grok — March 2026) confirmed this is the correct design.
 - **`CommitmentSealedInput` is a membrane boundary (design note March 2026):** This struct crosses from the private Validator Workspace DNA to the shared Attestation DHT. Fields must never include assessment content, scores, or any data derived from the private `ValidatorPrivateAttestation`. Only public identifiers (`request_ref`) and opaque hashes (`commitment_hash`) are safe to carry across this boundary.
+- **`get_private_attestation_for_task` (DNA 2) privacy fix (March 2026):** The function now uses `query()` instead of `get(target, GetOptions::local())` to retrieve the private attestation record. `query()` is strictly source-chain-local — it cannot cross agent cell boundaries even when cells share a conductor (singleFork Tryorama mode). The previous `get()` with local options would return another agent's private entry from the shared conductor DB. This is the Holochain-idiomatic pattern for private entry lookup. The public `TaskToPrivateAttestation` link remains in place for metadata indexing; only the retrieval method changed.
+- **Security protocol guards (March 2026):** 11 protocol gaps identified and closed via three-model self-red-team audit (Gemini, ChatGPT, Grok). Guards added: duplicate attestation rejection (one attestation per validator per study), duplicate commitment rejection (one `CommitmentAnchor` per validator per study), researcher commitment idempotency (one `ResearcherResultCommitment` per study), reclaim timeout floor (`min_claim_timeout_secs` DNA property prevents trivially short reclaim windows), `force_finalize_round` conservative abort (returns `None` when no `ValidationRequest` exists), `HarmonyRecord` author guard (author must be in `participating_validators`), `ValidationRequest` quorum minimum enforced in `validate()` (`num_validators_required ≥ minimum_validators`).
 
 **What this document is for:** An engineer reading this should understand what ValiChord needs to do, what data it handles, how components interact, and where the hard problems are. It should save weeks of explanation and allow technical discussion to begin at the right level.
 

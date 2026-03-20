@@ -1,4 +1,4 @@
-/**
+1/**
  * Tryorama integration tests for ValiChord DNA 4 — Governance
  *
  * Test priority order (from spec):
@@ -100,6 +100,8 @@ function makePlayerConfig(adminKeyB64: string) {
               properties: {
                 // Only GovernanceDecision is key-gated.
                 system_coordinator_key: adminKeyB64,
+                // 0 = use at-least-one default in force_finalize_round.
+                min_attestations_for_finalization: 0,
               },
             },
           },
@@ -223,6 +225,22 @@ function dnaHashForRole(player: any, roleName: string): Uint8Array {
   return player.namedCells?.get(roleName)?.cell_id[0];
 }
 
+/**
+ * Wrap a request_ref into CommitmentSealedInput with an empty commitment_hash.
+ * Empty hash triggers the dev/test bypass (authorized_joining_certificate_issuer="").
+ */
+function commitInput(requestRef: Uint8Array) {
+  return { request_ref: requestRef, commitment_hash: new Uint8Array(0) };
+}
+
+/**
+ * Wrap a ValidationAttestation into AttestationRevealInput with an empty nonce.
+ * Empty nonce triggers the dev/test bypass in submit_attestation.
+ */
+function revealInput(attestation: object) {
+  return { attestation, nonce: new Uint8Array(0) };
+}
+
 // ---------------------------------------------------------------------------
 // 1. Idempotency
 // ---------------------------------------------------------------------------
@@ -230,7 +248,7 @@ function dnaHashForRole(player: any, roleName: string): Uint8Array {
 describe("1. check_and_create_harmony_record idempotency", () => {
   test(
     "two calls for the same request_ref with no attestations both return null",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Step 1: create conductor + register key in lair.
@@ -256,13 +274,13 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // No record on the DHT.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "second call short-circuits when HarmonyRecord already exists",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -278,17 +296,22 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // Use a consistent request_ref for all protocol steps.
         const requestRef = fakeExternalHash(0x11);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (2) via cross-DNA call.
+        await att(admin, "submit_validation_request", makeValidationRequest({ data_hash: requestRef }));
+        await dhtSync([admin, bob], attDnaHash);
+
         // Both validators commit (creates CommitmentAnchors so get_attestations_for_request works).
-        await att(admin, "notify_commitment_sealed", requestRef);
-        await att(bob,   "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
+        await att(bob,   "notify_commitment_sealed", commitInput(requestRef));
 
         // Sync attestation DHT — CommitmentAnchors must be visible before
         // get_attestations_for_request can discover validator keys.
         await dhtSync([admin, bob], attDnaHash);
 
         // Both validators reveal (creates ValidatorToAttestation links).
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
 
         await dhtSync([admin, bob], attDnaHash);
 
@@ -303,7 +326,7 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         // Exactly one record visible.
         const record = await gov(admin, "get_harmony_record", requestRef);
         expect(record).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -320,7 +343,7 @@ describe("1. check_and_create_harmony_record idempotency", () => {
 describe("2. Any participant can finalise", () => {
   test(
     "a validator who did not submit the ValidationRequest can trigger finalisation",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -334,15 +357,20 @@ describe("2. Any participant can finalise", () => {
         const attDnaHash = dnaHashForRole(alice, "attestation");
         const requestRef = fakeExternalHash(0x10);
 
-        // Both validators commit.
-        await att(alice, "notify_commitment_sealed", requestRef);
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (2) via cross-DNA call.
+        await att(alice, "submit_validation_request", makeValidationRequest({ data_hash: requestRef }));
         await dhtSync([alice, bob], attDnaHash);
-        await att(bob, "notify_commitment_sealed", requestRef);
+
+        // Both validators commit.
+        await att(alice, "notify_commitment_sealed", commitInput(requestRef));
+        await dhtSync([alice, bob], attDnaHash);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([alice, bob], attDnaHash);
 
         // Both validators reveal.
-        await att(alice, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([alice, bob], attDnaHash);
 
         // Bob triggers finalisation — he is not the "creator key", just a
@@ -354,13 +382,13 @@ describe("2. Any participant can finalise", () => {
         await dhtSync([alice, bob], dnaHashForRole(alice, "governance"));
         const record = await gov(alice, "get_harmony_record", requestRef);
         expect(record).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "premature finalisation (only 1 of 2 required attestations) returns null",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -381,9 +409,9 @@ describe("2. Any participant can finalise", () => {
         const requestRef = dataHash;
 
         // Only Alice commits and reveals — Bob has not submitted yet.
-        await att(alice, "notify_commitment_sealed", requestRef);
+        await att(alice, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([alice, bob], attDnaHash);
-        await att(alice, "submit_attestation", makeAttestation(requestRef));
+        await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([alice, bob], attDnaHash);
 
         // Premature finalisation: only 1 attestation, need 2 → must return null.
@@ -393,7 +421,7 @@ describe("2. Any participant can finalise", () => {
         // No record on DHT.
         const record = await gov(alice, "get_harmony_record", requestRef);
         expect(record).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -405,7 +433,7 @@ describe("2. Any participant can finalise", () => {
 describe("3. Full end-to-end round", () => {
   test(
     "researcher → request → validator attestations → HarmonyRecord on public DHT",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Pre-register admin key in lair, then bake it into governance DNA props.
@@ -429,14 +457,17 @@ describe("3. Full end-to-end round", () => {
         });
         expect(studyHash).not.toBeNull();
 
-        // 2. Validation request submitted to DNA 3.
-        const requestHash = await att(admin, "submit_validation_request",
-          makeValidationRequest());
-        expect(requestHash).not.toBeNull();
-
         // Use a consistent fake request_ref for the commit-reveal protocol.
         // (In production this would be the actual ExternalHash of the study.)
         const requestRef = fakeExternalHash(0xcc);
+
+        // 2. Validation request submitted to DNA 3.
+        // data_hash must match requestRef so check_and_create_harmony_record can
+        // determine num_validators_required (2) via cross-DNA call.
+        const requestHash = await att(admin, "submit_validation_request",
+          makeValidationRequest({ data_hash: requestRef }));
+        expect(requestHash).not.toBeNull();
+        await dhtSync([admin, bob], attDnaHash);
 
         // 3. Two validators seal private attestation tasks in DNA 2.
         const taskPayload = {
@@ -453,10 +484,10 @@ describe("3. Full end-to-end round", () => {
         // 4. Both validators call notify_commitment_sealed on DNA 3.
         //    Sync between commits so bob sees admin's CommitmentAnchor when
         //    check_all_commitments_sealed_inner counts links (≥2 → PhaseMarker).
-        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
-        await att(bob, "notify_commitment_sealed", requestRef);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
         // 5. PhaseMarker(RevealOpen) should now be on the DHT.
@@ -464,8 +495,8 @@ describe("3. Full end-to-end round", () => {
         expect(phase).toBe("RevealOpen");
 
         // 6. Both validators submit public attestations to DNA 3.
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
 
         await dhtSync([admin, bob], attDnaHash);
 
@@ -481,7 +512,7 @@ describe("3. Full end-to-end round", () => {
         // 8. HarmonyRecord is visible on the public DHT.
         const harmonyRecord = await gov(admin, "get_harmony_record", requestRef);
         expect(harmonyRecord).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -502,7 +533,7 @@ describe("3. Full end-to-end round", () => {
 describe("4. ValidatorReputation — any participant can write", () => {
   test(
     "any validator can update reputation (not key-gated)",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer] = await scenario.addPlayers(1);
@@ -523,13 +554,13 @@ describe("4. ValidatorReputation — any participant can write", () => {
 
         const rep = await gov(alice, "get_validator_reputation", alice.agentPubKey);
         expect(rep).not.toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "GovernanceDecision remains key-gated — non-coordinator key is rejected",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // Install with PLACEHOLDER_KEY so alice's real key ≠ system_coordinator_key.
@@ -547,7 +578,7 @@ describe("4. ValidatorReputation — any participant can write", () => {
             votes_against: 0,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -559,7 +590,7 @@ describe("4. ValidatorReputation — any participant can write", () => {
 describe("5. Read queries", () => {
   test(
     "get_harmony_records_by_discipline returns the record after creation",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -573,15 +604,20 @@ describe("5. Read queries", () => {
         const attDnaHash = dnaHashForRole(admin, "attestation");
         const requestRef = fakeExternalHash(0x55);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (2) via cross-DNA call.
+        await att(admin, "submit_validation_request", makeValidationRequest({ data_hash: requestRef }));
+        await dhtSync([admin, bob], attDnaHash);
+
         // Both validators commit then reveal.
-        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
-        await att(bob, "notify_commitment_sealed", requestRef);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([admin, bob], attDnaHash);
 
         // Create the HarmonyRecord.
@@ -597,13 +633,13 @@ describe("5. Read queries", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(1);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_harmony_records_by_discipline returns empty array when no records exist",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -620,13 +656,13 @@ describe("5. Read queries", () => {
           { type: "ComputationalBiology" },
         );
         expect(records).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_badges_for_study returns empty when validator count < 3 (no badge threshold met)",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -640,15 +676,20 @@ describe("5. Read queries", () => {
         const attDnaHash = dnaHashForRole(admin, "attestation");
         const requestRef = fakeExternalHash(0x66);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (2) via cross-DNA call.
+        await att(admin, "submit_validation_request", makeValidationRequest({ data_hash: requestRef }));
+        await dhtSync([admin, bob], attDnaHash);
+
         // Two validators commit and reveal (ExactMatch outcome).
-        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
-        await att(bob, "notify_commitment_sealed", requestRef);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob], attDnaHash);
 
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([admin, bob], attDnaHash);
 
         // Create HarmonyRecord — 2 validators, ExactMatch.
@@ -659,7 +700,7 @@ describe("5. Read queries", () => {
         // No badge should be linked — count too low for any tier.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -681,7 +722,7 @@ describe("5. Read queries", () => {
 describe("6. Badge positive case", () => {
   test(
     "get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
@@ -700,24 +741,29 @@ describe("6. Badge positive case", () => {
         // Use a unique requestRef not shared with any other test.
         const requestRef = fakeExternalHash(0xb1);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (3) via cross-DNA call.
+        await att(admin, "submit_validation_request", makeValidationRequest({ data_hash: requestRef, num_validators_required: 3 }));
+        await dhtSync([admin, bob, carol], attDnaHash);
+
         // All three validators commit.
         // minimum_validators=2, so the PhaseMarker is written after the 2nd commit.
         // The 3rd commit also succeeds — a second PhaseMarker is written (harmless,
         // get_current_phase uses links.last()). All three CommitmentAnchors are needed
         // so get_attestations_for_request can discover all three attestations.
-        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
-        await att(bob, "notify_commitment_sealed", requestRef);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
-        await att(carol, "notify_commitment_sealed", requestRef);
+        await att(carol, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
         // All three reveal with Reproduced outcome.
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeAttestation(requestRef));
-        await att(carol, "submit_attestation", makeAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(carol, "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([admin, bob, carol], attDnaHash);
 
         // check_and_create_harmony_record sees 3 attestations:
@@ -730,7 +776,7 @@ describe("6. Badge positive case", () => {
         // Exactly one badge should be linked to this study_ref.
         const badges = await gov(admin, "get_badges_for_study", requestRef);
         expect(badges).toHaveLength(1);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -757,7 +803,7 @@ describe("6. Badge positive case", () => {
 describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge", () => {
   test(
     "1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge",
-    { timeout: 1_800_000 },
+    { timeout: 600_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer, bobPlayer, carolPlayer] = await scenario.addPlayers(3);
@@ -776,21 +822,26 @@ describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction bad
         // Unique requestRef — avoid collision with describe 6 (0xb1).
         const requestRef = fakeExternalHash(0xd1);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (3) via cross-DNA call.
+        await att(admin, "submit_validation_request", makeValidationRequest({ data_hash: requestRef, num_validators_required: 3 }));
+        await dhtSync([admin, bob, carol], attDnaHash);
+
         // All three validators commit (minimum_validators=2; 3rd commit is fine).
-        await att(admin, "notify_commitment_sealed", requestRef);
+        await att(admin, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
-        await att(bob, "notify_commitment_sealed", requestRef);
+        await att(bob, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
-        await att(carol, "notify_commitment_sealed", requestRef);
+        await att(carol, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([admin, bob, carol], attDnaHash);
 
         // admin: Reproduced; bob + carol: FailedToReproduce.
         // success rate = 1/3 → Divergent → FailedReproduction badge.
-        await att(admin, "submit_attestation", makeAttestation(requestRef));
-        await att(bob,   "submit_attestation", makeFailedAttestation(requestRef));
-        await att(carol, "submit_attestation", makeFailedAttestation(requestRef));
+        await att(admin, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(bob,   "submit_attestation", revealInput(makeFailedAttestation(requestRef)));
+        await att(carol, "submit_attestation", revealInput(makeFailedAttestation(requestRef)));
         await dhtSync([admin, bob, carol], attDnaHash);
 
         // Assemble HarmonyRecord.
@@ -820,7 +871,7 @@ describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction bad
           };
           expect(badge.badge_type).toBe("FailedReproduction");
         }
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -839,7 +890,7 @@ describe("7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction bad
 describe("8. GovernanceDecision", () => {
   test(
     "create_governance_decision + get_all_governance_decisions round-trip",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -879,13 +930,13 @@ describe("8. GovernanceDecision", () => {
           expect(stored.votes_for).toBe(7);
           expect(stored.votes_against).toBe(2);
         }
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "multiple GovernanceDecisions are all returned by get_all_governance_decisions",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -923,7 +974,7 @@ describe("8. GovernanceDecision", () => {
         });
         expect(proposals).toContain("Proposal A");
         expect(proposals).toContain("Proposal B");
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
@@ -940,7 +991,7 @@ describe("8. GovernanceDecision", () => {
 describe("9. get_badges_by_type", () => {
   test(
     "BronzeReproducible badge is retrievable by type after issuance",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -977,13 +1028,13 @@ describe("9. get_badges_by_type", () => {
 
         const results = await gov(admin, "get_badges_by_type", "BronzeReproducible");
         expect(results).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "get_badges_by_type returns correct badge after check_and_create_harmony_record",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         // 3-player setup to trigger BronzeReproducible (count=3, ExactMatch).
@@ -1002,18 +1053,23 @@ describe("9. get_badges_by_type", () => {
 
         const requestRef = fakeExternalHash(0xe1);
 
+        // Submit a ValidationRequest so check_and_create_harmony_record can
+        // resolve num_validators_required (3) via cross-DNA call.
+        await att(p0, "submit_validation_request", makeValidationRequest({ data_hash: requestRef, num_validators_required: 3 }));
+        await dhtSync(installed, attDnaHash);
+
         // All 3 commit.
-        await att(p0, "notify_commitment_sealed", requestRef);
+        await att(p0, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync(installed, attDnaHash);
-        await att(p1, "notify_commitment_sealed", requestRef);
+        await att(p1, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync(installed, attDnaHash);
-        await att(p2, "notify_commitment_sealed", requestRef);
+        await att(p2, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync(installed, attDnaHash);
 
         // All 3 attest Reproduced → ExactMatch + count=3 → BronzeReproducible.
-        await att(p0, "submit_attestation", makeAttestation(requestRef));
-        await att(p1, "submit_attestation", makeAttestation(requestRef));
-        await att(p2, "submit_attestation", makeAttestation(requestRef));
+        await att(p0, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(p1, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await att(p2, "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync(installed, attDnaHash);
 
         const harmonyHash = await gov(p0, "check_and_create_harmony_record", requestRef);
@@ -1028,7 +1084,7 @@ describe("9. get_badges_by_type", () => {
         // Other types must return empty.
         const silverBadges = await gov(p0, "get_badges_by_type", "SilverReproducible");
         expect(silverBadges).toHaveLength(0);
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1047,7 +1103,7 @@ describe("9. get_badges_by_type", () => {
 describe("10. Delete-immutability guards", () => {
   test(
     "no delete function exists for HarmonyRecord in the coordinator API",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -1065,13 +1121,13 @@ describe("10. Delete-immutability guards", () => {
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "no delete function exists for GovernanceDecision in the coordinator API",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -1089,13 +1145,13 @@ describe("10. Delete-immutability guards", () => {
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "no delete function exists for ReproducibilityBadge in the coordinator API",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [adminPlayer] = await scenario.addPlayers(1);
@@ -1113,7 +1169,7 @@ describe("10. Delete-immutability guards", () => {
             payload: null,
           }),
         ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });
@@ -1135,7 +1191,7 @@ describe("10. Delete-immutability guards", () => {
 describe("11. force_finalize_round", () => {
   test(
     "returns null when round has not yet timed out (< 7 days old)",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
@@ -1155,9 +1211,9 @@ describe("11. force_finalize_round", () => {
         const requestRef = dataHash;
 
         // One validator attests — round incomplete but < 7 days old.
-        await att(alice, "notify_commitment_sealed", requestRef);
+        await att(alice, "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([alice, bob], attDnaHash);
-        await att(alice, "submit_attestation", makeAttestation(requestRef));
+        await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([alice, bob], attDnaHash);
 
         // Must return null — round too fresh.
@@ -1166,13 +1222,13 @@ describe("11. force_finalize_round", () => {
 
         const record = await gov(alice, "get_harmony_record", requestRef);
         expect(record).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 
   test(
     "returns null when no attestations exist yet",
-    { timeout: 900_000 },
+    { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
         const [alicePlayer] = await scenario.addPlayers(1);
@@ -1189,7 +1245,7 @@ describe("11. force_finalize_round", () => {
         // No attestations — must return null.
         const result = await gov(alice, "force_finalize_round", dataHash);
         expect(result).toBeNull();
-      }, true, { timeout: 900_000 });
+      }, true, { timeout: 300_000 });
     },
   );
 });

@@ -3760,7 +3760,13 @@ pub fn get_private_attestation_for_task(
                 .ok_or(wasm_error!(WasmErrorInner::Guest(
                     "Invalid TaskToPrivateAttestation link target".into()
                 )))?;
-            get(target, GetOptions::local())
+            // Use query() instead of get() — query() is strictly scoped to
+            // THIS agent's source chain and cannot cross cell boundaries.
+            // get(target, GetOptions::local()) would find Alice's private entry
+            // from Bob's cell in singleFork/test conductors (shared local DB).
+            // query() is always source-chain-local. Pattern confirmed 2026-03-20.
+            let records = query(ChainQueryFilter::new().include_entries(true))?;
+            Ok(records.into_iter().find(|r| *r.action_address() == target))
         }
         None => Ok(None),
     }

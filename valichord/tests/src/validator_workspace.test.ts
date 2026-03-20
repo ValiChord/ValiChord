@@ -57,7 +57,7 @@ function simplePlayerConfig() {
             modifiers: {
               properties: {
                 system_coordinator_key: PLACEHOLDER_KEY,
-                harmony_record_creator_key: PLACEHOLDER_KEY,
+                min_attestations_for_finalization: 0,
               },
             },
           },
@@ -138,6 +138,7 @@ function makePrivateAttestation(requestRef: Uint8Array) {
       estimated_compute_cost_pence:  null,
     },
     confidence: "High",
+    discipline: { type: "ComputationalBiology" },
   };
 }
 

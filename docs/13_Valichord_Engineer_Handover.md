@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.9 — March 2026
+**Version:** 2.0 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 87 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-18, all four DNAs have been reviewed and optimised, and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 93 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-20, all four DNAs have been reviewed and optimised, and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -53,6 +53,8 @@ Private, single-agent DNA. The commit phase of the blind commit-reveal protocol 
 **Critical:** `post_commit` fires `call(OtherRole("attestation"), "notify_commitment_sealed")` after a `ValidatorPrivateAttestation` is created. The payload is now `CommitmentSealedInput { request_ref, commitment_hash }` — the commitment hash is forwarded to DNA 3 so the `CommitmentAnchor` on the shared DHT carries the cryptographic proof. The target attestation cell must be initialised before `post_commit` fires — see the deadlock section below.
 
 `get_all_private_attestations()` returns all `ValidatorPrivateAttestation` records from the local source chain using `query()` + deserialization filter. Parallel to `get_all_tasks`.
+
+**`get_private_attestation_for_task` uses `query()` for retrieval (2026-03-20).** The function follows a `TaskToPrivateAttestation` link to the target ActionHash, then uses `query(ChainQueryFilter::new().include_entries(true))` to find the matching record in the calling agent's source chain — `find(|r| r.action_address() == &target)`. This replaces the previous `get(target, GetOptions::local())` call. Reason: `query()` is strictly source-chain-local and cannot cross cell boundaries even when cells share the same conductor process (singleFork/test mode). `get()` with local options would find Alice's private entry from Bob's cell in a shared-conductor test, violating the privacy guarantee. In production the distinction is moot (private entries never leave the device), but the test suite verifies the structural privacy property.
 
 ---
 
@@ -186,6 +188,9 @@ Integrity zomes run in a restricted WASM environment without host function acces
 
 ### 11. dhtSync with 7+ conductors exhausts websocket connections in Codespaces
 The Gold badge test (7 validators) is skipped because spinning up 7 simultaneous Holochain conductors exhausts available websocket connections in resource-constrained environments (Codespaces, CI with <16GB RAM). The test logic is correct. Run it on hardware with ≥16GB RAM or a GitHub Actions runner with a large instance.
+
+### 12. get_private_attestation_for_task — use query(), not get()
+Private entries retrieved by the owning agent must be looked up via `query()`, not `get(target, GetOptions::local())`. In singleFork Tryorama tests, all cells share the same conductor and local DB, so `get()` with local options crosses cell boundaries — Bob's cell can retrieve Alice's private entry. `query()` is strictly bound to the calling agent's source chain and cannot cross this boundary. Pattern: follow the link to get the target ActionHash, then `query(ChainQueryFilter::new().include_entries(true))?.into_iter().find(|r| *r.action_address() == target)`.
 
 ---
 

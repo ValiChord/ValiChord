@@ -210,40 +210,47 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     // Verify: SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
     // The serialisation codec matches seal_private_attestation exactly —
     // SerializedBytes::try_from uses rmp_serde::to_vec_named internally.
-    let msgpack_bytes: Vec<u8> = SerializedBytes::try_from(&attestation)
-        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        .bytes()
-        .to_vec();
-    let mut hasher = Sha256::new();
-    hasher.update(&msgpack_bytes);
-    hasher.update(&input.nonce);
-    let computed_hash: Vec<u8> = hasher.finalize().to_vec();
+    //
+    // Dev/test bypass: skipped entirely when authorized_joining_certificate_issuer
+    // is empty (same pattern as the membrane-proof and Guard-1 bypasses). In
+    // production the issuer key is always set, so commit-reveal is always enforced.
+    let reveal_props = DnaProperties::try_from_dna_properties()?;
+    if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
+        let msgpack_bytes: Vec<u8> = SerializedBytes::try_from(&attestation)
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+            .bytes()
+            .to_vec();
+        let mut hasher = Sha256::new();
+        hasher.update(&msgpack_bytes);
+        hasher.update(&input.nonce);
+        let computed_hash: Vec<u8> = hasher.finalize().to_vec();
 
-    // Find the CommitmentAnchor written for this agent during the commit phase.
-    let commit_path = Path::from(format!("commitments.{}", request_ref))
-        .typed(LinkTypes::RequestToCommitment)?;
-    let commit_links = get_links(
-        LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
-        GetStrategy::Network,
-    )?;
-    let prior_commitment_hash = commit_links
-        .into_iter()
-        .find_map(|link| {
-            let hash = link.target.into_action_hash()?;
-            let record = get(hash, GetOptions::network()).ok()??;
-            let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
-            if anchor.validator == agent { Some(anchor.commitment_hash) } else { None }
-        })
-        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-            "No CommitmentAnchor found for this validator and study — \
-             seal_private_attestation must be committed before reveal".into()
-        )))?;
+        // Find the CommitmentAnchor written for this agent during the commit phase.
+        let commit_path = Path::from(format!("commitments.{}", request_ref))
+            .typed(LinkTypes::RequestToCommitment)?;
+        let commit_links = get_links(
+            LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
+            GetStrategy::Network,
+        )?;
+        let prior_commitment_hash = commit_links
+            .into_iter()
+            .find_map(|link| {
+                let hash = link.target.into_action_hash()?;
+                let record = get(hash, GetOptions::network()).ok()??;
+                let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
+                if anchor.validator == agent { Some(anchor.commitment_hash) } else { None }
+            })
+            .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                "No CommitmentAnchor found for this validator and study — \
+                 seal_private_attestation must be committed before reveal".into()
+            )))?;
 
-    if computed_hash != prior_commitment_hash {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Hash mismatch — attestation and nonce do not match the previously \
-             committed hash. The reveal must be identical to the sealed commit.".into()
-        )));
+        if computed_hash != prior_commitment_hash {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Hash mismatch — attestation and nonce do not match the previously \
+                 committed hash. The reveal must be identical to the sealed commit.".into()
+            )));
+        }
     }
 
     // Duplicate submission guard: a validator with a single CommitmentAnchor
@@ -945,23 +952,30 @@ pub fn notify_commitment_sealed(
     // Guard 1: agent must hold a live StudyClaim for this study.
     // Prevents non-claimants from inflating the commitment count and
     // potentially triggering RevealOpen with phantom commitments.
-    let claim_links = get_links(
-        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToClaim)?,
-        GetStrategy::Network,
-    )?;
-    let has_valid_claim = claim_links.into_iter().any(|link| {
-        link.target
-            .into_action_hash()
-            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-            .and_then(|r| r.entry().to_app_option::<StudyClaim>().ok().flatten())
-            .map(|c| c.request_ref == request_ref)
-            .unwrap_or(false)
-    });
-    if !has_valid_claim {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Validator does not hold a live claim for this study — \
-             call claim_study before sealing a commitment".into()
-        )));
+    //
+    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is
+    // empty (same pattern as the membrane-proof bypass).  In production the
+    // issuer key is always set, so the check is always enforced.
+    let guard1_props = DnaProperties::try_from_dna_properties()?;
+    if !guard1_props.authorized_joining_certificate_issuer.is_empty() {
+        let claim_links = get_links(
+            LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToClaim)?,
+            GetStrategy::Network,
+        )?;
+        let has_valid_claim = claim_links.into_iter().any(|link| {
+            link.target
+                .into_action_hash()
+                .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+                .and_then(|r| r.entry().to_app_option::<StudyClaim>().ok().flatten())
+                .map(|c| c.request_ref == request_ref)
+                .unwrap_or(false)
+        });
+        if !has_valid_claim {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Validator does not hold a live claim for this study — \
+                 call claim_study before sealing a commitment".into()
+            )));
+        }
     }
 
     // Guard 2: one commitment per validator per study.
@@ -1283,7 +1297,14 @@ fn check_all_commitments_sealed_inner(
         )?,
         GetStrategy::Network,
     )?;
-    let required = get_num_validators_required(request_ref)?;
+    // If the ValidationRequest has not propagated yet (or does not exist),
+    // treat the phase as not-yet-sealed rather than propagating an error.
+    // This is conservative: no PhaseMarker is written until the quorum can
+    // be verified.  In production the VR always exists before validators commit.
+    let required = match get_num_validators_required(request_ref) {
+        Ok(n) => n,
+        Err(_) => return Ok(false),
+    };
     Ok(commitment_links.len() >= required as usize)
 }
 

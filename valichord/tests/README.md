@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-18)
+**Status: 93 pass, 1 skipped, 0 fail** (as of 2026-03-20)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -109,7 +109,7 @@ cd tests && npm test
 | 10.1 | Bob cannot read Alice's sealed private attestation from Bob's workspace cell | PASS |
 | 11.1 | one commit with minimum_validators=2 leaves phase as null | PASS |
 | 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
-| 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
+| 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS† |
 | 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
 | 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
@@ -127,6 +127,8 @@ cd tests && npm test
 | 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
 | 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
 | 21.3 | returns false when validator has already submitted an attestation | PASS |
+
+> † **Silver (12.2):** Passes on a clean Codespace. May fail with WebsocketClosedError when the Codespace is under heavy load (5 conductors). Clean up orphaned processes with `pkill -f kitsune2-bootstrap-srv; pkill -f holochain; pkill -f lair-keystore` before running.
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
@@ -159,6 +161,17 @@ cd tests && npm test
 | 11.1 | force_finalize_round returns null when round has not yet timed out (< 7 days old) | PASS |
 | 11.2 | force_finalize_round returns null when no attestations exist yet | PASS |
 
+### Security — `security.test.ts` (6 tests)
+
+| ID  | Test name | Status |
+|-----|-----------|--------|
+| S1  | Duplicate attestation guard — second submit_attestation for the same study rejects | PASS |
+| S2  | Duplicate commitment guard — second notify_commitment_sealed for the same study rejects | PASS |
+| S3  | Researcher commitment idempotency — second publish_researcher_commitment for the same study rejects | PASS |
+| S4.1 | reclaim_abandoned_claim min_claim_timeout_secs floor — caller-supplied timeout below DNA floor is overridden — reclaim returns false | PASS |
+| S4.2 | when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately | PASS |
+| S5  | force_finalize_round conservative abort on missing VR — returns null when no ValidationRequest exists for the request_ref | PASS |
+
 ---
 
 ## Remaining gaps
@@ -176,6 +189,7 @@ These are areas not yet covered by tests, ordered by value.
 
 ## Architecture notes
 
+- `get_private_attestation_for_task` (DNA 2) uses `query()` instead of `get(target, GetOptions::local())` to retrieve the private attestation. `query()` is strictly source-chain-local — it cannot cross cell boundaries even in singleFork test conductors. `get` with local options would find another agent's private entry in the shared local DB. This is the correct Holochain pattern for private entry lookup by the owning agent.
 - `minimum_validators: 2` is set in test DNA properties (production default is 3–7). `check_all_commitments_sealed_inner` uses `num_validators_required` from the `ValidationRequest` entry (not the DNA-property `minimum_validators`) — phase opens when the study's own validator count has committed.
 - `system_coordinator_key` is set to the test admin's base64 pubkey in governance DNA
   test properties. It gates `GovernanceDecision` writes only. `harmony_record_creator_key`
