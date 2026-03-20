@@ -845,19 +845,58 @@ pub fn notify_commitment_sealed(
     input: CommitmentSealedInput,
 ) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
+    let request_ref = input.request_ref.clone();
+
+    // Guard 1: agent must hold a live StudyClaim for this study.
+    // Prevents non-claimants from inflating the commitment count and
+    // potentially triggering RevealOpen with phantom commitments.
+    let claim_links = get_links(
+        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToClaim)?,
+        GetStrategy::Network,
+    )?;
+    let has_valid_claim = claim_links.into_iter().any(|link| {
+        link.target
+            .into_action_hash()
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<StudyClaim>().ok().flatten())
+            .map(|c| c.request_ref == request_ref)
+            .unwrap_or(false)
+    });
+    if !has_valid_claim {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator does not hold a live claim for this study — \
+             call claim_study before sealing a commitment".into()
+        )));
+    }
+
+    // Guard 2: one commitment per validator per study.
+    // Prevents a single validator from pushing multiple CommitmentAnchors
+    // and skewing the quorum check that opens the reveal phase.
+    let commit_path = Path::from(format!("commitments.{}", request_ref))
+        .typed(LinkTypes::RequestToCommitment)?;
+    commit_path.ensure()?;
+    let existing_links = get_links(
+        LinkQuery::try_new(
+            commit_path.path_entry_hash()?,
+            LinkTypes::RequestToCommitment,
+        )?,
+        GetStrategy::Network,
+    )?;
+    if existing_links.iter().any(|l| l.author == agent) {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator has already submitted a commitment for this study — \
+             duplicate commitments are not permitted".into()
+        )));
+    }
 
     // Step 1: write CommitmentAnchor to shared DHT.
     let anchor = CommitmentAnchor {
-        request_ref:     input.request_ref.clone(),
+        request_ref:     request_ref.clone(),
         validator:       agent,
         commitment_hash: input.commitment_hash,
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
-    let request_ref = input.request_ref;
-    let commit_path = Path::from(format!("commitments.{}", request_ref))
-        .typed(LinkTypes::RequestToCommitment)?;
-    commit_path.ensure()?;
     create_link(
         commit_path.path_entry_hash()?,
         anchor_hash,
