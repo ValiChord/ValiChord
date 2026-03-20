@@ -246,6 +246,30 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         )));
     }
 
+    // Duplicate submission guard: a validator with a single CommitmentAnchor
+    // could call submit_attestation multiple times with the same attestation+nonce,
+    // writing N identical entries and gaining N-fold vote weight in the
+    // HarmonyRecord plurality tally.
+    let existing_att_links = get_links(
+        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToAttestation)?,
+        GetStrategy::Network,
+    )?;
+    let already_attested = existing_att_links.iter().any(|link| {
+        link.target
+            .clone()
+            .into_action_hash()
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<ValidationAttestation>().ok().flatten())
+            .map(|a| a.request_ref == request_ref)
+            .unwrap_or(false)
+    });
+    if already_attested {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator has already submitted an attestation for this study — \
+             duplicate reveals are not permitted".into()
+        )));
+    }
+
     // Commitment verified — write the public attestation.
     let attestation_hash =
         create_entry(EntryTypes::ValidationAttestation(attestation.clone()))?;
@@ -639,7 +663,17 @@ pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
     let now = sys_time()?;
     let claim_time = claim_record.action().timestamp();
     let elapsed_secs = (now.0 - claim_time.0) / 1_000_000;
-    if elapsed_secs < input.timeout_secs as i64 {
+
+    // Enforce DNA-property minimum to prevent callers from bypassing the timeout
+    // by passing timeout_secs = 0.  min_claim_timeout_secs = 0 = dev/test bypass.
+    let props = DnaProperties::try_from_dna_properties()?;
+    let effective_timeout_secs = if props.min_claim_timeout_secs > 0 {
+        input.timeout_secs.max(props.min_claim_timeout_secs)
+    } else {
+        input.timeout_secs
+    };
+
+    if elapsed_secs < effective_timeout_secs as i64 {
         return Ok(false); // Too recent — reclamation not yet permitted.
     }
 
@@ -1050,6 +1084,27 @@ pub fn get_current_phase(
 pub fn publish_researcher_commitment(
     input: ResearcherCommitmentInput,
 ) -> ExternResult<ActionHash> {
+    // Idempotency guard: only one commitment may be published per study.
+    // A second call would allow the researcher to change their locked prediction
+    // after validators have already started work, breaking the commit-reveal
+    // guarantee.
+    let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
+        .typed(LinkTypes::RequestToResearcherCommitment)?;
+    path.ensure()?;
+    let existing_links = get_links(
+        LinkQuery::try_new(
+            path.path_entry_hash()?,
+            LinkTypes::RequestToResearcherCommitment,
+        )?,
+        GetStrategy::Network,
+    )?;
+    if !existing_links.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A researcher commitment already exists for this study — \
+             the commitment cannot be replaced once published".into()
+        )));
+    }
+
     let commitment = ResearcherResultCommitment {
         request_ref:            input.request_ref.clone(),
         result_commitment_hash: input.result_commitment_hash,
@@ -1058,9 +1113,6 @@ pub fn publish_researcher_commitment(
 
     // Index under a deterministic path so validators can retrieve the
     // commitment by request_ref without knowing the entry's ActionHash.
-    let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
-        .typed(LinkTypes::RequestToResearcherCommitment)?;
-    path.ensure()?;
     create_link(
         path.path_entry_hash()?,
         commitment_hash.clone(),

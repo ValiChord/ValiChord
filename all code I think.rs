@@ -246,6 +246,30 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         )));
     }
 
+    // Duplicate submission guard: a validator with a single CommitmentAnchor
+    // could call submit_attestation multiple times with the same attestation+nonce,
+    // writing N identical entries and gaining N-fold vote weight in the
+    // HarmonyRecord plurality tally.
+    let existing_att_links = get_links(
+        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToAttestation)?,
+        GetStrategy::Network,
+    )?;
+    let already_attested = existing_att_links.iter().any(|link| {
+        link.target
+            .clone()
+            .into_action_hash()
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<ValidationAttestation>().ok().flatten())
+            .map(|a| a.request_ref == request_ref)
+            .unwrap_or(false)
+    });
+    if already_attested {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator has already submitted an attestation for this study — \
+             duplicate reveals are not permitted".into()
+        )));
+    }
+
     // Commitment verified — write the public attestation.
     let attestation_hash =
         create_entry(EntryTypes::ValidationAttestation(attestation.clone()))?;
@@ -639,7 +663,17 @@ pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
     let now = sys_time()?;
     let claim_time = claim_record.action().timestamp();
     let elapsed_secs = (now.0 - claim_time.0) / 1_000_000;
-    if elapsed_secs < input.timeout_secs as i64 {
+
+    // Enforce DNA-property minimum to prevent callers from bypassing the timeout
+    // by passing timeout_secs = 0.  min_claim_timeout_secs = 0 = dev/test bypass.
+    let props = DnaProperties::try_from_dna_properties()?;
+    let effective_timeout_secs = if props.min_claim_timeout_secs > 0 {
+        input.timeout_secs.max(props.min_claim_timeout_secs)
+    } else {
+        input.timeout_secs
+    };
+
+    if elapsed_secs < effective_timeout_secs as i64 {
         return Ok(false); // Too recent — reclamation not yet permitted.
     }
 
@@ -1050,6 +1084,27 @@ pub fn get_current_phase(
 pub fn publish_researcher_commitment(
     input: ResearcherCommitmentInput,
 ) -> ExternResult<ActionHash> {
+    // Idempotency guard: only one commitment may be published per study.
+    // A second call would allow the researcher to change their locked prediction
+    // after validators have already started work, breaking the commit-reveal
+    // guarantee.
+    let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
+        .typed(LinkTypes::RequestToResearcherCommitment)?;
+    path.ensure()?;
+    let existing_links = get_links(
+        LinkQuery::try_new(
+            path.path_entry_hash()?,
+            LinkTypes::RequestToResearcherCommitment,
+        )?,
+        GetStrategy::Network,
+    )?;
+    if !existing_links.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A researcher commitment already exists for this study — \
+             the commitment cannot be replaced once published".into()
+        )));
+    }
+
     let commitment = ResearcherResultCommitment {
         request_ref:            input.request_ref.clone(),
         result_commitment_hash: input.result_commitment_hash,
@@ -1058,9 +1113,6 @@ pub fn publish_researcher_commitment(
 
     // Index under a deterministic path so validators can retrieve the
     // commitment by request_ref without knowing the entry's ActionHash.
-    let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
-        .typed(LinkTypes::RequestToResearcherCommitment)?;
-    path.ensure()?;
     create_link(
         path.path_entry_hash()?,
         commitment_hash.clone(),
@@ -1376,6 +1428,11 @@ pub struct DnaProperties {
     pub authorized_joining_certificate_issuer: String,
     pub discipline: String,
     pub minimum_validators: u32,
+    /// Minimum seconds that must elapse since a StudyClaim was created before
+    /// reclaim_abandoned_claim may free that slot.
+    /// 0 = no minimum (dev/test bypass — same pattern as empty issuer key).
+    #[serde(default)]
+    pub min_claim_timeout_secs: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -1807,6 +1864,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "StudyClaim.validation_request_hash does not point to a ValidationRequest"
                         .into(),
                 )))?;
+            // Cross-check: claim.request_ref must equal the ValidationRequest's
+            // data_hash.  Prevents a claim referencing a benign ValidationRequest
+            // for COI-check purposes while actually targeting a different study.
+            if req.data_hash != claim.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "StudyClaim.request_ref does not match \
+                     ValidationRequest.data_hash — the claim is for a different study".into(),
+                ));
+            }
             if claim.validator_institution.trim().is_empty() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Validators must declare an institutional affiliation \
@@ -1824,6 +1890,20 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             Ok(ValidateCallbackResult::Valid)
         }
+
+        // --- Commitment links are immutable — block deletions ----------------
+        //
+        // A validator who deletes their own RequestToCommitment link can
+        // re-open the commitment phase gate and block reveal_researcher_result
+        // indefinitely.  Commitment links must be as permanent as the
+        // CommitmentAnchor entry itself.
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToCommitment,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToCommitment links are immutable — \
+             validator commitments cannot be retracted".into(),
+        )),
 
         // --- Membrane proof — format check (after network join) ---
         //
@@ -2083,6 +2163,8 @@ pub fn force_finalize_round(
     }
 
     // 3. Check round age via the ValidationRequest's action timestamp.
+    // If the VR cannot be found or the call fails, abort conservatively —
+    // we cannot verify the round has timed out, so we must not finalise.
     let vr_response = call(
         CallTargetCell::OtherRole("attestation".into()),
         ZomeName::from("attestation_coordinator"),
@@ -2090,16 +2172,23 @@ pub fn force_finalize_round(
         None,
         request_ref.clone(),
     )?;
-    if let ZomeCallResponse::Ok(extern_io) = vr_response {
-        let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
-        if let Some(vr) = maybe_vr {
-            let now = sys_time()?;
-            let vr_time = vr.action().timestamp();
-            let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
-            if elapsed_secs < ROUND_TIMEOUT_SECS {
-                return Ok(None); // Round has not timed out yet.
+    match vr_response {
+        ZomeCallResponse::Ok(extern_io) => {
+            let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
+            match maybe_vr {
+                Some(vr) => {
+                    let now = sys_time()?;
+                    let vr_time = vr.action().timestamp();
+                    let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
+                    if elapsed_secs < ROUND_TIMEOUT_SECS {
+                        return Ok(None); // Round has not timed out yet.
+                    }
+                    // Age check passed — fall through to write.
+                }
+                None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
             }
         }
+        _ => return Ok(None), // Cross-DNA call failed — abort conservatively.
     }
 
     // 4-7. Assemble and write with whatever attestations are present.
@@ -2158,52 +2247,57 @@ fn write_harmony_record(
     let disc_anchor = discipline_anchor(&discipline)?;
     create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
-    // Optionally issue badge.
+    // Issue badge — skip if the researcher's identity cannot be resolved.
+    // Falling back to a validator pubkey would issue a badge to the wrong
+    // recipient; it is safer to skip issuance than to mis-attribute.
     if let Some(badge_type) = evaluate_badge(&agreement_level, participating_validators.len()) {
-        let issued_to = {
-            let resp = call(
-                CallTargetCell::OtherRole("attestation".into()),
-                ZomeName::from("attestation_coordinator"),
-                FunctionName::from("get_validation_request_for_data_hash"),
-                None,
-                request_ref.clone(),
-            );
-            match resp {
-                Ok(ZomeCallResponse::Ok(extern_io)) => {
-                    let maybe_record: Option<Record> = extern_io.decode().unwrap_or(None);
-                    maybe_record
-                        .map(|r| r.action().author().clone())
-                        .unwrap_or_else(|| participating_validators
-                            .first()
-                            .cloned()
-                            .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()))
-                }
-                _ => participating_validators
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
+        let resp = call(
+            CallTargetCell::OtherRole("attestation".into()),
+            ZomeName::from("attestation_coordinator"),
+            FunctionName::from("get_validation_request_for_data_hash"),
+            None,
+            request_ref.clone(),
+        );
+        let maybe_researcher: Option<AgentPubKey> = match resp {
+            Ok(ZomeCallResponse::Ok(extern_io)) => {
+                extern_io
+                    .decode::<Option<Record>>()
+                    .ok()
+                    .flatten()
+                    .map(|r| r.action().author().clone())
             }
+            _ => None,
         };
-        let type_anchor = badge_type_anchor(&badge_type)?;
-        let badge = ReproducibilityBadge {
-            study_ref:           request_ref.clone(),
-            issued_to,
-            badge_type,
-            harmony_record_ref:  record_hash.clone(),
-        };
-        let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
-        create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
-        create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+        if let Some(issued_to) = maybe_researcher {
+            let type_anchor = badge_type_anchor(&badge_type)?;
+            let badge = ReproducibilityBadge {
+                study_ref:          request_ref.clone(),
+                issued_to,
+                badge_type,
+                harmony_record_ref: record_hash.clone(),
+            };
+            let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
+            create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
+            create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+        }
+        // If researcher identity is unknown, skip badge issuance rather than
+        // mis-attributing the badge to a validator.
     }
 
-    // Update validator reputations.
-    for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
-        let _ = _update_reputation_internal(
-            record.action().author().clone(),
-            attestation.discipline.clone(),
-            attestation.outcome.clone(),
-            attestation.time_invested_secs,
-        );
+    // Automatic reputation update — only runs in dev/test mode (system_coordinator_key
+    // is empty). In production the validate() gate on ValidatorReputation requires
+    // system_coordinator_key authorship, so these calls would silently fail.
+    // Explicit reputation updates go through update_validator_reputation().
+    let coord_props = DnaProperties::try_from_dna_properties()?;
+    if coord_props.system_coordinator_key.is_empty() {
+        for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
+            let _ = _update_reputation_internal(
+                record.action().author().clone(),
+                attestation.discipline.clone(),
+                attestation.outcome.clone(),
+                attestation.time_invested_secs,
+            );
+        }
     }
 
     Ok(record_hash)
@@ -2821,10 +2915,42 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- ReproducibilityBadge create: open to any participant ------------
+        // --- ReproducibilityBadge create: verify harmony_record_ref and author --
+        //
+        // Three network-verifiable constraints:
+        //   1. harmony_record_ref must point to a live HarmonyRecord.
+        //   2. badge.study_ref must match HarmonyRecord.request_ref.
+        //   3. Badge author must be listed in participating_validators.
+        //
+        // Badge type vs. agreement_level consistency cannot be checked here
+        // (would require duplicating evaluate_badge logic) — that is a
+        // coordinator-layer concern.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ReproducibilityBadge(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ReproducibilityBadge(ref badge),
+            ref action,
+            ..
+        }) => {
+            let hr_record = must_get_valid_record(badge.harmony_record_ref.clone())?;
+            let harmony_record: HarmonyRecord = hr_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "badge.harmony_record_ref does not point to a HarmonyRecord".into()
+                )))?;
+            if badge.study_ref != harmony_record.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ReproducibilityBadge.study_ref does not match the \
+                     referenced HarmonyRecord.request_ref".into(),
+                ));
+            }
+            if !harmony_record.participating_validators.contains(&action.author) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only validators who participated in the round may issue a badge".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- ValidatorReputation create: only system_coordinator_key --------
         //
@@ -2927,6 +3053,37 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             Ok(ValidateCallbackResult::Valid)
         }
+
+        // --- Block deletion of permanent index links -------------------------
+        //
+        // RequestToHarmonyRecord and StudyToBadge links are the primary
+        // discoverability indexes for immutable entries. Allowing deletions
+        // would let a validator who triggered finalisation hide the outcome
+        // from all future queries (the entry itself is immutable, but the
+        // index link is not).
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToHarmonyRecord,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToHarmonyRecord links are immutable — \
+             the finalisation index cannot be removed".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::StudyToBadge,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "StudyToBadge links are immutable — \
+             issued badges cannot be hidden".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::AllDecisions,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "AllDecisions links are immutable — \
+             the governance decision index is append-only".into(),
+        )),
 
         // All other ops: valid. Public DHT — open read is the design intent.
         _ => Ok(ValidateCallbackResult::Valid),

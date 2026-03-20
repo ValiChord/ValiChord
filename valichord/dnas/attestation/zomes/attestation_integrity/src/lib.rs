@@ -16,6 +16,11 @@ pub struct DnaProperties {
     pub authorized_joining_certificate_issuer: String,
     pub discipline: String,
     pub minimum_validators: u32,
+    /// Minimum seconds that must elapse since a StudyClaim was created before
+    /// reclaim_abandoned_claim may free that slot.
+    /// 0 = no minimum (dev/test bypass — same pattern as empty issuer key).
+    #[serde(default)]
+    pub min_claim_timeout_secs: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +452,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "StudyClaim.validation_request_hash does not point to a ValidationRequest"
                         .into(),
                 )))?;
+            // Cross-check: claim.request_ref must equal the ValidationRequest's
+            // data_hash.  Prevents a claim referencing a benign ValidationRequest
+            // for COI-check purposes while actually targeting a different study.
+            if req.data_hash != claim.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "StudyClaim.request_ref does not match \
+                     ValidationRequest.data_hash — the claim is for a different study".into(),
+                ));
+            }
             if claim.validator_institution.trim().is_empty() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Validators must declare an institutional affiliation \
@@ -464,6 +478,20 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             Ok(ValidateCallbackResult::Valid)
         }
+
+        // --- Commitment links are immutable — block deletions ----------------
+        //
+        // A validator who deletes their own RequestToCommitment link can
+        // re-open the commitment phase gate and block reveal_researcher_result
+        // indefinitely.  Commitment links must be as permanent as the
+        // CommitmentAnchor entry itself.
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToCommitment,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToCommitment links are immutable — \
+             validator commitments cannot be retracted".into(),
+        )),
 
         // --- Membrane proof — format check (after network join) ---
         //

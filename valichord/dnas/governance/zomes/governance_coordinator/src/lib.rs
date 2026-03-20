@@ -192,6 +192,8 @@ pub fn force_finalize_round(
     }
 
     // 3. Check round age via the ValidationRequest's action timestamp.
+    // If the VR cannot be found or the call fails, abort conservatively —
+    // we cannot verify the round has timed out, so we must not finalise.
     let vr_response = call(
         CallTargetCell::OtherRole("attestation".into()),
         ZomeName::from("attestation_coordinator"),
@@ -199,16 +201,23 @@ pub fn force_finalize_round(
         None,
         request_ref.clone(),
     )?;
-    if let ZomeCallResponse::Ok(extern_io) = vr_response {
-        let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
-        if let Some(vr) = maybe_vr {
-            let now = sys_time()?;
-            let vr_time = vr.action().timestamp();
-            let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
-            if elapsed_secs < ROUND_TIMEOUT_SECS {
-                return Ok(None); // Round has not timed out yet.
+    match vr_response {
+        ZomeCallResponse::Ok(extern_io) => {
+            let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
+            match maybe_vr {
+                Some(vr) => {
+                    let now = sys_time()?;
+                    let vr_time = vr.action().timestamp();
+                    let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
+                    if elapsed_secs < ROUND_TIMEOUT_SECS {
+                        return Ok(None); // Round has not timed out yet.
+                    }
+                    // Age check passed — fall through to write.
+                }
+                None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
             }
         }
+        _ => return Ok(None), // Cross-DNA call failed — abort conservatively.
     }
 
     // 4-7. Assemble and write with whatever attestations are present.
@@ -267,52 +276,57 @@ fn write_harmony_record(
     let disc_anchor = discipline_anchor(&discipline)?;
     create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
-    // Optionally issue badge.
+    // Issue badge — skip if the researcher's identity cannot be resolved.
+    // Falling back to a validator pubkey would issue a badge to the wrong
+    // recipient; it is safer to skip issuance than to mis-attribute.
     if let Some(badge_type) = evaluate_badge(&agreement_level, participating_validators.len()) {
-        let issued_to = {
-            let resp = call(
-                CallTargetCell::OtherRole("attestation".into()),
-                ZomeName::from("attestation_coordinator"),
-                FunctionName::from("get_validation_request_for_data_hash"),
-                None,
-                request_ref.clone(),
-            );
-            match resp {
-                Ok(ZomeCallResponse::Ok(extern_io)) => {
-                    let maybe_record: Option<Record> = extern_io.decode().unwrap_or(None);
-                    maybe_record
-                        .map(|r| r.action().author().clone())
-                        .unwrap_or_else(|| participating_validators
-                            .first()
-                            .cloned()
-                            .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()))
-                }
-                _ => participating_validators
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| agent_info().map(|i| i.agent_initial_pubkey).unwrap()),
+        let resp = call(
+            CallTargetCell::OtherRole("attestation".into()),
+            ZomeName::from("attestation_coordinator"),
+            FunctionName::from("get_validation_request_for_data_hash"),
+            None,
+            request_ref.clone(),
+        );
+        let maybe_researcher: Option<AgentPubKey> = match resp {
+            Ok(ZomeCallResponse::Ok(extern_io)) => {
+                extern_io
+                    .decode::<Option<Record>>()
+                    .ok()
+                    .flatten()
+                    .map(|r| r.action().author().clone())
             }
+            _ => None,
         };
-        let type_anchor = badge_type_anchor(&badge_type)?;
-        let badge = ReproducibilityBadge {
-            study_ref:           request_ref.clone(),
-            issued_to,
-            badge_type,
-            harmony_record_ref:  record_hash.clone(),
-        };
-        let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
-        create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
-        create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+        if let Some(issued_to) = maybe_researcher {
+            let type_anchor = badge_type_anchor(&badge_type)?;
+            let badge = ReproducibilityBadge {
+                study_ref:          request_ref.clone(),
+                issued_to,
+                badge_type,
+                harmony_record_ref: record_hash.clone(),
+            };
+            let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
+            create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
+            create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+        }
+        // If researcher identity is unknown, skip badge issuance rather than
+        // mis-attributing the badge to a validator.
     }
 
-    // Update validator reputations.
-    for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
-        let _ = _update_reputation_internal(
-            record.action().author().clone(),
-            attestation.discipline.clone(),
-            attestation.outcome.clone(),
-            attestation.time_invested_secs,
-        );
+    // Automatic reputation update — only runs in dev/test mode (system_coordinator_key
+    // is empty). In production the validate() gate on ValidatorReputation requires
+    // system_coordinator_key authorship, so these calls would silently fail.
+    // Explicit reputation updates go through update_validator_reputation().
+    let coord_props = DnaProperties::try_from_dna_properties()?;
+    if coord_props.system_coordinator_key.is_empty() {
+        for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
+            let _ = _update_reputation_internal(
+                record.action().author().clone(),
+                attestation.discipline.clone(),
+                attestation.outcome.clone(),
+                attestation.time_invested_secs,
+            );
+        }
     }
 
     Ok(record_hash)

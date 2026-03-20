@@ -219,10 +219,42 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- ReproducibilityBadge create: open to any participant ------------
+        // --- ReproducibilityBadge create: verify harmony_record_ref and author --
+        //
+        // Three network-verifiable constraints:
+        //   1. harmony_record_ref must point to a live HarmonyRecord.
+        //   2. badge.study_ref must match HarmonyRecord.request_ref.
+        //   3. Badge author must be listed in participating_validators.
+        //
+        // Badge type vs. agreement_level consistency cannot be checked here
+        // (would require duplicating evaluate_badge logic) — that is a
+        // coordinator-layer concern.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ReproducibilityBadge(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ReproducibilityBadge(ref badge),
+            ref action,
+            ..
+        }) => {
+            let hr_record = must_get_valid_record(badge.harmony_record_ref.clone())?;
+            let harmony_record: HarmonyRecord = hr_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "badge.harmony_record_ref does not point to a HarmonyRecord".into()
+                )))?;
+            if badge.study_ref != harmony_record.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ReproducibilityBadge.study_ref does not match the \
+                     referenced HarmonyRecord.request_ref".into(),
+                ));
+            }
+            if !harmony_record.participating_validators.contains(&action.author) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only validators who participated in the round may issue a badge".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- ValidatorReputation create: only system_coordinator_key --------
         //
@@ -325,6 +357,37 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             Ok(ValidateCallbackResult::Valid)
         }
+
+        // --- Block deletion of permanent index links -------------------------
+        //
+        // RequestToHarmonyRecord and StudyToBadge links are the primary
+        // discoverability indexes for immutable entries. Allowing deletions
+        // would let a validator who triggered finalisation hide the outcome
+        // from all future queries (the entry itself is immutable, but the
+        // index link is not).
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToHarmonyRecord,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToHarmonyRecord links are immutable — \
+             the finalisation index cannot be removed".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::StudyToBadge,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "StudyToBadge links are immutable — \
+             issued badges cannot be hidden".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::AllDecisions,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "AllDecisions links are immutable — \
+             the governance decision index is append-only".into(),
+        )),
 
         // All other ops: valid. Public DHT — open read is the design intent.
         _ => Ok(ValidateCallbackResult::Valid),
