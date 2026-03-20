@@ -4,15 +4,16 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 // ---------------------------------------------------------------------------
 // DNA Properties — one key, baked into the DNA hash.
 //
-// system_coordinator_key gates GovernanceDecision creation only — governance
-// decisions represent human deliberation outcomes and require a designated
-// recorder.
+// system_coordinator_key gates GovernanceDecision AND ValidatorReputation
+// writes — governance decisions represent human deliberation outcomes, and
+// reputation records are authoritative system data; both require a designated
+// key-holder.
 //
-// HarmonyRecord, ReproducibilityBadge, and ValidatorReputation are NOT
-// author-gated: any participant who was part of the round can trigger
-// finalisation. Content correctness is enforced in the coordinator
-// (completeness check + idempotency) rather than by trusting a single agent.
-// This keeps the system consistent with Holochain's decentralised model —
+// HarmonyRecord and ReproducibilityBadge are NOT author-gated: any
+// participant who was part of the round can trigger finalisation. Content
+// correctness is enforced in the coordinator (completeness check +
+// idempotency) rather than by trusting a single agent. This keeps the system
+// consistent with Holochain's decentralised model —
 // no single node is a required coordinator for protocol completion.
 //
 // Remaining limitation (Phase 1): validate() cannot perform cross-DNA lookups
@@ -223,10 +224,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ReproducibilityBadge(_), ..
         }) => Ok(ValidateCallbackResult::Valid),
 
-        // --- ValidatorReputation create: open to any participant -------------
+        // --- ValidatorReputation create: only system_coordinator_key --------
+        //
+        // Reputation records are authoritative system data — only the
+        // designated system coordinator may mint or update them.
+        // Empty key = dev/test bypass (same pattern as GovernanceDecision).
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ValidatorReputation(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if !props.system_coordinator_key.is_empty()
+                && action.author.to_string() != props.system_coordinator_key
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only system_coordinator_key may create ValidatorReputation entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- Immutability: block updates to HarmonyRecord -------------------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
@@ -249,10 +266,22 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ReproducibilityBadge is immutable — badges cannot be altered after issuance".into(),
         )),
 
-        // --- ValidatorReputation update: open to any participant -------------
+        // --- ValidatorReputation update: only system_coordinator_key --------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
-            app_entry: EntryTypes::ValidatorReputation(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if !props.system_coordinator_key.is_empty()
+                && action.author.to_string() != props.system_coordinator_key
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only system_coordinator_key may update ValidatorReputation entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
 

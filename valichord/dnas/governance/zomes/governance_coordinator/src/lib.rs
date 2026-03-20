@@ -12,8 +12,8 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 //
 // ALL read functions are unrestricted — this DNA is the HTTP Gateway target.
 // Write functions are NOT listed here; they are validated by validate() author
-// checks (harmony_record_creator_key / system_coordinator_key). Only the
-// authorised conductor may successfully call them.
+// checks (system_coordinator_key). Only the authorised conductor may
+// successfully call them.
 
 #[hdk_extern]
 pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
@@ -320,7 +320,7 @@ fn write_harmony_record(
 
 /// Record a governance vote outcome on-chain.
 ///
-/// Only the harmony_record_creator_key agent may write GovernanceDecision
+/// Only the system_coordinator_key agent may write GovernanceDecision
 /// entries — validate() enforces the authorship check.  The entry is
 /// immutable after creation (validate() blocks updates and deletes).
 #[hdk_extern]
@@ -364,7 +364,10 @@ pub fn get_harmony_record(
         LinkQuery::try_new(anchor, LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
-    match links.first() {
+    // Use last() — idempotency guard means there should be at most one record,
+    // but defensive ordering ensures we surface the latest if a race ever
+    // produced duplicates (links are gossip-ordered by timestamp).
+    match links.last() {
         Some(link) => {
             let target = link
                 .target

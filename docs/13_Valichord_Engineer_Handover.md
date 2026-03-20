@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 1.7 — March 2026
+**Version:** 1.8 — March 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -278,7 +278,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 ## Security Audit Summary (March 2026)
 
-Three LLM red-team audits (Gemini, ChatGPT, Grok) were run against the full codebase. Findings and dispositions are recorded here for future auditors.
+Four LLM red-team audits were run against the full codebase (ChatGPT, Gemini, Grok ×2). Findings and dispositions are recorded here for future auditors.
 
 ### Implemented fixes
 
@@ -292,15 +292,18 @@ Three LLM red-team audits (Gemini, ChatGPT, Grok) were run against the full code
 | Commitment uniqueness + claim binding (`notify_commitment_sealed`) | ChatGPT | High | Two new guards: (1) caller must hold a live `StudyClaim`; (2) one commitment per validator per study |
 | HarmonyRecord author guard | Grok | High | `validate()` in governance_integrity now requires `action.author ∈ record.participating_validators` — prevents outsider forgery winning the idempotency race |
 | `num_validators_required` minimum enforcement | Gemini (second audit) | High | New `validate()` arm for `ValidationRequest` create checks `vr.num_validators_required >= props.minimum_validators`; `minimum_validators = 0` is the dev/test bypass |
-| Membrane proof comment corrected | Grok | Low | Comment incorrectly said `rmp_serde` encodes `Vec<u8>` as "msgpack array of unsigned integers" — it encodes as msgpack **bin** format. JS issuer must use `Buffer.from`/`Uint8Array`, not `Array.from` |
+| Membrane proof comment corrected | Grok (first) | Low | Comment incorrectly said `rmp_serde` encodes `Vec<u8>` as "msgpack array of unsigned integers" — it encodes as msgpack **bin** format. JS issuer must use `Buffer.from`/`Uint8Array`, not `Array.from` |
+| `ValidatorReputation` write gate | Grok (second) | High | `validate()` arms for `ValidatorReputation` create and update were `Valid` unconditionally — anyone could mint or alter reputation scores. Both now check `action.author == system_coordinator_key` (empty = dev/test bypass) |
+| `get_harmony_record` uses `.last()` | Grok (second) | Low | Was `.first()` — defensive: idempotency guard should prevent duplicates, but `.last()` is consistent with `get_validator_reputation` and more robust if gossip delivers links out of order |
+| Stale `harmony_record_creator_key` removed | Grok (second) | Low | Key was present in `governance/dna.yaml` and `happ.yaml` but absent from `DnaProperties` struct (silently ignored). Removed to eliminate confusion; doc comments updated |
 
 ### Dismissed findings (with reasoning)
 
 | Finding | Source | Why dismissed |
 |---|---|---|
-| PhaseMarker forgery | Grok | PhaseMarker is explicitly UI-only; `validate()` cannot gate creates without also blocking the coordinator. Protocol gates on commitment count only, not PhaseMarker. |
+| PhaseMarker forgery / anchor_proof | Grok (first/second) | PhaseMarker is explicitly UI-only; `validate()` cannot gate creates without also blocking the coordinator. Protocol gates on commitment count only. Adding `anchor_proof` would change the DNA hash (breaking change). |
 | Phase-marker race condition | Gemini (second) | Multiple simultaneous PhaseMarkers for RevealOpen are harmless — all identical, `get_current_phase` returns last link. Not a protocol gate. |
-| Researcher early-reveal breaks blind reveal | Grok | Validators already committed their outcomes (bound by SHA-256 hash); researcher revealing first cannot influence committed validators. |
+| Researcher early-reveal breaks blind reveal | Grok (first/second) | Validators already committed their outcomes (bound by SHA-256 hash); researcher revealing first cannot influence committed validators. |
 | CommitmentSealedInput accidental leakage | Gemini (second) | Hypothetical future dev error, not a current vulnerability. Addressed with a doc comment on the struct (see `attestation_integrity/src/lib.rs`). |
 | Nonce entropy weakness | Gemini (second) | `random_bytes(32)` uses OS RNG — 256-bit entropy. No WASM-specific entropy degradation in Holochain conductors. |
 | StudyClaim delete/recreate resets timeout | Gemini (second) | `force_finalize_round` computes age from `ValidationRequest.action().timestamp()` — immutable. StudyClaim timestamps are irrelevant. |
@@ -308,7 +311,9 @@ Three LLM red-team audits (Gemini, ChatGPT, Grok) were run against the full code
 | post_commit cross-DNA call deadlock | Gemini (second) | Cross-DNA `call(OtherRole(...))` from `post_commit` is the intended Holochain pattern. "Must not write data" means local source chain only. Error is already non-fatal. |
 | Empty issuer bypass | Gemini (second) | Already documented as dev/test bypass — same pattern as governance `system_coordinator_key`. Not new. |
 | Credential revocation gap | Grok / Gemini (second) | Fundamental Holochain DHT architecture limitation. No CRL mechanism possible without significant additional infrastructure. Phase 2. |
-| Self-assignment collusion | Grok | Acknowledged architectural trade-off. Requires trusted randomness oracle for Phase 1 `select_validators`. |
+| Self-assignment collusion | Grok (first/second) | Acknowledged architectural trade-off. Requires trusted randomness oracle for Phase 1 `select_validators`. |
+| HarmonyRecord full content forgery | Grok (second) | Partial fix (author ∈ participants) is in place. Full content verification requires cross-DNA calls in `validate()`, which is architecturally impossible in Holochain HDI. Phase 2. |
+| Cross-link deletion by non-author | Grok (second) | Not real in Holochain — only the link author can delete their own links. Any agent who creates a link owns it; non-authors cannot delete it. |
 
 ### Known architectural gaps (Phase 1 / Phase 2)
 

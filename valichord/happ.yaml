@@ -45,8 +45,7 @@ roles:
       path: "workdir/governance.dna"
       modifiers:
         properties:
-          # Placeholder keys — overridden per-player in Tryorama via rolesSettings.
-          # In production these are the assembly coordinator and system coordinator keys.
-          system_coordinator_key:     "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
-          harmony_record_creator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+          # Placeholder key — overridden per-player in Tryorama via rolesSettings.
+          # In production this is the system coordinator key.
+          system_coordinator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
         network_seed: "valichord-test"

@@ -1903,8 +1903,8 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 //
 // ALL read functions are unrestricted — this DNA is the HTTP Gateway target.
 // Write functions are NOT listed here; they are validated by validate() author
-// checks (harmony_record_creator_key / system_coordinator_key). Only the
-// authorised conductor may successfully call them.
+// checks (system_coordinator_key). Only the authorised conductor may
+// successfully call them.
 
 #[hdk_extern]
 pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
@@ -2211,7 +2211,7 @@ fn write_harmony_record(
 
 /// Record a governance vote outcome on-chain.
 ///
-/// Only the harmony_record_creator_key agent may write GovernanceDecision
+/// Only the system_coordinator_key agent may write GovernanceDecision
 /// entries — validate() enforces the authorship check.  The entry is
 /// immutable after creation (validate() blocks updates and deletes).
 #[hdk_extern]
@@ -2255,7 +2255,10 @@ pub fn get_harmony_record(
         LinkQuery::try_new(anchor, LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
-    match links.first() {
+    // Use last() — idempotency guard means there should be at most one record,
+    // but defensive ordering ensures we surface the latest if a race ever
+    // produced duplicates (links are gossip-ordered by timestamp).
+    match links.last() {
         Some(link) => {
             let target = link
                 .target
@@ -2603,12 +2606,13 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 // ---------------------------------------------------------------------------
 // DNA Properties — one key, baked into the DNA hash.
 //
-// system_coordinator_key gates GovernanceDecision creation only — governance
-// decisions represent human deliberation outcomes and require a designated
-// recorder.
+// system_coordinator_key gates GovernanceDecision AND ValidatorReputation
+// writes — governance decisions represent human deliberation outcomes, and
+// reputation records are authoritative system data; both require a designated
+// key-holder.
 //
-// HarmonyRecord, ReproducibilityBadge, and ValidatorReputation are NOT
-// author-gated: any participant who was part of the round can trigger
+// HarmonyRecord and ReproducibilityBadge are NOT author-gated: any
+// participant who was part of the round can trigger
 // finalisation. Content correctness is enforced in the coordinator
 // (completeness check + idempotency) rather than by trusting a single agent.
 // This keeps the system consistent with Holochain's decentralised model —
@@ -2822,10 +2826,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ReproducibilityBadge(_), ..
         }) => Ok(ValidateCallbackResult::Valid),
 
-        // --- ValidatorReputation create: open to any participant -------------
+        // --- ValidatorReputation create: only system_coordinator_key --------
+        //
+        // Reputation records are authoritative system data — only the
+        // designated system coordinator may mint or update them.
+        // Empty key = dev/test bypass (same pattern as GovernanceDecision).
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::ValidatorReputation(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if !props.system_coordinator_key.is_empty()
+                && action.author.to_string() != props.system_coordinator_key
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only system_coordinator_key may create ValidatorReputation entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- Immutability: block updates to HarmonyRecord -------------------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
@@ -2848,10 +2868,22 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ReproducibilityBadge is immutable — badges cannot be altered after issuance".into(),
         )),
 
-        // --- ValidatorReputation update: open to any participant -------------
+        // --- ValidatorReputation update: only system_coordinator_key --------
         FlatOp::RegisterUpdate(OpUpdate::Entry {
-            app_entry: EntryTypes::ValidatorReputation(_), ..
-        }) => Ok(ValidateCallbackResult::Valid),
+            app_entry: EntryTypes::ValidatorReputation(_),
+            ref action,
+            ..
+        }) => {
+            let props = DnaProperties::try_from_dna_properties()?;
+            if !props.system_coordinator_key.is_empty()
+                && action.author.to_string() != props.system_coordinator_key
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only system_coordinator_key may update ValidatorReputation entries".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
 
