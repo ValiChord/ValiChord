@@ -19,6 +19,10 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     let zome = zome_info()?.name;
     let mut public_fns: HashSet<GrantedFunction> = HashSet::new();
+    // force_finalize_round is intentionally NOT listed here — it is a write
+    // function (creates a HarmonyRecord) and must not be callable by anonymous
+    // HTTP Gateway clients.  Participants call it via the author grant from
+    // their own conductor (same-agent cross-DNA call from the attestation cell).
     for fn_name in &[
         "get_harmony_record",
         "get_harmony_records_by_discipline",
@@ -26,7 +30,6 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_badges_for_study",
         "get_badges_by_type",
         "get_all_governance_decisions",
-        "force_finalize_round",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -101,6 +104,9 @@ pub fn check_and_create_harmony_record(
     }
 
     // 3. Completeness gate: require all expected attestations before writing.
+    // If the quorum count cannot be determined (ValidationRequest not found or
+    // cross-DNA call fails), return None conservatively — do NOT default to 1,
+    // as that would allow a single attestation to finalise any study.
     let min_validators: u8 = {
         let resp = call(
             CallTargetCell::OtherRole("attestation".into()),
@@ -110,8 +116,11 @@ pub fn check_and_create_harmony_record(
             request_ref.clone(),
         )?;
         match resp {
-            ZomeCallResponse::Ok(extern_io) => extern_io.decode().unwrap_or(1u8),
-            _ => 1u8,
+            ZomeCallResponse::Ok(extern_io) => match extern_io.decode::<u8>() {
+                Ok(n) => n,
+                Err(_) => return Ok(None), // Cannot decode quorum — abort conservatively.
+            },
+            _ => return Ok(None), // Call failed — abort conservatively.
         }
     };
     if (attestation_records.len() as u8) < min_validators {

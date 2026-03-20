@@ -330,15 +330,20 @@ pub fn get_validation_request_for_data_hash(
 
 /// Return the num_validators_required for the ValidationRequest identified by
 /// data_hash.  Called by the Governance DNA's check_and_create_harmony_record
-/// to enforce completeness before writing a HarmonyRecord.  Returns 1 as a
-/// safe default if the request is not found (allows finalisation to proceed
-/// rather than blocking indefinitely on a missing request).
+/// to enforce completeness before writing a HarmonyRecord.
+///
+/// Returns an error if the ValidationRequest is not found or has not yet
+/// propagated.  Callers must treat this error conservatively — do NOT default
+/// to 1, as that would allow a single attestation to finalise any study
+/// regardless of the agreed quorum.
 #[hdk_extern]
 pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> {
-    Ok(get_validation_request_for_data_hash(data_hash)?
+    get_validation_request_for_data_hash(data_hash)?
         .and_then(|r| r.entry().to_app_option::<ValidationRequest>().ok().flatten())
         .map(|vr| vr.num_validators_required)
-        .unwrap_or(1))
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "ValidationRequest not found — cannot determine num_validators_required".into()
+        )))
 }
 
 // ---------------------------------------------------------------------------
@@ -1555,6 +1560,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ResearcherReveal is immutable — the verified reveal cannot be changed".into(),
         )),
 
+        // ValidationRequest is immutable after submission — researchers cannot
+        // silently lower num_validators_required to bypass the quorum gate.
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ValidationRequest(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "ValidationRequest is immutable — the study submission cannot be altered".into(),
+        )),
+
         // Generic update: only the original author may update other entry types.
         FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
@@ -1615,6 +1628,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                 "ResearcherReveal is immutable — cannot be deleted".into(),
                             ));
                         }
+                        Some(EntryTypes::ValidationRequest(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ValidationRequest is immutable — cannot be deleted".into(),
+                            ));
+                        }
                         _ => {}
                     }
                 }
@@ -1673,7 +1691,16 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- Membrane proof — full credential check (after network join) ---
+        // --- Membrane proof — format check (after network join) ---
+        //
+        // The integrity zome can only run the format check here because
+        // `verify_signature` is an HDK host function that is NOT available in
+        // HDI integrity zomes. The full Ed25519 signature verification against the
+        // DNA-properties issuer key runs in the coordinator's `init()` callback,
+        // which fails the cell if the proof is invalid and prevents any subsequent
+        // writes. An agent with a forged proof can join the DHT (their genesis
+        // actions pass format validation) but cannot write any protocol data
+        // because init() never succeeds.
         FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg {
             membrane_proof, ..
         }) => validate_membrane_proof(membrane_proof),
@@ -1686,6 +1713,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 fn validate_membrane_proof(
     membrane_proof: Option<MembraneProof>,
 ) -> ExternResult<ValidateCallbackResult> {
+    // Architecture note: this callback can only perform format validation.
+    // `verify_signature` is an HDK host function that is NOT available in
+    // HDI integrity zomes. The full Ed25519 credential check (issuer key from
+    // DNA properties, signature over the joining agent's pubkey) is implemented
+    // in `verify_membrane_proof()` in the coordinator's `init()` callback.
+    // If that check fails, `init()` returns `InitCallbackResult::Fail`, the
+    // cell cannot be used to write any protocol data, and the agent is
+    // effectively a read-only observer on the DHT.
     let proof = match membrane_proof {
         None => {
             return Ok(ValidateCallbackResult::Invalid(
@@ -1696,11 +1731,9 @@ fn validate_membrane_proof(
     };
     if proof.bytes().len() < 64 {
         return Ok(ValidateCallbackResult::Invalid(
-            "Membrane proof is too short to be a valid credential signature".into(),
+            "Membrane proof is too short to contain a 64-byte Ed25519 signature".into(),
         ));
     }
-    // TODO: verify signature over joining agent's key using
-    // DnaProperties::try_from_dna_properties()?.authorized_joining_certificate_issuer
     Ok(ValidateCallbackResult::Valid)
 }
 
@@ -1743,6 +1776,10 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     let zome = zome_info()?.name;
     let mut public_fns: HashSet<GrantedFunction> = HashSet::new();
+    // force_finalize_round is intentionally NOT listed here — it is a write
+    // function (creates a HarmonyRecord) and must not be callable by anonymous
+    // HTTP Gateway clients.  Participants call it via the author grant from
+    // their own conductor (same-agent cross-DNA call from the attestation cell).
     for fn_name in &[
         "get_harmony_record",
         "get_harmony_records_by_discipline",
@@ -1750,7 +1787,6 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_badges_for_study",
         "get_badges_by_type",
         "get_all_governance_decisions",
-        "force_finalize_round",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -1825,6 +1861,9 @@ pub fn check_and_create_harmony_record(
     }
 
     // 3. Completeness gate: require all expected attestations before writing.
+    // If the quorum count cannot be determined (ValidationRequest not found or
+    // cross-DNA call fails), return None conservatively — do NOT default to 1,
+    // as that would allow a single attestation to finalise any study.
     let min_validators: u8 = {
         let resp = call(
             CallTargetCell::OtherRole("attestation".into()),
@@ -1834,8 +1873,11 @@ pub fn check_and_create_harmony_record(
             request_ref.clone(),
         )?;
         match resp {
-            ZomeCallResponse::Ok(extern_io) => extern_io.decode().unwrap_or(1u8),
-            _ => 1u8,
+            ZomeCallResponse::Ok(extern_io) => match extern_io.decode::<u8>() {
+                Ok(n) => n,
+                Err(_) => return Ok(None), // Cannot decode quorum — abort conservatively.
+            },
+            _ => return Ok(None), // Call failed — abort conservatively.
         }
     };
     if (attestation_records.len() as u8) < min_validators {

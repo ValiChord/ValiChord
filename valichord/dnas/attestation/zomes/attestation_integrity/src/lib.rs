@@ -300,6 +300,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ResearcherReveal is immutable — the verified reveal cannot be changed".into(),
         )),
 
+        // ValidationRequest is immutable after submission — researchers cannot
+        // silently lower num_validators_required to bypass the quorum gate.
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::ValidationRequest(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "ValidationRequest is immutable — the study submission cannot be altered".into(),
+        )),
+
         // Generic update: only the original author may update other entry types.
         FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
@@ -360,6 +368,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                 "ResearcherReveal is immutable — cannot be deleted".into(),
                             ));
                         }
+                        Some(EntryTypes::ValidationRequest(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ValidationRequest is immutable — cannot be deleted".into(),
+                            ));
+                        }
                         _ => {}
                     }
                 }
@@ -418,7 +431,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- Membrane proof — full credential check (after network join) ---
+        // --- Membrane proof — format check (after network join) ---
+        //
+        // The integrity zome can only run the format check here because
+        // `verify_signature` is an HDK host function not exposed by HDI.
+        // The full Ed25519 signature verification against the DNA-properties
+        // issuer key runs in the coordinator's `init()` callback, which fails
+        // the cell if the proof is invalid and prevents any subsequent writes.
         FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg {
             membrane_proof, ..
         }) => validate_membrane_proof(membrane_proof),
@@ -431,6 +450,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 fn validate_membrane_proof(
     membrane_proof: Option<MembraneProof>,
 ) -> ExternResult<ValidateCallbackResult> {
+    // Architecture note: this callback can only perform format validation.
+    // `verify_signature` is an HDK host function that is NOT available in
+    // HDI integrity zomes. The full Ed25519 credential check (issuer key from
+    // DNA properties, signature over the joining agent's pubkey) is implemented
+    // in `verify_membrane_proof()` in the coordinator's `init()` callback.
+    // If that check fails, `init()` returns `InitCallbackResult::Fail`, the
+    // cell cannot be used to write any protocol data, and the agent is
+    // effectively a read-only observer on the DHT.
     let proof = match membrane_proof {
         None => {
             return Ok(ValidateCallbackResult::Invalid(
@@ -441,11 +468,9 @@ fn validate_membrane_proof(
     };
     if proof.bytes().len() < 64 {
         return Ok(ValidateCallbackResult::Invalid(
-            "Membrane proof is too short to be a valid credential signature".into(),
+            "Membrane proof is too short to contain a 64-byte Ed25519 signature".into(),
         ));
     }
-    // TODO: verify signature over joining agent's key using
-    // DnaProperties::try_from_dna_properties()?.authorized_joining_certificate_issuer
     Ok(ValidateCallbackResult::Valid)
 }
 

@@ -330,15 +330,20 @@ pub fn get_validation_request_for_data_hash(
 
 /// Return the num_validators_required for the ValidationRequest identified by
 /// data_hash.  Called by the Governance DNA's check_and_create_harmony_record
-/// to enforce completeness before writing a HarmonyRecord.  Returns 1 as a
-/// safe default if the request is not found (allows finalisation to proceed
-/// rather than blocking indefinitely on a missing request).
+/// to enforce completeness before writing a HarmonyRecord.
+///
+/// Returns an error if the ValidationRequest is not found or has not yet
+/// propagated.  Callers must treat this error conservatively — do NOT default
+/// to 1, as that would allow a single attestation to finalise any study
+/// regardless of the agreed quorum.
 #[hdk_extern]
 pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> {
-    Ok(get_validation_request_for_data_hash(data_hash)?
+    get_validation_request_for_data_hash(data_hash)?
         .and_then(|r| r.entry().to_app_option::<ValidationRequest>().ok().flatten())
         .map(|vr| vr.num_validators_required)
-        .unwrap_or(1))
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "ValidationRequest not found — cannot determine num_validators_required".into()
+        )))
 }
 
 // ---------------------------------------------------------------------------
