@@ -2,7 +2,7 @@
 // ValiChord — Distributed Validation Infrastructure for Computational Research
 // =============================================================================
 //
-// ARCHITECTURE SCAFFOLD — v13 — March 2026
+// ARCHITECTURE SCAFFOLD — v14 — March 2026
 //
 // This file is a single-file representation of ValiChord's four Holochain
 // DNA membranes, written for a Holochain engineer to read and work from.
@@ -27,14 +27,35 @@
 //
 //   Entry types and link types:     Complete — match implemented code
 //   Validate callbacks:             Implemented and tested
-//   Coordinator functions:          Implemented — 73 integration tests passing
+//   Coordinator functions:          Implemented — 89 integration tests passing
 //   init() capability grants:       Implemented and tested
 //   DNA properties:                 In use — empty string = dev/test bypass pattern
-//   Tests:                          73 pass, 1 skipped (GoldReproducible — hardware limit)
+//   Tests:                          89 pass, 1 skipped (GoldReproducible — hardware limit)
 //
 //   AUTHORITATIVE SOURCE: valichord/dnas/ — this scaffold is an architectural
 //   reference, not a code mirror. Function stubs are structural markers;
 //   see the real crates for full implementations.
+//
+// CHANGES IN v14 (from v13)
+//
+//   ALLOCATION REDUCTION & TYPE CLEANUP (2026-03-22):
+//   - discipline_tag() now returns Cow<'static, str> — zero allocation for all
+//     named variants; only Discipline::Other("…") allocates. All three call
+//     sites (free function, ValidationAttestation::discipline_tag, and
+//     HarmonyRecord::discipline_tag) updated to match.
+//   - Added #[derive(Copy)] to TimeBreakdown, ComputationalResources, and
+//     AgreementLevel — all are small value types with no heap allocation.
+//   - Added records_for_links() private helper to DNA 3 and DNA 4 coordinator
+//     zomes, replacing 6 identical inline link→record traversal loops.
+//   - claim_study: merged two separate get_links calls (capacity check +
+//     duplicate check) into one — avoids a redundant network round-trip.
+//   - write_harmony_record (DNA 4 internal): now accepts pre-computed
+//     anchor_key: EntryHash to avoid a second path.ensure() DHT call.
+//   - package.json: exact-pin tryorama 0.19.0 (removed ^ prefix to prevent
+//     accidental upgrade before Holochain 0.6.1 / iroh migration).
+//   - Integrity zome delete validation across all four DNAs: replaced double
+//     must_get_action + must_get_valid_record with single must_get_valid_record
+//     (returns both action and entry in one DHT call).
 //
 // CHANGES IN v13 (from v12)
 //
@@ -173,6 +194,8 @@
 
 #![allow(dead_code, unused_variables, unused_imports)]
 
+use std::borrow::Cow;
+
 // =============================================================================
 // SHARED TYPES
 // In the real implementation these live in a separate `valichord_shared_types`
@@ -229,7 +252,7 @@ pub enum AttestationConfidence { High, Medium, Low }
 
 /// Phase 0's four-category time breakdown — the primary measurement goal.
 /// These categories feed the difficulty prediction model.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct TimeBreakdown {
     pub environment_setup_secs: u64,
     pub data_acquisition_secs:  u64,
@@ -269,7 +292,7 @@ pub struct UndeclaredDeviation {
     pub evidence:       String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct ComputationalResources {
     pub personal_hardware_sufficient:  bool,
     pub hpc_required:                  bool,
@@ -282,9 +305,9 @@ pub struct ComputationalResources {
 /// Shared helper — converts a Discipline to the short path-key string used in
 /// DHT path anchors. Available to all DNA modules via the shared types crate.
 ///
-/// In the real implementation, add this as an inherent method on `Discipline` or
-/// as a free function in `valichord_shared_types`.
-pub fn discipline_tag(d: &Discipline) -> String {
+/// Returns `Cow<'static, str>` — zero allocation for all named variants;
+/// only `Discipline::Other("…")` allocates.
+pub fn discipline_tag(d: &Discipline) -> Cow<'static, str> {
     match d {
         Discipline::ComputationalBiology => "computational_biology".into(),
         Discipline::ClimateScience       => "climate_science".into(),
@@ -293,7 +316,7 @@ pub fn discipline_tag(d: &Discipline) -> String {
         Discipline::Psychology           => "psychology".into(),
         Discipline::Neuroscience         => "neuroscience".into(),
         Discipline::MachineLearning      => "machine_learning".into(),
-        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()),
+        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()).into(),
     }
 }
 
@@ -924,7 +947,7 @@ pub mod attestation {
         impl ValidationAttestation {
             /// Short string identifier used in DHT path keys.
             /// Delegates to the shared `discipline_tag()` helper.
-            pub fn discipline_tag(&self) -> String {
+            pub fn discipline_tag(&self) -> Cow<'static, str> {
                 super::super::discipline_tag(&self.discipline)
             }
         }
@@ -945,7 +968,7 @@ pub mod attestation {
             pub within_tolerance: bool,
         }
 
-        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
         pub enum AgreementLevel {
             ExactMatch,
             WithinTolerance,
@@ -1462,13 +1485,7 @@ pub mod attestation {
             let links = get_links(
                 GetLinksInputBuilder::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?.build(),
             )?;
-            let mut records = Vec::new();
-            for link in links {
-                if let Some(hash) = link.target.into_action_hash() {
-                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
-                }
-            }
-            Ok(records)
+            records_for_links(links)
         }
 
         /// Return ValidatorProfile records for all validators at a given institution.
@@ -1481,13 +1498,7 @@ pub mod attestation {
             let links = get_links(
                 GetLinksInputBuilder::try_new(inst_path.path_entry_hash()?, LinkTypes::InstitutionPath)?.build(),
             )?;
-            let mut records = Vec::new();
-            for link in links {
-                if let Some(hash) = link.target.into_action_hash() {
-                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
-                }
-            }
-            Ok(records)
+            records_for_links(links)
         }
 
         /// Return all ValidationAttestation records for a given discipline.
@@ -1500,13 +1511,7 @@ pub mod attestation {
             let links = get_links(
                 GetLinksInputBuilder::try_new(disc_path.path_entry_hash()?, LinkTypes::DisciplinePath)?.build(),
             )?;
-            let mut records = Vec::new();
-            for link in links {
-                if let Some(hash) = link.target.into_action_hash() {
-                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
-                }
-            }
-            Ok(records)
+            records_for_links(links)
         }
 
         #[hdk_extern]
@@ -1785,6 +1790,20 @@ pub mod attestation {
             phase:       String,
             request_ref: ResearchHash,
         }
+
+        /// Shared link→record traversal helper.
+        /// Replaces repeated inline loops across all multi-record query functions.
+        fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? {
+                        records.push(record);
+                    }
+                }
+            }
+            Ok(records)
+        }
     }
 }
 
@@ -1891,7 +1910,7 @@ pub mod governance {
         impl HarmonyRecord {
             /// Short string identifier used in DHT path keys.
             /// Delegates to the shared `discipline_tag()` helper.
-            pub fn discipline_tag(&self) -> String {
+            pub fn discipline_tag(&self) -> Cow<'static, str> {
                 super::super::discipline_tag(&self.discipline)
             }
         }
@@ -2309,13 +2328,7 @@ pub mod governance {
             let links = get_links(
                 GetLinksInputBuilder::try_new(anchor.path_entry_hash()?, LinkTypes::AllDecisions)?.build(),
             )?;
-            let mut records = Vec::new();
-            for link in links {
-                if let Some(hash) = link.target.into_action_hash() {
-                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
-                }
-            }
-            Ok(records)
+            records_for_links(links)
         }
 
         /// Return all ReproducibilityBadge records of a given type via BadgePath index.
@@ -2333,13 +2346,7 @@ pub mod governance {
             let links = get_links(
                 GetLinksInputBuilder::try_new(path.path_entry_hash()?, LinkTypes::BadgePath)?.build(),
             )?;
-            let mut records = Vec::new();
-            for link in links {
-                if let Some(hash) = link.target.into_action_hash() {
-                    if let Some(record) = get(hash, GetOptions::network())? { records.push(record); }
-                }
-            }
-            Ok(records)
+            records_for_links(links)
         }
 
         /// Only the system_coordinator_key agent may call this successfully.
@@ -2429,6 +2436,20 @@ pub mod governance {
         pub fn recv_remote_signal(signal: SerializedBytes) -> ExternResult<()> {
             emit_signal(signal)?;
             Ok(())
+        }
+
+        /// Shared link→record traversal helper.
+        /// Replaces repeated inline loops across all multi-record query functions.
+        fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
+            let mut records = Vec::new();
+            for link in links {
+                if let Some(hash) = link.target.into_action_hash() {
+                    if let Some(record) = get(hash, GetOptions::network())? {
+                        records.push(record);
+                    }
+                }
+            }
+            Ok(records)
         }
 
         /// Evaluate HarmonyRecord outcome and issue badge if thresholds are met.
