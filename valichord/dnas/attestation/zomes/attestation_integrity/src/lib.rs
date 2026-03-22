@@ -344,11 +344,10 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- Delete: look up original to check entry type ---
         FlatOp::RegisterDelete(OpDelete { action }) => {
-            let original_action = must_get_action(action.deletes_address.clone())?;
-            // If original is an app entry, check immutability via deserialization.
-            if let Some(EntryType::App(app_def)) = original_action.action().entry_type() {
-                let original_record =
-                    must_get_valid_record(action.deletes_address.clone())?;
+            // must_get_valid_record returns both action and entry — no need for a
+            // separate must_get_action call.
+            let original_record = must_get_valid_record(action.deletes_address.clone())?;
+            if let Some(EntryType::App(app_def)) = original_record.action().entry_type() {
                 if let Some(entry) = original_record.entry().as_option() {
                     let entry_type = EntryTypes::deserialize_from_type(
                         app_def.zome_index,
@@ -391,7 +390,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 }
             }
             // Author check for non-immutable entries.
-            if action.author != *original_action.action().author() {
+            if action.author != *original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));

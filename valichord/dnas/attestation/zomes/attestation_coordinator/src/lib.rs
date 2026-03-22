@@ -140,10 +140,11 @@ pub fn submit_validation_request(
     request: ValidationRequest,
 ) -> ExternResult<ActionHash> {
     let discipline = request.discipline.clone();
-    let request_hash = create_entry(EntryTypes::ValidationRequest(request.clone()))?;
+    let data_hash  = request.data_hash.clone();
+    let request_hash = create_entry(EntryTypes::ValidationRequest(request))?;
 
     // Index by study data hash for discovery.
-    let study_path = Path::from(format!("study.{}", request.data_hash))
+    let study_path = Path::from(format!("study.{}", data_hash))
         .typed(LinkTypes::StudyToValidation)?;
     study_path.ensure()?;
     create_link(
@@ -493,22 +494,19 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
         (hash, vr)
     };
 
-    // Capacity check: count existing live claims for this request.
-    let existing_claims = get_claims_for_request(request_ref.clone())?;
-    if existing_claims.len() >= vr.num_validators_required as usize {
-        return Err(wasm_error!(WasmErrorInner::Guest(format!(
-            "Study is at capacity ({}/{} validators already claimed)",
-            existing_claims.len(),
-            vr.num_validators_required,
-        ))));
-    }
-
-    // Duplicate check: has this agent already claimed this study?
-    let existing_links = get_links(
+    // Single get_links call serves both capacity and duplicate checks.
+    let claim_links = get_links(
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
-    if existing_links.iter().any(|l| l.author == agent) {
+    if claim_links.len() >= vr.num_validators_required as usize {
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "Study is at capacity ({}/{} validators already claimed)",
+            claim_links.len(),
+            vr.num_validators_required,
+        ))));
+    }
+    if claim_links.iter().any(|l| l.author == agent) {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Validator has already claimed this study".into(),
         )));
@@ -606,15 +604,7 @@ pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Rec
         LinkQuery::try_new(request_ref, LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all studies this validator has claimed (live ValidatorToClaim links).
@@ -625,15 +615,7 @@ pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
         LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Input for reclaim_abandoned_claim.
@@ -799,15 +781,7 @@ pub fn get_validators_for_discipline(
         LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all ValidatorProfile records for validators affiliated with an institution.
@@ -824,15 +798,7 @@ pub fn get_validators_for_institution(institution: String) -> ExternResult<Vec<R
         LinkQuery::try_new(inst_path.path_entry_hash()?, LinkTypes::InstitutionPath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all ValidationAttestation records for a given discipline.
@@ -848,15 +814,7 @@ pub fn get_attestations_for_discipline(discipline: Discipline) -> ExternResult<V
         LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::DisciplinePath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all pending ValidationRequest records indexed under a discipline.
@@ -876,15 +834,7 @@ pub fn get_pending_requests_for_discipline(
         LinkQuery::try_new(status_path.path_entry_hash()?, LinkTypes::StatusPath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 #[hdk_extern]
@@ -984,11 +934,9 @@ pub fn notify_commitment_sealed(
     let commit_path = Path::from(format!("commitments.{}", request_ref))
         .typed(LinkTypes::RequestToCommitment)?;
     commit_path.ensure()?;
+    let commit_anchor = commit_path.path_entry_hash()?;
     let existing_links = get_links(
-        LinkQuery::try_new(
-            commit_path.path_entry_hash()?,
-            LinkTypes::RequestToCommitment,
-        )?,
+        LinkQuery::try_new(commit_anchor.clone(), LinkTypes::RequestToCommitment)?,
         GetStrategy::Network,
     )?;
     if existing_links.iter().any(|l| l.author == agent) {
@@ -1006,12 +954,7 @@ pub fn notify_commitment_sealed(
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
-    create_link(
-        commit_path.path_entry_hash()?,
-        anchor_hash,
-        LinkTypes::RequestToCommitment,
-        (),
-    )?;
+    create_link(commit_anchor, anchor_hash, LinkTypes::RequestToCommitment, ())?;
 
     // Step 2: check if all validators have now committed.
     if check_all_commitments_sealed_inner(request_ref.clone())? {
@@ -1105,11 +1048,9 @@ pub fn publish_researcher_commitment(
     let path = Path::from(format!("researcher_commitment.{}", input.request_ref))
         .typed(LinkTypes::RequestToResearcherCommitment)?;
     path.ensure()?;
+    let path_anchor = path.path_entry_hash()?;
     let existing_links = get_links(
-        LinkQuery::try_new(
-            path.path_entry_hash()?,
-            LinkTypes::RequestToResearcherCommitment,
-        )?,
+        LinkQuery::try_new(path_anchor.clone(), LinkTypes::RequestToResearcherCommitment)?,
         GetStrategy::Network,
     )?;
     if !existing_links.is_empty() {
@@ -1127,12 +1068,7 @@ pub fn publish_researcher_commitment(
 
     // Index under a deterministic path so validators can retrieve the
     // commitment by request_ref without knowing the entry's ActionHash.
-    create_link(
-        path.path_entry_hash()?,
-        commitment_hash.clone(),
-        LinkTypes::RequestToResearcherCommitment,
-        (),
-    )?;
+    create_link(path_anchor, commitment_hash.clone(), LinkTypes::RequestToResearcherCommitment, ())?;
 
     Ok(commitment_hash)
 }
@@ -1197,11 +1133,9 @@ pub fn reveal_researcher_result(
     let reveal_path = Path::from(format!("researcher_reveal.{}", input.request_ref))
         .typed(LinkTypes::RequestToResearcherReveal)?;
     reveal_path.ensure()?;
+    let reveal_anchor = reveal_path.path_entry_hash()?;
     let existing_reveal_links = get_links(
-        LinkQuery::try_new(
-            reveal_path.path_entry_hash()?,
-            LinkTypes::RequestToResearcherReveal,
-        )?,
+        LinkQuery::try_new(reveal_anchor.clone(), LinkTypes::RequestToResearcherReveal)?,
         GetStrategy::Network,
     )?;
     if !existing_reveal_links.is_empty() {
@@ -1254,12 +1188,7 @@ pub fn reveal_researcher_result(
     };
     let reveal_hash = create_entry(EntryTypes::ResearcherReveal(reveal))?;
 
-    create_link(
-        reveal_path.path_entry_hash()?,
-        reveal_hash.clone(),
-        LinkTypes::RequestToResearcherReveal,
-        (),
-    )?;
+    create_link(reveal_anchor, reveal_hash.clone(), LinkTypes::RequestToResearcherReveal, ())?;
 
     Ok(reveal_hash)
 }
@@ -1361,37 +1290,28 @@ pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
 
 /// Called for every Create action confirmed on this agent's source chain.
 ///
-/// post_commit MUST NOT write data (Holochain constraint). The governance
-/// DNA's check_and_create_harmony_record is called explicitly by the
-/// assembly coordinator after all attestations are confirmed — never from
-/// here. A cross-DNA write from post_commit creates a per-cell re-entry
-/// deadlock: attestation post_commit → governance → attestation.get_attestations_for_request
-/// → blocked waiting for attestation to finish post_commit.
-///
-/// This function is intentionally a no-op: it validates that the committed
-/// action is a ValidationAttestation (for future signal emission) and returns.
-fn post_commit_on_create(action_hash: ActionHash) -> ExternResult<()> {
-    // Retrieve the full record from local storage (it was just written —
-    // no network hop needed).
-    let record = match get(action_hash, GetOptions::local())? {
-        Some(r) => r,
-        None => return Ok(()),
-    };
-
-    // Confirm the entry is a ValidationAttestation. Any other entry type
-    // (ValidatorProfile, CommitmentAnchor, PhaseMarker, etc.) is silently
-    // skipped. Future: emit a local UI signal here if desired.
-    let _attestation: ValidationAttestation =
-        match record
-            .entry()
-            .to_app_option()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        {
-            Some(a) => a,
-            None => return Ok(()),
-        };
-
+/// post_commit MUST NOT write data (Holochain constraint). Currently a no-op;
+/// placeholder for future local signal emission on ValidationAttestation creates.
+fn post_commit_on_create(_action_hash: ActionHash) -> ExternResult<()> {
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Fetch records for a list of links whose targets are ActionHashes.
+/// Skips links with non-ActionHash targets and records that are not found.
+fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(hash) = link.target.into_action_hash() {
+            if let Some(record) = get(hash, GetOptions::network())? {
+                records.push(record);
+            }
+        }
+    }
+    Ok(records)
 }
 
 // ---------------------------------------------------------------------------

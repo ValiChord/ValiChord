@@ -68,20 +68,29 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
     hasher.update(&nonce);
     let commitment_hash: Vec<u8> = hasher.finalize().to_vec();
 
-    // 4. Build the private entry — all public attestation fields are mirrored
-    //    here so the full ValidationAttestation can be reconstructed at reveal
-    //    time without a separate task lookup.
-    let att = &input.attestation;
+    // 4. Build the private entry — destructure input.attestation to move
+    //    each field directly (avoids 8 heap clones on String/Vec/enum fields).
+    let ValidationAttestation {
+        request_ref,
+        outcome,
+        outcome_summary,
+        time_invested_secs,
+        time_breakdown,
+        deviation_flags,
+        computational_resources,
+        confidence,
+        discipline,
+    } = input.attestation;
     let private_attestation = ValidatorPrivateAttestation {
-        request_ref:             att.request_ref.clone(),
-        outcome:                 att.outcome.clone(),
-        outcome_summary:         att.outcome_summary.clone(),
-        time_invested_secs:      att.time_invested_secs,
-        time_breakdown:          att.time_breakdown.clone(),
-        deviation_flags:         att.deviation_flags.clone(),
-        computational_resources: att.computational_resources.clone(),
-        confidence:              att.confidence.clone(),
-        discipline:              att.discipline.clone(),
+        request_ref,
+        outcome,
+        outcome_summary,
+        time_invested_secs,
+        time_breakdown,
+        deviation_flags,
+        computational_resources,
+        confidence,
+        discipline,
         nonce,
         commitment_hash,
     };
@@ -129,7 +138,7 @@ pub fn get_private_attestation_for_task(
             // get(target, GetOptions::local()) would find Alice's private entry
             // from Bob's cell in singleFork/test conductors because all cells
             // share the same local DB. query() is always source-chain-local.
-            let records = query(ChainQueryFilter::new().include_entries(true))?;
+            let records = query(ChainQueryFilter::new().action_type(ActionType::Create).include_entries(true))?;
             Ok(records.into_iter().find(|r| *r.action_address() == target))
         }
         None => Ok(None),
@@ -142,7 +151,7 @@ pub fn get_private_attestation_for_task(
 /// breaks silently if entry ordering changes.
 #[hdk_extern]
 pub fn get_all_private_attestations(_: ()) -> ExternResult<Vec<Record>> {
-    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let records = query(ChainQueryFilter::new().action_type(ActionType::Create).include_entries(true))?;
     let attestations = records
         .into_iter()
         .filter(|r| {
@@ -163,7 +172,7 @@ pub fn get_all_private_attestations(_: ()) -> ExternResult<Vec<Record>> {
 /// silently if entry ordering ever changes.
 #[hdk_extern]
 pub fn get_all_tasks(_: ()) -> ExternResult<Vec<Record>> {
-    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let records = query(ChainQueryFilter::new().action_type(ActionType::Create).include_entries(true))?;
     let tasks = records
         .into_iter()
         .filter(|r| {
@@ -211,8 +220,8 @@ fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResul
                     // so the Attestation DNA can record a fully-formed
                     // CommitmentAnchor without knowing the private content.
                     let sealed_input = CommitmentSealedInput {
-                        request_ref:     attestation.request_ref.clone(),
-                        commitment_hash: attestation.commitment_hash.clone(),
+                        request_ref:     attestation.request_ref,
+                        commitment_hash: attestation.commitment_hash,
                     };
                     let _result: ExternResult<ZomeCallResponse> = call(
                         CallTargetCell::OtherRole("attestation".into()),

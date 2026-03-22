@@ -65,7 +65,7 @@ pub fn register_study(study: ResearchStudy) -> ExternResult<ActionHash> {
 /// breaks silently if entry ordering changes.
 #[hdk_extern]
 pub fn get_all_studies(_: ()) -> ExternResult<Vec<Record>> {
-    let records = query(ChainQueryFilter::new().include_entries(true))?;
+    let records = query(ChainQueryFilter::new().action_type(ActionType::Create).include_entries(true))?;
     let studies = records
         .into_iter()
         .filter(|r| {
@@ -163,12 +163,7 @@ pub fn get_protocol_for_study(study_hash: ActionHash) -> ExternResult<Option<Rec
     }
 }
 
-#[hdk_extern]
-pub fn get_snapshots_for_study(study_hash: ActionHash) -> ExternResult<Vec<Record>> {
-    let links = get_links(
-        LinkQuery::try_new(study_hash, LinkTypes::StudyToSnapshot)?,
-        GetStrategy::Local,
-    )?;
+fn local_records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
     let mut records = Vec::new();
     for link in links {
         if let Some(hash) = link.target.into_action_hash() {
@@ -181,20 +176,21 @@ pub fn get_snapshots_for_study(study_hash: ActionHash) -> ExternResult<Vec<Recor
 }
 
 #[hdk_extern]
+pub fn get_snapshots_for_study(study_hash: ActionHash) -> ExternResult<Vec<Record>> {
+    let links = get_links(
+        LinkQuery::try_new(study_hash, LinkTypes::StudyToSnapshot)?,
+        GetStrategy::Local,
+    )?;
+    local_records_for_links(links)
+}
+
+#[hdk_extern]
 pub fn get_deviations_for_study(study_hash: ActionHash) -> ExternResult<Vec<Record>> {
     let links = get_links(
         LinkQuery::try_new(study_hash, LinkTypes::StudyToDeviation)?,
         GetStrategy::Local,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::local())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    local_records_for_links(links)
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +229,7 @@ pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash
     let locked = LockedResult {
         request_ref:     input.request_ref.clone(),
         metrics:         input.metrics,
-        nonce:           nonce.clone(),
+        nonce,                          // moved — last use was hasher.update(&nonce)
         commitment_hash: commitment_hash.clone(),
     };
     let locked_hash = create_entry(EntryTypes::LockedResult(locked))?;

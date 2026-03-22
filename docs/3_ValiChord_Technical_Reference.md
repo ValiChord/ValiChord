@@ -1345,6 +1345,8 @@ pub trait ValiChordAPI {
 
 Multi-dimensional scoring. No single number that can be gamed.
 
+> **Identity caveat:** Reputation is currently keyed by `AgentPubKey`, which is a Holochain device key — one per conductor instance. A validator who joins from a second device, or who replaces a lost device, receives a new `AgentPubKey` and their prior reputation is stranded on the old key. For Phase 0 (institutional validators on single institutional machines) this is acceptable. For Phase 1, where reputation becomes an operational signal for validator assignment and compensation, continuity must be preserved. The ecosystem solution is the Flowsta `agent_linking` zome, which creates mutual-consent pairwise identity records allowing any key lookup to resolve all keys belonging to one person. This should be designed into Phase 1 alongside the Holochain 1.0 Deepkey key-rotation infrastructure — see the engineer handover for details.
+
 ```rust
 pub struct UnifiedReputation {
     /// Validation track record
@@ -1724,7 +1726,7 @@ pub enum LinkTypes {
     StudyStatusPath,        // path anchor → study entry (for status-based queries)
     InstitutionPath,        // path anchor → study entry (for institution-based queries)
     DisciplinePath,         // path anchor → validation entry (for discipline queries)
-    AgentToProfile,         // agent pubkey → ValidatorProfile entry
+    AgentToProfile,         // agent pubkey → ValidatorProfile entry  [device key, not person-stable — see multi-device identity note in engineer handover]
     /// Links the ValidationRequest to the validator's public commitment proof.
     /// Added in v12: replaces the broken get_agent_activity() private-action-counting
     /// approach. CommitmentAnchor is a public, zero-content DHT entry — everyone
@@ -1739,7 +1741,7 @@ pub enum LinkTypes {
 // --- Governance DNA integrity zome ---
 #[hdk_link_types]
 pub enum LinkTypes {
-    ValidatorToReputation,  // agent pubkey → their reputation record
+    ValidatorToReputation,  // agent pubkey → their reputation record  [device key, not person-stable — see multi-device identity note in engineer handover]
     RequestToHarmonyRecord, // ValidationRequest ref → HarmonyRecord
     DisciplinePath,         // path anchor → HarmonyRecord (for discipline queries)
     BadgePath,              // path anchor → ReproducibilityBadge (queryable by badge type)

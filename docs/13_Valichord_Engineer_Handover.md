@@ -338,74 +338,86 @@ Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-aud
 
 - **Full HarmonyRecord content verification at validate() layer** — cross-DNA calls unavailable in HDI; content correctness is coordinator-layer only. The partial fix (author ∈ participating_validators) is in place.
 - **Credential revocation** — once an agent joins the Attestation DHT, they cannot be removed retroactively without governance intervention. **Watch:** Holochain roadmap item #5131 ("Validate memproofs on demand", no milestone — actively in progress as of 2026-03-20) would enable post-join re-validation and is the missing infrastructure for a proper CRL. The Kitsune2 Access module (#5132, kitsune2 #263–265) would additionally enforce membrane proof validity at the network/transport layer, denying gossip to revoked peers before they reach the DHT. When these land, revisit this gap — the Phase 2 revocation design depends on which of these ships first.
+- **Multi-device identity / agent linking** — `ValidatorReputation` (DNA 4) and `ValidatorProfile` (DNA 3) are both keyed by `AgentPubKey`, which is a device key, not a person-stable identity. If a validator replaces their device, they receive a new `AgentPubKey` and their reputation history is stranded on the old key. Their new key starts with zero reputation and no profile. For Phase 0 (institutional validators on institutional hardware) this is acceptable. For Phase 1 it is not — reputation scores become real operational signals and key continuity matters. The ecosystem solution is the Flowsta `agent_linking` zome (github.com/WeAreFlowsta/flowsta-identity-dna, fully generic, no Flowsta-specific dependencies). It creates pairwise `IsSamePersonEntry` records — each agent signs the other's key bytes — so any lookup can resolve all keys that belong to one person. Integration work: (1) add the integrity + coordinator zomes to the Attestation DNA or as a standalone DNA, (2) when recording `ValidatorReputation`, resolve the canonical (oldest) key for that person via `get_linked_agents` and anchor the record there, (3) adjust `get_validator_profile` and COI checks to compare against the full linked-key set. Coordinate with Holochain 1.0 Deepkey (key rotation, see Upgrade Radar below) — the two mechanisms are complementary, not competing.
 - **Validator self-assignment collusion** — COI institution check enforced; cartel from distinct institutions is not preventable without random assignment (Phase 1 `select_validators`).
 - **`get_current_phase` not authoritative** — clients must not treat `PhaseMarker` as a protocol gate; always verify via `check_all_commitments_sealed`. Any credentialed agent can write a `PhaseMarker` (validate() cannot gate creates without also blocking the coordinator). Protocol itself is unaffected — only UIs that trust `get_current_phase` blindly are at risk.
 
 ---
 
-## Holochain Upgrade Radar (as of 2026-03-20)
+## Holochain Upgrade Radar (as of 2026-03-21)
 
-Holochain's public roadmap (github.com/orgs/holochain/projects/11) has four upcoming milestones that affect this codebase in different ways. Read this before upgrading `holochain` / `hdk` / `hdi` versions in `Cargo.toml`.
+Holochain's public roadmap (github.com/orgs/holochain/projects/11) has several upcoming milestones that affect this codebase. Read this before upgrading `holochain` / `hdk` / `hdi` versions in `Cargo.toml`.
 
-### 0.6.1 — No API changes
-Wind Tunnel performance infrastructure (RAM reduction, metric interval reporting). Zero impact on ValiChord.
+**Current ValiChord versions:** `hdk = "0.6"`, `hdi = "0.7"` — these are the current stable versions. See `.claude/skills/check-holochain-updates.md` for a repeatable process to check for newer versions.
 
-### 0.7 — Low impact / watch Cargo paths
-Quality-of-life improvements, docs, mobile build support. One structural change: Holochain crates may be split across repositories for independent versioning. If you upgrade to 0.7 and `cargo build` fails with "crate not found", check that `hdk`, `hdi`, and `holochain_integrity_types` dependency paths/names haven't changed in the new release.
+---
+
+### 0.6.1 — Almost released (rc.3 dropped March 11, 2026)
+
+`0.6.1-rc.3` is the current latest stable release candidate as of March 11, 2026. This is a Wind Tunnel metrics and infrastructure release — always-online node monitoring, RAM reduction for the summariser, metric interval reporting. **Zero API changes for ValiChord.** Upgrading from 0.6.0 to 0.6.1 when it goes stable is a safe drop-in.
+
+---
+
+### 0.7 — Network transport switch (0.7.0-dev.16 dropped March 16, 2026)
+
+**This is the most imminent change.** 0.7 switches the default kitsune2 transport from QUIC/WebRTC to **iroh** (`Switch default transport to iroh`, kitsune2 #442). This affects network configuration but NOT zome APIs.
+
+When 0.7 stable releases, upgrading ValiChord will require:
+1. Bump `hdk` to `0.7.x` and `hdi` to `0.8.x` in workspace `Cargo.toml`
+2. Review whether `bootstrapUrl` / `signalUrl` config format changes for iroh (check the 0.7 migration guide — iroh uses a different signalling mechanism)
+3. Run `cargo build` — watch for any renamed crates (Holochain crates may be split across repositories for independent versioning in 0.7)
+
+**hdk 0.7.0-dev.10 breaking change already visible in the dev channel:** `get_link_details` is renamed to `get_links_details`. ValiChord does not currently call `get_link_details` directly (uses `get_links` only), so this rename is not expected to affect the build — but verify when upgrading.
+
+---
 
 ### 0.8 — **Breaking change expected: validate() API**
 
-**Issue #5010: "Modify validate callback to take a Record and context instead of an Op"**
+**Issue #5010 status (checked 2026-03-21): OPEN, "Ready for refinement", no PR started, no assignee.** This issue was last active December 2025. It is still planned for 0.8 but has not begun implementation. Not an imminent risk — 0.8 is at least two release cycles away.
 
-This is the single most important upstream change for ValiChord. All four integrity zomes currently use:
+When it does ship, the signature changes from `validate(op: Op)` to `validate(record: Record, ctx: ValidationContext)`. **This is a breaking compile error** — the build fails immediately, nothing silently breaks. The migration is mechanical but touches all four integrity zomes (~400 lines of match arms).
 
-```rust
-pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
-    match op.flattened::<EntryTypes, LinkTypes>()? {
-        FlatOp::StoreEntry(OpEntry::CreateEntry { entry, action }) => { ... }
-        FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => { ... }
-        FlatOp::RegisterDelete(OpDelete { action }) => { ... }
-        FlatOp::RegisterDeleteLink { ... } => { ... }
-        FlatOp::RegisterAgentActivity(...) => { ... }  // membrane proof — DNA 3 only
-        _ => Ok(ValidateCallbackResult::Valid),
-    }
-}
-```
+The membrane proof handler in DNA 3 (`RegisterAgentActivity` arm) will need the most care — check what replaces that variant in the new API before migrating.
 
-If #5010 ships, this signature changes to something like `validate(record: Record, ctx: ValidationContext)`. **This is a breaking compile error, not a silent behaviour change** — the build will fail immediately. The migration is mechanical but spans all four integrity zomes (~400 lines of pattern-matching). The replacement API is expected to be simpler — `Record + context` is more direct than unpacking a DHT operation — so the migration is an upgrade, not a regression. The membrane proof handler in DNA 3 (`RegisterAgentActivity` → `validate_membrane_proof`) will need the most care; check what replaces that variant in the new API.
-
-**What to do:** When a Holochain 0.8 release candidate appears, read the migration guide before touching any other code. The four files to update are:
+Files to update when the time comes:
 - `dnas/attestation/zomes/attestation_integrity/src/lib.rs`
 - `dnas/governance/zomes/governance_integrity/src/lib.rs`
 - `dnas/validator_workspace/zomes/validator_workspace_integrity/src/lib.rs`
 - `dnas/researcher_repository/zomes/researcher_repository_integrity/src/lib.rs`
 
-**Issue #4345: "[BUG] Private entry wrongly rejected if hash collides with public entry hash"**
+**Issue #4345 — Private entry hash collision bug status (checked 2026-03-21): OPEN, "Ready for refinement", no fix.** This was previously described as "fixed in 0.8" — that is incorrect based on current issue status. It has no linked PR and no assignee. ValiChord uses private entries extensively (all of DNA 1; `ValidatorPrivateAttestation` in DNA 2). The collision probability is negligible but non-zero — if you see spurious validation rejections on private entries, this upstream bug is the likely cause. Watch for a fix to land.
 
-ValiChord uses private entries extensively (all of DNA 1; `ValidatorPrivateAttestation` in DNA 2). The collision probability is negligible but non-zero. If you see spurious validation rejections on private entries that your code cannot explain, this upstream bug is the likely cause. It is fixed in 0.8; upgrading resolves it.
+**Issues #4911 + #4912 — Coordinator updates (capability tokens and remote calls) status (checked 2026-03-21): OPEN, "Ready for refinement", both unassigned December 2025.** These describe planned changes to how coordinator zomes are hot-swapped and how capability tokens and remote calls behave during that process. ValiChord's `OtherRole` call pattern is fundamental to the four-DNA architecture and is unlikely to be removed, but grant semantics could change. Review the 0.8 changelog for these issues before upgrading.
 
-**Issues #4911 + #4912: Coordinator updates — capability tokens and remote calls**
+---
 
-ValiChord's `init()` sets up `CapAccess::Unrestricted` grants, and six cross-DNA `call(OtherRole(...))` sites exist across the codebase. "Coordinator updates" (the hot-swap coordinator-without-DHT-reset feature) may tighten the capability or call API. Review the 0.8 changelog for these two issues before upgrading. The `OtherRole` call pattern itself is unlikely to be removed — it's fundamental to the multi-DNA architecture — but grant semantics could change.
+### Deepkey / key rotation — status corrected (checked 2026-03-21)
 
-### 1.0 — Deepkey / key rotation (Phase 2 planning item)
+**Previous description was inaccurate.** The situation is:
 
-Six items covering agent key rotation and DNA migration land in 1.0:
+- **Deepkey the hApp is mature and usable today.** The "DeepKey Integration with Holochain" GitHub milestone closed 100% complete in October 2024 (22 issues, all closed). Deepkey has published Rust crates and a standalone hApp. It operates as a foundational service — the first hApp installed on a conductor — and provides key registration, revocation, replacement, and M-of-N authority. Other hApps can query key status via the DPKI service using just a 32-byte key.
 
-- **Agent migration (#4126, #4128):** Validators will eventually need to rotate keys (device loss, hardware failure, compromise). Deepkey is Holochain's key-rotation infrastructure. The current codebase has no key-rotation path — this is expected for Phase 0 but must be designed into Phase 1. `system_coordinator_key` in DNA 4 would also need a rotation mechanism.
-- **`agent_initial_pubkey` / `agent_latest_pubkey` consolidation (#4105):** Once Deepkey lands, a single `AgentPubKey` may resolve to either the initial or current key depending on context. Any place ValiChord compares validator identity (particularly `HarmonyRecord.participating_validators` and the `StudyClaim` COI check) will need to resolve through Deepkey rather than comparing raw pubkeys directly.
+- **Conductor-native key migration workflow (#4126, #4128) is still open and unscheduled.** These issues cover adapting the `InstallApp` Admin API to support `MigrateAgent` and `MigrateDna` workflows natively. They have no linked PRs and no milestone. This is not done.
 
-No action needed now. Flag this for the Phase 1 architecture review.
+- **Practical implication for ValiChord:** Deepkey can be used for key rotation today, but it requires installing Deepkey as a separate hApp and calling its APIs explicitly. It is not yet transparent conductor infrastructure. `agent_initial_pubkey` vs `agent_latest_pubkey` (#4105) consolidation depends on #4126 and is also unscheduled.
 
-### Unversioned — Membrane Proofs epic (actively in progress, could ship any release)
+- **Any place ValiChord compares validator identity** (particularly `HarmonyRecord.participating_validators` and the `StudyClaim` COI check) will eventually need to resolve through Deepkey rather than comparing raw pubkeys directly — but this is a Phase 1 task, not urgent now.
 
-Eight items with no milestone assigned, all actively in progress. The most consequential for ValiChord:
+**Relationship to agent-linking:** Deepkey handles key rotation (same device, key superseded by a new key). The Flowsta `agent_linking` zome handles the multi-device case (same person, multiple simultaneously active keys). Both are needed for Phase 1. Do not implement agent-linking in a way that assumes keys are stable — the Deepkey migration will change what "canonical key" means.
 
-- **#5131 — Validate memproofs on demand:** Currently membrane proofs are validated once at join time (`genesis_self_check` + `RegisterAgentActivity` in `validate()`). On-demand re-validation is the missing infrastructure for a credential revocation list — once this lands, it becomes possible to check whether a joined agent's credential is still valid and deny them continued access if it has been revoked. This directly addresses the "Credential revocation" known architectural gap (see Security Audit Summary below). **No code changes required to benefit — but the Phase 2 revocation design should wait until this is available.**
+Flag for the Phase 1 architecture review.
 
-- **#5132 + kitsune2 #263–265 — Kitsune2 Access module:** Adds network-layer membrane proof enforcement. Peers without a valid proof are denied gossip/DHT access at the transport layer, before they can write to the DHT. ValiChord gets this strengthening automatically — no code changes needed. Watch for whether the Access module requires membrane proofs to be registered with Kitsune2 separately (e.g. in conductor config or happ.yaml); if so, ValiChord's join flow would need updating.
+---
 
-- **#1613 — hc sandbox doesn't support membrane proofs:** Dev ergonomics fix. Once resolved, `hc sandbox` can be used for quick local testing without the full Tryorama test harness.
+### Membrane Proofs epic — status corrected (checked 2026-03-21)
+
+Previously described as "actively in progress, could ship any release." **That was inaccurate based on current issue status.**
+
+- **#5131 — Validate memproofs on demand:** OPEN. Status: "Ready for refinement". Unassigned as of January 2026. No PR. This has stalled — it is not actively in progress. It remains the missing infrastructure for credential revocation, but do not design Phase 2 revocation on an assumption that this will ship soon. Monitor and revisit.
+
+- **#5132 + kitsune2 #263–265 — Kitsune2 Access module:** OPEN. Status: "Ready for refinement". Unassigned as of January 2026. No PR. Same situation — previously described as active, currently stalled. When it eventually lands, ValiChord gets network-layer membrane proof enforcement automatically (no code changes), but that may not be soon. Watch for whether the Access module requires membrane proofs to be registered with Kitsune2 separately in conductor config; if so, ValiChord's join flow would need updating.
+
+- **#1613 — hc sandbox doesn't support membrane proofs:** Dev ergonomics fix. No change in status — still open. Until resolved, the full Tryorama test harness remains required for membrane proof testing.
 
 ---
 

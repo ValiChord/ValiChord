@@ -78,7 +78,7 @@ pub fn check_and_create_harmony_record(
     // 1. Idempotency.
     let anchor_key = anchor_for_request(&request_ref)?;
     let existing = get_links(
-        LinkQuery::try_new(anchor_key, LinkTypes::RequestToHarmonyRecord)?,
+        LinkQuery::try_new(anchor_key.clone(), LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
     if !existing.is_empty() {
@@ -128,7 +128,7 @@ pub fn check_and_create_harmony_record(
     }
 
     // 4-7. Assemble and write.
-    let hash = write_harmony_record(request_ref, attestation_records)?;
+    let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
     Ok(Some(hash))
 }
 
@@ -157,7 +157,7 @@ pub fn force_finalize_round(
     // 1. Idempotency.
     let anchor_key = anchor_for_request(&request_ref)?;
     let existing = get_links(
-        LinkQuery::try_new(anchor_key, LinkTypes::RequestToHarmonyRecord)?,
+        LinkQuery::try_new(anchor_key.clone(), LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
     if !existing.is_empty() {
@@ -221,16 +221,20 @@ pub fn force_finalize_round(
     }
 
     // 4-7. Assemble and write with whatever attestations are present.
-    let hash = write_harmony_record(request_ref, attestation_records)?;
+    let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
     Ok(Some(hash))
 }
 
 /// Core assembly: derive fields, write HarmonyRecord + links, issue badge,
 /// update reputations.  Called by both check_and_create_harmony_record
 /// (full quorum) and force_finalize_round (reduced quorum after timeout).
+///
+/// `anchor_key` is pre-computed by the caller (avoiding a redundant
+/// `anchor_for_request` call — each call does `path.ensure()` on the DHT).
 fn write_harmony_record(
     request_ref: ExternalHash,
     attestation_records: Vec<Record>,
+    anchor_key: EntryHash,
 ) -> ExternResult<ActionHash> {
     // Derive structured attestation payloads.
     let attestations: Vec<ValidationAttestation> = attestation_records
@@ -248,8 +252,8 @@ fn write_harmony_record(
         .map(|r| r.action().author().clone())
         .collect();
 
-    let outcome             = derive_majority_outcome(&attestations);
-    let agreement_level     = derive_agreement_level(&attestations);
+    let outcome              = derive_majority_outcome(&attestations);
+    let agreement_level      = derive_agreement_level(&attestations);
     let validation_duration_secs = attestations
         .iter()
         .map(|a| a.time_invested_secs)
@@ -260,26 +264,28 @@ fn write_harmony_record(
         .map(|a| a.discipline.clone())
         .unwrap_or(Discipline::Other("unknown".into()));
 
+    // Pre-compute before discipline/validators are moved into the struct.
+    let disc_anchor    = discipline_anchor(&discipline)?;
+    let validator_count = participating_validators.len();
+
     // Write HarmonyRecord entry and indexes.
-    let anchor_key = anchor_for_request(&request_ref)?;
     let record = HarmonyRecord {
         request_ref: request_ref.clone(),
         outcome,
-        agreement_level: agreement_level.clone(),
-        participating_validators: participating_validators.clone(),
+        agreement_level,
+        participating_validators,   // moved — no clone
         validation_duration_secs,
-        discipline: discipline.clone(),
+        discipline,                 // moved — no clone
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
     create_link(anchor_key, record_hash.clone(), LinkTypes::RequestToHarmonyRecord, ())?;
-    let disc_anchor = discipline_anchor(&discipline)?;
     create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
     // Issue badge — skip if the researcher's identity cannot be resolved.
     // Falling back to a validator pubkey would issue a badge to the wrong
     // recipient; it is safer to skip issuance than to mis-attribute.
-    if let Some(badge_type) = evaluate_badge(&agreement_level, participating_validators.len()) {
+    if let Some(badge_type) = evaluate_badge(&agreement_level, validator_count) {
         let resp = call(
             CallTargetCell::OtherRole("attestation".into()),
             ZomeName::from("attestation_coordinator"),
@@ -406,15 +412,7 @@ pub fn get_harmony_records_by_discipline(
         LinkQuery::try_new(anchor, LinkTypes::DisciplinePath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return the most recent ValidatorReputation record for a given validator.
@@ -452,15 +450,7 @@ pub fn get_badges_by_type(badge_type: BadgeType) -> ExternResult<Vec<Record>> {
         LinkQuery::try_new(anchor, LinkTypes::BadgePath)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all GovernanceDecision records (insertion order).
@@ -471,15 +461,7 @@ pub fn get_all_governance_decisions(_: ()) -> ExternResult<Vec<Record>> {
         LinkQuery::try_new(anchor, LinkTypes::AllDecisions)?,
         GetStrategy::Network,
     )?;
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
+    records_for_links(links)
 }
 
 /// Return all badges linked from a study_ref.
@@ -491,6 +473,15 @@ pub fn get_badges_for_study(
         LinkQuery::try_new(study_ref, LinkTypes::StudyToBadge)?,
         GetStrategy::Network,
     )?;
+    records_for_links(links)
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Fetch records for a list of links whose targets are ActionHashes (network).
+fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
     let mut records = Vec::new();
     for link in links {
         if let Some(hash) = link.target.into_action_hash() {
@@ -502,19 +493,15 @@ pub fn get_badges_for_study(
     Ok(records)
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 /// Compute the DHT anchor entry hash for a given request_ref.
 ///
 /// Path format: "request.{hex_encoded_core_32_bytes}"
 fn anchor_for_request(request_ref: &ExternalHash) -> ExternResult<EntryHash> {
-    let hex: String = request_ref
-        .get_raw_32()
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect();
+    use std::fmt::Write as FmtWrite;
+    let mut hex = String::with_capacity(64);
+    for b in request_ref.get_raw_32() {
+        write!(hex, "{:02x}", b).ok();
+    }
     let path = Path::from(format!("request.{}", hex))
         .typed(LinkTypes::RequestToHarmonyRecord)?;
     path.ensure()?;

@@ -1,4 +1,5 @@
 use hdi::prelude::*;
+use std::borrow::Cow;
 
 // ---------------------------------------------------------------------------
 // Core type alias
@@ -29,7 +30,8 @@ pub enum Discipline {
 }
 
 /// Converts a Discipline to the short path-key string used in DHT path anchors.
-pub fn discipline_tag(d: &Discipline) -> String {
+/// Returns a `Cow<'static, str>` — zero allocation for all named variants.
+pub fn discipline_tag(d: &Discipline) -> Cow<'static, str> {
     match d {
         Discipline::ComputationalBiology => "computational_biology".into(),
         Discipline::ClimateScience       => "climate_science".into(),
@@ -38,7 +40,7 @@ pub fn discipline_tag(d: &Discipline) -> String {
         Discipline::Psychology           => "psychology".into(),
         Discipline::Neuroscience         => "neuroscience".into(),
         Discipline::MachineLearning      => "machine_learning".into(),
-        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()),
+        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()).into(),
     }
 }
 
@@ -65,7 +67,7 @@ pub enum AttestationOutcome {
 pub enum AttestationConfidence { High, Medium, Low }
 
 /// Phase 0's four-category time breakdown — the primary measurement goal.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TimeBreakdown {
     pub environment_setup_secs: u64,
     pub data_acquisition_secs:  u64,
@@ -112,7 +114,7 @@ pub struct UndeclaredDeviation {
 // Computational resources
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ComputationalResources {
     pub personal_hardware_sufficient:  bool,
     pub hpc_required:                  bool,
@@ -142,7 +144,7 @@ pub enum ValidationPhase {
 // WASM symbol errors at link time.
 
 /// Agreement level across validator outcomes for a given request.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum AgreementLevel {
     ExactMatch,
     WithinTolerance,
@@ -195,7 +197,7 @@ pub struct ValidationAttestation {
 }
 
 impl ValidationAttestation {
-    pub fn discipline_tag(&self) -> String {
+    pub fn discipline_tag(&self) -> Cow<'static, str> {
         discipline_tag(&self.discipline)
     }
 }

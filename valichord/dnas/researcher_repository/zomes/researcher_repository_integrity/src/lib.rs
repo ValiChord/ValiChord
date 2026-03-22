@@ -157,10 +157,8 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // the deleting action, not the original entry type directly.
 
         FlatOp::RegisterDelete(OpDelete { ref action }) => {
-            let original_action = must_get_action(action.deletes_address.clone())?;
-            if let Some(EntryType::App(app_def)) = original_action.action().entry_type() {
-                let original_record =
-                    must_get_valid_record(action.deletes_address.clone())?;
+            let original_record = must_get_valid_record(action.deletes_address.clone())?;
+            if let Some(EntryType::App(app_def)) = original_record.action().entry_type() {
                 if let Some(entry) = original_record.entry().as_option() {
                     let entry_type = EntryTypes::deserialize_from_type(
                         app_def.zome_index,
@@ -175,7 +173,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 }
             }
             // All other entries: only the original author may delete.
-            if action.author != *original_action.action().author() {
+            if action.author != *original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
