@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 94 pass, 1 skipped, 0 fail** (as of 2026-03-20)
+**Status: 89 pass, 1 skipped, 0 fail** (as of 2026-03-22)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -107,7 +107,7 @@ cd tests && npm test
 | 8.2  | get_pending_requests_for_discipline returns empty for a different discipline | PASS |
 | 9.1  | seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA | PASS |
 | 10.1 | Bob cannot read Alice's sealed private attestation from Bob's workspace cell | PASS |
-| 11.1 | one commit with minimum_validators=2 leaves phase as null | PASS |
+| 11.1 | one commit with minimum_validators=2 leaves phase as null | PASS‡ |
 | 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
 | 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS† |
 | 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
@@ -127,6 +127,8 @@ cd tests && npm test
 | 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
 | 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
 | 21.3 | returns false when validator has already submitted an attestation | PASS |
+
+> ‡ **Phase threshold (11.1):** Passes on a clean Codespace. `dhtSync([alice, bob])` can time out at 40 s when the Codespace is under load. Clean up with `pkill -f holochain; pkill -f lair-keystore` before running.
 
 > † **Silver (12.2):** Passes on a clean Codespace. May fail with WebsocketClosedError when the Codespace is under heavy load (5 conductors). Clean up orphaned processes with `pkill -f kitsune2-bootstrap-srv; pkill -f holochain; pkill -f lair-keystore` before running.
 
