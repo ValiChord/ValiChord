@@ -8,14 +8,14 @@
 
 ## Context
 
-This document is the implementation plan for integrating the Claude API into ValiChord's automated deposit analyser (`autogenerate/valichord.py` and `backend/app.py`). It was written at the point of submitting the Anthropic AI for Science Program application and has been updated to reflect the current state of the codebase.
+This document is the implementation plan for integrating the Claude API into ValiChord's automated deposit analyser (`valichord_at_home/valichord.py` and `backend/app.py`). It was written at the point of submitting the Anthropic AI for Science Program application and has been updated to reflect the current state of the codebase.
 
 The plan is grounded in three source documents:
 - **ValiChord Repository Cleaning Specification v15** (`ValiChord_Repository_Cleaning_Specification_15.md` on GitHub) — the original authoritative spec, written explicitly as instructions for a "cleaning LLM"
 - **ValiChord at Home** (`docs/9_Valichord_at_Home.md`) — the researcher-facing tool that this pipeline feeds
 - **UX Design** (`docs/18_The_UX/README.md`) — specifically the Validator Active Workspace, which displays the autogenerate output as a pre-screening report
 
-The spec v15 was written to instruct an LLM directly. The current `autogenerate/` Python system is a rule-based implementation of that spec — covering structurally and syntactically detectable failure modes. Claude's role is to cover the semantically-detectable ones: those that require actually reading and understanding code, cross-referencing files, and reasoning about methodology.
+The spec v15 was written to instruct an LLM directly. The current `valichord_at_home/` Python system is a rule-based implementation of that spec — covering structurally and syntactically detectable failure modes. Claude's role is to cover the semantically-detectable ones: those that require actually reading and understanding code, cross-referencing files, and reasoning about methodology.
 
 ---
 
@@ -83,7 +83,7 @@ ZIP → extract → run_simple_detectors()    ← runs always (128 detectors)
 
 ---
 
-## New File: `autogenerate/detectors/claude_semantic.py`
+## New File: `valichord_at_home/detectors/claude_semantic.py`
 
 This is the primary remaining implementation target. It performs all Claude tasks in a **single API call per deposit**.
 
@@ -204,7 +204,7 @@ For large deposits, `_build_context()` applies a priority filter:
 
 ---
 
-## Changes to `autogenerate/valichord.py`
+## Changes to `valichord_at_home/valichord.py`
 
 Three additions only:
 
@@ -232,7 +232,7 @@ generate_cleaning_report(
 
 ---
 
-## Changes to `autogenerate/generators/report.py`
+## Changes to `valichord_at_home/generators/report.py`
 
 One change in the finding render loop. Currently:
 
@@ -294,10 +294,10 @@ All detector functions in `failure_modes_simple.py` — spanning failure modes A
 ## Build order (remaining work)
 
 1. **`detectors/claude_semantic.py`** — the Claude call, JSON parsing, finding schema mapping, graceful degradation
-2. **`autogenerate/valichord.py`** — wire in the call, pass `enhanced_details` downstream
-3. **`autogenerate/generators/report.py`** — consume `enhanced_details` in render loop
+2. **`valichord_at_home/valichord.py`** — wire in the call, pass `enhanced_details` downstream
+3. **`valichord_at_home/generators/report.py`** — consume `enhanced_details` in render loop
 4. **`backend/app.py`** — mirror steps 2 and 3
-5. **Test** on deposits in `autogenerate/output/` and `output/`
+5. **Test** on deposits in `valichord_at_home/output/` and `output/`
 6. **Calibrate** system prompt — adjust severity thresholds if Claude over- or under-fires
 
 ---
@@ -328,7 +328,7 @@ If absent: pipeline runs as today (rule-based only, 128 detectors). No error rai
 
 ## Notes for resuming this work
 
-- The `autogenerate/output/` directory contains real processed deposits for testing. Unzip any and use the original repository inside as test input.
+- The `valichord_at_home/output/` directory contains real processed deposits for testing. Unzip any and use the original repository inside as test input.
 - The `output/` directory at root also has deposits including Dryad downloads.
 - Start with `detectors/claude_semantic.py` — get the API call working and returning parseable JSON before touching the pipeline wiring.
 - The system prompt is the hardest part. The spec v15 rules need to be expressed precisely enough that Claude applies them consistently, but not so rigidly that valid deposits get over-flagged.

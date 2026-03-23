@@ -1,0 +1,67 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/governance.test.ts -t GovernanceDecision
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+12:57:35 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+12:57:36 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jEnM3gZh1uHlzcYKj5qNw/ks/socket?k=3LIKiK34TgRfU08DzIg3rPPW9xpFwZt_CeWk8jL0a0U #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+12:57:36 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38731###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip 45718ms
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+12:58:20 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+12:58:21 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/WKx36DqScJONbf1VADE7M/ks/socket?k=rZsq9ACVQ3cW4xSRCINKCn0Aw01esFKjirPVTwy7kDs #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+12:58:22 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36941###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions 42963ms
+stdout | src/governance.test.ts > 8. GovernanceDecision > non-creator key cannot create GovernanceDecision — rejected by validate()
+12:59:03 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > non-creator key cannot create GovernanceDecision — rejected by validate()
+12:59:04 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/MrZ7VL_ZZROzz-X_Dm65l/ks/socket?k=fOHkcvfsDjWIYxoDRoD0j65zlSx7awjuqCtFVVV1QgA #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > non-creator key cannot create GovernanceDecision — rejected by validate()
+12:59:05 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40339###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 8. GovernanceDecision > non-creator key cannot create GovernanceDecision — rejected by validate() 41620ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 12 skipped (15)
+   Start at  12:57:33
+   Duration  131.68s (transform 135ms, setup 0ms, collect 955ms, tests 130.30s, environment 0ms, prepare 146ms)
+

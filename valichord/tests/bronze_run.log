@@ -1,0 +1,65 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/attestation.test.ts -t BronzeReproducible
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:48:30 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:48:31 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Ylj_-Zyoqq96k2xWpuLYl/ks/socket?k=19dGaT6Au5h4GZi9p6j5B9XRMuklNv795AS7QvgcGGk #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:48:32 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39465###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Vd7tngFa-IwOtPdDOGz5H/ks/socket?k=jKGxqOK8H87d_W_jfLiw5vnxSjMhX73JfQCLq14fjGg #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44707###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:34 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:34 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/EgL10kA4cVQ5gHetEGcLs/ks/socket?k=npOwXYQCeNYLKgwkj8WHyJ6a_M8gFHRCeeqBpPiwJDY #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+12:49:35 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41467###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued 151799ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 30 skipped (31)
+   Start at  12:48:29
+   Duration  152.98s (transform 123ms, setup 0ms, collect 537ms, tests 151.80s, environment 0ms, prepare 98ms)
+

@@ -1,0 +1,127 @@
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/0LFJp2Fs1cvCIksMY2BUb/ks/socket?k=mZqVIxMabH2Fax1uBDZ4eKjb9NqHIrRitnUDJxLxPiU #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:05 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33903###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:33 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:34 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/bh1zk9R-rFe9Xkr8U960w/ks/socket?k=XuQtbEXmoNKpw0gQJPKJ_tYEIkhvx8tAeXMlzTWAAg4 #
+
+20:34:34 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:34:34 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43853###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Uth-rDmrCDiRItyOhxQ56/ks/socket?k=2hgkPzFwKTwsTqgm0b1sHZDh_oF-CeIWD8fVvCRn8UI #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35369###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:36 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:37 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/JAP3L7kRsmKwJ2M2SIYSS/ks/socket?k=iVcyqzVJc_0WiL22fj4jm_304n5nl_ggYrwbJJy3EHI #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:37 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:38 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41065###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:35:55 [Tryorama] [31merror[39m: [2m2026-03-20T20:35:55.913978Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m361:[0m Peer behavior error: PeerBehaviorError { ctx: "Attempted to initiate during a round" }
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:36:11 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:36:13 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/al4FCkQS6RWTyUwGTm3lL/ks/socket?k=69N-DdSPoAvUl8k0T7o5MOXnBwvYFh06ifTHvroL7Q0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+20:36:14 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44809###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+<empty line>
+stderr | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+error occurred during test run: ClientClosedWithPendingRequests: client closed with pending requests - close event code: 1006, request id: 2
+    at file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/client.js:197:35
+    at Array.forEach (<anonymous>)
+    at WebSocket.socket.addEventListener.once (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/client.js:196:35)
+    at callListener (/workspaces/ValiChord/valichord/tests/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onClose (/workspaces/ValiChord/valichord/tests/node_modules/ws/lib/event-target.js:220:9)
+    at Object.onceWrapper (node:events:623:26)
+    at WebSocket.emit (node:events:508:28)
+    at WebSocket.emitClose (/workspaces/ValiChord/valichord/tests/node_modules/ws/lib/websocket.js:273:10)
+    at Socket.socketOnClose (/workspaces/ValiChord/valichord/tests/node_modules/ws/lib/websocket.js:1346:15)
+    at Socket.emit (node:events:508:28)
+
+ × src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued 900109ms
+   → Test timed out in 900000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+Error: Test timed out in 900000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 40 skipped (41)
+   Start at  20:34:02
+   Duration  901.28s (transform 146ms, setup 0ms, collect 704ms, tests 900.11s, environment 0ms, prepare 156ms)
+

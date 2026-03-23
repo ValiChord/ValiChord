@@ -1,0 +1,2760 @@
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid membrane proof (>= 64 bytes) can join the attestation DNA
+17:11:15 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid membrane proof (>= 64 bytes) can join the attestation DNA
+17:11:16 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/yz8UAHyxRcKxbJeRrfjQe/ks/socket?k=l2dom4Kuayw7X9NtxvQJjfZs4FcHKxoEZCkSXzSHjCo #
+
+17:11:16 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid membrane proof (>= 64 bytes) can join the attestation DNA
+17:11:17 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36457###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 1. Membrane proof > agent with valid membrane proof (>= 64 bytes) can join the attestation DNA 54999ms
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with no membrane proof is rejected at genesis_self_check
+17:12:10 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with no membrane proof is rejected at genesis_self_check
+17:12:11 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/od8VQUWepXB5kWWlJQM5r/ks/socket?k=wkOBACQlyeJY6ZdNKf0txfvNjSgNU0op8irLLuHnfgs #
+
+17:12:11 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with no membrane proof is rejected at genesis_self_check
+17:12:11 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42877###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 1. Membrane proof > agent with no membrane proof is rejected at genesis_self_check 29399ms
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check
+17:12:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check
+17:12:40 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/RSL9gzThJvoxaGyJSkzG-/ks/socket?k=nTyIAseQyNwHsb1QLP7rbtpXO9yS7fB-vP5HYKrbRWY #
+
+17:12:40 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check
+17:12:41 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37979###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 1. Membrane proof > agent with too-short membrane proof (< 64 bytes) is rejected at genesis_self_check 29954ms
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid real Ed25519 proof is accepted by coordinator init
+17:13:10 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid real Ed25519 proof is accepted by coordinator init
+17:13:10 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/avGDIgqETJIarZK7MqNi1/ks/socket?k=4IS1gLVuA7Mv_p-vzQH_xGEKr5X5pLamm9JI7L5Wsjw #
+
+17:13:10 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with valid real Ed25519 proof is accepted by coordinator init
+17:13:11 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41203###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 1. Membrane proof > agent with valid real Ed25519 proof is accepted by coordinator init 42709ms
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with wrong-signature proof is rejected by coordinator init
+17:13:52 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with wrong-signature proof is rejected by coordinator init
+17:13:53 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/SpfSp55MjtonJn2_qE3jM/ks/socket?k=GNmFztquLyIp7pp46WpD5Yf0WEX6soPmSN6x21rsLDE #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 1. Membrane proof > agent with wrong-signature proof is rejected by coordinator init
+17:13:54 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44189###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 1. Membrane proof > agent with wrong-signature proof is rejected by coordinator init 45603ms
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:14:38 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:14:38 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/umgkCAlb_3RBF0gom99Wf/ks/socket?k=FmJLBmZf8r3PH-icuGqBqLuhEx-i79AxeT86VlpEygE #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:14:39 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42473###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:15:04 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:15:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/p7xXdXJob5hVzhcOv-_mr/ks/socket?k=NEVMJNnX08FCC7DCsqot0nqgFgGuDPgPh40gnZfx1yc #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable
+17:15:05 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40761###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 2. Full commit-reveal round > two validators commit, phase opens, both reveal, attestations retrievable 95179ms
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:13 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:14 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/73OxHYL8TcfKPZmH98sgz/ks/socket?k=5G_t2UTdaV7GavxDQqe6Qaa7ZYP1dEuZ79u4ya8SKzw #
+
+17:16:14 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:14 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41973###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:38 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:39 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/04DE8rVGCwl6Hy-FpYHMa/ks/socket?k=Ysp5bRxZQ2wGuPfEudoPUl74wn3r8T6UWM6TYPxhtko #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:16:39 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39515###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:17:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:17:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/PqId5uJOLtj9c7wXR1QXY/ks/socket?k=3i7RdVE0RTmM0t25Wkv9YzzAbRqjysOh7qU0xH16pRY #
+
+17:17:04 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+17:17:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34377###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal
+[test] Eve received signal: false (irrelevant to correctness)
+
+ ✓ src/attestation.test.ts > 3. DHT-poll phase transition > late-joining validator discovers RevealOpen by polling, not via signal 114892ms
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > published validator profile is retrievable by agent public key
+17:18:08 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > published validator profile is retrievable by agent public key
+17:18:09 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/hoLXR6V4gTGuuvVR9wM6o/ks/socket?k=P-LCImlwiPHtJSh8mjaRUJYIjkqwer0wwbv-CixwewI #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > published validator profile is retrievable by agent public key
+17:18:09 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34037###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > published validator profile is retrievable by agent public key 35499ms
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > get_validator_profile returns null when no profile published
+17:18:43 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > get_validator_profile returns null when no profile published
+17:18:44 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/4KYcRY-bXAdnD4Z4MCFdY/ks/socket?k=z77a0o-4F0cS9NUXODjtvXcRajGTosgV3KNYb8XpEBU #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > get_validator_profile returns null when no profile published
+17:18:45 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:32859###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > get_validator_profile returns null when no profile published 34979ms
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null
+17:19:18 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null
+17:19:19 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/1AR_9QmJ_6klOT-TIGDl9/ks/socket?k=Vj4OqQIGdux5N_rKZoxZyVpAl5bxy9sV6O-dUQNyN3I #
+
+17:19:19 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null
+17:19:20 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41211###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 5. ValidatorProfile and DifficultyAssessment > assess_difficulty then get_difficulty_assessment returns the assessment; unknown ref returns null 35154ms
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > submitted ValidationRequest is retrievable by its ActionHash
+17:19:54 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > submitted ValidationRequest is retrievable by its ActionHash
+17:19:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/mo7U33_IhLHjc16mDZfKF/ks/socket?k=48nYlxIJQmr69FqSsoIGEH71dvavRo87TBOUo7mo3wM #
+
+17:19:54 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > submitted ValidationRequest is retrievable by its ActionHash
+17:19:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33555###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 6. ValidationRequest lifecycle > submitted ValidationRequest is retrievable by its ActionHash 35032ms
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > get_validation_request returns null for an unknown ActionHash
+17:20:29 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > get_validation_request returns null for an unknown ActionHash
+17:20:29 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/bndTw6eCgFZkEQdG4oxZX/ks/socket?k=64I9sLmgU0_6lXyYXA6EsbnQBs9WX5e0cyUFAz90w3o #
+
+17:20:29 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 6. ValidationRequest lifecycle > get_validation_request returns null for an unknown ActionHash
+17:20:30 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44323###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 6. ValidationRequest lifecycle > get_validation_request returns null for an unknown ActionHash 35029ms
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a CommitmentAnchor is rejected (no update function in API)
+17:21:04 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a CommitmentAnchor is rejected (no update function in API)
+17:21:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/2d3jN7Mq9QEHL_u6pBT6-/ks/socket?k=8tnATuw93vQ2XFhQx3NbGkgKJm8Y4xdKGxpSkhr5rQs #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a CommitmentAnchor is rejected (no update function in API)
+17:21:04 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a CommitmentAnchor is rejected (no update function in API)
+17:21:05 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40293###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a CommitmentAnchor is rejected (no update function in API) 34829ms
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:21:38 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:21:39 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/R34pkHoVjJrG0wu9DtUDx/ks/socket?k=Od_wu90RvSGkjySFaJVB0JQeHmDhcd-T70xdchnvVVY #
+
+17:21:39 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:21:40 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38213###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:22:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:22:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/8CKTKt5VwlOTg_GoY4hlT/ks/socket?k=Lv1y_ghLfcGK5Ad9Roo_QQjTFwav4ULjAnGNHDGut3o #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API)
+17:22:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38571###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to update a PhaseMarker is rejected (no update function in API) 74503ms
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:22:53 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:22:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/7nuUVdLqFCmu5CpPwS7Tr/ks/socket?k=xQLGg_p6ZHX5XcluzFe1OwqxNSm6_rXUUbNrMoFEECQ #
+
+17:22:54 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:22:54 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43809###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:23:18 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:23:19 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/YBSqHTBWN_fyv40Po73L2/ks/socket?k=V2D7lD4BxPnBXdAOm-5IBLx7HdyOTdurk8EzvsMn8D0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API)
+17:23:19 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34247###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 7. CommitmentAnchor and PhaseMarker immutability (update path) > attempting to delete a PhaseMarker is rejected (no delete function in API) 82171ms
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns submitted request for matching discipline
+17:24:15 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns submitted request for matching discipline
+17:24:16 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/CUlHm4-xRJ7zOI0AQxCv6/ks/socket?k=TV1MVv8rOHQhFdJ_A2d8ZVlTS0HewCCixgnXIOm0GXw #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns submitted request for matching discipline
+17:24:16 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35621###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns submitted request for matching discipline 35176ms
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns empty for a different discipline
+17:24:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns empty for a different discipline
+17:24:51 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/my9BPZ-BDwWTmQzNpaXxC/ks/socket?k=ZB8SOVTfB4bYENa3Tap9NphEzFkDcUguV0hhq-YtBAs #
+
+
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns empty for a different discipline
+17:24:51 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns empty for a different discipline
+17:24:52 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45293###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 8. ValidationRequest query by discipline > get_pending_requests_for_discipline returns empty for a different discipline 35037ms
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to update a ValidationAttestation is rejected by validate()
+17:25:25 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to update a ValidationAttestation is rejected by validate()
+17:25:26 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/qyXyF1FTX-22mmrSa2mYJ/ks/socket?k=_dOtDR-XWyEo3Ie-BvYDwJGn1i5P4tf32WUwwEmh3k8 #
+
+17:25:26 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to update a ValidationAttestation is rejected by validate()
+17:25:27 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36769###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to update a ValidationAttestation is rejected by validate() 48564ms
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to delete a CommitmentAnchor is rejected by validate()
+17:26:14 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to delete a CommitmentAnchor is rejected by validate()
+17:26:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/JU2rvWkiF2zu9f94YWSfH/ks/socket?k=CjOvfWw06RMnB3oMtFToh5ruc5pRKics9crAXgD7hl8 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to delete a CommitmentAnchor is rejected by validate()
+17:26:15 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46653###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 4. ValidationAttestation immutability > attempting to delete a CommitmentAnchor is rejected by validate() 40045ms
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:26:54 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:26:55 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/1su1mtiO6JNXc0vAtyqqv/ks/socket?k=EJOVr7F3sDncGyE7qyRiGfNEevPxRqUcyYxRQdbKxm8 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:26:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33015###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:27:19 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:27:20 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/clyyW9KVMdowCjm3sAEaO/ks/socket?k=ifU1d9bYJXQZ7ojTpfleEbLTeAFEVUgBClfDqKMVvHw #
+
+17:27:20 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA
+17:27:21 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41855###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify > seal_private_attestation post_commit triggers notify_commitment_sealed in attestation DNA 100438ms
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:28:34 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:28:35 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ocdCSllSHig7POTWdFB5Z/ks/socket?k=bEIjc17sXZVZ22Y6uHb5CS8B0a3OTz1Nsw5UX6LIXzA #
+
+17:28:35 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:28:36 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38875###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:28:59 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:29:00 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/VAjUF2f9dv2mQ4jTNKk-v/ks/socket?k=WvI8UlhFYBh6A_KX4G2ZXZzoAtUy9EDOi9YuSbezdlM #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+17:29:00 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41017###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+<empty line>
+stderr | src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+error occurred during test run: AssertionError: expected { signed_action: { …(2) }, …(1) } to be null
+    at Proxy.<anonymous> (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/expect/dist/index.js:1095:20)
+    at Proxy.<anonymous> (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/expect/dist/index.js:800:17)
+    at Proxy.methodWrapper (/workspaces/ValiChord/valichord/tests/node_modules/chai/lib/chai/utils/addMethod.js:57:25)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1210:27)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1170:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15) {
+  showDiff: false,
+  actual: {
+    signed_action: {
+      hashed: [Object],
+      signature: <Buffer d3 b9 36 a8 6d b0 c3 b3 eb 0b b5 f6 77 8f 73 04 bc 3e ec a6 bc 51 41 d9 1e aa df 5e c6 3f 46 7f a6 26 e8 28 52 44 5b 1b 90 0e c0 d8 26 2f a0 f9 24 79 ... 14 more bytes>
+    },
+    entry: 'Hidden'
+  },
+  expected: undefined,
+  operator: 'strictEqual'
+}
+
+ × src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell 79426ms
+   → expected { signed_action: { …(2) }, …(1) } to be null
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:29:54 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:29:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/56T9AA2IrVhgstB1NBwLp/ks/socket?k=OW8X6YxJHqJ8CdYv4FvY6xfF7zu5ICmb8MslYKsDBHA #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:29:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38603###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:30:19 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:30:19 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/lynVjJguDqlRdQfCRHwHJ/ks/socket?k=vGvIEQKWQ7_XwD0jJ1wxRcVVxeqQr7kl345_FBUw0Sg #
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:30:19 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null
+17:30:20 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37231###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 11. Phase threshold — single validator below minimum_validators > one commit with minimum_validators=2 leaves phase as null 76486ms
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:10 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:11 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/lJRwSxjwDzzbAJCbkkHeu/ks/socket?k=c8lpD2ktM362lu0b53n2EQD9SvMBLpe_S5yTu5mOdAs #
+
+17:31:11 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:12 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46321###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:35 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:36 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/HrkBT2ASeZcmPnfZ8krE7/ks/socket?k=Gun6PDaE1BXd4MkoAoqdwM34SNNkbYT8nzi5iyIwZlQ #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:31:37 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40619###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:32:00 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:32:01 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/dCA3gVKkjJuYZoxxeITC-/ks/socket?k=cYmZFD9Y4Qf2kd5ab2TvIb9w678RhUCoOECe1SMmQEs #
+
+17:32:01 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:32:02 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34113###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:33:36 [Tryorama] [31merror[39m: [2m2026-03-20T17:33:36.367997Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 436, error: Guest("ValidationRequest not found — cannot determine num_validators_required") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("get_num_validators_required")
+
+17:33:36 [Tryorama] [31merror[39m: [2m2026-03-20T17:33:36.369243Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("governance_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokZwfjOWibaB4kVpIhemX7FV2U7g8qJGWhbTl7jD47bO_R40LV), dependencies: [ZomeName("governance_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("check_and_create_harmony_record")
+
+
+stderr | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+error occurred during test run: internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+    at catchError (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:37:23)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at AppWebsocket.callZomeRequester (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:13:22)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1307:29)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1283:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+17:33:36 [Tryorama] [31merror[39m: [2m2026-03-20T17:33:36.991485Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 436, error: Guest("ValidationRequest not found — cannot determine num_validators_required") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("get_num_validators_required")
+
+17:33:36 [Tryorama] [31merror[39m: [2m2026-03-20T17:33:36.992022Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("governance_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokZwfjOWibaB4kVpIhemX7FV2U7g8qJGWhbTl7jD47bO_R40LV), dependencies: [ZomeName("governance_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("check_and_create_harmony_record")
+
+
+ × src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued 146582ms
+   → Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:33:37 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:33:38 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/483X7Pa-t-zbUfWdAwO7-/ks/socket?k=TKaW6tHr2WHNNyWw5-XPTdfYZUd9I4cqJDLf62Pn7ho #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:33:38 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35123###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:02 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/01bZA2liBVA-KoiMsJWtO/ks/socket?k=TOosC_HXDrOKdaxnysFSu9v7wRHi4YjGbbEIJ8YXiwE #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:03 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41271###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:27 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:28 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/cy38kIiQ0AjyIiyEMzasD/ks/socket?k=Nnm57f1VFbvrg3JIrNgqFPDgEA7N0X2a4avhqJHX0ms #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:28 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:28 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40201###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:54 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:55 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/V1vnj8i0ij70AxHqDBQOy/ks/socket?k=R1Df0lMO_3XlrQV1wNiPB6uSlQ4KioVA9D5T_Ylgan0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:34:56 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39651###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:35:24 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:35:25 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/tE3UpMoYx8eJ45xHpC4pZ/ks/socket?k=wAnTFTzVmF5_3rSj9ayDik04iWvXhcmH07RLcl9bWSg #
+
+17:35:25 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+17:35:26 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34657###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+<empty line>
+stderr | src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+[
+  '\n' +
+    'Conductor 0\n' +
+    '------------------------------\n' +
+    '# of integrated ops: 65\n' +
+    '# of ops in integration limbo: 0\n' +
+    '# of ops in validation limbo: 0\n',
+  '\n' +
+    'Conductor 1\n' +
+    '------------------------------\n' +
+    '# of integrated ops: 65\n' +
+    '# of ops in integration limbo: 0\n' +
+    '# of ops in validation limbo: 0\n',
+  '\n' +
+    'Conductor 2\n' +
+    '------------------------------\n' +
+    '# of integrated ops: 65\n' +
+    '# of ops in integration limbo: 0\n' +
+    '# of ops in validation limbo: 0\n',
+  '\n' +
+    'Conductor 3\n' +
+    '------------------------------\n' +
+    '# of integrated ops: 65\n' +
+    '# of ops in integration limbo: 0\n' +
+    '# of ops in validation limbo: 0\n',
+  '\n' +
+    'Conductor 4\n' +
+    '------------------------------\n' +
+    '# of integrated ops: 11\n' +
+    '# of ops in integration limbo: 0\n' +
+    '# of ops in validation limbo: 54\n'
+]
+Timeout of 40000 ms has passed. Players' integrated DhtOps are not syncronized.
+error occurred during test run: Error: Timeout of 40000 ms has passed. Players' integrated DhtOps are not syncronized.
+    at retryUntilCompleteOrTimeout (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/util.js:41:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1347:9)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1332:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+    at startTests (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:967:3)
+
+ × src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued 193155ms
+   → Timeout of 40000 ms has passed. Players' integrated DhtOps are not syncronized.
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:36:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:36:51 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/HimWXIwfi-AbRSWqxkreo/ks/socket?k=xbybHoJpiekiRmvV3YIRyPPnb6J3P0LZWjNOsVb72Xo #
+
+17:36:51 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:36:51 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45667###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:37:16 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:37:17 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/KzvSzvVrzHJyYZRM7NrHt/ks/socket?k=jNOnNwAsAWJByoQWOD1LCRdkYhg3fYU1r264J5nrODU #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:37:17 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38617###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stderr | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+error occurred during test run: internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+    at catchError (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:37:23)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at AppWebsocket.callZomeRequester (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:13:22)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1478:29)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/attestation.test.ts:1457:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+
+stdout | src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+17:38:29 [Tryorama] [31merror[39m: [2m2026-03-20T17:38:29.120428Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 436, error: Guest("ValidationRequest not found — cannot determine num_validators_required") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("get_num_validators_required")
+
+17:38:29 [Tryorama] [31merror[39m: [2m2026-03-20T17:38:29.120904Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("governance_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokZwfjOWibaB4kVpIhemX7FV2U7g8qJGWhbTl7jD47bO_R40LV), dependencies: [ZomeName("governance_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("check_and_create_harmony_record")
+
+
+ × src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued 98934ms
+   → Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+stdout | src/attestation.test.ts > 14. Validator reputation > update then get_validator_reputation returns the written record
+17:38:29 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 14. Validator reputation > update then get_validator_reputation returns the written record
+17:38:30 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/tK9zyumaddwAd6001EqkU/ks/socket?k=LQqmSW1yL-_oNillNL426YRYQP98n5TYSqKDDI4w-Qg #
+
+
+stdout | src/attestation.test.ts > 14. Validator reputation > update then get_validator_reputation returns the written record
+17:38:30 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 14. Validator reputation > update then get_validator_reputation returns the written record
+17:38:30 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33209###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 14. Validator reputation > update then get_validator_reputation returns the written record 34248ms
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:04 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Td8gOiU67taVYLpvBDjdo/ks/socket?k=HA7i2mFkR0PIe2c8RIKPBOweGZcvPpXTMkti3bjuJ1I #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38439###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:28 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:28 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/91eq-wrTQTi6DB4BzXZqu/ks/socket?k=DUguzSnkb_IbpcXgjGqX2R_BIH-bFoLKZxR4di4y028 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0
+17:39:29 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41421###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 15. get_validators_for_discipline > two profiles published for ComputationalBiology — both returned; MachineLearning returns 0 73330ms
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+17:40:17 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+17:40:17 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/B6jZkSzs_kZQKvyB6A8Ot/ks/socket?k=UqT9S57gRz2YkE4UYANycUdYoQd7mDCSVFQy3rfrEWQ #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+17:40:18 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40951###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash 35862ms
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+17:40:52 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+17:40:53 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/I3CST5iYLJOCEYsc3JwHP/ks/socket?k=tcF1Petk8fR53-mhyK6SJ2J0645WDOQIzO0G_6Bb9RU #
+
+17:40:53 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+17:40:54 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43349###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted 35652ms
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:28 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:29 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/PbhY1Mjd_4V42etWL7kya/ks/socket?k=T7r5LOeZvgGFtZlrvo3L5FX0UVRB0MG8Gxnw58PooE0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:29 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42299###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:53 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/yCpjlPki7tbOqxceNex--/ks/socket?k=RAV6WV32kKLIIemP2toso8i3Y2YoGgTW_p6MOrLyZBc #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit
+17:41:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33157###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 16. check_all_commitments_sealed direct call > returns false after 1 of 2 commits, true after 2nd commit 85326ms
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:42:53 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:42:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/betL3bDwXmaRBmIPsfyZT/ks/socket?k=MdHSraemAmt5UphMj2rw9JzmqANkL950lkQJbasOoHQ #
+
+17:42:54 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:42:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44267###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:43:18 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:43:19 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/De1MXOx4AXt8TmxLwEKOf/ks/socket?k=rNSzp_XaSi25iyKxFUBTNn_L93E-pBTa5IAVDt9x62Y #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching
+17:43:20 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39475###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 18. get_validators_for_institution > returns profiles for matching institution, empty for non-matching 72979ms
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:06 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:07 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/hXKHpTLTkuFUmbb9WTfnw/ks/socket?k=iAzXUYtTK7zQMQJMK4tJSV2cugFeAHNu91OX-BAm0xM #
+
+17:44:07 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:08 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42651###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:31 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:32 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/2BvNJjmBorUqNKADjo2y9/ks/socket?k=p-LizwvxdEhYhi9I_w8XkkFGMOJz8pdpLP66Xxe4CG0 #
+
+17:44:32 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching
+17:44:33 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44225###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 19. get_attestations_for_discipline > returns attestation for matching discipline, empty for non-matching 73398ms
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:20 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:20 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/bEyevBHBz2ZVKx1MY00fq/ks/socket?k=w5bNVrrkDuhtef8rmZ-jUsWfO7ri-lTpEvy16Mf3c2E #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:20 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:21 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43987###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:45 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:45 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/NX30G-G7ATn5IbwHD5LkT/ks/socket?k=FcFyWex79nDflsOQn2W76lO1HbXXN1zInSmTbsRsBA0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable
+17:45:46 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46361###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator claims a study and the claim is retrievable 72607ms
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:32 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:33 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/XA8MQmpHRxS60gE1q6pWf/ks/socket?k=a5VEOoH-d-BRB8Os5IGrzArxmojk3gAbshVXjv4fnzs #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:33 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:34 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33889###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:57 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:58 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/NvJ-i-0XO7xizCpxtUuZg/ks/socket?k=vwEGr875bvfEn5iAsF_pz9szms2S5VDQ1NNUF48DdCI #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:46:58 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38859###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:47:28 [Tryorama] [31merror[39m: [2m2026-03-20T17:47:28.717015Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m361:[0m Peer behavior error: PeerBehaviorError { ctx: "Attempted to initiate during a round" }
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice
+17:47:45 [Tryorama] [31merror[39m: [2m2026-03-20T17:47:45.353343Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 512, error: Guest("Validator has already claimed this study") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("claim_study")
+
+
+ ✓ src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > same validator cannot claim the same study twice 72815ms
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:47:45 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:47:46 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/k44zOmpQoRtaZOAJpRv4b/ks/socket?k=Iwj7I5i4wbQyX-84TV6t4O2qewcyyRcgrmFFSgf-1X8 #
+
+17:47:46 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:47:47 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41173###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:48:10 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:48:10 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/My89LSU998RTjOMaNQRPP/ks/socket?k=DA24BKXUE_5XIORm-Gdsdskv1WjSxajHBO7Ae8syXWs #
+
+17:48:10 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected
+17:48:11 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35175###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > validator from the same institution as researcher is rejected 72289ms
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:48:57 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:48:58 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/sZ7MhvimKrbXYexpQbdjP/ks/socket?k=FhIM9iq0a1BIqIpe8-zjdFGASjRGOW2oUFT7Y6wb0xA #
+
+17:48:58 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:48:59 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42521###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:22 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:23 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/aY_4-LjqTK2ftghBTa7VS/ks/socket?k=97EUXuGBCdlBggauzVdchOcDRg2oywuPEoHPQN5uKhs #
+
+17:49:23 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:23 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34257###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:47 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:48 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/OogvD7hJgn9HydO4_OQkS/ks/socket?k=O4tBWZoALR50yJmoDlawxzwYmNnFBOxUM0S-4fllFGA #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:49:48 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46411###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:50:14 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:50:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/pQHdJ02p5L_eOGEUGHz7p/ks/socket?k=sBptYUR99N-0FBmQRQ1l18PBlkGzDaFEwDQ3sMtwWWg #
+
+17:50:15 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:50:15 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35817###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected
+17:51:33 [Tryorama] [31merror[39m: [2m2026-03-20T17:51:33.354616Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 499, error: Guest("Study is at capacity (2/2 validators already claimed)") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("claim_study")
+
+
+ ✓ src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > claiming when all slots are full is rejected 155753ms
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:33 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:34 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/AZokb5GJMZaiuIoFKRSnx/ks/socket?k=Kah6BxADbxkx3XgZ8-wB4Y3wd6Mqd2Sz09EcO7ic_WE #
+
+17:51:34 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:35 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37763###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:58 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:58 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/v5lguEPb1y8CEcNAvLqxq/ks/socket?k=F_MdiPok1CrMxihYFzSjVHTLDHC00qrK-gplFnss6UM #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request
+17:51:59 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43553###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 20. Validator self-assignment (StudyClaim) > release_claim removes the claim from get_claims_for_request 73031ms
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:52:46 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:52:47 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/wLEQf9SYkixw3Zr6p1s24/ks/socket?k=wx1m6FEBNYxeEtjp-YA-Mc_SrwMm3QcNqagtTOjB1hw #
+
+17:52:47 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:52:48 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41195###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:53:11 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:53:12 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/mD85tHVRvvMFfPaKLlJrr/ks/socket?k=nraN0qVsZHDm8sfhTkSbGvnR-qQiuB4zByp_LKapEhM #
+
+17:53:12 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs
+17:53:12 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42797###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when claim is younger than timeout_secs 72376ms
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:53:59 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:53:59 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/c6oPZCMCocMV3l3wNj1yX/ks/socket?k=sR8sBeW08h2Pv63scWePfKhZ9JHoPeVEDKS5XNIV_ws #
+
+17:53:59 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:00 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37337###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:23 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:24 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/_CLJ888A22P1QKPOrghRH/ks/socket?k=W8zLbj5UJe2phPZSneUhh4w9omzXBDsthhCsCgzaPlc #
+
+17:54:24 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:24 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35641###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:48 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:49 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/53CZLhh1Cgm30ms2WaFE4/ks/socket?k=UGJ-v2pHLH7YMUD2Qdlr9MNOhHfcF-nps_46oasOVX4 #
+
+17:54:49 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed
+17:54:49 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34787###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns true and frees the slot when timeout has elapsed 111695ms
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:55:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:55:51 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/trnTdjYLBk4FETr6xPhzw/ks/socket?k=9sXpb8XGoanOOvl7uPsHyR_9Vj9ZJ74Fr1I7vXwIIjg #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:55:52 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40099###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:15 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/yxSLLiWIF-Ia36jZuFObh/ks/socket?k=rEYMg8NK6-pSWUMsW6RU0c32BxMM-k9Pzz8Ux7TeCQo #
+
+17:56:15 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:16 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42067###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:40 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/imkVZ3YZphkgNQ3swa-JU/ks/socket?k=lNdu_uD8jJdmX2tmZNybOJSoj-NOZh8Hi9Rtg8WqBHg #
+
+17:56:40 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation
+17:56:41 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36769###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 21. Dropout recovery (reclaim_abandoned_claim) > returns false when validator has already submitted an attestation 122192ms
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > two calls for the same request_ref with no attestations both return null
+17:57:53 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > two calls for the same request_ref with no attestations both return null
+17:57:53 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Bkm0PJwYw01ijKyCK8hJE/ks/socket?k=aoXuwQ3s7rROY6ChBagcWOMNdT_PhmbwEZ_Ku3omuBw #
+
+17:57:53 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > two calls for the same request_ref with no attestations both return null
+17:57:54 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41523###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 1. check_and_create_harmony_record idempotency > two calls for the same request_ref with no attestations both return null 43492ms
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:36 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:36 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:37 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jpMYFS2V7hTXMbEaRlDUK/ks/socket?k=6JpattPJoWg118sADMKw1_E3FO52-8Ou0rn-8O-vMnA #
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:37 [Tryorama - Player 1] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:37 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/T4ahG7g-DukIEZmDE6EZJ/ks/socket?k=Niw6MhcYelcBwczLQVffab2OUotPyLQmQHU27N2_NUc #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:38 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:32875###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists
+17:58:38 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41053###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 1. check_and_create_harmony_record idempotency > second call short-circuits when HarmonyRecord already exists 107446ms
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:24 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:24 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:25 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/uSE1CbIpAhKEphUyO4BPa/ks/socket?k=zOxJGdO6kTROGiUPNO-1AeZ6yjp5OQEsxQtneRG2zWk #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:25 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ND7o2SFAs3ZHGK6RW1EL2/ks/socket?k=dL5AQDEtCDNI6MRQ9fOjeqocu1onGqFIDDS5zJLB0gA #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:25 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+18:00:25 [Tryorama - Player 1] [32minfo[39m: ###ADMIN_PORT:45057###
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:25 [Tryorama - Player 1] [32minfo[39m: ###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation
+18:00:25 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45563###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 2. Any participant can finalise > a validator who did not submit the ValidationRequest can trigger finalisation 98346ms
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:02 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:02 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:03 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/elEV-R_xYmhAMGyYjk8Mj/ks/socket?k=w9zv8ACz67fjeuupJabS-Rr3dgRJsYO1nDx0AWuYJlA #
+
+18:02:03 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:03 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/H2dOTSrh0ANPLL2CFsUMS/ks/socket?k=0rWmhWcj9GnD-gBEwd6qn8u-REfhN-tFvMDyBZWa5kA #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:04 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+18:02:04 [Tryorama - Player 0] [32minfo[39m: ###ADMIN_PORT:45129###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null
+18:02:04 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35209###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 2. Any participant can finalise > premature finalisation (only 1 of 2 required attestations) returns null 70240ms
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:12 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:12 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:13 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/X0v1OaGFziPPBGSz115Ut/ks/socket?k=n33KH3VHSRbaP7ndRwa2RKAYfOxXFsIL598-xX-Fg34 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:13 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Gy48QzXjjb_8Z5AkoXB-K/ks/socket?k=0bm-5PDprQzaC_2QEDdf033uAlODChwc3gAOjWv2Xz8 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:14 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+18:03:14 [Tryorama - Player 0] [32minfo[39m: ###ADMIN_PORT:38549###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT
+18:03:14 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43289###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 3. Full end-to-end round > researcher → request → validator attestations → HarmonyRecord on public DHT 130448ms
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > any validator can update reputation (not key-gated)
+18:05:23 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > any validator can update reputation (not key-gated)
+18:05:23 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Q59esxMT2UiCD1frFETl0/ks/socket?k=zl4nP7FzAiE440dKcCkxxrMVkE11NlyhJ91Gk3c9y0k #
+
+18:05:23 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > any validator can update reputation (not key-gated)
+18:05:24 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38385###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 4. ValidatorReputation — any participant can write > any validator can update reputation (not key-gated) 33842ms
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > GovernanceDecision remains key-gated — non-coordinator key is rejected
+18:05:56 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > GovernanceDecision remains key-gated — non-coordinator key is rejected
+18:05:57 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/yCqSG4Q9T62bVyfV4a-eM/ks/socket?k=famYrYSZPGPEpRrW28rVVZFXrS9gJOysXkFRRr5FVFI #
+
+18:05:57 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 4. ValidatorReputation — any participant can write > GovernanceDecision remains key-gated — non-coordinator key is rejected
+18:05:58 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33917###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 4. ValidatorReputation — any participant can write > GovernanceDecision remains key-gated — non-coordinator key is rejected 34345ms
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:31 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:31 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:32 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Oik0PIIoUgsGpCyhtHqNl/ks/socket?k=Qh84lTCph05WhVkCydI3x8FSpXhFgstR2lvsVRv7Kmc #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:32 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/GInYFd5-2HhYZlr42apnr/ks/socket?k=Dzm7N1yHIkepIIsKxEIdOfaZkdHjCQEDxB20gKyBJH8 #
+
+18:06:32 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:33 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+18:06:33 [Tryorama - Player 1] [32minfo[39m: ###ADMIN_PORT:44991###
+
+18:06:33 [Tryorama - Player 1] [32minfo[39m: ###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation
+18:06:33 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45167###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns the record after creation 109216ms
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns empty array when no records exist
+18:08:20 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns empty array when no records exist
+18:08:21 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/zcixGGDrQIZrR0xK5nAiV/ks/socket?k=xb1FR-7ybtR2tK3B0QZmmi44Non6RoiOq_a5cElqwS0 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns empty array when no records exist
+18:08:21 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37515###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 5. Read queries > get_harmony_records_by_discipline returns empty array when no records exist 33872ms
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:54 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:54 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:55 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/8V3ax06E1cnHlS7Etnyjn/ks/socket?k=aeExj9ZBmP-y6z0bTAFT19wUK-FMPVKwK2JH-Fza-W8 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:55 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jKJ4ai6ftHtoDfid_uvXO/ks/socket?k=yoNRRC8hoNhGaM8hXWXKdRNQ6Cga7uCs4J4rhDz4SBM #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:56 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41059###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met)
+18:08:56 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43233###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 5. Read queries > get_badges_for_study returns empty when validator count < 3 (no badge threshold met) 97570ms
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:31 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+18:10:31 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:31 [Tryorama - Player 2] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:33 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/wVkc_MnBID80xds0Ld4PG/ks/socket?k=42o7jyOirVX56QPcntQU4XZ7GrmtUV7yCTbLcia-SFM #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:33 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/qv0rL7AasYjZm0rP6QUXq/ks/socket?k=LrM4p7bgTC1xfc9uowIA92s6m-jLjZf9nM0waDowOFc #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:33 [Tryorama - Player 2] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/D2Cso3nW7X_cOdv1t0pRC/ks/socket?k=DgM35nwIeQ9M9PnQwPVi5_eyJoWEnUjkqMq9eQTA8hI #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:35 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+18:10:35 [Tryorama - Player 1] [32minfo[39m: ###ADMIN_PORT:34721###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:35 [Tryorama - Player 2] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34779###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced
+18:10:35 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43755###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 6. Badge positive case > get_badges_for_study returns BronzeReproducible when 3 validators all Reproduced 154383ms
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:06 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+18:13:06 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:06 [Tryorama - Player 2] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:07 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/0jzQWUXbArwfgq2sbGUdC/ks/socket?k=Ke8u8QRbZ7o9NLtr9NJ_l1Vce8czZAF6zRXVqHQefWM #
+
+18:13:07 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:07 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/agsQzqJqFV0nLoiw7bUMW/ks/socket?k=3bhV1rOykT7n2LT8A_9o7TH_qaz208-zlagBzbqBdBU #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:07 [Tryorama - Player 2] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/eLr_92WB4Lih6oBmUR7aa/ks/socket?k=Ybz5b2xj-nEOhzwMUWSAbxov5_MuLLio4AAnTfyC8Fg #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:08 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39099###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:09 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45525###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge
+18:13:09 [Tryorama - Player 2] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45001###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 7. Mixed outcomes — Divergent HarmonyRecord + FailedReproduction badge > 1 Reproduced + 2 FailedToReproduce → Divergent agreement + FailedReproduction badge 155708ms
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+18:15:42 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+18:15:42 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/hYI3h1HvK8mlHai7f_hAq/ks/socket?k=Wl7UAll7gIr1xTxLSZ17EGL0U1ueCSsaEsHJfc6Jvjc #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip
+18:15:43 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35047###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 8. GovernanceDecision > create_governance_decision + get_all_governance_decisions round-trip 34168ms
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+18:16:16 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+18:16:16 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/V_63CWzx8GlJWj6K5xBmg/ks/socket?k=yrHpVsKsKcCMk4CSNwM4wbY06kOVr8vT1Z-PY4n3kQ0 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions
+18:16:17 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35613###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 8. GovernanceDecision > multiple GovernanceDecisions are all returned by get_all_governance_decisions 34242ms
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+18:16:50 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+18:16:51 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/i2Z3KGglrLgBK9ktw3SLw/ks/socket?k=PIgOpLXiTY1IG9wwU6W2syPBohuJnMdDEzrv8j1itgk #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+18:16:51 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37169###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance 33851ms
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:24 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:24 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:24 [Tryorama - Player 2] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:25 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/kYA7Is9u6VB3iatjDjBNJ/ks/socket?k=jzl9C7NbSr9axOn72FIDwIVjF1EeW4sKEFGelO2_A38 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:25 [Tryorama - Player 2] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/rOX99ELIIMk7FtzUlc-QQ/ks/socket?k=4bunFRCw34LcADSUVq6aKsGdOWPYZdC2UWNB-B2ushI #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:26 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ZkuWZb73NhVxjBStFGGx9/ks/socket?k=rMoxLWnQSA-29TroajSOy9g5auCnV7C8zrpyV0oboWI #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:27 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34783###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:27 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:32841###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+18:17:27 [Tryorama - Player 2] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40519###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record 149985ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+18:19:54 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+18:19:54 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/BRdcKg-_t38BUBtC3O1r_/ks/socket?k=tuzJT5Nupg-dg-WDAsltTABaN2t2rlhS90Nhv1Cc1WA #
+
+18:19:54 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+18:19:55 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46471###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API 33721ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+18:20:27 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+18:20:28 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/vImDnPxW0jVSQGX1nTn3a/ks/socket?k=bWD_JXBRp03EoM0kRGq7u0dJuG2kSnWlHBvHWXlbnx0 #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+18:20:29 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34863###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API 33541ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+18:21:01 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+18:21:02 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/z8M2VhTFDK8rsKdi6wVRA/ks/socket?k=nS4VoJcVRs-ueBeohnvYPC1YKNjmNSCfZ2fQdTDScCU #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+18:21:02 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+18:21:02 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34219###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API 33491ms
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:35 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:35 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:36 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/vgANu1So47fYhcEjVOjp6/ks/socket?k=lA2Qzgbu7NMP9wse54WamJIa9kEMkd9DPH0MkUvoJ3o #
+
+18:21:36 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:36 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jBU2PAgBEjTlSCizokEbM/ks/socket?k=C2P8rJp6kKf7WpBAl9b5yRJOc15U06247lH1t8wz7Go #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:36 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36703###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:21:37 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38305###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:22:44 [Tryorama - Player 0] [31merror[39m: [2m2026-03-20T18:22:44.699872Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m361:[0m Peer behavior error: PeerBehaviorError { ctx: "Unsolicited Accept message from peer: ws://127.0.0.1:46593/dPfLs_ByffS-PqiLA-TaJdsinOlT6DXmdCj8G7rJXUI" }
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old)
+18:22:48 [Tryorama - Player 1] [31merror[39m: [2m2026-03-20T18:22:48.014552Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m375:[0m could not respond to gossip message: K2Error(Other { ctx: "peer ws://127.0.0.1:46593/9vRJWfWDRaINSO9oKMy3SdqRMZupWrqlUVTS0kygSF4 already accepted", src: None })
+
+
+ ✓ src/governance.test.ts > 11. force_finalize_round > returns null when round has not yet timed out (< 7 days old) 76517ms
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when no attestations exist yet
+18:22:51 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when no attestations exist yet
+18:22:52 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/1lfyETxr-65WBEi_VB4O7/ks/socket?k=wDDukXCfnywTVWMBIbfcLNOrV-e13XtzhPrxyw7NtXY #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 11. force_finalize_round > returns null when no attestations exist yet
+18:22:52 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41657###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 11. force_finalize_round > returns null when no attestations exist yet 43401ms
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > registered study is retrievable by its ActionHash
+18:23:34 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > registered study is retrievable by its ActionHash
+18:23:35 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/4wUAQPl2vAq2lcpuYuiH5/ks/socket?k=Oi8ILKwyUYtxNlBYn4E59haUsgdz5oS8G7RBwPtR1Gs #
+
+18:23:35 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > registered study is retrievable by its ActionHash
+18:23:36 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35671###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 1. register_study + get_study > registered study is retrievable by its ActionHash 33155ms
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > get_study returns null for an unknown ActionHash
+18:24:08 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > get_study returns null for an unknown ActionHash
+18:24:08 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/FHNK5i28bKE4CRXuWwRo7/ks/socket?k=jIsC75LDcy6kKjIrgpx14gUEcy9YsOfPPoTJSCWgRBo #
+# lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 1. register_study + get_study > get_study returns null for an unknown ActionHash
+18:24:09 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36869###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 1. register_study + get_study > get_study returns null for an unknown ActionHash 33182ms
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > protocol is retrievable via its parent study
+18:24:41 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > protocol is retrievable via its parent study
+18:24:41 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/3QgHpB6BHBgqrDI641cAB/ks/socket?k=mu0544pslv1lSYfsv7BX26HsybuRFsI1XIuzrSf6MEg #
+
+18:24:41 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > protocol is retrievable via its parent study
+18:24:42 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38381###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > protocol is retrievable via its parent study 33494ms
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > get_protocol_for_study returns null when no protocol registered
+18:25:14 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > get_protocol_for_study returns null when no protocol registered
+18:25:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/i4yTCtuINZTRUVRhNLXO0/ks/socket?k=Na8Ht9oWHPB0wIrXYSapf1_P-GHP1hm62Ag9dtjRdlw #
+
+18:25:15 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > get_protocol_for_study returns null when no protocol registered
+18:25:16 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45909###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 2. register_protocol + get_protocol_for_study > get_protocol_for_study returns null when no protocol registered 33228ms
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > two snapshots are both retrievable for the same study
+18:25:48 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > two snapshots are both retrievable for the same study
+18:25:48 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/nYMhl9dnhlm8ZNb8RBtB1/ks/socket?k=u3U3IbripRaNxlbEGZhbgsLmMkV6g-nq52BAJK89M0I #
+
+
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > two snapshots are both retrievable for the same study
+18:25:48 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > two snapshots are both retrievable for the same study
+18:25:49 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35561###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > two snapshots are both retrievable for the same study 33393ms
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > get_snapshots_for_study returns empty array before any snapshot
+18:26:21 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > get_snapshots_for_study returns empty array before any snapshot
+18:26:22 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/6kJBVLk-CD7gZhWgV78PT/ks/socket?k=y58R_5-OXUN8i_rsHq7_waFCVcDRC7C657q_Ver9SzU #
+
+18:26:22 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > get_snapshots_for_study returns empty array before any snapshot
+18:26:22 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37371###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 3. take_data_snapshot + get_snapshots_for_study > get_snapshots_for_study returns empty array before any snapshot 33216ms
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > declared deviation is retrievable for its parent study
+18:26:54 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > declared deviation is retrievable for its parent study
+18:26:55 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/px82lh0RPv1Rebjca49_8/ks/socket?k=5kPZq0XNfX_ryJ-eEKjuL86oiMwZ-SFE7XjMTU3SdDE #
+
+18:26:55 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > declared deviation is retrievable for its parent study
+18:26:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40703###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > declared deviation is retrievable for its parent study 33370ms
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > get_deviations_for_study returns empty array when no deviation declared
+18:27:28 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > get_deviations_for_study returns empty array when no deviation declared
+18:27:28 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ObOeiwQ6VNapx_GyBN2GV/ks/socket?k=CD3tNVp2dCXgZw56BRaXlnfFB8A8W021G_pPNSdickw #
+
+
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > get_deviations_for_study returns empty array when no deviation declared
+18:27:28 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > get_deviations_for_study returns empty array when no deviation declared
+18:27:29 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34489###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 4. declare_deviation + get_deviations_for_study > get_deviations_for_study returns empty array when no deviation declared 33429ms
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > returns a 39-byte ExternalHash (SHA-256 of input bytes)
+18:28:01 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > returns a 39-byte ExternalHash (SHA-256 of input bytes)
+18:28:02 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/1Mpyyd0714Ylp6Bboyc3Q/ks/socket?k=W6G6bkQ80HG0qCHDePYnU3MGDCV1Sx0fwStTPw9ONGI #
+
+18:28:02 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > returns a 39-byte ExternalHash (SHA-256 of input bytes)
+18:28:02 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43371###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 5. compute_data_hash > returns a 39-byte ExternalHash (SHA-256 of input bytes) 33756ms
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > same bytes always produce the same hash (deterministic)
+18:28:35 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > same bytes always produce the same hash (deterministic)
+18:28:35 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/nVdVd_EdUOdW8Y8H4t9Dn/ks/socket?k=vzhOJFOYxZQDU0PDhj8rXMKdumO1_tta3Z4m3BE6AQA #
+# lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > same bytes always produce the same hash (deterministic)
+18:28:36 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42283###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 5. compute_data_hash > same bytes always produce the same hash (deterministic) 33628ms
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > different bytes produce different hashes (collision resistance)
+18:29:08 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > different bytes produce different hashes (collision resistance)
+18:29:09 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/x902oHWWmthQnh0d9sD1r/ks/socket?k=wSKLoUiqJDzDoeTb2V5oWyQNOPNHr3xWpFwHSBshcQc #
+
+18:29:09 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 5. compute_data_hash > different bytes produce different hashes (collision resistance)
+18:29:10 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42133###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 5. compute_data_hash > different bytes produce different hashes (collision resistance) 32890ms
+stdout | src/researcher_repository.test.ts > 6. PreRegisteredProtocol immutability (delete) > attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)
+18:29:41 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 6. PreRegisteredProtocol immutability (delete) > attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)
+18:29:42 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/kYwuJWHCOu4zoyI43HW6k/ks/socket?k=ZTVxrfUjQyDM44UISYgKsya69lV4EAyQBu8OtyRPz1Y #
+
+18:29:42 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 6. PreRegisteredProtocol immutability (delete) > attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)
+18:29:42 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38835###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 6. PreRegisteredProtocol immutability (delete) > attempting to delete a PreRegisteredProtocol is rejected (no delete function in API) 32899ms
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+18:30:14 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+18:30:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/auC31qSyfYBUhMQcc9ML3/ks/socket?k=SwmuY-wO6DuDYth9nF28RUGJuzNHHZeVu3RKvfpTWiA #
+# lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+18:30:15 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44641###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered 32916ms
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+18:30:47 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+18:30:48 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/q9xS3iixxzPWqIwc88dmf/ks/socket?k=VJMk-M_Se5q-4AKtLdO92r9L3xpPmBZtnmphMvWrQ0U #
+# lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+18:30:48 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36897###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies 33002ms
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+18:31:20 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+18:31:21 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/0MI4vtQJRqPTWY0IhsC8P/ks/socket?k=HFTjIHluBd7C_08_JEqpOgKBumUiJhfCEVmOOD6_c3U #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+18:31:21 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34403###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+18:32:04 [Tryorama] [31merror[39m: [2m2026-03-20T18:32:04.366059Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 274, error: Guest("Validator has already submitted an attestation for this study — duplicate reveals are not permitted") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("submit_attestation")
+
+
+ ✓ src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects 44113ms
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+18:32:04 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+18:32:05 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/5uv8y81sW_b7RWXYRZIjH/ks/socket?k=W-aNncEeQ87fG8oy_NhEh5JUSzbQ9D4uAGIMqfjAsQI #
+
+18:32:05 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+18:32:06 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45953###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+18:32:39 [Tryorama] [31merror[39m: [2m2026-03-20T18:32:39.648515Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 995, error: Guest("Validator has already submitted a commitment for this study — duplicate commitments are not permitted") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("notify_commitment_sealed")
+
+
+ ✓ src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects 35311ms
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+18:32:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+18:32:40 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ziWkz240YIp48VzTY7qxZ/ks/socket?k=vvr6mxdEJYL-JegSgNySf3WHMmvP6DSXlsWJmDGo9Us #
+
+18:32:40 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+18:32:41 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44273###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+18:33:15 [Tryorama] [31merror[39m: [2m2026-03-20T18:33:15.175148Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 1116, error: Guest("A researcher commitment already exists for this study — the commitment cannot be replaced once published") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCoki6V-5SM5NsUwjQm3c_Kg_j_-af1RDeLbDkTErm7byb_AXVHz), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("publish_researcher_commitment")
+
+
+ ✓ src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects 35497ms
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:15 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:16 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/JclXLHrcscMx0NlhxqzaS/ks/socket?k=_AUGPPmYuJ7hOFP0o3mFz9hDd3KaykqGkuUbYhd3QE0 #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:16 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38319###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:41 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/NMZLOFoUNkiC-8fguJyOp/ks/socket?k=2_Pf5j_E6FeAKgdKKd1RhobmZeyqlhHMF97VwrZOzwo #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+18:33:41 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41559###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false 72336ms
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:27 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:28 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ippk0XLlAYDcLdIomxdWU/ks/socket?k=buPX7shp2gzI6LEJNLtnbLkUnptkroij1SGOAZ8P4GQ #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:29 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35075###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:52 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:52 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/zwgXJTzDgVbbIdxn85ymI/ks/socket?k=N6O0HqIU44xQlUtagi2l9NRaYw2zV1THbZkr6oeGaA8 #
+
+18:34:52 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+18:34:53 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43807###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately 71872ms
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+18:35:39 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+18:35:40 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/DQgsLZlsULuTzawdwlcj2/ks/socket?k=QlnCK9pDESUcSoProQOACK8oME32EOXjYsSrg87TBTg #
+
+18:35:40 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+18:35:40 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44051###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref 43332ms
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+18:36:23 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+18:36:23 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/01YgL_o604D5cMTCLMrIW/ks/socket?k=yhnM3d5E7Z_U2QDuukFMH_XRngWhGV-7ykEaJIy9hDg #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+18:36:24 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41395###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash 33515ms
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+18:36:56 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+18:36:57 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/SUoThRe9ldQ4aLbX1gVNP/ks/socket?k=60sCUhX_CQJXAaJhVJh08cDQsSO1dd_hMgKjeWnLAlE #
+
+18:36:57 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+18:36:57 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35521###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash 33276ms
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+18:37:29 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+18:37:30 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/WEhqq1_4IUyee9RPf1Qi5/ks/socket?k=d27V2BzFfZRtyj6vwSo2n6-ku0w4vyBuCTT2h50FbSg #
+
+18:37:30 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+18:37:31 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37955###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stderr | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+error occurred during test run: internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 94, 58, 223, 45, 193, 146, 10, 243, 231, 230, 253, 202, 185, 178, 210, 55, 28, 237, 98, 0, 20, 64, 223, 190, 64, 188, 7, 12, 141, 117, 213, 91, 215, 91, 242, 76, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 130, 29, 59, 47, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+    at catchError (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:37:23)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at AppWebsocket.callZomeRequester (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:13:22)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:203:33)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:191:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+18:38:02 [Tryorama] [31merror[39m: [2m2026-03-20T18:38:02.764902Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 94, 58, 223, 45, 193, 146, 10, 243, 231, 230, 253, 202, 185, 178, 210, 55, 28, 237, 98, 0, 20, 64, 223, 190, 64, 188, 7, 12, 141, 117, 213, 91, 215, 91, 242, 76, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 130, 29, 59, 47, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("validator_workspace_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCok3FLIDJAakcOaLFsr0d_R4QD41MJiYoOg8Tt6n0ZZ-mTjJjjt), dependencies: [ZomeName("validator_workspace_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("seal_private_attestation")
+
+
+ × src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task 33231ms
+   → Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 94, 58, 223, 45, 193, 146, 10, 243, 231, 230, 253, 202, 185, 178, 210, 55, 28, 237, 98, 0, 20, 64, 223, 190, 64, 188, 7, 12, 141, 117, 213, 91, 215, 91, 242, 76, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 130, 29, 59, 47, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+18:38:03 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+18:38:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/gMjGeEjaFIHfB3dSbNtlS/ks/socket?k=QN3fpdeV7beM5_PzN8AMDeCNKBcHxAzL1eNDMZxGSjc #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+18:38:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34695###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed 33539ms
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+18:38:36 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+18:38:37 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/HguKq-XkIBI4P9D_7qfjD/ks/socket?k=IPxKdQPz9oe7COpHxQnNqtlGPhSutdtjqEeJmJzRmz0 #
+
+18:38:37 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+18:38:37 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42047###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain 33419ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+18:39:09 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+18:39:10 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/1LDQ9sfiPpQd28B_olWLj/ks/socket?k=qC5YLeZ-Lqpbh2hjhb_ArA-wj6iGAES154P0s_0J9Bw #
+
+18:39:10 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+18:39:11 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:32995###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed 33234ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+18:39:43 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+18:39:43 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jEN1nmh7_SyOTHcqFO0Kj/ks/socket?k=2xi6gEZHzQS0EGZBmVpcW4V1yrqW53f53cldVl9IKi0 #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+18:39:44 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33339###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stderr | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+error occurred during test run: internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 247, 158, 215, 169, 183, 229, 22, 22, 186, 50, 78, 6, 221, 231, 187, 73, 55, 157, 37, 51, 246, 171, 53, 172, 100, 18, 213, 76, 7, 95, 8, 128, 136, 1, 153, 102, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 126, 207, 206, 190, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+    at catchError (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:37:23)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at AppWebsocket.callZomeRequester (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:13:22)
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:293:9)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:287:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+18:40:16 [Tryorama] [31merror[39m: [2m2026-03-20T18:40:16.192433Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 247, 158, 215, 169, 183, 229, 22, 22, 186, 50, 78, 6, 221, 231, 187, 73, 55, 157, 37, 51, 246, 171, 53, 172, 100, 18, 213, 76, 7, 95, 8, 128, 136, 1, 153, 102, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 126, 207, 206, 190, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("validator_workspace_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCok3FLIDJAakcOaLFsr0d_R4QD41MJiYoOg8Tt6n0ZZ-mTjJjjt), dependencies: [ZomeName("validator_workspace_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("seal_private_attestation")
+
+
+ × src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks 33244ms
+   → Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 247, 158, 215, 169, 183, 229, 22, 22, 186, 50, 78, 6, 221, 231, 187, 73, 55, 157, 37, 51, 246, 171, 53, 172, 100, 18, 213, 76, 7, 95, 8, 128, 136, 1, 153, 102, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 126, 207, 206, 190, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/attestation.test.ts > 10. Privacy across agents — ValidatorPrivateAttestation > Bob cannot read Alice's sealed private attestation from Bob's workspace cell
+AssertionError: expected { signed_action: { …(2) }, …(1) } to be null
+ ❯ runScenario.timeout src/attestation.test.ts:1210:27
+    1208|           bob, "get_private_attestation_for_task", aliceTaskHash,
+    1209|         );
+    1210|         expect(bobRecord).toBeNull();
+       |                           ^
+    1211|       }, true, { timeout: 300_000 });
+    1212|     },
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/attestation.test.ts:1170:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 3 validators all Reproduced → BronzeReproducible badge issued
+internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+ ❯ catchError node_modules/@holochain/client/lib/api/common.js:37:23
+ ❯ AppWebsocket.callZomeRequester node_modules/@holochain/client/lib/api/common.js:13:22
+ ❯ runScenario.timeout src/attestation.test.ts:1307:29
+    1305| 
+    1306|         // ExactMatch + count=3 ≥ 3 (and < 5) → BronzeReproducible.
+    1307|         const harmonyHash = await govCall<Uint8Array | null>(
+       |                             ^
+    1308|           validators[0], "check_and_create_harmony_record", REQUEST_RE…
+    1309|         );
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/attestation.test.ts:1283:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/attestation.test.ts > 12. Badge thresholds — Bronze, Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+Error: Timeout of 40000 ms has passed. Players' integrated DhtOps are not syncronized.
+ ❯ retryUntilCompleteOrTimeout node_modules/@holochain/tryorama/lib/util.js:41:19
+ ❯ runScenario.timeout src/attestation.test.ts:1347:9
+    1345|         // resolve num_validators_required (N) via cross-DNA call.
+    1346|         await zomeCall(alice, "submit_validation_request", makeValidat…
+    1347|         await dhtSync(validators, attDnaHash);
+       |         ^
+    1348| 
+    1349|         // All N validators post CommitmentAnchors. After the Nth call…
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/attestation.test.ts:1332:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/attestation.test.ts > 13. FailedReproduction badge > 2 validators both FailedToReproduce → FailedReproduction badge issued
+internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "crates/holochain/src/core/ribosome/host_fn/call.rs", line: 236, error: Host("Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: \"dnas/attestation/zomes/attestation_coordinator/src/lib.rs\", line: 436, error: Guest(\"ValidationRequest not found — cannot determine num_validators_required\") }") }
+ ❯ catchError node_modules/@holochain/client/lib/api/common.js:37:23
+ ❯ AppWebsocket.callZomeRequester node_modules/@holochain/client/lib/api/common.js:13:22
+ ❯ runScenario.timeout src/attestation.test.ts:1478:29
+    1476| 
+    1477|         // Derives 0 successes → UnableToAssess → FailedReproduction b…
+    1478|         const harmonyHash = await govCall<Uint8Array | null>(
+       |                             ^
+    1479|           alice, "check_and_create_harmony_record", REQUEST_REF,
+    1480|         );
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/attestation.test.ts:1457:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 94, 58, 223, 45, 193, 146, 10, 243, 231, 230, 253, 202, 185, 178, 210, 55, 28, 237, 98, 0, 20, 64, 223, 190, 64, 188, 7, 12, 141, 117, 213, 91, 215, 91, 242, 76, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 187, 130, 29, 59, 47, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+ ❯ catchError node_modules/@holochain/client/lib/api/common.js:37:23
+ ❯ AppWebsocket.callZomeRequester node_modules/@holochain/client/lib/api/common.js:13:22
+ ❯ runScenario.timeout src/validator_workspace.test.ts:203:33
+    201|         // post_commit fires notify_commitment_sealed on the attestati…
+    202|         // (infallible — any failure is silently logged).
+    203|         const attestationHash = await ws(alice, "seal_private_attestat…
+       |                                 ^
+    204|           task_hash: taskHash,
+    205|           attestation: makePrivateAttestation(REQUEST_REF),
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/validator_workspace.test.ts:191:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+internal_error: Wasm runtime error while working with Ribosome: RuntimeError: WasmError { file: "dnas/validator_workspace/zomes/validator_workspace_coordinator/src/lib.rs", line: 52, error: Deserialize([130, 169, 116, 97, 115, 107, 95, 104, 97, 115, 104, 196, 39, 132, 41, 36, 247, 158, 215, 169, 183, 229, 22, 22, 186, 50, 78, 6, 221, 231, 187, 73, 55, 157, 37, 51, 246, 171, 53, 172, 100, 18, 213, 76, 7, 95, 8, 128, 136, 1, 153, 102, 171, 97, 116, 116, 101, 115, 116, 97, 116, 105, 111, 110, 136, 171, 114, 101, 113, 117, 101, 115, 116, 95, 114, 101, 102, 196, 39, 132, 47, 36, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 126, 207, 206, 190, 167, 111, 117, 116, 99, 111, 109, 101, 129, 164, 116, 121, 112, 101, 170, 82, 101, 112, 114, 111, 100, 117, 99, 101, 100, 175, 111, 117, 116, 99, 111, 109, 101, 95, 115, 117, 109, 109, 97, 114, 121, 132, 171, 107, 101, 121, 95, 109, 101, 116, 114, 105, 99, 115, 144, 184, 101, 102, 102, 101, 99, 116, 95, 100, 105, 114, 101, 99, 116, 105, 111, 110, 95, 109, 97, 116, 99, 104, 101, 115, 192, 187, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 95, 105, 110, 116, 101, 114, 118, 97, 108, 95, 111, 118, 101, 114, 108, 97, 112, 192, 177, 111, 118, 101, 114, 97, 108, 108, 95, 97, 103, 114, 101, 101, 109, 101, 110, 116, 170, 69, 120, 97, 99, 116, 77, 97, 116, 99, 104, 178, 116, 105, 109, 101, 95, 105, 110, 118, 101, 115, 116, 101, 100, 95, 115, 101, 99, 115, 205, 14, 16, 174, 116, 105, 109, 101, 95, 98, 114, 101, 97, 107, 100, 111, 119, 110, 132, 182, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116, 95, 115, 101, 116, 117, 112, 95, 115, 101, 99, 115, 205, 3, 132, 181, 100, 97, 116, 97, 95, 97, 99, 113, 117, 105, 115, 105, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 2, 88, 179, 99, 111, 100, 101, 95, 101, 120, 101, 99, 117, 116, 105, 111, 110, 95, 115, 101, 99, 115, 205, 7, 8, 180, 116, 114, 111, 117, 98, 108, 101, 115, 104, 111, 111, 116, 105, 110, 103, 95, 115, 101, 99, 115, 205, 1, 44, 175, 100, 101, 118, 105, 97, 116, 105, 111, 110, 95, 102, 108, 97, 103, 115, 144, 183, 99, 111, 109, 112, 117, 116, 97, 116, 105, 111, 110, 97, 108, 95, 114, 101, 115, 111, 117, 114, 99, 101, 115, 133, 188, 112, 101, 114, 115, 111, 110, 97, 108, 95, 104, 97, 114, 100, 119, 97, 114, 101, 95, 115, 117, 102, 102, 105, 99, 105, 101, 110, 116, 195, 172, 104, 112, 99, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 172, 103, 112, 117, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 182, 99, 108, 111, 117, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 114, 101, 113, 117, 105, 114, 101, 100, 194, 188, 101, 115, 116, 105, 109, 97, 116, 101, 100, 95, 99, 111, 109, 112, 117, 116, 101, 95, 99, 111, 115, 116, 95, 112, 101, 110, 99, 101, 192, 170, 99, 111, 110, 102, 105, 100, 101, 110, 99, 101, 164, 72, 105, 103, 104]) }
+ ❯ catchError node_modules/@holochain/client/lib/api/common.js:37:23
+ ❯ AppWebsocket.callZomeRequester node_modules/@holochain/client/lib/api/common.js:13:22
+ ❯ runScenario.timeout src/validator_workspace.test.ts:293:9
+    291|         const task2Hash = await ws(alice, "receive_task", makeTask(fak…
+    292| 
+    293|         await ws(alice, "seal_private_attestation", {
+       |         ^
+    294|           task_hash: task1Hash,
+    295|           attestation: makePrivateAttestation(fakeExternalHash(0x01)),
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/validator_workspace.test.ts:287:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  6 failed | 82 passed | 1 skipped (89)
+   Start at  17:11:14
+   Duration  5342.29s (transform 274ms, setup 0ms, collect 1.23s, tests 5340.64s, environment 0ms, prepare 163ms)
+

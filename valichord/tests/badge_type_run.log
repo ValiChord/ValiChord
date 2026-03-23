@@ -1,0 +1,140 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/governance.test.ts -t get_badges_by_type|Delete-immutability
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+13:22:14 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+13:22:14 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/6T65EGeIW4UpRIDVuCu4A/ks/socket?k=Gph3b5IWWpILh0zfTu_JqwgM3_1xcSLhaU0_9648-zs #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance
+13:22:15 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37613###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 9. get_badges_by_type > BronzeReproducible badge is retrievable by type after issuance 44046ms
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:22:58 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+13:22:58 [Tryorama - Player 1] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:22:58 [Tryorama - Player 2] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:00 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/f5j0HSVdo_F5hJZsPzm1r/ks/socket?k=x07Yr3earP7JHfMPGdG1T54CiNBxVKf_Gmi6E_FpjnY #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:00 [Tryorama - Player 1] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/hHFIVl6FnZDf-A4raSqnV/ks/socket?k=ChLUm5NEmGWIQIpsmW-kzD5_iB87OkE6O7T6Ug79lhY #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:00 [Tryorama - Player 2] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/aqDhYlGLh2B7320vEunGo/ks/socket?k=ZbwdC6gl99HBT7TwkeJkRjqaseHam2pI_jiO-Fs4En0 #
+
+13:23:00 [Tryorama - Player 2] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:02 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34789###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:02 [Tryorama - Player 1] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40451###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:23:02 [Tryorama - Player 2] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42069###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record
+13:24:43 [Tryorama - Player 1] [31merror[39m: [2m2026-03-14T13:24:43.228960Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m361:[0m Peer behavior error: PeerBehaviorError { ctx: "Attempted to initiate during a round" }
+
+
+ ✓ src/governance.test.ts > 9. get_badges_by_type > get_badges_by_type returns correct badge after check_and_create_harmony_record 158287ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+13:25:36 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+13:25:37 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/dXX99AmFMuDFq6Y46szWx/ks/socket?k=qJV2LB2Qcm_i4Q_YqHhyXClfL6ZNAKC_PE3iPkCpZxI #
+
+13:25:37 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API
+13:25:38 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38305###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for HarmonyRecord in the coordinator API 41969ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+13:26:18 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+13:26:19 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Z-_GRl_yLPBopX4kDuA5k/ks/socket?k=mQqZsp2KWcQ8vBb8RM0HUZil2ZjMho4SC2eyCI8HDmQ #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API
+13:26:20 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38413###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for GovernanceDecision in the coordinator API 40884ms
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+13:26:59 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+13:27:00 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/qMC5uMVqpZqvuuXSoi9D8/ks/socket?k=nRrayobHIDS3e_KEFFPc2T0zLtr0M91D8ucuHbsd83k #
+# lair-keystore running #
+
+
+stdout | src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API
+13:27:00 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34151###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/governance.test.ts > 10. Delete-immutability guards > no delete function exists for ReproducibilityBadge in the coordinator API 40950ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed | 15 skipped (20)
+   Start at  13:22:13
+   Duration  326.97s (transform 106ms, setup 0ms, collect 571ms, tests 326.14s, environment 0ms, prepare 80ms)
+

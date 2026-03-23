@@ -1,0 +1,140 @@
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+19:09:02 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+19:09:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/vn6pNV6lUbGhrULZTPSs6/ks/socket?k=gFErwJDfcNp7HaW1qXPHJenzWzNhL1mivBI7-7cRnxI #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash
+19:09:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40745###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 1. receive_task + get_task > received task is retrievable by its ActionHash 42243ms
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+19:09:44 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+19:09:45 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/sEJIWFBf-y2cZogob_EIC/ks/socket?k=QFpQTtVNGMOjsNyCTZqD6z6CX51IG68yl1tTiy-4xBU #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash
+19:09:46 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:35567###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 1. receive_task + get_task > get_task returns null for an unknown ActionHash 39940ms
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+19:10:24 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+19:10:25 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ffBg3WWpcataqDkS2z-ww/ks/socket?k=Txy8JD2fTNYKmqhDarxgIfzKet8-cC6Or0FNFEk8KTM #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task
+19:10:25 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34357###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > sealed private attestation is retrievable via its parent task 47686ms
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+19:11:12 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+19:11:12 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jiVgtFj14Wtkqxz--RsCg/ks/socket?k=qJ3NBAosMw2btf10pmkHY0xSt-EEYdKVrfk94rfgSH8 #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed
+19:11:13 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40649###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 2. seal_private_attestation + get_private_attestation_for_task > get_private_attestation_for_task returns null before any attestation is sealed 36361ms
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+19:11:48 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+19:11:49 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/DPJB0MCUY08TzOnYLJBi6/ks/socket?k=T5FL4pjhD3h7DQ1Xuhkgm7m6n3m-0tnAEQkTAqBdti0 #
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+19:11:49 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+19:11:49 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36341###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain 36778ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+19:12:25 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+19:12:25 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/LjHVHfsxNMeILiJQRD2Vr/ks/socket?k=mVmT7lOj2nlJso7XuF9fVDfBwcMfyrOggBU355JZL0I #
+
+19:12:25 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+19:12:26 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36593###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed 36278ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+19:13:01 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+19:13:02 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/EXvMr-2OwvXH5UbySr3Nm/ks/socket?k=F_wIAKVLh-yBqPOrlcbiCMAvmY6vPBKDmmlTRs6D2nU #
+
+19:13:02 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+19:13:02 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34793###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks 46909ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  19:09:00
+   Duration  287.45s (transform 70ms, setup 0ms, collect 747ms, tests 286.20s, environment 0ms, prepare 127ms)
+

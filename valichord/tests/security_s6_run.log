@@ -1,0 +1,193 @@
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+21:20:14 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+21:20:15 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/8WDrnAwk6HHsl1zS2S2v4/ks/socket?k=WRGudmFxkFaXOurhv6S323hwm8JkHn6DnwdgTbzEQXU #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+21:20:16 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42839###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S1. Duplicate attestation guard > second submit_attestation for the same study rejects
+21:21:05 [Tryorama] [31merror[39m: [2m2026-03-20T21:21:05.849913Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 274, error: Guest("Validator has already submitted an attestation for this study — duplicate reveals are not permitted") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokYBgWoRnjEjwKbC6xhWrV9X9Qqy1md22Aeq1UJuhqMEKDZci6), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("submit_attestation")
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+21:21:06 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+21:21:06 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/fvpgIC3_iqK0ZUu0xDNLi/ks/socket?k=b5J2JvXeO4RLSw-mz9NbxZEEIf7uNaoQVbcRvf2lfw0 #
+
+21:21:06 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+21:21:07 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43875###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S2. Duplicate commitment guard > second notify_commitment_sealed for the same study rejects
+21:21:50 [Tryorama] [31merror[39m: [2m2026-03-20T21:21:50.638646Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 995, error: Guest("Validator has already submitted a commitment for this study — duplicate commitments are not permitted") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokYBgWoRnjEjwKbC6xhWrV9X9Qqy1md22Aeq1UJuhqMEKDZci6), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("notify_commitment_sealed")
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+21:21:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+21:21:51 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ZT9zYsS2C3KcOa96cR2o0/ks/socket?k=6bQ8wre0Vb64_LJVGsEhmv-xEYilqv-Fl7SuzfMs23k #
+
+21:21:51 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+21:21:52 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43613###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S3. Researcher commitment idempotency > second publish_researcher_commitment for the same study rejects
+21:22:33 [Tryorama] [31merror[39m: [2m2026-03-20T21:22:33.226336Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 1116, error: Guest("A researcher commitment already exists for this study — the commitment cannot be replaced once published") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokYBgWoRnjEjwKbC6xhWrV9X9Qqy1md22Aeq1UJuhqMEKDZci6), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("publish_researcher_commitment")
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:22:33 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:22:34 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/VXvNcxy8yzJ_iGyumMgtB/ks/socket?k=80OhAW-jYFo422Z27za1u-_macBw9D6pY8jHh0w5cHc #
+
+21:22:34 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:22:34 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45965###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:23:02 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:23:03 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/hkGtJ3nR7nglaqhDxZIBB/ks/socket?k=84Qlz7FDh3gYkzQZM_rniUDJrFeii41Vejdh-NlRY2g #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:23:04 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40615###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:23:34 [Tryorama] [31merror[39m: [2m2026-03-20T21:23:34.685810Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m361:[0m Peer behavior error: PeerBehaviorError { ctx: "Unsolicited Accept message from peer: ws://127.0.0.1:40297/vRVBNTBBdGBZl9TuSbgyuT3JCUGhfZ7NdiWch1qY0y4" }
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > caller-supplied timeout below DNA floor is overridden — reclaim returns false
+21:23:38 [Tryorama] [31merror[39m: [2m2026-03-20T21:23:38.455098Z[0m [31mERROR[0m [2mkitsune2_gossip::gossip[0m[2m:[0m [2m/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/kitsune2_gossip-0.3.2/src/gossip.rs[0m[2m:[0m[2m375:[0m could not respond to gossip message: K2Error(Other { ctx: "peer ws://127.0.0.1:40297/hEFjcfUTmy0N5ayMeGB-Mr_FWMqHZPFbwG3_2wBj2MY already accepted", src: None })
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:02 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:02 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/11EYHjquqjvnKiFSRBP20/ks/socket?k=M4uldM0LoYLMgLe4rMA7rkVHS-5B3rAqS1Ylc6qYk3E #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:03 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+21:24:03 [Tryorama] [32minfo[39m: ###ADMIN_PORT:41861###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:31 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:31 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/x6czeJI7R3xyI8lVRDFPC/ks/socket?k=3n4Kqd6fu3I1aPrexvIbg62yofdpWtXdU_D6uZXZvT4 #
+# lair-keystore running #
+
+
+stdout | src/security.test.ts > S4. reclaim_abandoned_claim min_claim_timeout_secs floor > when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately
+21:24:32 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:46213###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S6. reveal_researcher_result idempotency > second reveal_researcher_result for the same study rejects
+21:25:52 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S6. reveal_researcher_result idempotency > second reveal_researcher_result for the same study rejects
+21:25:53 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ZucNjsNFMDC4kUDSwp9eM/ks/socket?k=8xKJx5rIWr93KlxMxUhoqVevTDz9Qqfz7XYlIP7W4jA #
+
+21:25:53 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S6. reveal_researcher_result idempotency > second reveal_researcher_result for the same study rejects
+21:25:53 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33405###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/security.test.ts > S6. reveal_researcher_result idempotency > second reveal_researcher_result for the same study rejects
+21:26:33 [Tryorama] [31merror[39m: [2m2026-03-20T21:26:33.281653Z[0m [31mERROR[0m [2mholochain::core::ribosome::real_ribosome[0m[2m:[0m [2mcrates/holochain/src/core/ribosome/real_ribosome.rs[0m[2m:[0m[2m652:[0m [3mruntime_error[0m[2m=[0mRuntimeError { source: Sys(User(WasmError { file: "dnas/attestation/zomes/attestation_coordinator/src/lib.rs", line: 1208, error: Guest("A researcher reveal already exists for this study — the reveal cannot be published more than once") })), wasm_trace: [] } [3mzome[0m[2m=[0mZome { name: ZomeName("attestation_coordinator"), def: Wasm(WasmZome { wasm_hash: WasmHash(uhCokYBgWoRnjEjwKbC6xhWrV9X9Qqy1md22Aeq1UJuhqMEKDZci6), dependencies: [ZomeName("attestation_integrity")] }) } [3mfn_name[0m[2m=[0mFunctionName("reveal_researcher_result")
+
+
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+21:26:33 [Tryorama - Player 0] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+21:26:34 [Tryorama - Player 0] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/E-NYaqxEnldA4Ce9rWj3b/ks/socket?k=NSm90ms21amXKftPd3v7YEJz2XZlqDAOzZCBwogST3Q #
+
+21:26:34 [Tryorama - Player 0] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/security.test.ts > S5. force_finalize_round conservative abort on missing VR > returns null when no ValidationRequest exists for the request_ref
+21:26:34 [Tryorama - Player 0] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:43613###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/security.test.ts  (7 tests) 430735ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  21:20:13
+   Duration  431.93s (transform 71ms, setup 1ms, collect 851ms, tests 430.74s, environment 0ms, prepare 163ms)
+

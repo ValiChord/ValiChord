@@ -1,0 +1,141 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/researcher_repository.test.ts src/validator_workspace.test.ts -t get_all
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+13:08:34 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+13:08:35 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/mINOCikLF0KnET-fNPobw/ks/socket?k=VV4-NBQ8lgVA4LobWFvE0iMXTsoystmRXdTur3Mb2hE #
+
+13:08:35 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered
+13:08:36 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33449###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 7. get_all_studies > returns empty list when no studies registered 43867ms
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+13:09:18 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+13:09:19 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/xss1cMg9qTG1CBrtguFu9/ks/socket?k=hhj_T793pGg6eLQXjjjpp8FuwcT7YxA1erxYosMcrk8 #
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+13:09:19 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies
+13:09:19 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+
+13:09:19 [Tryorama] [32minfo[39m: ###ADMIN_PORT:37101###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/researcher_repository.test.ts > 7. get_all_studies > returns all registered studies 41831ms
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+13:10:00 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+13:10:01 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/4bB0zcFWPeOgE-Iya3LNW/ks/socket?k=uAcK4sA88Gk9Ln4QffowOlIZKDX9yduqUev_qfw9A0U #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain
+13:10:01 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39497###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 3. get_all_tasks > returns all received tasks from the local source chain 43185ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+13:10:43 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+13:10:44 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/jtB9K__Cd5I-NjX2hW9qI/ks/socket?k=vh9xgjkYTymVo3eVOefEtRt_6UGXnoZB8Eei8asTRDY #
+
+13:10:44 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed
+13:10:45 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:40313###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/validator_workspace.test.ts > 4. get_all_private_attestations > returns empty list when no attestations sealed 41787ms
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+13:11:25 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+13:11:26 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/GFQSTGzwAPtEKtgUp-_CD/ks/socket?k=plntYWVHE1EaOeVUhmj4ATHVe-X2jNko4Kh1qw42ZFE #
+# lair-keystore running #
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+13:11:26 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37119###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+<empty line>
+stderr | src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+error occurred during test run: ReferenceError: makeAttestation is not defined
+    at __vite_ssr_import_0__.runScenario.timeout (/workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:295:24)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at Module.runScenario (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/scenario.js:281:9)
+    at /workspaces/ValiChord/valichord/tests/src/validator_workspace.test.ts:287:7
+    at runTest (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:958:5)
+    at startTests (file:///workspaces/ValiChord/valichord/tests/node_modules/@vitest/runner/dist/index.js:967:3)
+    at file:///workspaces/ValiChord/valichord/tests/node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+ × src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks 41824ms
+   → makeAttestation is not defined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/validator_workspace.test.ts > 4. get_all_private_attestations > returns all sealed attestations across multiple tasks
+ReferenceError: makeAttestation is not defined
+ ❯ runScenario.timeout src/validator_workspace.test.ts:295:24
+    293|         await ws(alice, "seal_private_attestation", {
+    294|           task_hash: task1Hash,
+    295|           attestation: makeAttestation(fakeExternalHash(0x01)),
+       |                        ^
+    296|         });
+    297|         await ws(alice, "seal_private_attestation", {
+ ❯ Module.runScenario node_modules/@holochain/tryorama/lib/scenario.js:281:9
+ ❯ src/validator_workspace.test.ts:287:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 4 passed | 16 skipped (21)
+   Start at  13:08:33
+   Duration  213.39s (transform 89ms, setup 0ms, collect 445ms, tests 212.50s, environment 0ms, prepare 123ms)
+

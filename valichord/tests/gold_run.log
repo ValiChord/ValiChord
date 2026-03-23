@@ -1,0 +1,243 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/attestation.test.ts -t Badge thresholds
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:00:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:00:41 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/A9FqdQ1qRShVr27asr224/ks/socket?k=8VqpjtCjSBplCQN-bg7d2a6U71f1LC66zeqpaa-stSk #
+
+12:00:41 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:00:41 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:36693###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:06 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:06 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/CqYxz5FGQiCB0c8f-aYAU/ks/socket?k=J0VClBDgvsoY2TDp55keAQJ7QkGuU9bFe98NaFFf1x0 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:07 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:37549###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:32 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:33 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/NvsP280scID8sD7TdeRIU/ks/socket?k=L7JIk8iYnGiv0uZ0AK66cPyjJxushhL4EqhLSUNxRV8 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:01:34 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34653###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:11 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:13 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/oF5IBNBWiflX1QSk3_9C1/ks/socket?k=ZKY7znYSqhYWhEHwScLHQ6YkbJTRkBzt3KcwJKY3wlk #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:13 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:13 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:39215###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:40 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:41 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/HBbz49rTHr0_NX4DK6rvm/ks/socket?k=nNpnc5xJDV4ayvmHp8jASyE0W5RXWbOf1d9fhQwv4mA #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:02:42 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:44287###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued
+12:04:31 [Tryorama] [31merror[39m: [2m2026-03-14T12:04:31.380506Z[0m [31mERROR[0m [2mholochain::core::workflow::sys_validation_workflow[0m[2m:[0m [2mcrates/holochain/src/core/workflow/sys_validation_workflow.rs[0m[2m:[0m[2m486:[0m Error fetching missing dependency [3merr[0m[2m=[0mNetworkError(Other("get response channel dropped: likely response timeout"))
+
+12:04:31 [Tryorama] [31merror[39m: [2m2026-03-14T12:04:31.380581Z[0m [31mERROR[0m [2mholochain::core::workflow::sys_validation_workflow[0m[2m:[0m [2mcrates/holochain/src/core/workflow/sys_validation_workflow.rs[0m[2m:[0m[2m486:[0m Error fetching missing dependency [3merr[0m[2m=[0mNetworkError(Other("get response channel dropped: likely response timeout"))
+
+
+ ✓ src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 5 validators all Reproduced → SilverReproducible badge issued 265887ms
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:05 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:06 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/KSq6pthglgc8S8vq-OCve/ks/socket?k=9Aq1SXyEc8CBc2e8t8G0FNTx33z8pwBrchWKr9MtWw4 #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:07 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:34601###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:30 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:31 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Rb0yCGGIyqcs9bfhbRN8h/ks/socket?k=zXMCWJGOhWymfe534CSru3TnvZ_E2IAQKXZY5L5ookg #
+
+12:05:31 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:31 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:45023###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:55 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:55 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/yvuXbpHR9hm5FMdG1Bw4t/ks/socket?k=iUEinA-sU2hrtOD3R3ReqvQD3wJ0r4lEMKhODqsutTQ #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:05:56 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41515###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:21 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:22 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/bffIqdf5ewY54uYA7rtJN/ks/socket?k=WoZuc3W1dxj_zeT-Ush_mzFNn0FTN_51CQpt2zs1O2E #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:22 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:23 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33699###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:50 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/Vf5N32MW0j7kCZu7-G7QY/ks/socket?k=K-E480VV2_NTGpL3AHBRxyczg8X8VfQMORgaz4fW-iM #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:06:51 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38179###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:20 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:20 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/uG6Dl9KOhjwOYPp9fmxno/ks/socket?k=V51woDFTCYP1jNDGRWjeOemj1jJRmYSwq1DAQrjZ6RY #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:21 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:42509###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:50 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:51 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/ebteTzx7xuzdvrZvMhQEY/ks/socket?k=IMTo9hmVLujXSAvHhi87891yRiFnhxmlYq-6EPznewc #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:07:53 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:41499###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+12:09:34 [Tryorama] [31merror[39m: [2m2026-03-14T12:09:34.643589Z[0m [31mERROR[0m [2mholochain::core::workflow::sys_validation_workflow[0m[2m:[0m [2mcrates/holochain/src/core/workflow/sys_validation_workflow.rs[0m[2m:[0m[2m486:[0m Error fetching missing dependency [3merr[0m[2m=[0mNetworkError(Other("get response channel dropped: likely response timeout"))
+
+
+stdout | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+<empty line>
+stderr | src/attestation.test.ts > 12. Badge thresholds — Silver and Gold > 7 validators all Reproduced → GoldReproducible badge issued
+error occurred during test run: HolochainError [WebsocketClosedError]: Websocket is not open
+    at WsClient.exchange (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/client.js:124:35)
+    at WsClient.request (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/client.js:107:21)
+    at file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/admin/websocket.js:43:82
+    at AdminWebsocket.dumpFullState (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/client/lib/api/common.js:13:28)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 2)
+    at areConductorCellsDhtsSynced (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/util.js:79:29)
+    at retryUntilCompleteOrTimeout (file:///workspaces/ValiChord/valichord/tests/node_modules/@holochain/tryorama/lib/util.js:32:21)
+

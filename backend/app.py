@@ -9,8 +9,8 @@ from pathlib import Path
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 
-# add autogenerate to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'autogenerate'))
+# add valichord_at_home to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'valichord_at_home'))
 
 from detectors.failure_modes_simple import run_simple_detectors
 from detectors.claude_semantic import run_claude_analysis

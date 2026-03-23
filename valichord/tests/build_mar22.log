@@ -1,0 +1,2 @@
+warning: /workspaces/ValiChord/valichord/Cargo.toml: unused manifest key: workspace.dev-dependencies
+    Finished `release` profile [optimized] target(s) in 5.12s

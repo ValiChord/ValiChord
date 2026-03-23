@@ -1,0 +1,52 @@
+
+> valichord-tests@0.1.0 test
+> PATH="$HOME/.cargo/bin:$PATH" vitest run --reporter=verbose src/attestation.test.ts -t get_validation_request_for_data_hash
+
+
+ RUN  v1.6.1 /workspaces/ValiChord/valichord/tests
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+12:23:07 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+12:23:07 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/e4sZoP2HzkaYaFzsZTUtM/ks/socket?k=AzeBgXnJAkktMJbs_UWFc2eRcDZ_oCVS_WIfUG-7_SA #
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+12:23:07 [Tryorama] [32minfo[39m: # lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash
+12:23:08 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:33347###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns the ValidationRequest record for a known data_hash 46879ms
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+12:23:53 [Tryorama] [32minfo[39m: Initialising log output formatting with option Log
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+12:23:54 [Tryorama] [32minfo[39m: # lair-keystore connection_url # unix:///tmp/5QkomVJPDZv-fBk-FJ8sS/ks/socket?k=fRSg6dwbzoY0yqs6y_152Qe1ghxkdodJEy0I9TrWazo #
+# lair-keystore running #
+
+
+stdout | src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted
+12:23:55 [Tryorama] [32minfo[39m: 
+###HOLOCHAIN_SETUP###
+###ADMIN_PORT:38783###
+###HOLOCHAIN_SETUP_END###
+Conductor ready.
+
+
+ ✓ src/attestation.test.ts > 17. get_validation_request_for_data_hash > returns null for a data_hash that was never submitted 41177ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 28 skipped (30)
+   Start at  12:23:05
+   Duration  89.34s (transform 126ms, setup 0ms, collect 870ms, tests 88.06s, environment 0ms, prepare 131ms)
+
