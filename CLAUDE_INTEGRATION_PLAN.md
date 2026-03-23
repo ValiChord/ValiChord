@@ -31,15 +31,19 @@ ZIP → extract → run_simple_detectors() → generate_all_drafts()
 
 ### What the rule-based system can detect
 
-Pattern-matching against file structure and content:
+Pattern-matching against file structure and content — **126 detector functions** covering:
 - Presence/absence of README, licence, dependency files
 - Absolute paths and hardcoded machine-specific paths
 - Unpinned dependencies (missing version numbers)
-- Missing checksums
-- File naming inconsistencies
+- Missing checksums, seeds, container definitions
+- File naming inconsistencies, duplicate format pairs, encoding issues
 - Potential human subjects data (column header scanning)
-- Broken source chains (file references that don't resolve)
-- ~25 failure modes total from spec v15's ~60
+- Broken source chains, missing script references
+- Language-specific issues: R renv/packrat, Python conda/pip, Julia manifests, MATLAB toolboxes
+- Workflow managers, Docker, Snakemake, Nextflow
+- System clock dependency (BK), git history dependency (BL), and many more
+
+These 126 detectors cover the structurally and syntactically detectable failure modes — things that can be found by scanning file names, file contents for known patterns, and cross-referencing file lists.
 
 ### What it cannot detect
 
@@ -281,7 +285,7 @@ The key difference in at Home context: the `enhanced_details` output becomes the
 The following maps which of spec v15's ~60 failure modes are covered by the current rule-based system vs. which Claude adds:
 
 ### Currently covered (rule-based)
-A (no README), B (unpinned deps), C (absolute paths), D (no licence), E (undocumented data), F (partial — detects missing seed files, not logic), G (derived objects), H (inline version comments), I (README variable listings), K (dependency files), L (publication materials misclassified), M (duplicate format pairs), N (casing inconsistency), O (imaging/mesh deposits), Q (checksum scope), R (OSF DOI), S (human subjects), T (filename chars), U (psychometric terms), V (Windows-illegal chars), Y (data without docs), Z (version tags), BA (missing checksums), BD (non-researcher R files), CA (broken source chain)
+All 126 detector functions in `failure_modes_simple.py` — spanning failure modes A through HS plus custom codes (DUP, DZ, NZ, FL, FD, ND, FW, etc.). These cover the full range of structurally and syntactically detectable issues. See `failure_modes_simple.py` for the complete list.
 
 ### Added by Claude semantic analysis
 - **Cross-file consistency** (README method vs code implementation)
