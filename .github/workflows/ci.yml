@@ -49,7 +49,10 @@ jobs:
       # ── Install Holochain toolchain (skipped on cache hit) ──────────────────
       - name: Install holochain + hc + lair_keystore
         if: steps.cache-hc-bin.outputs.cache-hit != 'true'
-        run: cargo install holochain hc lair_keystore --locked
+        run: |
+          cargo install holochain --version 0.6.0 --locked
+          cargo install holochain_cli --version 0.6.0 --locked
+          cargo install lair_keystore --version 0.6.3 --locked
 
       # ── Build WASMs (skipped on cache hit) ─────────────────────────────────
       - name: Build WASM zomes
