@@ -1,0 +1,91 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: 89 Integration Tests (4 DNAs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ──────────────────────────────────────────────────────
+      - name: Install Rust (stable + wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # ── Caches ─────────────────────────────────────────────────────────────
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('valichord/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Holochain binaries
+        uses: actions/cache@v4
+        id: cache-hc-bin
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-hc-bin-${{ hashFiles('valichord/Cargo.lock') }}
+
+      - name: Cache WASM build artifacts
+        uses: actions/cache@v4
+        id: cache-wasm
+        with:
+          path: valichord/target
+          key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wasm-
+
+      # ── Install Holochain toolchain (skipped on cache hit) ──────────────────
+      - name: Install holochain + hc + lair_keystore
+        if: steps.cache-hc-bin.outputs.cache-hit != 'true'
+        run: cargo install holochain hc lair_keystore --locked
+
+      # ── Build WASMs (skipped on cache hit) ─────────────────────────────────
+      - name: Build WASM zomes
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
+        working-directory: valichord
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      # ── Pack DNAs and hApp (always — yaml changes don't invalidate wasm cache)
+      - name: Pack DNAs and bundle hApp
+        working-directory: valichord
+        run: |
+          hc dna pack dnas/attestation            -o workdir/attestation.dna
+          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+          hc dna pack dnas/governance             -o workdir/governance.dna
+          hc app pack .                           -o workdir/valichord.happ
+
+      # ── Node / test deps ────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: valichord/tests/package-lock.json
+
+      - name: Install test dependencies
+        working-directory: valichord/tests
+        run: npm install
+
+      # ── Run tests ───────────────────────────────────────────────────────────
+      - name: Kill any orphaned Holochain processes
+        run: |
+          pkill -f holochain   || true
+          pkill -f lair-keystore || true
+          sleep 2
+
+      - name: Run integration tests
+        working-directory: valichord/tests
+        run: npm test

@@ -4,6 +4,7 @@
 
 **An Immune System for Science: Distributed Integrity Infrastructure for Computational Research**
 
+[![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Infrastructure_Built-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-89_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
@@ -218,6 +219,33 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
 | Technical Reference v21 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Engineer Handover | [`docs/13_ValiChord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_ValiChord_Engineer_Handover.md) |
+
+### ⚡ Quickstart — clone to passing tests
+
+```bash
+# 1. Prerequisites
+rustup target add wasm32-unknown-unknown
+cargo install holochain hc lair_keystore --locked
+
+# 2. Clone and build
+git clone https://github.com/topeuph-ai/ValiChord.git
+cd ValiChord/valichord
+cargo build --target wasm32-unknown-unknown --release
+
+# 3. Pack the four DNAs and bundle the hApp
+hc dna pack dnas/attestation            -o workdir/attestation.dna
+hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+hc dna pack dnas/governance             -o workdir/governance.dna
+hc app pack .                           -o workdir/valichord.happ
+
+# 4. Run the integration tests
+cd tests && npm install
+pkill -f holochain; pkill -f lair-keystore; sleep 2
+npm test
+```
+
+> For full build details, troubleshooting, and test architecture see the **[Developer Guide wiki](https://github.com/topeuph-ai/ValiChord/wiki/Developer-Guide)**.
 
 > **Note:** This is infrastructure-stage code — four compiled, tested Holochain DNAs with no UI layer yet. There is no application to run as a standalone tool. The codebase is here for technical review and collaboration. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
