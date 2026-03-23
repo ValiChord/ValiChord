@@ -2028,6 +2028,10 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_FL_long_filenames(repo_dir, all_files)
     print("  [HS]  Human subjects data check...")
     all_findings += detect_HS_human_subjects_data(repo_dir, all_files)
+    print("  [DH] Undeclared imports check...")
+    all_findings += detect_DH_undeclared_imports(repo_dir, all_files)
+    print("  [DI] Variable name mismatch check...")
+    all_findings += detect_DI_variable_mismatch(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -9104,6 +9108,328 @@ def detect_HS_human_subjects_data(repo_dir, all_files):
         'Data file(s) may contain human subjects data — anonymisation not documented',
         _body,
         _evidence,
+    ))
+    return findings
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [DH] Undeclared imports
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Maps Python import names (lowercase) to their canonical pip package names.
+# Only covers well-known cases where the import name differs from the pip name.
+_IMPORT_ALIAS_TO_PKG: dict[str, str] = {
+    'sklearn':       'scikit-learn',
+    'cv2':           'opencv-python',
+    'pil':           'pillow',
+    'bs4':           'beautifulsoup4',
+    'yaml':          'pyyaml',
+    'skimage':       'scikit-image',
+    'bio':           'biopython',
+    'dateutil':      'python-dateutil',
+    'attr':          'attrs',
+    'umap':          'umap-learn',
+    'crypto':        'pycryptodome',
+    'dotenv':        'python-dotenv',
+    'pkg_resources': 'setuptools',
+    'serial':        'pyserial',
+    'usb':           'pyusb',
+    'gi':            'pygobject',
+    'wx':            'wxpython',
+}
+
+
+def _parse_py_dep_packages(all_files) -> set[str]:
+    """Return lowercase normalised set of declared Python packages.
+
+    Reads requirements.txt and/or environment.yml/yaml.
+    Normalises hyphens to underscores so 'scikit-learn' and 'scikit_learn'
+    compare equal.
+    """
+    declared: set[str] = set()
+    names_lower = {f.name.lower(): f for f in all_files}
+
+    req = names_lower.get('requirements.txt')
+    if req:
+        for line in read_file_safe(req).splitlines():
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('-'):
+                continue
+            name = re.split(r'[\[<>=!;@\s]', line)[0].strip()
+            if name:
+                declared.add(name.lower().replace('-', '_'))
+
+    for env_name in ('environment.yml', 'environment.yaml'):
+        env = names_lower.get(env_name)
+        if not env:
+            continue
+        for line in read_file_safe(env).splitlines():
+            stripped = line.strip()
+            if not stripped.startswith('- '):
+                continue
+            pkg_part = stripped[2:].split('#')[0].strip()
+            if pkg_part.lower() in ('pip:', 'pip') or pkg_part.startswith('{'):
+                continue
+            # conda: channel::package=version
+            if '::' in pkg_part:
+                pkg_part = pkg_part.split('::')[1]
+            name = re.split(r'[=<>!\s]', pkg_part)[0].strip()
+            if name and '.' not in name[:2]:
+                declared.add(name.lower().replace('-', '_'))
+
+    return declared
+
+
+def detect_DH_undeclared_imports(repo_dir, all_files):
+    """Failure Mode DH: Packages imported in code but absent from dependency files.
+
+    Only fires when a dependency file already exists. If none exists, [B] covers
+    the gap and DH would be redundant. Covers Python (.py, .ipynb) and R files.
+
+    Python: cross-references imports against requirements.txt / environment.yml.
+    R: cross-references library()/require() calls against renv.lock / DESCRIPTION.
+
+    Severity: SIGNIFICANT — missing packages cause ImportError/package-not-found
+    at runtime, blocking reproduction outright.
+    """
+    findings = []
+    names_lower = {f.name.lower(): f for f in all_files}
+
+    # ── Python ────────────────────────────────────────────────────────────────
+    _PY_DEP_NAMES = {'requirements.txt', 'environment.yml', 'environment.yaml',
+                     'pyproject.toml', 'setup.py', 'setup.cfg', 'pipfile'}
+    has_py_dep = any(n in names_lower for n in _PY_DEP_NAMES)
+
+    if has_py_dep:
+        declared_py = _parse_py_dep_packages(all_files)
+        if declared_py:
+            local_mods = {f.stem.lower() for f in all_files if f.suffix.lower() == '.py'}
+            pkg_dirs = {f.parent for f in all_files if f.name == '__init__.py'}
+
+            py_files = [
+                f for f in all_files
+                if f.suffix.lower() in {'.py', '.ipynb'}
+                and not _is_minified(f)
+                and f.parent not in pkg_dirs
+                and not any(part.lower() in VENDOR_DIRS
+                            for part in f.relative_to(repo_dir).parts)
+            ]
+
+            undeclared: set[str] = set()
+            for f in py_files:
+                for m in _IMPORT_PAT.finditer(read_file_safe(f)):
+                    raw = (m.group(1) or m.group(2) or '').lower()
+                    if not raw or raw in _STDLIB_TOPLEVEL or raw in local_mods:
+                        continue
+                    canonical = _IMPORT_ALIAS_TO_PKG.get(raw, raw).replace('-', '_')
+                    if canonical not in declared_py:
+                        undeclared.add(canonical)
+
+            if len(undeclared) >= 2:
+                pkgs = sorted(undeclared)
+                dep_src = next(
+                    (names_lower[n].name for n in _PY_DEP_NAMES if n in names_lower),
+                    'dependency file'
+                )
+                findings.append(finding(
+                    'DH', 'SIGNIFICANT',
+                    f'{len(undeclared)} package(s) imported but not in {dep_src}',
+                    'These packages are imported in code files but do not appear in '
+                    'the dependency specification. A validator installing only the '
+                    'declared dependencies will encounter ImportError at runtime.',
+                    [f'Undeclared: {", ".join(pkgs[:10])}']
+                    + (['(list truncated)'] if len(pkgs) > 10 else [])
+                    + [f'Dependency file: {dep_src}']
+                ))
+
+    # ── R ─────────────────────────────────────────────────────────────────────
+    renv = names_lower.get('renv.lock')
+    desc = next(
+        (f for f in all_files
+         if f.name.lower() == 'description'
+         and len(f.relative_to(repo_dir).parts) <= 2),
+        None
+    )
+
+    if renv or desc:
+        declared_r: set[str] = set()
+        if renv:
+            try:
+                import json as _json_dh
+                data = _json_dh.loads(read_file_safe(renv))
+                declared_r = {k.lower() for k in data.get('Packages', {})}
+            except Exception:
+                pass
+
+        if desc and not declared_r:
+            in_imports = False
+            for line in read_file_safe(desc).splitlines():
+                if re.match(r'^Imports\s*:', line, re.IGNORECASE):
+                    in_imports = True
+                    rest = line.split(':', 1)[1]
+                    for pkg in re.findall(r'\b([A-Za-z][A-Za-z0-9.]+)', rest):
+                        declared_r.add(pkg.lower())
+                elif in_imports:
+                    if line[:1] in (' ', '\t'):
+                        for pkg in re.findall(r'\b([A-Za-z][A-Za-z0-9.]+)', line):
+                            declared_r.add(pkg.lower())
+                    else:
+                        in_imports = False
+
+        if declared_r:
+            _BASE_R = frozenset({
+                'base', 'stats', 'utils', 'methods', 'graphics',
+                'grdevices', 'datasets', 'tools', 'grid',
+                'parallel', 'compiler', 'splines', 'tcltk',
+            })
+            _R_LIB_PAT = re.compile(
+                r'(?:library|require)\s*\(\s*["\']?([A-Za-z][A-Za-z0-9._]+)',
+                re.IGNORECASE
+            )
+            undeclared_r: set[str] = set()
+            for f in _researcher_r_files(all_files, repo_dir):
+                for m in _R_LIB_PAT.finditer(read_file_safe(f)):
+                    pkg = m.group(1)
+                    if pkg.lower() not in _BASE_R and pkg.lower() not in declared_r:
+                        undeclared_r.add(pkg)
+
+            if undeclared_r:
+                dep_name = renv.name if renv else (desc.name if desc else 'DESCRIPTION')
+                pkgs = sorted(undeclared_r)
+                findings.append(finding(
+                    'DH', 'SIGNIFICANT',
+                    f'{len(pkgs)} R package(s) used but absent from {dep_name}',
+                    'These R packages are called via library() or require() but are '
+                    'not listed in the dependency file. Running renv::restore() or '
+                    'reading DESCRIPTION will not install them.',
+                    [f'Undeclared R packages: {", ".join(pkgs[:10])}']
+                    + (['(list truncated)'] if len(pkgs) > 10 else [])
+                    + [f'Dependency file: {dep_name}']
+                ))
+
+    return findings
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [DI] README variable names vs data column headers
+# ─────────────────────────────────────────────────────────────────────────────
+
+# README section headers that signal an explicit variable/column documentation block.
+_DI_VAR_SECTION_RE = re.compile(
+    r'^#{1,4}\s*(?:variables?|columns?|data\s+dict(?:ionary)?'
+    r'|field\s+descriptions?|column\s+descriptions?'
+    r'|data\s+description|variable\s+descriptions?)',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Numbered list with parenthesized code name:
+# "1. Forest coverage rate (forest_coverage_rate)"
+_DI_NUMBERED_VAR_RE = re.compile(
+    r'^\s*\d+\.\s+\w[^\n]*\(([a-zA-Z_][a-zA-Z0-9_]{2,})\)',
+    re.MULTILINE
+)
+
+# Backtick-quoted identifiers: `column_name`
+_DI_BACKTICK_RE = re.compile(r'`([a-zA-Z_][a-zA-Z0-9_]{2,})`')
+
+
+def _di_looks_like_col_name(s: str) -> bool:
+    """True if s resembles a data column name rather than a code expression or command."""
+    if any(c in s for c in '()./ \\[]{}:,'):
+        return False
+    # Require snake_case (underscore present) or ALL_CAPS — bare words like `age`
+    # are too ambiguous to treat as column names without additional context.
+    return '_' in s or (s.isupper() and len(s) >= 3)
+
+
+def detect_DI_variable_mismatch(repo_dir, all_files):
+    """Failure Mode DI: README-documented variable names not found in data columns.
+
+    Only fires when:
+    1. A README contains an explicit variables/columns section header.
+    2. That section documents snake_case or parenthesized variable names.
+    3. Fewer than 60 % of those names match column headers in the tabular data.
+    4. At least 3 names are unmatched (guards against single-alias differences).
+
+    Severity: LOW CONFIDENCE — naming conventions vary legitimately; derived or
+    transformed variable names may intentionally differ from raw column names.
+    """
+    findings = []
+
+    tabular = [
+        f for f in all_files
+        if f.suffix.lower() in {'.csv', '.tsv', '.tab', '.xlsx', '.xls',
+                                 '.dta', '.sav', '.zsav', '.sas7bdat'}
+        and not f.name.lower().startswith('readme')
+        and f.name.lower() not in CODEBOOK_FILENAMES
+        and not _in_asset_dir(f, repo_dir)
+    ]
+    if not tabular:
+        return findings
+
+    # Collect column headers from up to 10 data files (cap avoids slow runs).
+    all_headers: set[str] = set()
+    for tf in tabular[:10]:
+        for h in _hs_read_headers(tf):
+            all_headers.add(h.lower().strip())
+    if not all_headers:
+        return findings
+
+    readme_files = sorted(
+        [f for f in all_files if f.name.lower() in README_NAMES],
+        key=lambda x: len(x.relative_to(repo_dir).parts)
+    )
+
+    readme_vars: set[str] = set()
+    for readme in readme_files[:3]:
+        try:
+            content = readme.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            continue
+        if not _DI_VAR_SECTION_RE.search(content):
+            continue
+        # Split on section headers; examine only the bodies of variable sections.
+        parts = _DI_VAR_SECTION_RE.split(content)
+        for section_body in parts[1:]:
+            next_hdr = re.search(r'^#{1,3}\s+\w', section_body, re.MULTILINE)
+            body = section_body[:next_hdr.start()] if next_hdr else section_body
+            for m in _DI_NUMBERED_VAR_RE.finditer(body):
+                name = m.group(1)
+                if _di_looks_like_col_name(name):
+                    readme_vars.add(name.lower())
+            for m in _DI_BACKTICK_RE.finditer(body):
+                name = m.group(1)
+                if _di_looks_like_col_name(name):
+                    readme_vars.add(name.lower())
+
+    if len(readme_vars) < 3:
+        return findings
+
+    def _norm(s: str) -> str:
+        return re.sub(r'[\s_\-]+', '_', s.lower().strip())
+
+    norm_headers = {_norm(h) for h in all_headers}
+    mismatched = [v for v in sorted(readme_vars) if _norm(v) not in norm_headers]
+
+    if len(mismatched) < 3:
+        return findings
+    match_rate = (len(readme_vars) - len(mismatched)) / len(readme_vars)
+    if match_rate >= 0.6:
+        return findings  # majority match — residual differences likely intentional
+
+    findings.append(finding(
+        'DI', 'LOW CONFIDENCE',
+        f'{len(mismatched)} README variable(s) not found in data column headers',
+        'Variable names documented in the README cannot be matched to column '
+        'headers in the tabular data files. This may indicate naming '
+        'inconsistencies between the documentation and the data, or that the '
+        'README documents derived/transformed variables rather than raw column '
+        'names. A validator cross-referencing the README against the data will '
+        'encounter apparent mismatches.',
+        [f'README variables not in data: {", ".join(mismatched[:8])}']
+        + (['(list truncated)'] if len(mismatched) > 8 else [])
+        + [f'Data files checked: {", ".join(tf.name for tf in tabular[:5])}']
+        + (['(more files exist)'] if len(tabular) > 5 else [])
     ))
     return findings
 
