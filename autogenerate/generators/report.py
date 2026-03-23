@@ -227,11 +227,17 @@ def _assessment_verification_questions(all_files):
     ]
 
 def generate_cleaning_report(repo_name, repo_dir, all_files,
-                              findings, output_dir):
-    """Generate CLEANING_REPORT.md and ASSESSMENT.md."""
+                              findings, output_dir,
+                              enhanced_details: dict = None):
+    """Generate CLEANING_REPORT.md and ASSESSMENT.md.
 
+    enhanced_details: optional dict mapping mode codes to deposit-specific
+        detail text (produced by claude_semantic.run_claude_analysis).
+        When present, replaces the generic template text for matched findings.
+    """
     _write_cleaning_report(repo_name, repo_dir, all_files,
-                           findings, output_dir)
+                           findings, output_dir,
+                           enhanced_details=enhanced_details or {})
     _write_assessment(repo_name, all_files, findings, output_dir)
 
 
@@ -244,7 +250,8 @@ def _severity_emoji(severity):
 
 
 def _write_cleaning_report(repo_name, repo_dir, all_files,
-                            findings, output_dir):
+                            findings, output_dir,
+                            enhanced_details: dict = None):
 
     critical   = [f for f in findings if f['severity'] == 'CRITICAL']
     significant = [f for f in findings if f['severity'] == 'SIGNIFICANT']
@@ -450,10 +457,11 @@ def _write_cleaning_report(repo_name, repo_dir, all_files,
         ]
 
         for f in group:
+            detail_text = (enhanced_details or {}).get(f['mode'], f['detail'])
             lines += [
                 f'### [{f["mode"]}] {f["title"]}',
                 '',
-                f['detail'],
+                detail_text,
                 '',
             ]
             if f.get('evidence'):

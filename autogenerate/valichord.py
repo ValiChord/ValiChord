@@ -20,6 +20,7 @@ from pathlib import Path
 from datetime import datetime
 
 from detectors.failure_modes_simple import run_simple_detectors
+from detectors.claude_semantic import run_claude_analysis
 from generators.report import generate_cleaning_report
 from generators.drafts import generate_all_drafts
 from generators.log import generate_valichord_log
@@ -158,11 +159,29 @@ def main():
     print(f"  LOW CONFIDENCE:   {low}")
     print()
 
+    # ── semantic analysis (Claude) — silent if no API key ────────────
+    print("Running semantic analysis...")
+    claude_findings, enhanced_details = run_claude_analysis(
+        repo_dir, all_files, findings
+    )
+    if claude_findings:
+        findings = findings + claude_findings
+        critical    = sum(1 for f in findings if f['severity'] == 'CRITICAL')
+        significant = sum(1 for f in findings if f['severity'] == 'SIGNIFICANT')
+        low         = sum(1 for f in findings if f['severity'] == 'LOW CONFIDENCE')
+        print(f"  CRITICAL:         {critical}")
+        print(f"  SIGNIFICANT:      {significant}")
+        print(f"  LOW CONFIDENCE:   {low}")
+    else:
+        print("  (no API key — semantic analysis skipped)")
+    print()
+
     # ── generate output files ────────────────────────────────────────
     print("Generating output files...")
     generate_all_drafts(repo_dir, all_files, findings, output_dir)
     generate_cleaning_report(
-        zip_path.name, repo_dir, all_files, findings, output_dir
+        zip_path.name, repo_dir, all_files, findings, output_dir,
+        enhanced_details=enhanced_details,
     )
     generate_valichord_log(zip_path.name, repo_dir, all_files, findings, output_dir)
 
