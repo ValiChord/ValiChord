@@ -2007,13 +2007,13 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await zomeCall(bob,  "publish_validator_profile", makeProfile("Oxford"));
         await zomeCall(carol,"publish_validator_profile", makeProfile("Cambridge"));
         await zomeCall(dave, "publish_validator_profile", makeProfile("Harvard"));
-        await dhtSync([alice, bob, carol, dave], dnaHash!);
+        await dhtSync([alice, bob, carol, dave], dnaHash!, 500, 120_000);
 
         // First two claims fill all slots (num_validators_required=2).
         await zomeCall(bob,  "claim_study", REQUEST_REF);
-        await dhtSync([alice, bob, carol, dave], dnaHash!);
+        await dhtSync([alice, bob, carol, dave], dnaHash!, 500, 120_000);
         await zomeCall(carol,"claim_study", REQUEST_REF);
-        await dhtSync([alice, bob, carol, dave], dnaHash!);
+        await dhtSync([alice, bob, carol, dave], dnaHash!, 500, 120_000);
 
         // Third claim must be rejected (capacity exceeded).
         await expect(
