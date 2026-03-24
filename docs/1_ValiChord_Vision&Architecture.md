@@ -102,15 +102,15 @@ Every one of these attempts shares a common failure mode: they were softened by 
 
 ### The Core Idea
 
-ValiChord is a system where independent researchers re-run other researchers' computational work, report whether they get the same results, and those reports are stored in a way that can't be tampered with.
+ValiChord is a system where independent researchers reproduce other researchers' work — running their code, replicating their experiments, or rebuilding their hardware — report whether they get the same results, and those reports are stored in a way that can't be tampered with.
 
-That's the essence. Everything else — the eight layers, the Holochain architecture, the governance framework — serves that core function. Throughout this document, "validators" means scientific professionals paid to re-run computational studies — not blockchain validators securing a ledger.
+That's the essence. Everything else — the eight layers, the Holochain architecture, the governance framework — serves that core function. Throughout this document, "validators" means scientific professionals paid to reproduce published studies — not blockchain validators securing a ledger. Computation is the first and most tractable domain; the protocol is indifferent to whether validators are running code, performing experiments, or assembling devices.
 
 ### The Validation Lifecycle
 
 A study moves through ValiChord in a clear sequence:
 
-**Submission.** A researcher (or their institution) submits a published computational study — code, data, protocol, and documentation. The system generates cryptographic fingerprints of every file, ensuring all validators work from identical materials.
+**Submission.** A researcher (or their institution) submits a published study — methodology, data, protocols, and documentation. This may be computational code, a lab protocol, a hardware design, or any combination. The system generates cryptographic fingerprints of every file, ensuring all validators work from identical materials.
 
 **Triage.** Automated checks assess the submission: are the files complete? Is the code executable? Are dependencies documented? Studies that fail basic checks receive structured feedback through the Researcher Support pipeline rather than entering the validation queue.
 
@@ -192,9 +192,13 @@ ValiChord's architectural direction has independent academic support. Beyvers et
 
 ### An Important Scope Boundary
 
-ValiChord validates computation, not data provenance. Validators re-run code on provided data and verify whether the claimed results reproduce. If the raw data itself is fabricated — but internally consistent — validators would successfully reproduce the results and the study could receive a high confidence rating for science built on false foundations. ValiChord's cryptographic audit trail proves that data wasn't changed after submission; it cannot prove the data was truthful in the first place.
+ValiChord validates the claimed methodology, not data provenance. The specific form this takes depends on the domain.
 
-This is not a design flaw — it is a boundary. No computational validation system can verify that a researcher actually observed what they claim to have observed. ValiChord catches coding errors, analytical mistakes, undocumented dependencies, and post-hoc manipulation. It does not catch well-executed fraud at the data generation stage. The documents, the Harmony Records, and any public communications must be honest about this boundary.
+For computational validation: validators re-run code on provided data and verify whether the claimed results reproduce. If the raw data itself is fabricated — but internally consistent — validators would successfully reproduce the results. ValiChord's cryptographic audit trail proves data wasn't changed after submission; it cannot prove the data was truthful in the first place.
+
+For experimental and physical validation: validators independently replicate the methodology — performing the experiment, building the device, running the protocol — and verify whether the claimed results follow. This goes further than computational validation in one respect: validators are not working from provided data, they are generating their own. A fabricated measurement that another lab cannot independently obtain will be caught. What remains out of scope is the same: well-executed fraud at the data generation stage that happens to replicate across independent attempts.
+
+This is not a design flaw — it is a boundary. ValiChord catches methodological errors, undocumented dependencies, analytical mistakes, and post-hoc manipulation. It does not catch the hardest category of fraud: fabricated results that are internally consistent and independently reproducible. The documents, the Harmony Records, and any public communications must be honest about this boundary.
 
 ---
 
@@ -232,7 +236,7 @@ This is where independent validation actually happens. The engine handles valida
 
 Validator diversity isn't a policy preference — it's an architectural requirement. For a validation to be credible, validators must be genuinely independent: different institutions, different geographies, no co-authorship networks. Three validators from the same lab network doesn't constitute independent verification, regardless of their individual competence. This creates structural demand for distributed capability — ValiChord needs qualified validators across regions and institutions to produce epistemically valid results. At the same time, participation in validation work provides under-resourced labs with funded opportunities to build institutional credibility, develop methodological skills, and establish track records of demonstrated competence. This is genuinely mutual: ValiChord needs their independence, they need the opportunity, and both sides are stronger for it.
 
-Validator selection weighs three things at once. The first is **disciplinary expertise** — does the validator have the right skills for this study's methods? The second is **independence** — are they genuinely separate from the research team, at a different institution, with no co-authorship history? The third is **computational environment** — is their hardware and software setup close enough to the researcher's that any differences in results are likely to reflect the science rather than the machine?
+Validator selection weighs three things at once. The first is **disciplinary expertise** — does the validator have the right skills for this study's methods? The second is **independence** — are they genuinely separate from the research team, at a different institution, with no co-authorship history? The third is **execution environment** — for computational studies, is their hardware and software setup close enough to the researcher's that any differences in results reflect the science rather than the machine? For experimental and physical studies, do they have access to equivalent equipment, materials, and facilities?
 
 This third consideration is new to reproducibility infrastructure, and it matters because setup differences between researcher and validator are one of the most common sources of divergence — and one of the most avoidable. The selection algorithm prioritises validators whose setup is closest to the researcher's, reducing this source of noise before validation begins rather than trying to explain it afterward.
 
