@@ -21,14 +21,16 @@
 
 ValiChord's architecture solves a general problem, not a science-specific one. The pattern is:
 
-1. Someone makes a computational claim ("my model produces these results")
+1. Someone makes a verifiable claim ("my methodology produces these results")
 2. Independent parties attempt to reproduce those results
 3. Agreement and disagreement are both recorded permanently
 4. The record is cryptographically verifiable and tamper-resistant
 5. Gaming, collusion, and institutional capture are detected and resisted
 6. The full picture — including uncertainty and disagreement — is visible to anyone who looks
 
-This pattern applies wherever computational claims carry consequences and independent verification is valuable. Science is the first and most natural home. It is not the only one.
+The claim can be computational, experimental, clinical, or hardware-based. Methodology and data go in — whether that is a Python script, a lab protocol, a synthesis procedure, or a device assembly guide — and validators reproduce the work. The protocol does not care what validators are doing with their hands or their computers. What it cares about is that they do it independently, commit before seeing each other's results, and that the full record is preserved.
+
+This pattern applies wherever verifiable claims carry consequences and independent verification is valuable. Science is the first and most natural home. Within science, computation is the first and most tractable instance. Neither is the limit.
 
 The same structural failure recurs across every domain in this document: genuine crisis → institutional response → compliance theatre. Not sabotage. A hundred small accommodations. ClinicalTrials.gov was meant to make clinical trial suppression impossible. It didn't work. The carbon credit registries were meant to make greenwashing detectable. They didn't work. The rating agencies were meant to make financial risk transparent. They didn't work. In each case, the infrastructure was captured by the interests it was designed to scrutinise — not through conspiracy, but through the slow gravitational pull of funding dependence, access dependence, and the path of least resistance.
 

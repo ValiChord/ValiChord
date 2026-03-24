@@ -2,7 +2,7 @@
 
 <img src="Images/Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 
-**An Immune System for Science: Distributed Integrity Infrastructure for Computational Research**
+**An Immune System for Science: Distributed Integrity Infrastructure for Scientific Research**
 
 [![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Infrastructure_Built-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
@@ -23,9 +23,9 @@
 </div>
 
 ## 🧬 The Mission
-Computational methods now underpin virtually every scientific discipline, yet **70% of researchers** have failed to reproduce another scientist's experiments. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
+Across every scientific discipline — computational, experimental, clinical, hardware — **70% of researchers** have failed to reproduce another scientist's work. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
 
-**ValiChord** is a distributed, agent-centric infrastructure designed to make computational reproducibility verifiable, tamper-evident, and structurally resistant to corruption. It replaces binary "Pass/Fail" verdicts with **Harmony Records** — permanent, publicly queryable records that preserve the full texture of scientific agreement and disagreement.
+**ValiChord** is a distributed, agent-centric infrastructure designed to make scientific reproducibility verifiable, tamper-evident, and structurally resistant to corruption. The protocol is domain-agnostic: methodology and data go in, independent validators reproduce the work, and the result is a **Harmony Record** — a permanent, publicly queryable record that preserves the full texture of scientific agreement and disagreement. Computation is the first and most tractable instance. It is not the only one.
 
 ---
 
