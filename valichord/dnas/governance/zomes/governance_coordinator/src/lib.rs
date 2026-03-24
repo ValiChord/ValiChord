@@ -64,6 +64,41 @@ pub struct ReputationUpdateInput {
 /// with a shorter-lived ValidationRequest.
 const ROUND_TIMEOUT_SECS: i64 = 7 * 24 * 3600;
 
+// ---------------------------------------------------------------------------
+// Cross-DNA call helper
+// ---------------------------------------------------------------------------
+
+/// Call a function on the attestation coordinator and decode the response.
+///
+/// Returns `Ok(None)` on any cross-DNA failure (network error, unauthorized,
+/// decode error) rather than propagating errors — callers use the None path
+/// to abort conservatively without failing the calling function.
+///
+/// This matches the documented design intent: "if the quorum count cannot be
+/// determined, return None conservatively — do NOT default to 1."
+fn call_attestation_zome_opt<I, O>(fn_name: &str, input: I) -> ExternResult<Option<O>>
+where
+    I: serde::Serialize + std::fmt::Debug,
+    O: serde::de::DeserializeOwned + std::fmt::Debug,
+{
+    let response = call(
+        CallTargetCell::OtherRole("attestation".into()),
+        ZomeName::from("attestation_coordinator"),
+        FunctionName::from(fn_name),
+        None,
+        input,
+    )?;
+    match response {
+        ZomeCallResponse::Ok(extern_io) => {
+            extern_io
+                .decode::<O>()
+                .map(Some)
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
+        }
+        _ => Ok(None), // Network error / unauthorized — abort conservatively.
+    }
+}
+
 /// Idempotent — called automatically from DNA 3 submit_attestation.
 ///
 /// Algorithm:
@@ -85,20 +120,12 @@ pub fn check_and_create_harmony_record(
         return Ok(None);
     }
 
-    // 2. Fetch attestations from DNA 3.
-    let response = call(
-        CallTargetCell::OtherRole("attestation".into()),
-        ZomeName::from("attestation_coordinator"),
-        FunctionName::from("get_attestations_for_request"),
-        None,
-        request_ref.clone(),
-    )?;
-    let attestation_records: Vec<Record> = match response {
-        ZomeCallResponse::Ok(extern_io) => extern_io
-            .decode()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?,
-        _ => return Ok(None),
-    };
+    // 2. Fetch attestations from attestation DNA.
+    let attestation_records: Vec<Record> =
+        match call_attestation_zome_opt("get_attestations_for_request", request_ref.clone())? {
+            Some(records) => records,
+            None => return Ok(None),
+        };
     if attestation_records.is_empty() {
         return Ok(None);
     }
@@ -107,22 +134,11 @@ pub fn check_and_create_harmony_record(
     // If the quorum count cannot be determined (ValidationRequest not found or
     // cross-DNA call fails), return None conservatively — do NOT default to 1,
     // as that would allow a single attestation to finalise any study.
-    let min_validators: u8 = {
-        let resp = call(
-            CallTargetCell::OtherRole("attestation".into()),
-            ZomeName::from("attestation_coordinator"),
-            FunctionName::from("get_num_validators_required"),
-            None,
-            request_ref.clone(),
-        )?;
-        match resp {
-            ZomeCallResponse::Ok(extern_io) => match extern_io.decode::<u8>() {
-                Ok(n) => n,
-                Err(_) => return Ok(None), // Cannot decode quorum — abort conservatively.
-            },
-            _ => return Ok(None), // Call failed — abort conservatively.
-        }
-    };
+    let min_validators: u8 =
+        match call_attestation_zome_opt("get_num_validators_required", request_ref.clone())? {
+            Some(n) => n,
+            None => return Ok(None), // Cannot determine quorum — abort conservatively.
+        };
     if (attestation_records.len() as u8) < min_validators {
         return Ok(None);
     }
@@ -165,19 +181,11 @@ pub fn force_finalize_round(
     }
 
     // 2. Fetch attestations and apply min_attestations_for_finalization threshold.
-    let response = call(
-        CallTargetCell::OtherRole("attestation".into()),
-        ZomeName::from("attestation_coordinator"),
-        FunctionName::from("get_attestations_for_request"),
-        None,
-        request_ref.clone(),
-    )?;
-    let attestation_records: Vec<Record> = match response {
-        ZomeCallResponse::Ok(extern_io) => extern_io
-            .decode()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?,
-        _ => return Ok(None),
-    };
+    let attestation_records: Vec<Record> =
+        match call_attestation_zome_opt("get_attestations_for_request", request_ref.clone())? {
+            Some(records) => records,
+            None => return Ok(None),
+        };
     if attestation_records.is_empty() {
         return Ok(None);
     }
@@ -194,30 +202,22 @@ pub fn force_finalize_round(
     // 3. Check round age via the ValidationRequest's action timestamp.
     // If the VR cannot be found or the call fails, abort conservatively —
     // we cannot verify the round has timed out, so we must not finalise.
-    let vr_response = call(
-        CallTargetCell::OtherRole("attestation".into()),
-        ZomeName::from("attestation_coordinator"),
-        FunctionName::from("get_validation_request_for_data_hash"),
-        None,
+    let maybe_vr: Option<Record> = call_attestation_zome_opt(
+        "get_validation_request_for_data_hash",
         request_ref.clone(),
-    )?;
-    match vr_response {
-        ZomeCallResponse::Ok(extern_io) => {
-            let maybe_vr: Option<Record> = extern_io.decode().unwrap_or(None);
-            match maybe_vr {
-                Some(vr) => {
-                    let now = sys_time()?;
-                    let vr_time = vr.action().timestamp();
-                    let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
-                    if elapsed_secs < ROUND_TIMEOUT_SECS {
-                        return Ok(None); // Round has not timed out yet.
-                    }
-                    // Age check passed — fall through to write.
-                }
-                None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
+    )?
+    .flatten(); // call_attestation_zome_opt returns Option<Option<Record>> here
+    match maybe_vr {
+        Some(vr) => {
+            let now = sys_time()?;
+            let vr_time = vr.action().timestamp();
+            let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
+            if elapsed_secs < ROUND_TIMEOUT_SECS {
+                return Ok(None); // Round has not timed out yet.
             }
+            // Age check passed — fall through to write.
         }
-        _ => return Ok(None), // Cross-DNA call failed — abort conservatively.
+        None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
     }
 
     // 4-7. Assemble and write with whatever attestations are present.
@@ -286,23 +286,14 @@ fn write_harmony_record(
     // Falling back to a validator pubkey would issue a badge to the wrong
     // recipient; it is safer to skip issuance than to mis-attribute.
     if let Some(badge_type) = evaluate_badge(&agreement_level, validator_count) {
-        let resp = call(
-            CallTargetCell::OtherRole("attestation".into()),
-            ZomeName::from("attestation_coordinator"),
-            FunctionName::from("get_validation_request_for_data_hash"),
-            None,
+        let maybe_researcher: Option<AgentPubKey> = call_attestation_zome_opt::<_, Option<Record>>(
+            "get_validation_request_for_data_hash",
             request_ref.clone(),
-        );
-        let maybe_researcher: Option<AgentPubKey> = match resp {
-            Ok(ZomeCallResponse::Ok(extern_io)) => {
-                extern_io
-                    .decode::<Option<Record>>()
-                    .ok()
-                    .flatten()
-                    .map(|r| r.action().author().clone())
-            }
-            _ => None,
-        };
+        )
+        .ok()
+        .flatten()   // Option<Option<Record>> → Option<Record>
+        .flatten()
+        .map(|r| r.action().author().clone());
         if let Some(issued_to) = maybe_researcher {
             let type_anchor = badge_type_anchor(&badge_type)?;
             let badge = ReproducibilityBadge {
@@ -416,6 +407,15 @@ pub fn get_harmony_records_by_discipline(
 }
 
 /// Return the most recent ValidatorReputation record for a given validator.
+///
+/// Uses the `total_validations` count encoded as 8 big-endian bytes in the
+/// link tag to find the highest-count record deterministically.  This avoids
+/// a race condition where two concurrent reputation updates written in the
+/// same DHT gossip batch could cause `.last()` to return a stale record
+/// depending on non-deterministic gossip ordering.
+///
+/// Links written before this scheme (empty or short tags) are treated as
+/// count = 0 and will always lose to any tagged link.
 #[hdk_extern]
 pub fn get_validator_reputation(
     validator: AgentPubKey,
@@ -424,7 +424,9 @@ pub fn get_validator_reputation(
         LinkQuery::try_new(validator, LinkTypes::ValidatorToReputation)?,
         GetStrategy::Network,
     )?;
-    match links.last() {
+    // Find the link whose tag encodes the highest total_validations count.
+    let best = links.iter().max_by_key(|l| reputation_link_count(l));
+    match best {
         Some(link) => {
             let target = link
                 .target
@@ -437,6 +439,21 @@ pub fn get_validator_reputation(
         }
         None => Ok(None),
     }
+}
+
+/// Extract the total_validations count from a ValidatorToReputation link tag.
+///
+/// Tags are written as 8 big-endian bytes of the `u64` total_validations.
+/// Old links (written before this scheme) have empty or short tags and
+/// return 0, ensuring they sort below any tagged link.
+fn reputation_link_count(link: &Link) -> u64 {
+    let tag = link.tag.as_ref();
+    if tag.len() >= 8 {
+        if let Ok(bytes) = tag[..8].try_into() {
+            return u64::from_be_bytes(bytes);
+        }
+    }
+    0
 }
 
 /// Return all ReproducibilityBadge records of a given type across all studies.
@@ -622,21 +639,26 @@ fn evaluate_badge(
 }
 
 /// Internal reputation update — creates a new ValidatorReputation entry that
-/// supersedes the previous one (links accumulate; latest = most recent).
+/// supersedes the previous one (links accumulate; highest count wins).
+///
+/// The link tag encodes `total_validations` as 8 big-endian bytes so that
+/// `get_validator_reputation` can find the correct record by max-tag rather
+/// than relying on gossip-ordering (.last()), which is non-deterministic
+/// when two updates arrive in the same DHT batch.
 fn _update_reputation_internal(
     validator: AgentPubKey,
     discipline: Discipline,
     outcome: AttestationOutcome,
     time_invested_secs: u64,
 ) -> ExternResult<ActionHash> {
-    // Fetch existing reputation if any.
+    // Fetch existing reputation if any, using max-tag for correctness.
     let links = get_links(
         LinkQuery::try_new(validator.clone(), LinkTypes::ValidatorToReputation)?,
         GetStrategy::Network,
     )?;
 
     let (total_validations, agreement_rate, avg_time_secs, tier) =
-        if let Some(link) = links.last() {
+        if let Some(link) = links.iter().max_by_key(|l| reputation_link_count(l)) {
             let target = link
                 .target
                 .clone()
@@ -685,11 +707,15 @@ fn _update_reputation_internal(
         tier,
     };
     let rep_hash = create_entry(EntryTypes::ValidatorReputation(rep))?;
+    // Encode total_validations as 8 big-endian bytes in the link tag so
+    // get_validator_reputation can find the highest-count record without
+    // relying on non-deterministic gossip ordering.
+    let tag = LinkTag::new(total_validations.to_be_bytes().to_vec());
     create_link(
         validator,
         rep_hash.clone(),
         LinkTypes::ValidatorToReputation,
-        (),
+        tag,
     )?;
     Ok(rep_hash)
 }

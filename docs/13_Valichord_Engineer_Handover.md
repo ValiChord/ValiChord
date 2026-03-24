@@ -93,6 +93,8 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 **`check_all_commitments_sealed_inner` fix** — 2026-03-16. Previously used `props.minimum_validators` (network-wide DNA property) to decide when to open the reveal window. Now calls `get_num_validators_required(request_ref)` which reads `num_validators_required` from the actual `ValidationRequest` entry. The phase transition now opens when the correct number of validators *for that specific study* have committed, not the network minimum.
 
+**`ValidatorAgentType` + partial profile update** — 2026-03-24. `ValidatorProfile` now carries an `agent_type: Option<ValidatorAgentType>` field (`#[serde(default)]`) distinguishing `Individual`, `Institution`, and `AutomatedTool`. Existing profiles deserialise with `None` — backwards-compatible. New coordinator functions: `update_validator_profile(UpdateValidatorProfileInput)` accepts partial `Option<T>` fields, fetches the current profile, merges supplied changes, and re-publishes; `get_validator_agent_type(agent: AgentPubKey) → Option<ValidatorAgentType>` is an unrestricted read returning the agent type from the latest profile. Both are in the `init()` cap grant.
+
 ---
 
 ### DNA 4 — Governance & Harmony Records
@@ -145,7 +147,7 @@ All cross-DNA types live in `valichord/shared_types/` — a pure `rlib` crate im
 
 **Do not move shared types into an integrity zome.** Integrity zomes compile as `cdylib`. If a type is defined in a `cdylib` and re-exported across crates, you get duplicate symbol errors at link time. The `rlib` pattern is the correct solution.
 
-Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `discipline_tag()`.
+Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `ValidatorAgentType`, `discipline_tag()`.
 
 ---
 
@@ -315,6 +317,8 @@ Four LLM red-team audits (ChatGPT, Gemini, Grok ×2) and one systematic self-aud
 | Badge recipient fallback to wrong agent | Self-audit | Medium | If the researcher's pubkey could not be resolved, `write_harmony_record` issued the badge to the first participating validator. Badge issuance is now skipped entirely if researcher identity is unknown. |
 | Automatic reputation update silently fails in production | Self-audit | Medium | `_update_reputation_internal` is called from `write_harmony_record` but always fails if `system_coordinator_key` is set (validate() rejects non-coordinator creates). Wrapped in `system_coordinator_key.is_empty()` guard; production uses `update_validator_reputation` explicitly. |
 | `StudyClaim.request_ref` ↔ `ValidationRequest.data_hash` cross-check | Self-audit | Low (defence-in-depth) | validate() now confirms these two fields reference the same study, closing a theoretical COI-bypass where a crafted claim references a benign `ValidationRequest` for the COI check while targeting a different study. |
+| `ValidatorToReputation` link-tag ordering | Code review (2026-03-24) | Low — correctness | `_update_reputation_internal` now encodes `total_validations` as 8 big-endian bytes in the `LinkTag`. `get_validator_reputation` selects the record with the highest tag value via `.max_by_key()` instead of `.last()`. Prevents non-deterministic gossip ordering from returning a stale reputation record when two updates arrive in the same DHT batch. Old links (no tag) return count = 0 and always lose to any tagged link — backwards-compatible. |
+| Cross-DNA call boilerplate in governance coordinator | Code review (2026-03-24) | Low — maintainability | The repeated `call(CallTargetCell::OtherRole("attestation"), ...) / match ZomeCallResponse::Ok(...) => decode, _ => return Ok(None)` pattern appeared four times in `check_and_create_harmony_record`, `force_finalize_round`, and `write_harmony_record`. Extracted into `call_attestation_zome_opt<I,O>()` typed helper. No behaviour change. |
 
 ### Dismissed findings (with reasoning)
 

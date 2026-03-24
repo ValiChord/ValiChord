@@ -77,6 +77,19 @@ pub enum ValidationTier { Basic, Enhanced, Comprehensive }
 // defined in valichord_shared_types — imported above.
 // This avoids cdylib→cdylib dependency issues with validator_workspace and governance.
 
+/// Discriminates between human validators, institutional accounts, and
+/// automated tools.  Stored as `Option` so profiles created before this
+/// field was introduced deserialise as `None` (backwards-compatible).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ValidatorAgentType {
+    /// A human individual acting under their own identity.
+    Individual,
+    /// An institutional or group account (e.g. a lab or review committee).
+    Institution,
+    /// An automated tool or pipeline (e.g. a CI-based reproducer).
+    AutomatedTool,
+}
+
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ValidatorProfile {
@@ -86,6 +99,9 @@ pub struct ValidatorProfile {
     pub available:            bool,
     pub max_concurrent_tasks: u8,
     pub orcid:                Option<String>,
+    /// Agent type — `None` for profiles created before this field was added.
+    #[serde(default)]
+    pub agent_type:           Option<ValidatorAgentType>,
 }
 
 // CertificationTier is defined in valichord_shared_types — imported above.

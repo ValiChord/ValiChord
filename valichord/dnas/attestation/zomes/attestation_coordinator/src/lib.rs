@@ -3,7 +3,7 @@ use attestation_integrity::{
     AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
     DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
     ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
-    StudyClaim, ValidatorProfile, ValidationRequest,
+    StudyClaim, ValidatorAgentType, ValidatorProfile, ValidationRequest,
 };
 use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
 use sha2::{Digest, Sha256};
@@ -38,6 +38,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "reclaim_abandoned_claim",
         "get_researcher_commitment",
         "get_researcher_reveal",
+        "get_validator_agent_type",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -349,6 +350,96 @@ pub fn publish_validator_profile(
     )?;
 
     Ok(profile_hash)
+}
+
+/// Input for `update_validator_profile`.
+///
+/// All fields are `Option` — supply only the fields you want to change.
+/// `None` fields are copied from the validator's current profile.
+/// If no current profile exists, `None` fields fall back to sensible defaults
+/// (empty string, empty vec, Provisional tier, false, 0, None).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateValidatorProfileInput {
+    pub institution:          Option<String>,
+    pub disciplines:          Option<Vec<Discipline>>,
+    pub available:            Option<bool>,
+    pub max_concurrent_tasks: Option<u8>,
+    pub orcid:                Option<Option<String>>,
+    pub agent_type:           Option<Option<ValidatorAgentType>>,
+}
+
+/// Update the calling agent's validator profile.
+///
+/// Fetches the current profile (via the latest `AgentToProfile` link) and
+/// merges `UpdateValidatorProfileInput` on top of it — only supplied
+/// (`Some`) fields are changed.  Then calls `publish_validator_profile` with
+/// the merged result, which creates a new entry and updates all discovery
+/// indexes (discipline paths, institution path).
+///
+/// Called via the author grant (same-agent only).
+#[hdk_extern]
+pub fn update_validator_profile(
+    input: UpdateValidatorProfileInput,
+) -> ExternResult<ActionHash> {
+    use valichord_shared_types::CertificationTier;
+
+    let agent = agent_info()?.agent_initial_pubkey;
+
+    // Resolve the existing profile (if any) to merge against.
+    let existing: Option<ValidatorProfile> = {
+        let profile_links = get_links(
+            LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
+            GetStrategy::Network,
+        )?;
+        profile_links
+            .last()
+            .and_then(|l| l.target.clone().into_action_hash())
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
+    };
+
+    let base = existing.unwrap_or_else(|| ValidatorProfile {
+        institution:          String::new(),
+        disciplines:          Vec::new(),
+        certification_tier:   CertificationTier::Provisional,
+        available:            false,
+        max_concurrent_tasks: 0,
+        orcid:                None,
+        agent_type:           None,
+    });
+
+    let merged = ValidatorProfile {
+        institution:          input.institution.unwrap_or(base.institution),
+        disciplines:          input.disciplines.unwrap_or(base.disciplines),
+        certification_tier:   base.certification_tier, // tier is computed, not editable directly
+        available:            input.available.unwrap_or(base.available),
+        max_concurrent_tasks: input.max_concurrent_tasks.unwrap_or(base.max_concurrent_tasks),
+        orcid:                input.orcid.unwrap_or(base.orcid),
+        agent_type:           input.agent_type.unwrap_or(base.agent_type),
+    };
+
+    publish_validator_profile(merged)
+}
+
+/// Return the `ValidatorAgentType` for a given agent (if declared).
+///
+/// Convenience read function — fetches the latest profile and extracts
+/// the `agent_type` field.  Returns `None` if no profile exists or the
+/// field was not set on profile creation.
+#[hdk_extern]
+pub fn get_validator_agent_type(
+    agent: AgentPubKey,
+) -> ExternResult<Option<ValidatorAgentType>> {
+    let profile_links = get_links(
+        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
+        GetStrategy::Network,
+    )?;
+    Ok(profile_links
+        .last()
+        .and_then(|l| l.target.clone().into_action_hash())
+        .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+        .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
+        .and_then(|p| p.agent_type))
 }
 
 #[hdk_extern]
