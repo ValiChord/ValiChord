@@ -1,0 +1,175 @@
+# ValiChord × Nondominium — Integration Notes
+
+**Status:** Pre-implementation. Design decisions open. No code written yet.
+**Authors:** Ceri John (ValiChord), in dialogue with Tiberius Brastaviceanu and Sacha (Sensorica)
+**Last updated:** March 2026
+
+---
+
+## Why this document exists
+
+During early collaboration discussions with the Sensorica team, both codebases were read in parallel. What emerged was not a vague architectural compatibility — it was a specific, locatable gap in Nondominium that ValiChord's commit-reveal protocol is shaped to fill.
+
+This document records what was found, proposes a concrete integration path, and names the three design decisions that need to be agreed before any code is written.
+
+---
+
+## The gap: a commented-out call
+
+In Nondominium's `zome_resource` coordinator, `create_economic_resource()` contains a cross-zome call that is currently commented out:
+
+```rust
+// zome_resource coordinator — create_economic_resource()
+// Disabled pending cross-zome communication resolution:
+// validate_new_resource(ValidateNewResourceInput { ... })
+```
+
+The intent is clear: when a new `EconomicResource` is created, it enters state `ResourceState::PendingValidation`. Something external is meant to drive it to `Active`. That something is multi-validator consensus — exactly what ValiChord provides.
+
+This is not a speculative fit. The Nondominium data model already anticipates it:
+
+```rust
+pub struct ResourceValidation {
+    pub resource: ActionHash,
+    pub validation_scheme: String,
+    pub required_validators: u32,
+    pub current_validators: Vec<AgentPubKey>,
+    pub status: ...,
+}
+```
+
+ValiChord's blind commit-reveal produces a `HarmonyRecord` — a cryptographically locked multi-validator consensus result. Wiring that outcome into `ResourceValidation.status` and calling `update_resource_state()` to transition the resource to `Active` is the natural integration point.
+
+---
+
+## What each project already provides
+
+### Nondominium brings
+
+| Component | What it offers |
+|---|---|
+| `EconomicResource` + `ResourceState` | The NDO data model and state machine ValiChord's outcomes feed into |
+| `zome_gouvernance::create_validation_receipt()` | A ready-made sink for ValiChord's per-validator attestations |
+| `zome_gouvernance::create_resource_validation()` | Multi-validator consensus tracking, already structured |
+| `zome_gouvernance::log_economic_event(VfAction::Work)` | Participation Receipts (PPRs) — automatic contribution attribution for validators |
+| `zome_person::promote_agent_to_accountable()` | Role promotion pathway for enrolling ValiChord validators in NDO |
+| hREA bridge pattern | Cross-DNA call pattern already in production use — ValiChord integration follows the same approach |
+| Capability-based private data grants | Selective disclosure of private data without exposing it — philosophically identical to ValiChord's private DNAs |
+
+### ValiChord brings
+
+| Component | What it offers |
+|---|---|
+| Blind commit-reveal protocol | `seal_private_attestation()` → `submit_attestation()` — validators cannot see each other's findings before committing |
+| `CommitmentAnchor` | SHA-256 hash of sealed attestation published to DHT before reveal — cryptographically un-gameable |
+| `HarmonyRecord` + `ReproducibilityBadge` | Structured consensus outcome with reproducibility tier, agreement level, and deviation types |
+| `ValidatorPrivateAttestation` | Private DNA entry — raw findings never reach the shared DHT |
+| Membrane proof system | Ed25519 institutional credentials — validators are verified before joining a round |
+| 4-DNA sovereignty model | Researcher's raw data stays in a private DNA. Only hashes move into the shared DHT. Compatible with Nondominium's private data philosophy |
+
+### What neither project needs to rebuild
+
+ValiChord does not need to build contribution tracking — Nondominium's PPR system handles it.
+Nondominium does not need to build a blind validation protocol — ValiChord provides it.
+Neither project needs to build cross-DNA call infrastructure — Nondominium's hREA bridge demonstrates the pattern works.
+
+---
+
+## Version alignment
+
+Both projects target the same Holochain release:
+
+| Dependency | ValiChord | Nondominium |
+|---|---|---|
+| `hdk` | `0.6` | `^0.6.0` |
+| `hdi` | `0.7` | `^0.7.0` |
+| Test framework | Tryorama + Vitest | Tryorama + Vitest |
+
+No version upgrades required on either side to begin integration work.
+
+---
+
+## Proposed integration path
+
+A study validation round would proceed as follows. Steps marked **[NDO]** are calls into Nondominium zomes. Steps marked **[VC]** are calls into ValiChord DNAs.
+
+**Step 1 — Study registered**
+Researcher creates the study as an NDO resource **[NDO]** `zome_resource::create_economic_resource()` → state: `PendingValidation`
+ValiChord opens a validation round **[VC]** `attestation::create_validation_request()`
+
+**Step 2 — Validators enrolled**
+Each validator is promoted to accountable agent in NDO **[NDO]** `zome_person::promote_agent_to_accountable()`
+Each validator publishes their profile in ValiChord **[VC]** `attestation::publish_validator_profile()`
+
+**Step 3 — Commit phase**
+Each validator seals their findings locally **[VC]** `validator_workspace::seal_private_attestation()`
+Commitment hash published to shared DHT **[VC]** `attestation::notify_commitment_sealed()` — no content, hash only
+No NDO action at this stage.
+
+**Step 4 — Reveal phase**
+After all commits are present, each validator reveals **[VC]** `attestation::submit_attestation()`
+Protocol verifies `SHA-256(attestation || nonce) == CommitmentAnchor.commitment_hash` before accepting
+
+**Step 5 — Harmony Record → NDO**
+ValiChord governance DNA produces the consensus outcome **[VC]** `governance::finalize_harmony_record()`
+Result written into Nondominium **[NDO]** `zome_gouvernance::create_validation_receipt()` per validator
+Resource state transitioned **[NDO]** `zome_resource::update_resource_state()` → `Active`
+
+**Step 6 — Validator contributions logged**
+For each validator **[NDO]** `zome_gouvernance::log_economic_event(VfAction::Work)` → PPRs issued automatically
+Validators receive contribution attribution in Nondominium's reputation system for completing a ValiChord round.
+
+---
+
+## Three design decisions before any code
+
+These are open questions. They need agreement between both teams before integration coding begins.
+
+### Decision 1 — Ownership of validation state
+
+Nondominium has a `ResourceValidation` entry with `required_validators`, `current_validators`, and `status`. ValiChord has `ValidationRequest` with its own multi-validator tracking.
+
+**Option A:** ValiChord's commit-reveal runs autonomously. On completion, it writes the outcome into Nondominium's `ResourceValidation.status`. NDO is the authoritative state; ValiChord feeds it.
+
+**Option B:** ValiChord's `HarmonyRecord` is the authoritative record. Nondominium's `ResourceValidation` is not used for ValiChord-validated resources. NDO governance rules check for a linked `HarmonyRecord` instead.
+
+Option A is simpler to implement. Option B avoids duplication but requires Nondominium's governance rules to understand ValiChord entry types.
+
+### Decision 2 — Membrane proofs and NDO roles
+
+ValiChord validators hold an Ed25519 institutional credential (membrane proof) that grants access to the Attestation DNA. Nondominium validators hold an `AccountableAgent` role granted via `zome_person::promote_agent_to_accountable()`, which calls into `zome_gouvernance` for approval.
+
+These are currently independent systems. Should holding a valid ValiChord membrane proof be sufficient to trigger NDO role promotion automatically? Or should they remain independent, with validators enrolling separately in each system?
+
+The answer depends on whether Sensorica wants ValiChord's credential system to be the trust anchor, or whether NDO's own governance process should remain the gatekeeper.
+
+### Decision 3 — Resource creation ownership
+
+Who creates the `EconomicResource` in Nondominium?
+
+**Option A:** The researcher creates it through Nondominium tooling first, then provides the NDO resource hash to ValiChord when opening a validation round. ValiChord attaches to an existing NDO resource.
+
+**Option B:** ValiChord's researcher workflow creates the NDO resource as part of study registration — a cross-app call from ValiChord's Researcher Repository DNA to `zome_resource::create_economic_resource()`.
+
+Option A requires less integration code and preserves NDO as the canonical resource registry. Option B gives researchers a unified workflow but tightly couples the two systems at creation time.
+
+---
+
+## What this integration is not
+
+ValiChord is not a replacement for Nondominium's governance system. Nondominium's `zome_gouvernance` handles economic events, commitments, claims, and reputation across the full lifecycle of an NDO. ValiChord handles one specific moment in that lifecycle — the cryptographically verifiable peer validation of a study's reproducibility.
+
+ValiChord is also designed to remain independent: usable outside any single ecosystem, applicable to any domain requiring high-integrity verification. This is not in conflict with serving as Nondominium's integrity layer — it is the condition under which that role is most credible.
+
+---
+
+## Further reading
+
+- [ValiChord and the Digital Commons](../docs/18_ValiChord_and_Open_Cooperativism.md) — ValiChord's philosophical alignment with commons-based peer production and Ostrom's design principles
+- [How a Validation Round Works](../docs/15_How_a_Validation_Round_Works.md) — step-by-step walk through the commit-reveal protocol
+- [4-DNA Architecture](../docs/7_ValiChord_4-DNA_architecture_technical.md) — technical reference for the four-DNA sovereignty model
+- [Nondominium repository](https://github.com/Sensorica/nondominium) — Sensorica's hApp
+
+---
+
+*This document was written after reading both codebases. All function names, entry types, and zome references correspond to the current state of each repository as of March 2026.*
