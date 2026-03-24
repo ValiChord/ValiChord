@@ -273,4 +273,4 @@ ValiChord is built on Holochain — an end-to-end open-source agent-centric P2P 
 
 **Technical Review:** Arthur Brock (Holochain co-founder), Paul D'Aoust (Holochain Foundation), Joel Marcey (Rust Foundation)
 
-**© 2026 Ceri John. All Rights Reserved.**
+**© 2026 Ceri John. Licensed under [Apache 2.0](LICENSE).**
