@@ -174,6 +174,57 @@ Holochain's architecture is well-suited to the specific data constraints:
 
 ---
 
+### 10. Open Hardware Reproducibility
+
+**The problem:** Open hardware is the fastest-growing frontier of the reproducibility crisis — and the least discussed. A published hardware design makes an implicit claim: "a third party, using these files and this bill of materials, can build a device that performs as stated." This claim is almost never independently verified. Hardware projects are published to repositories with CAD files, firmware, and assembly guides — and then assumed to be reproducible because the files are open.
+
+They often aren't. Reasons range from components that are discontinued, regionally unavailable, or single-vendor; to CAD files in proprietary formats that require expensive licensed software to open; to Arduino firmware with unpinned library dependencies that silently changed behaviour in newer versions; to assembly guides that assume tacit expertise the author didn't know they had. The gap between "open" and "reproducible" in hardware is as large as it is in research software — and the consequences can be more directly physical. A medical device built from a misunderstood calibration procedure doesn't just fail to reproduce — it may give wrong clinical readings.
+
+The context in which this use case became concrete for ValiChord: in 2026, Sensorica's Breathing Games collaboration produced the PEP Master device — a breath-flow controller for cystic fibrosis therapy, clinically validated at CHU Sainte-Justine with 158 children and published in JMIR Serious Games. The device repository (https://gitlab.com/breathinggames/bg_device) contains 13 device iterations, 3D-printed enclosures, Arduino firmware, KiCad PCB designs, and calibration procedures using a syringe reference standard. This is exemplary open hardware. It has also never been independently reproduced by a third party who wasn't part of the original team.
+
+**How ValiChord fits:** The validation logic maps cleanly onto ValiChord's existing architecture, with two structured sub-claims replacing the single "code + data → result" claim:
+
+*Claim 1 — Buildability:* A validator with no prior knowledge of the project can, using only the repository files and the stated BOM, assemble a working device. Deviations — component substitutions, assembly ambiguities, firmware modifications required — are recorded in the Harmony Record.
+
+*Claim 2 — Performance:* The assembled device, calibrated using the stated procedure and reference standard, meets the performance specification. For PEP Master: peak expiratory flow measurements agree with conventional spirometry within the stated tolerance.
+
+Validators commit their build and performance assessments independently before seeing each other's results — the same blind commit-reveal that prevents collusion in research validation. The Harmony Record captures the full picture: which validators built successfully, what substitutions were required, whether the device met spec, and — critically — geographic variation in component availability.
+
+**What's different from research validation:**
+
+*Timeline:* Building a physical device takes days to weeks, not hours. Sourcing components, 3D printing, soldering, calibration. A validation round for hardware may span four to six weeks rather than four to six days. Compensation bands need to reflect this.
+
+*Material costs:* Validators incur real component costs — potentially £50–£300 per build depending on device complexity. The compensation model must account for this, either through reimbursement or elevated validator fees. This is architecturally novel for ValiChord.
+
+*Geographic dependency:* Component availability is not uniform. A validator sourcing an Adafruit Feather 32U4 Bluefruit LE in the EU faces different lead times, prices, and import duties than a validator in Canada. Recording validator geography in the Harmony Record, and treating component substitution as structured data rather than a free-text note, is essential for the record to be useful.
+
+*Split performance definition:* Research validation has one question: does the code produce the stated output? Hardware validation has two: can it be built, and does it work? A device may build successfully but underperform. A device may fail to build in some regions due to component unavailability but build fine in others. The Harmony Record format needs to capture both dimensions independently.
+
+**New failure modes for ValiChord at Home (hardware edition):**
+
+The existing ValiChord at Home detector framework would need a hardware-specific extension. Analogous to the research failure mode codes, hardware failure modes would include:
+
+- **[BOM]** Missing or incomplete Bill of Materials — no component list, no quantities, no part numbers
+- **[BOM-S]** Single-vendor or discontinued components — sourcing risk for validators outside the author's region
+- **[CAD-F]** Proprietary CAD format — Fusion360 `.f3d` files require a commercial licence; `.scad`, `.step`, or `.stl` are open
+- **[FW-D]** Unpinned firmware dependencies — Arduino library versions not specified; behaviour may have changed in current releases
+- **[CAL]** No calibration procedure — device performance cannot be independently verified without a reference standard and stated procedure
+- **[PERF]** No measurable performance specification — "works" is not a testable claim; a specification with tolerances is required
+- **[TOL]** No manufacturing tolerances — 3D-printed parts with tight fits require stated tolerances; missing tolerances make assembly ambiguous
+- **[LIC-H]** No hardware-specific licence — code licences (MIT, Apache) do not cover hardware designs; CERN-OHL or TAPR OHL required
+
+The PEP Master bg_device repository scores well on most of these — firmware is open (Arduino `.ino`), CAD includes `.stl` and `.scad`, calibration uses a documented syringe reference standard — but has no standalone licence file at root, and Arduino library dependencies are embedded without explicit version pinning. ValiChord at Home run against this repository would surface these findings as a concrete demonstration of the hardware use case.
+
+**The NDO connection:** A Nondominium Object (NDO) *is* a hardware device, in exactly this sense. The PEP Master NDO packages device designs, firmware, documentation, validation studies, and the contributor network into a single governed object. ValiChord validation of an NDO is validation that the NDO's hardware claims are independently reproducible. This is the concrete instantiation of "ValiChord as integrity layer for NDOs" — not an abstraction, but three validators in three countries attempting to build the same device and recording the result in a Harmony Record.
+
+**Potential partners:** Breathing Games / Sensorica (immediate — the collaboration is already in progress); Open Source Hardware Association (OSHWA — they certify hardware as open but don't verify reproducibility); CERN Open Hardware (maintain CERN-OHL licence and have a community of hardware validation practice); Gathering for Open Science Hardware (GOSH); Wikifactory (hardware version control platform with a reproducibility interest).
+
+**Complications:** Validator compensation is more complex than for research validation — material costs are real and variable by region. The validation timeline is much longer, creating cash flow challenges if validators are reimbursed only on completion. The performance specification must be machine-readable and unambiguous before validation begins, which requires more upfront work from hardware authors than research authors. And the validator pool — hardware engineers with access to 3D printers, soldering equipment, and calibration instruments — is smaller and less geographically distributed than the computational research validator pool.
+
+None of these are architectural blockers. They are configuration and compensation challenges — exactly the "what needs rebuilding per domain" category described in the section below.
+
+---
+
 ### 9. Actuarial Models in Insurance
 
 **The problem:** Insurance pricing models have massive social consequences — discriminatory pricing, redlining, denial of coverage — and are almost never independently verified. Regulators review submissions but rarely reproduce the computational claims end-to-end. The model that determines whether someone can afford home insurance in a flood zone, or health insurance with a pre-existing condition, is a black box to everyone except the insurer that built it.
