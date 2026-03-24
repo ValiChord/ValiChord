@@ -10,6 +10,13 @@
 - ValiChord at Home could be run against it (hardware reproducibility = same logic as research reproducibility)
 - Offer to do this and share the output, same non-judgmental framing as the CSV
 
+### Hardware reproducibility — new use case now documented
+- Added as section 10 in docs/12_Other_potential_use_cases.md
+- The key framing: validation splits into two claims — buildability (can a third party assemble it?) and performance (does it meet spec?)
+- The concrete sentence for the email: "three validators in three countries building the same PEP Master device and recording the result in a Harmony Record"
+- Also flags that bg_device scores well on most hardware reproducibility criteria but has no root licence file and unpinned Arduino library versions — real findings, gently stated
+- CERN-OHL-S 2.0 is the right hardware licence (bg_device already uses it) — relevant to the licence conversation
+
 ### The CSV — now fully understood
 - The clinical connection (Sainte-Justine, 158 children) explains why the [HS] detector fired
 - Tiberius's explanation was correct — contributor ledger, not patient data
