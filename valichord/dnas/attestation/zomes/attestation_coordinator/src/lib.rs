@@ -366,6 +366,8 @@ pub struct UpdateValidatorProfileInput {
     pub max_concurrent_tasks: Option<u8>,
     pub orcid:                Option<Option<String>>,
     pub agent_type:           Option<Option<ValidatorAgentType>>,
+    #[serde(default)]
+    pub person_key:           Option<Option<AgentPubKey>>,
 }
 
 /// Update the calling agent's validator profile.
@@ -406,6 +408,7 @@ pub fn update_validator_profile(
         max_concurrent_tasks: 0,
         orcid:                None,
         agent_type:           None,
+        person_key:           None,
     });
 
     let merged = ValidatorProfile {
@@ -416,6 +419,7 @@ pub fn update_validator_profile(
         max_concurrent_tasks: input.max_concurrent_tasks.unwrap_or(base.max_concurrent_tasks),
         orcid:                input.orcid.unwrap_or(base.orcid),
         agent_type:           input.agent_type.unwrap_or(base.agent_type),
+        person_key:           input.person_key.unwrap_or(base.person_key),
     };
 
     publish_validator_profile(merged)
