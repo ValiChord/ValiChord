@@ -257,39 +257,32 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         }
     }
 
-    // Duplicate submission guard: a validator with a single CommitmentAnchor
-    // could call submit_attestation multiple times with the same attestation+nonce,
-    // writing N identical entries and gaining N-fold vote weight in the
-    // HarmonyRecord plurality tally.
-    let existing_att_links = get_links(
-        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToAttestation)?,
+    // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
+    // iff this agent has already attested for this study.  The 39-byte
+    // request_ref is stored as the link tag so no entry fetch is needed.
+    let dup_links = get_links(
+        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToAttestation)?
+            .tag_prefix(LinkTag::new(request_ref.as_ref().to_vec())),
         GetStrategy::Network,
     )?;
-    let already_attested = existing_att_links.iter().any(|link| {
-        link.target
-            .clone()
-            .into_action_hash()
-            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-            .and_then(|r| r.entry().to_app_option::<ValidationAttestation>().ok().flatten())
-            .map(|a| a.request_ref == request_ref)
-            .unwrap_or(false)
-    });
-    if already_attested {
+    if !dup_links.is_empty() {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Validator has already submitted an attestation for this study — \
              duplicate reveals are not permitted".into()
         )));
     }
 
-    // Commitment verified — write the public attestation.
+    // Commitment verified — write the public attestation (move: not used after this).
     let attestation_hash =
-        create_entry(EntryTypes::ValidationAttestation(attestation.clone()))?;
+        create_entry(EntryTypes::ValidationAttestation(attestation))?;
 
+    // Tag = request_ref bytes — enables O(1) duplicate check and O(1) per-validator
+    // lookup in get_attestations_for_request without deserializing entries.
     create_link(
         agent,
         attestation_hash.clone(),
         LinkTypes::ValidatorToAttestation,
-        (),
+        LinkTag::new(request_ref.as_ref().to_vec()),
     )?;
 
     let disc_path =
@@ -396,18 +389,7 @@ pub fn update_validator_profile(
     let agent = agent_info()?.agent_initial_pubkey;
 
     // Resolve the existing profile (if any) to merge against.
-    let existing: Option<ValidatorProfile> = {
-        let profile_links = get_links(
-            LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
-            GetStrategy::Network,
-        )?;
-        profile_links
-            .iter()
-            .max_by_key(|l| profile_link_ts(l))
-            .and_then(|l| l.target.clone().into_action_hash())
-            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-            .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
-    };
+    let existing: Option<ValidatorProfile> = get_latest_validator_profile(agent.clone())?;
 
     let base = existing.unwrap_or_else(|| ValidatorProfile {
         institution:          String::new(),
@@ -443,17 +425,7 @@ pub fn update_validator_profile(
 pub fn get_validator_agent_type(
     agent: AgentPubKey,
 ) -> ExternResult<Option<ValidatorAgentType>> {
-    let profile_links = get_links(
-        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
-        GetStrategy::Network,
-    )?;
-    Ok(profile_links
-        .iter()
-        .max_by_key(|l| profile_link_ts(l))
-        .and_then(|l| l.target.clone().into_action_hash())
-        .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-        .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
-        .and_then(|p| p.agent_type))
+    Ok(get_latest_validator_profile(agent)?.and_then(|p| p.agent_type))
 }
 
 /// Caller-provided input for a difficulty assessment.
@@ -657,20 +629,9 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
     }
 
     // Resolve the validator's institution from their profile.
-    let validator_institution = {
-        let profile_links = get_links(
-            LinkQuery::try_new(agent.clone(), LinkTypes::AgentToProfile)?,
-            GetStrategy::Network,
-        )?;
-        profile_links
-            .iter()
-            .max_by_key(|l| profile_link_ts(l))
-            .and_then(|l| l.target.clone().into_action_hash())
-            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-            .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
-            .map(|p| p.institution)
-            .unwrap_or_default()
-    };
+    let validator_institution = get_latest_validator_profile(agent.clone())?
+        .map(|p| p.institution)
+        .unwrap_or_default();
 
     // Write the claim entry and indexes.
     let claim = StudyClaim {
@@ -873,6 +834,10 @@ pub fn get_attestations_for_request(
         GetStrategy::Network,
     )?;
 
+    // Tag prefix = request_ref bytes — returns at most one link per validator
+    // (the one attesting this specific study), so no entry deserialization is
+    // needed to filter by request_ref.
+    let request_tag = LinkTag::new(request_ref.as_ref().to_vec());
     let mut attestations = Vec::new();
     for link in commit_links {
         let anchor_hash = match link.target.into_action_hash() {
@@ -892,7 +857,8 @@ pub fn get_attestations_for_request(
             None => continue,
         };
         let att_links = get_links(
-            LinkQuery::try_new(anchor.validator, LinkTypes::ValidatorToAttestation)?,
+            LinkQuery::try_new(anchor.validator, LinkTypes::ValidatorToAttestation)?
+                .tag_prefix(request_tag.clone()),
             GetStrategy::Network,
         )?;
         for att_link in att_links {
@@ -901,15 +867,7 @@ pub fn get_attestations_for_request(
                 None => continue,
             };
             if let Some(record) = get(att_hash, GetOptions::network())? {
-                if let Some(att) = record
-                    .entry()
-                    .to_app_option::<ValidationAttestation>()
-                    .map_err(|e: holochain_serialized_bytes::SerializedBytesError| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                {
-                    if att.request_ref == request_ref {
-                        attestations.push(record);
-                    }
-                }
+                attestations.push(record);
             }
         }
     }
@@ -1464,6 +1422,25 @@ fn profile_link_ts(link: &Link) -> i64 {
     i64::MIN
 }
 
+/// Fetch the most recently published ValidatorProfile for `agent`, or None.
+///
+/// Walks AgentToProfile links (sorted by the 8-byte big-endian microsecond
+/// timestamp tag), fetches the highest-timestamp target, and deserializes.
+/// Old links without a tag return i64::MIN from profile_link_ts() and always
+/// lose — backwards-compatible.
+fn get_latest_validator_profile(agent: AgentPubKey) -> ExternResult<Option<ValidatorProfile>> {
+    let links = get_links(
+        LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
+        GetStrategy::Network,
+    )?;
+    Ok(links
+        .iter()
+        .max_by_key(|l| profile_link_ts(l))
+        .and_then(|l| l.target.clone().into_action_hash())
+        .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+        .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten()))
+}
+
 /// Fetch records for a list of links whose targets are ActionHashes.
 /// Skips links with non-ActionHash targets and records that are not found.
 fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
@@ -1476,49 +1453,6 @@ fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
         }
     }
     Ok(records)
-}
-
-// ---------------------------------------------------------------------------
-// Gaming and collusion detection
-// ---------------------------------------------------------------------------
-
-pub fn detect_gaming_patterns(
-    _validator: AgentPubKey,
-    _history: Vec<ValidationAttestation>,
-) -> Vec<GamingFlag> {
-    Vec::new()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum GamingFlag {
-    SuspiciousAgreementPattern { with_validator: AgentPubKey, agreement_rate: f64 },
-    UnrealisticallyFast        { expected_min_secs: u64, actual_secs: u64 },
-    RubberStamping             { approval_rate: f64, avg_time_secs: u64 },
-    SocialProximity            { distance: u8, shared_publications: u32 },
-    /// Validator is persistently the outlier across diverse studies — not
-    /// necessarily bad faith, but warrants investigation and support.
-    /// Response is quality assurance (investigate cause, help correct) rather
-    /// than punitive unless deliberate manipulation is established.
-    PersistentOutlier          { divergence_rate: f64, rounds_analysed: u32 },
-}
-
-// ---------------------------------------------------------------------------
-// Validator assignment
-// ---------------------------------------------------------------------------
-
-pub struct AssignmentConstraints {
-    pub max_institutional_share: f64,
-    pub min_validators:          u8,
-    pub require_domain_expert:   bool,
-    pub double_blind:            bool,
-}
-
-pub fn select_validators(
-    _request: &ValidationRequest,
-    _available_profiles: Vec<ValidatorProfile>,
-    _constraints: &AssignmentConstraints,
-) -> ExternResult<Vec<AgentPubKey>> {
-    Ok(Vec::new())
 }
 
 // ---------------------------------------------------------------------------

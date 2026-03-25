@@ -236,33 +236,35 @@ fn write_harmony_record(
     attestation_records: Vec<Record>,
     anchor_key: EntryHash,
 ) -> ExternResult<ActionHash> {
-    // Derive structured attestation payloads.
-    let attestations: Vec<ValidationAttestation> = attestation_records
+    // Build (validator, attestation) pairs in a single pass — guarantees that
+    // participating_validators and attestations are always the same length so
+    // the zip used for reputation updates is never silently misaligned.
+    let pairs: Vec<(AgentPubKey, ValidationAttestation)> = attestation_records
         .iter()
         .filter_map(|r| {
-            r.entry()
-                .to_app_option::<ValidationAttestation>()
-                .ok()
-                .flatten()
+            let att = r.entry().to_app_option::<ValidationAttestation>().ok().flatten()?;
+            Some((r.action().author().clone(), att))
         })
         .collect();
 
-    let participating_validators: Vec<AgentPubKey> = attestation_records
-        .iter()
-        .map(|r| r.action().author().clone())
-        .collect();
+    let participating_validators: Vec<AgentPubKey> =
+        pairs.iter().map(|(v, _)| v.clone()).collect();
+    let attestations: Vec<ValidationAttestation> =
+        pairs.into_iter().map(|(_, a)| a).collect();
 
-    let outcome              = derive_majority_outcome(&attestations);
-    let agreement_level      = derive_agreement_level(&attestations);
-    let validation_duration_secs = attestations
-        .iter()
-        .map(|a| a.time_invested_secs)
-        .max()
-        .unwrap_or(0);
-    let discipline = attestations
-        .first()
-        .map(|a| a.discipline.clone())
-        .unwrap_or(Discipline::Other("unknown".into()));
+    let outcome         = derive_majority_outcome(&attestations);
+    let agreement_level = derive_agreement_level(&attestations);
+
+    // Single pass for discipline (first) + max duration — avoids two separate iterations.
+    let mut validation_duration_secs: u64 = 0;
+    let mut discipline_opt: Option<Discipline> = None;
+    for a in &attestations {
+        validation_duration_secs = validation_duration_secs.max(a.time_invested_secs);
+        if discipline_opt.is_none() {
+            discipline_opt = Some(a.discipline.clone());
+        }
+    }
+    let discipline = discipline_opt.unwrap_or_else(|| Discipline::Other("unknown".into()));
 
     // Pre-compute before discipline/validators are moved into the struct.
     let disc_anchor    = discipline_anchor(&discipline)?;
