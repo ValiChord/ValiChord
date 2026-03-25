@@ -1208,6 +1208,11 @@ describe("10. Privacy across agents — ValidatorPrivateAttestation", () => {
 
         const REQUEST_REF = fakeExternalHash(0xa2);
 
+        // Submit a VR so post_commit's notify_commitment_sealed call can find
+        // the study.{request_ref} path (required by the inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+
         // Alice creates a validation task in her workspace DNA.
         const taskPayload = {
           request_ref: REQUEST_REF,
