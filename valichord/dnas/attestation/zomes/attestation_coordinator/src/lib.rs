@@ -322,7 +322,13 @@ pub fn publish_validator_profile(
     let disciplines = profile.disciplines.clone();
     let institution = profile.institution.clone();
     let profile_hash = create_entry(EntryTypes::ValidatorProfile(profile))?;
-    create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, ())?;
+    // Tag = 8-byte big-endian microsecond timestamp — enables deterministic
+    // max_by_key ordering in all profile reads (get_validator_profile,
+    // update_validator_profile, get_validator_agent_type, claim_study).
+    // Old links with no tag return i64::MIN in profile_link_ts(), so they
+    // always sort below any tagged link — backwards-compatible.
+    let profile_ts: i64 = sys_time()?.as_micros();
+    create_link(agent, profile_hash.clone(), LinkTypes::AgentToProfile, LinkTag::new(profile_ts.to_be_bytes().to_vec()))?;
 
     // Index under each discipline path so get_validators_for_discipline can find this profile.
     for disc in &disciplines {
@@ -394,7 +400,8 @@ pub fn update_validator_profile(
             GetStrategy::Network,
         )?;
         profile_links
-            .last()
+            .iter()
+            .max_by_key(|l| profile_link_ts(l))
             .and_then(|l| l.target.clone().into_action_hash())
             .and_then(|h| get(h, GetOptions::network()).ok().flatten())
             .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
@@ -439,30 +446,70 @@ pub fn get_validator_agent_type(
         GetStrategy::Network,
     )?;
     Ok(profile_links
-        .last()
+        .iter()
+        .max_by_key(|l| profile_link_ts(l))
         .and_then(|l| l.target.clone().into_action_hash())
         .and_then(|h| get(h, GetOptions::network()).ok().flatten())
         .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
         .and_then(|p| p.agent_type))
 }
 
+/// Caller-provided input for a difficulty assessment.
+///
+/// The coordinator does NOT compute these values — it stores what the assessor
+/// supplies and indexes for retrieval.  Automated prediction (ML model, feature
+/// extraction from the repository) is Phase 1 work; Phase 0 validates whether
+/// the surface features correlate with actual validation workload at all.
+///
+/// Constraints per field: all `u8` scores are on a 1–5 scale (1 = trivial,
+/// 5 = extreme).  `predicted_min_secs` must be ≤ `predicted_max_secs`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssessDifficultyInput {
+    pub request_ref:            ExternalHash,
+    pub code_volume:            u8,
+    pub dependency_count:       u8,
+    pub documentation_quality:  u8,
+    pub data_accessibility:     u8,
+    pub environment_complexity: u8,
+    pub study_age_years:        u8,
+    pub predicted_tier:         DifficultyTier,
+    pub predicted_min_secs:     u64,
+    pub predicted_max_secs:     u64,
+    pub confidence:             AssessmentConfidence,
+}
+
+/// Store a difficulty assessment for a validation request.
+///
+/// The assessor supplies all fields — no hardcoded prediction model.
+/// Phase 0 will use the collected assessments to determine whether surface
+/// features actually predict validation workload, at which point a real
+/// prediction model can be substituted.
+///
+/// Only one assessment per request is expected (idempotency not enforced —
+/// `get_difficulty_assessment` returns the latest via `DifficultyPath`).
+/// Add a per-agent guard here when real assessment logic is implemented.
 #[hdk_extern]
 pub fn assess_difficulty(
-    request_ref: ExternalHash,
+    input: AssessDifficultyInput,
 ) -> ExternResult<ActionHash> {
-    let link_base = request_ref.clone();
+    if input.predicted_min_secs > input.predicted_max_secs {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "predicted_min_secs must not exceed predicted_max_secs".into()
+        )));
+    }
+    let link_base = input.request_ref.clone();
     let assessment = DifficultyAssessment {
-        request_ref,
-        code_volume:            3,
-        dependency_count:       3,
-        documentation_quality:  3,
-        data_accessibility:     3,
-        environment_complexity: 3,
-        study_age_years:        2,
-        predicted_tier:         DifficultyTier::Moderate,
-        predicted_min_secs:     28_800,
-        predicted_max_secs:     57_600,
-        confidence:             AssessmentConfidence::Low,
+        request_ref:            input.request_ref,
+        code_volume:            input.code_volume,
+        dependency_count:       input.dependency_count,
+        documentation_quality:  input.documentation_quality,
+        data_accessibility:     input.data_accessibility,
+        environment_complexity: input.environment_complexity,
+        study_age_years:        input.study_age_years,
+        predicted_tier:         input.predicted_tier,
+        predicted_min_secs:     input.predicted_min_secs,
+        predicted_max_secs:     input.predicted_max_secs,
+        confidence:             input.confidence,
     };
     let assessment_hash = create_entry(EntryTypes::DifficultyAssessment(assessment))?;
     // Index directly from request_ref (ExternalHash is a valid DHT base address).
@@ -614,7 +661,8 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
             GetStrategy::Network,
         )?;
         profile_links
-            .last()
+            .iter()
+            .max_by_key(|l| profile_link_ts(l))
             .and_then(|l| l.target.clone().into_action_hash())
             .and_then(|h| get(h, GetOptions::network()).ok().flatten())
             .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten())
@@ -938,7 +986,10 @@ pub fn get_validator_profile(agent: AgentPubKey) -> ExternResult<Option<Record>>
         LinkQuery::try_new(agent, LinkTypes::AgentToProfile)?,
         GetStrategy::Network,
     )?;
-    match links.first() {
+    // max_by_key on the timestamp tag returns the most recently published
+    // profile. Old links written without a tag return i64::MIN from
+    // profile_link_ts() and always lose — backwards-compatible.
+    match links.iter().max_by_key(|l| profile_link_ts(l)) {
         Some(link) => {
             let target = link
                 .target
@@ -1394,6 +1445,22 @@ fn post_commit_on_create(_action_hash: ActionHash) -> ExternResult<()> {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/// Extract the creation timestamp from an AgentToProfile link tag.
+///
+/// Tags are written as 8 big-endian bytes of the `i64` microsecond timestamp
+/// from `sys_time()` at `publish_validator_profile` time.  Old links (written
+/// before this scheme) have empty or short tags and return `i64::MIN`, ensuring
+/// they always sort below any tagged link — backwards-compatible.
+fn profile_link_ts(link: &Link) -> i64 {
+    let tag = link.tag.as_ref();
+    if tag.len() >= 8 {
+        if let Ok(bytes) = tag[..8].try_into() {
+            return i64::from_be_bytes(bytes);
+        }
+    }
+    i64::MIN
+}
 
 /// Fetch records for a list of links whose targets are ActionHashes.
 /// Skips links with non-ActionHash targets and records that are not found.

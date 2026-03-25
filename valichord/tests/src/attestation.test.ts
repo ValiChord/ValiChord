@@ -714,16 +714,29 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
         const before = await zomeCall<unknown>(alice, "get_difficulty_assessment", ASSESSED_REF);
         expect(before).toBeNull();
 
-        // assess_difficulty creates a DifficultyAssessment entry and links it
-        // from request_ref via DifficultyPath.
-        const assessmentHash = await zomeCall<ActionHash>(alice, "assess_difficulty", ASSESSED_REF);
+        // assess_difficulty now accepts a caller-provided AssessDifficultyInput
+        // struct. The coordinator stores it verbatim and indexes via DifficultyPath.
+        const assessmentInput = {
+          request_ref:            ASSESSED_REF,
+          code_volume:            4,
+          dependency_count:       5,
+          documentation_quality:  2,
+          data_accessibility:     3,
+          environment_complexity: 4,
+          study_age_years:        3,
+          predicted_tier:         "Moderate",
+          predicted_min_secs:     14400,
+          predicted_max_secs:     43200,
+          confidence:             "Medium",
+        };
+        const assessmentHash = await zomeCall<ActionHash>(alice, "assess_difficulty", assessmentInput);
         expect(assessmentHash).toBeTruthy();
 
         // get_difficulty_assessment follows the DifficultyPath link.
         const record = await zomeCall<any>(alice, "get_difficulty_assessment", ASSESSED_REF);
         expect(record).not.toBeNull();
 
-        // Decode and verify request_ref + a hardcoded stub field.
+        // Decode and verify request_ref + caller-supplied fields round-trip.
         // msgpack decodes bytes as a Node.js Buffer (subclass of Uint8Array);
         // wrap in Uint8Array so toEqual compares byte content, not prototype.
         const entry = record?.entry;
@@ -731,9 +744,11 @@ describe("5. ValidatorProfile and DifficultyAssessment", () => {
           const decoded = decode(entry.Present.entry as Uint8Array) as {
             request_ref: Uint8Array;
             code_volume: number;
+            predicted_min_secs: number;
           };
           expect(new Uint8Array(decoded.request_ref)).toEqual(ASSESSED_REF);
-          expect(decoded.code_volume).toBe(3);
+          expect(decoded.code_volume).toBe(4);
+          expect(decoded.predicted_min_secs).toBe(14400);
         }
 
         // A different request_ref that was never assessed still returns null.
