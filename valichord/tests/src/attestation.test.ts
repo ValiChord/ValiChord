@@ -1011,6 +1011,11 @@ describe("4. ValidationAttestation immutability", () => {
 
         const REQUEST_REF = fakeExternalHash(0xbb);
 
+        // submit_attestation now requires a prior CommitmentAnchor (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
+
         // Alice submits a public attestation.
         const hash = await zomeCall<ActionHash>(
           alice,
@@ -1386,6 +1391,9 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         // because check_and_create_harmony_record is only called after the
         // attestation round completes.
         await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF, num_validators_required: N }));
+        // Sync so all validators see Alice's VR before calling notify_commitment_sealed
+        // (which now requires the study.{request_ref} path to resolve the VR ActionHash).
+        await dhtSync(validators, attDnaHash, 100, 120_000);
 
         // All N validators post CommitmentAnchors. After the Nth call the
         // coordinator's check_all_commitments_sealed_inner fires and writes
@@ -1870,6 +1878,11 @@ describe("19. get_attestations_for_discipline", () => {
 
         const REQUEST_REF = fakeExternalHash(0xd1);
 
+        // submit_attestation now requires a prior CommitmentAnchor (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
+
         // Alice submits a ComputationalBiology attestation.
         await zomeCall(alice, "submit_attestation", revealInput(makeAttestation(REQUEST_REF)));
         await dhtSync([alice, bob], dnaHash!);
@@ -2212,6 +2225,10 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         await dhtSync([alice, bob, carol], dnaHash!);
 
         const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Bob commits before attesting (inductive chain requires CommitmentAnchor).
+        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Bob actually attests — he hasn't dropped out.
