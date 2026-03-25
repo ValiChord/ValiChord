@@ -205,6 +205,10 @@ describe("S1. Duplicate attestation guard", () => {
 
         const requestRef = fakeExternalHash(0x51);
 
+        // notify_commitment_sealed requires a prior ValidationRequest (inductive chain).
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: requestRef, num_validators_required: 1 }));
+
         // First commit + reveal — must succeed.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
         await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
@@ -237,6 +241,10 @@ describe("S2. Duplicate commitment guard", () => {
         ]);
 
         const requestRef = fakeExternalHash(0x52);
+
+        // notify_commitment_sealed requires a prior ValidationRequest (inductive chain).
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: requestRef, num_validators_required: 1 }));
 
         // First commitment — must succeed.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
@@ -485,14 +493,13 @@ describe("S5. force_finalize_round conservative abort on missing VR", () => {
           [alicePlayer],
         );
 
-        // No ValidationRequest submitted — VR lookup returns None.
+        // No ValidationRequest and no attestation for fakeRef — conservative abort → null.
+        // (Inductive validation now prevents creating an attestation without a VR, so
+        // the "no attestations" early-return guard fires before the VR lookup. Both paths
+        // produce the same conservative null return.)
         const fakeRef = fakeExternalHash(0x5a);
 
-        // Submit one attestation so the "no attestations" guard is bypassed.
-        await att(alice, "notify_commitment_sealed", commitInput(fakeRef));
-        await att(alice, "submit_attestation", revealInput(makeAttestation(fakeRef)));
-
-        // force_finalize_round — no VR → conservative abort → null.
+        // force_finalize_round — no VR or attestation → conservative abort → null.
         const result = await alice.appWs.callZome({
           role_name: "governance",
           zome_name: "governance_coordinator",

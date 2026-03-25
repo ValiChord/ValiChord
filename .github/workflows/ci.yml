@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: 89 Integration Tests (4 DNAs)
+    name: 94 Integration Tests (4 DNAs)
     runs-on: ubuntu-latest
     timeout-minutes: 90
 

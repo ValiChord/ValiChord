@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 89 pass, 1 skipped, 0 fail** (as of 2026-03-22)
+**Status: 94 pass, 1 skipped, 0 fail** (as of 2026-03-25)
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -82,7 +82,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (40 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (46 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -127,6 +127,11 @@ cd tests && npm test
 | 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
 | 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
 | 21.3 | returns false when validator has already submitted an attestation | PASS |
+| 22.1 | happy path: link two agents and retrieve via get_linked_agents | PASS |
+| 22.2 | self-link is rejected | PASS |
+| 22.3 | bad signature is rejected | PASS |
+| 22.4 | either named agent can revoke; entry disappears from get_linked_agents | PASS |
+| 22.5 | third-party revocation is rejected | PASS |
 
 > ‡ **Phase threshold (11.1):** Passes on a clean Codespace. `dhtSync([alice, bob])` can time out at 40 s when the Codespace is under load. Clean up with `pkill -f holochain; pkill -f lair-keystore` before running.
 

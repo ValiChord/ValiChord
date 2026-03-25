@@ -840,6 +840,10 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
 
         const REQUEST_REF = fakeExternalHash(0x11);
 
+        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+
         // Post a CommitmentAnchor.
         await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
 
@@ -912,6 +916,11 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
 
         const REQUEST_REF = fakeExternalHash(0x33);
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+        await dhtSync([alice, bob], dnaHash);
 
         // Both validators commit → PhaseMarker written.
         await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
@@ -1043,6 +1052,10 @@ describe("4. ValidationAttestation immutability", () => {
         ]);
 
         const REQUEST_REF = fakeExternalHash(0xdd);
+
+        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
 
         // Alice posts a CommitmentAnchor.
         await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
@@ -1249,6 +1262,11 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
 
         const REQUEST_REF = fakeExternalHash(0xa3);
         const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
+        await zomeCall(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: REQUEST_REF }));
+        await dhtSync([alice, bob], dnaHash);
 
         // Only Alice commits — Bob does not.
         await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
