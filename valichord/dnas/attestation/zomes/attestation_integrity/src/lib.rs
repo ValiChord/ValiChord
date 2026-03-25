@@ -10,9 +10,15 @@ use valichord_shared_types::{CertificationTier, Discipline, MetricResult, Valida
 
 #[dna_properties]
 pub struct DnaProperties {
-    /// Stored as a base58 HoloHash string in happ.yaml modifiers.
-    /// The conductor passes YAML values as msgpack strings, so AgentPubKey
-    /// (which expects binary bytes) cannot be used here directly.
+    /// Base58-encoded `AgentPubKey` of the institutional credential issuer.
+    /// Stored as `String` because the conductor passes YAML modifiers as msgpack
+    /// strings; `AgentPubKey` (which expects 39 binary bytes) cannot be used here.
+    /// **Encoding contract:** the coordinator's `verify_membrane_proof` decodes this
+    /// with `AgentPubKey::from(AgentPubKey::try_from(base58_string)?)`.  Any change
+    /// to the issuer key requires coordinated updates to: (1) `happ.yaml` modifiers,
+    /// (2) the membrane-proof issuer in all test fixtures, and (3) any production
+    /// onboarding tooling that signs joining credentials.
+    /// Empty string = dev/test bypass (membrane proof not verified).
     pub authorized_joining_certificate_issuer: String,
     pub discipline: String,
     pub minimum_validators: u32,
