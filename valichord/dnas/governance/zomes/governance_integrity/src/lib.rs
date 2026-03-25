@@ -84,6 +84,16 @@ pub struct ValidatorReputation {
     pub agreement_rate:    f64,
     pub avg_time_secs:     u64,
     pub tier:              CertificationTier,
+    /// Stable person identity across devices — `None` until a cross-device
+    /// identity system (e.g. Flowsta, Deepkey) links this device key to a
+    /// canonical person key.  When set, reputation aggregation uses this key
+    /// rather than `validator` (device key), so a validator who rotates or
+    /// replaces a device does not lose reputation continuity.
+    ///
+    /// `#[serde(default)]` ensures records written before this field was added
+    /// deserialise as `None` without error (backwards-compatible).
+    #[serde(default)]
+    pub person_key:        Option<AgentPubKey>,
 }
 
 /// Reproducibility badge issued to researchers.

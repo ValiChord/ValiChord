@@ -180,3 +180,53 @@ bun run test         # Tryorama + Vitest
 ```
 
 Output: `workdir/nondominium.happ` and `workdir/nondominium.webhapp`
+
+---
+
+## Flowsta Vault — third-system identity layer
+
+In March 2026, Tiberius Brastaviceanu flagged that Flowsta's multi-device identity zome closes a gap both Nondominium and ValiChord share. Soushi888 confirmed integration was planned. Relevant repo: `https://github.com/WeAreFlowsta/flowsta-vault-app`.
+
+### What Flowsta is
+
+A Tauri desktop app that bundles two Holochain DNAs:
+
+| DNA | Version | Purpose |
+|---|---|---|
+| Identity DNA | v1.3 | Cross-device agent linking via `IsSamePersonEntry` |
+| Private DNA | v1.10 | User-private data and encrypted backup |
+
+The core mechanism: a user enters a 24-word BIP39 recovery phrase. Flowsta derives deterministic Ed25519 keypairs for each device via HMAC-SHA256, then writes a mutually-signed `IsSamePersonEntry` attestation to the Identity DHT. Any app can query those links to resolve multiple `AgentPubKey`s to one canonical person.
+
+### Relationship to Nondominium's own device model
+
+Nondominium's `zome_person` already has two relevant entry types:
+
+| Nondominium entry | What it tracks |
+|---|---|
+| `Device { device_id, owner_agent, owner_person, status }` | Per-device registration within NDO |
+| `AgentPersonRelationship { agent, person, relationship_type }` | Agent-to-person mapping within NDO |
+
+These serve a similar purpose but are isolated to the Nondominium DHT. Flowsta's `IsSamePersonEntry` lives on a separate shared Identity DHT accessible to any hApp. The two approaches are not in conflict — Nondominium's entries track device registration within its own system; Flowsta provides the cross-system cryptographic proof.
+
+### Why this matters for ValiChord × Nondominium integration
+
+ValiChord knows validators by their ValiChord device `AgentPubKey`. Nondominium knows them by their NDO agent key. These may differ if a validator joined both systems from different devices.
+
+When a ValiChord `HarmonyRecord` triggers `log_economic_event(VfAction::Work)` for each validator in Nondominium (Step 6 of the integration path), the `provider` field must match the validator's NDO agent key — not their ValiChord key. Without a shared identity layer, this mapping must be maintained manually or assumed to be the same key.
+
+Flowsta's Identity DNA provides the resolution path:
+
+```
+ValiChord validator AgentPubKey
+  → query IsSamePersonEntry on Flowsta Identity DHT
+  → resolve to all linked keys
+  → match against Nondominium Person records
+  → use matched NDO agent key as provider in log_economic_event()
+```
+
+This also affects `ValidatorReputation` in ValiChord DNA 4, which is currently keyed by device `AgentPubKey`. If a validator rotates or loses a device, their reputation accrues on an orphaned key. Flowsta's person-level resolution is the fix — see the Known Gaps section of `7_ValiChord_4-DNA_architecture_technical.md`.
+
+### Integration status
+
+Not yet integrated in either project as of March 2026. Flagged as Phase 1 work in ValiChord's architecture doc. Design decision required: should both systems assume validators use Flowsta Vault, or should Flowsta be optional with a manual fallback? See Decision 4 in `README.md`.

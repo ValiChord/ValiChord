@@ -155,6 +155,54 @@ Option A requires less integration code and preserves NDO as the canonical resou
 
 ---
 
+## Flowsta: a third system that bridges the identity gap
+
+In March 2026, during the same period this integration was being scoped, Tiberius Brastaviceanu (Nondominium) and Soushi888 discussed integrating Flowsta Vault into Nondominium. Flowsta solves a multi-device identity problem that both ValiChord and Nondominium share independently — and its presence changes the integration design.
+
+### The shared problem
+
+Both systems key identity records to a device `AgentPubKey`:
+
+- ValiChord DNA 3 `ValidatorProfile` and DNA 4 `ValidatorReputation` are indexed by device key
+- Nondominium's `AgentPersonRelationship` and `Device` entries track device-to-person mappings internally
+
+Neither system has a cross-system proof that two keys in different hApps belong to the same person.
+
+### What Flowsta provides
+
+Flowsta's Identity DNA (v1.3) writes `IsSamePersonEntry` records to a shared DHT — mutually signed by all device keys derived from the same BIP39 recovery phrase. Any app can query these to resolve multiple `AgentPubKey`s to one person, across DNAs and hApps.
+
+Repo: `https://github.com/WeAreFlowsta/flowsta-vault-app`
+
+### Impact on the integration path
+
+**Step 2 — Validator identity linking (new, optional step)**
+If validators use Flowsta Vault, their ValiChord device key and Nondominium agent key can be resolved to a single person via `IsSamePersonEntry`. This should be performed during onboarding and stored as a reference.
+
+**Step 5–6 — Attribution across systems**
+When ValiChord calls `log_economic_event(VfAction::Work)` in Nondominium for each validator, the `provider` must be the validator's NDO agent key. If ValiChord and NDO keys differ (different devices), Flowsta's identity links provide the resolution path.
+
+Without Flowsta, the integration must either assume both systems use the same key (brittle) or implement its own cross-system key mapping (duplicated effort).
+
+**Reputation continuity**
+ValiChord `ValidatorReputation` is currently keyed by device `AgentPubKey`. A validator who rotates a device loses reputation continuity. Flowsta's person-level resolution is the fix — but this is a ValiChord-internal change, independent of the Nondominium integration. It is noted in the Known Gaps section of the architecture doc.
+
+### Design decision before integration code
+
+See Decision 4 below.
+
+### Decision 4 — Flowsta as shared identity layer
+
+Should both systems assume validators use Flowsta Vault, making `IsSamePersonEntry` resolution the standard path for cross-system attribution? Or should Flowsta be optional, with a manual key-mapping fallback?
+
+**Option A — Flowsta required for cross-system validators.** Integration code assumes the Flowsta Identity DNA is available. Key resolution is automated. Validators who don't use Flowsta Vault must register the same keypair in both systems manually.
+
+**Option B — Flowsta optional.** Integration maintains a separate key-mapping table in one or both systems. Flowsta resolution is used when available, manual fallback otherwise.
+
+Option A is cleaner and avoids duplicating Flowsta's work. Option B is more permissive but adds maintenance surface. The decision hinges on whether both teams are willing to make Flowsta Vault a prerequisite for validators who participate in both systems.
+
+---
+
 ## What this integration is not
 
 ValiChord is not a replacement for Nondominium's governance system. Nondominium's `zome_gouvernance` handles economic events, commitments, claims, and reputation across the full lifecycle of an NDO. ValiChord handles one specific moment in that lifecycle — the cryptographically verifiable peer validation of a study's reproducibility.
@@ -169,6 +217,7 @@ ValiChord is also designed to remain independent: usable outside any single ecos
 - [How a Validation Round Works](../docs/15_How_a_Validation_Round_Works.md) — step-by-step walk through the commit-reveal protocol
 - [4-DNA Architecture](../docs/7_ValiChord_4-DNA_architecture_technical.md) — technical reference for the four-DNA sovereignty model
 - [Nondominium repository](https://github.com/Sensorica/nondominium) — Sensorica's hApp
+- [Flowsta Vault](https://github.com/WeAreFlowsta/flowsta-vault-app) — multi-device identity layer; Identity DNA v1.3 provides `IsSamePersonEntry` cross-system key resolution
 
 ---
 

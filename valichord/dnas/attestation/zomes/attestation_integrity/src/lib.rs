@@ -102,6 +102,15 @@ pub struct ValidatorProfile {
     /// Agent type — `None` for profiles created before this field was added.
     #[serde(default)]
     pub agent_type:           Option<ValidatorAgentType>,
+    /// Stable person identity across devices — `None` until a cross-device
+    /// identity system (e.g. Flowsta, Deepkey) links this device key to a
+    /// canonical person key.  When set, profile lookup and deduplication
+    /// should use this key rather than the author `AgentPubKey`.
+    ///
+    /// `#[serde(default)]` ensures records written before this field was added
+    /// deserialise as `None` without error (backwards-compatible).
+    #[serde(default)]
+    pub person_key:           Option<AgentPubKey>,
 }
 
 // CertificationTier is defined in valichord_shared_types — imported above.

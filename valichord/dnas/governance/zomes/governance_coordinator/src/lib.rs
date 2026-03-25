@@ -705,6 +705,7 @@ fn _update_reputation_internal(
         agreement_rate,
         avg_time_secs,
         tier,
+        person_key: None,
     };
     let rep_hash = create_entry(EntryTypes::ValidatorReputation(rep))?;
     // Encode total_validations as 8 big-endian bytes in the link tag so
