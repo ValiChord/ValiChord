@@ -2211,3 +2211,213 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// 22. AgentIdentityAttestation — native multi-device identity linking
+// ---------------------------------------------------------------------------
+//
+// Ceremony: each agent calls sign_for_identity_link(other_pubkey) to produce
+// their half, then one agent calls link_agent_identity with both signatures.
+
+describe("22. AgentIdentityAttestation", () => {
+  test(
+    "happy path: link two agents and retrieve via get_linked_agents",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(
+        async (scenario: Scenario) => {
+          const [alice, bob] = await scenario.addPlayersWithApps([
+            playerConfig(validMembraneProof()),
+            playerConfig(validMembraneProof()),
+          ]);
+
+          const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          // Each agent signs the canonical payload via the zome helper.
+          const aliceSig: Uint8Array = await zomeCall(
+            alice, "sign_for_identity_link", bob.agentPubKey,
+          );
+          const bobSig: Uint8Array = await zomeCall(
+            bob, "sign_for_identity_link", alice.agentPubKey,
+          );
+
+          // Alice submits the link with both signatures.
+          const attHash: ActionHash = await zomeCall(
+            alice, "link_agent_identity", {
+              other_agent:     bob.agentPubKey,
+              my_signature:    aliceSig,
+              other_signature: bobSig,
+            },
+          );
+          expect(attHash).toBeTruthy();
+
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          // Both agents can enumerate the live attestation.
+          const aliceLinks = await zomeCall<unknown[]>(alice, "get_linked_agents", null);
+          const bobLinks   = await zomeCall<unknown[]>(bob,   "get_linked_agents", null);
+          expect(aliceLinks).toHaveLength(1);
+          expect(bobLinks).toHaveLength(1);
+        },
+        true,
+        { timeout: 900_000 },
+      );
+    },
+  );
+
+  test(
+    "self-link is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(
+        async (scenario: Scenario) => {
+          const [alice] = await scenario.addPlayersWithApps([
+            playerConfig(validMembraneProof()),
+          ]);
+
+          // sign_for_identity_link with self as the other agent.
+          const selfSig: Uint8Array = await zomeCall(
+            alice, "sign_for_identity_link", alice.agentPubKey,
+          );
+
+          await expect(
+            zomeCall(alice, "link_agent_identity", {
+              other_agent:     alice.agentPubKey,
+              my_signature:    selfSig,
+              other_signature: selfSig,
+            }),
+          ).rejects.toThrow();
+        },
+        true,
+        { timeout: 900_000 },
+      );
+    },
+  );
+
+  test(
+    "bad signature is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(
+        async (scenario: Scenario) => {
+          const [alice, bob] = await scenario.addPlayersWithApps([
+            playerConfig(validMembraneProof()),
+            playerConfig(validMembraneProof()),
+          ]);
+
+          const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          const aliceSig: Uint8Array = await zomeCall(
+            alice, "sign_for_identity_link", bob.agentPubKey,
+          );
+          // Corrupt Bob's signature — flip a byte.
+          const badBobSig = new Uint8Array(aliceSig);
+          badBobSig[10] ^= 0xff;
+
+          await expect(
+            zomeCall(alice, "link_agent_identity", {
+              other_agent:     bob.agentPubKey,
+              my_signature:    aliceSig,
+              other_signature: badBobSig,
+            }),
+          ).rejects.toThrow();
+        },
+        true,
+        { timeout: 900_000 },
+      );
+    },
+  );
+
+  test(
+    "either named agent can revoke; entry disappears from get_linked_agents",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(
+        async (scenario: Scenario) => {
+          const [alice, bob] = await scenario.addPlayersWithApps([
+            playerConfig(validMembraneProof()),
+            playerConfig(validMembraneProof()),
+          ]);
+
+          const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          const aliceSig: Uint8Array = await zomeCall(
+            alice, "sign_for_identity_link", bob.agentPubKey,
+          );
+          const bobSig: Uint8Array = await zomeCall(
+            bob, "sign_for_identity_link", alice.agentPubKey,
+          );
+
+          const attHash: ActionHash = await zomeCall(
+            alice, "link_agent_identity", {
+              other_agent:     bob.agentPubKey,
+              my_signature:    aliceSig,
+              other_signature: bobSig,
+            },
+          );
+
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          // Bob revokes the link.
+          await zomeCall(bob, "revoke_agent_identity_link", attHash);
+
+          await dhtSync([alice, bob], dnaHash, 100, 120_000);
+
+          // Entry is deleted — get_linked_agents returns empty for both.
+          const aliceLinks = await zomeCall<unknown[]>(alice, "get_linked_agents", null);
+          const bobLinks   = await zomeCall<unknown[]>(bob,   "get_linked_agents", null);
+          expect(aliceLinks).toHaveLength(0);
+          expect(bobLinks).toHaveLength(0);
+        },
+        true,
+        { timeout: 900_000 },
+      );
+    },
+  );
+
+  test(
+    "third-party revocation is rejected",
+    { timeout: 900_000 },
+    async () => {
+      await runScenario(
+        async (scenario: Scenario) => {
+          const [alice, bob, carol] = await scenario.addPlayersWithApps([
+            playerConfig(validMembraneProof()),
+            playerConfig(validMembraneProof()),
+            playerConfig(validMembraneProof()),
+          ]);
+
+          const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
+          await dhtSync([alice, bob, carol], dnaHash, 100, 120_000);
+
+          const aliceSig: Uint8Array = await zomeCall(
+            alice, "sign_for_identity_link", bob.agentPubKey,
+          );
+          const bobSig: Uint8Array = await zomeCall(
+            bob, "sign_for_identity_link", alice.agentPubKey,
+          );
+
+          const attHash: ActionHash = await zomeCall(
+            alice, "link_agent_identity", {
+              other_agent:     bob.agentPubKey,
+              my_signature:    aliceSig,
+              other_signature: bobSig,
+            },
+          );
+
+          await dhtSync([alice, bob, carol], dnaHash, 100, 120_000);
+
+          // Carol (uninvolved party) tries to revoke — must be rejected.
+          await expect(
+            zomeCall(carol, "revoke_agent_identity_link", attHash),
+          ).rejects.toThrow();
+        },
+        true,
+        { timeout: 900_000 },
+      );
+    },
+  );
+});

@@ -238,6 +238,36 @@ pub struct PhaseMarker {
 }
 
 // ---------------------------------------------------------------------------
+// AgentIdentityAttestation — native multi-device identity linking
+// ---------------------------------------------------------------------------
+//
+// Two agents (devices) jointly assert they share a single logical identity.
+// Both agents sign a canonical 78-byte payload: the two AgentPubKey raw bytes
+// (39 bytes each) concatenated in lexicographic order.  Storing both
+// signatures in a single DHT entry means any third party can verify the
+// claim without trusting either agent individually.
+//
+// Naming convention: agent_a is the lexicographically smaller key; agent_b
+// is the larger.  The coordinator's `sorted_agent_pair_bytes()` enforces this.
+//
+// Either agent may revoke the link by deleting the entry.  The coordinator
+// validates authorship at the call level; the integrity zome allows deletion
+// by either of the two named agents.
+
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct AgentIdentityAttestation {
+    /// Lexicographically smaller AgentPubKey (raw 39 bytes).
+    pub agent_a:     AgentPubKey,
+    /// agent_a's Ed25519 signature over the sorted 78-byte payload.
+    pub signature_a: Signature,
+    /// Lexicographically larger AgentPubKey (raw 39 bytes).
+    pub agent_b:     AgentPubKey,
+    /// agent_b's Ed25519 signature over the same sorted 78-byte payload.
+    pub signature_b: Signature,
+}
+
+// ---------------------------------------------------------------------------
 // Entry Types Enum
 // ---------------------------------------------------------------------------
 //
@@ -256,6 +286,7 @@ pub enum EntryTypes {
     StudyClaim(StudyClaim),
     ResearcherResultCommitment(ResearcherResultCommitment),
     ResearcherReveal(ResearcherReveal),
+    AgentIdentityAttestation(AgentIdentityAttestation),
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +318,9 @@ pub enum LinkTypes {
     RequestToResearcherCommitment,
     /// Links path("researcher_reveal.{request_ref}") → ResearcherReveal ActionHash.
     RequestToResearcherReveal,
+    /// Links AgentPubKey → AgentIdentityAttestation ActionHash.
+    /// Written from BOTH agents' pubkeys for symmetric lookup.
+    AgentToIdentityAttestation,
 }
 
 // ---------------------------------------------------------------------------
@@ -336,6 +370,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ResearcherReveal(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ResearcherReveal is immutable — the verified reveal cannot be changed".into(),
+        )),
+
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::AgentIdentityAttestation(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "AgentIdentityAttestation is immutable — use delete to revoke".into(),
         )),
 
         // ValidationRequest is immutable after submission — researchers cannot
@@ -408,6 +448,21 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         Some(EntryTypes::ValidationRequest(_)) => {
                             return Ok(ValidateCallbackResult::Invalid(
                                 "ValidationRequest is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        // AgentIdentityAttestation: either named agent may revoke.
+                        // The normal "only author may delete" check below is bypassed
+                        // because both agent_a and agent_b are equally authorised —
+                        // but some third-party impostor must not be able to delete.
+                        Some(EntryTypes::AgentIdentityAttestation(ref att)) => {
+                            if action.author == att.agent_a
+                                || action.author == att.agent_b
+                            {
+                                return Ok(ValidateCallbackResult::Valid);
+                            }
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "Only one of the two named agents may revoke \
+                                 an AgentIdentityAttestation".into(),
                             ));
                         }
                         _ => {}
@@ -499,6 +554,24 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      researcher institution — claim rejected",
                     claim.validator_institution,
                 )));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- AgentIdentityAttestation create: reject self-links ---------------
+        //
+        // Canonical ordering (agent_a < agent_b) is enforced by the coordinator
+        // before the entry is committed.  Full signature verification also runs
+        // in the coordinator (verify_signature is HDK-only, unavailable here).
+        // The integrity zome enforces the one rule it can: a key cannot attest
+        // to itself.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::AgentIdentityAttestation(ref att), ..
+        }) => {
+            if att.agent_a == att.agent_b {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "AgentIdentityAttestation requires two distinct agents".into(),
+                ));
             }
             Ok(ValidateCallbackResult::Valid)
         }

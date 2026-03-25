@@ -1,5 +1,6 @@
 use hdk::prelude::*;
 use attestation_integrity::{
+    AgentIdentityAttestation,
     AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
     DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
     ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
@@ -39,6 +40,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_researcher_commitment",
         "get_researcher_reveal",
         "get_validator_agent_type",
+        "get_linked_agents",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -1527,6 +1529,185 @@ pub fn select_validators(
 struct PhaseSignal {
     phase:       String,
     request_ref: ExternalHash,
+}
+
+// ---------------------------------------------------------------------------
+// Agent identity linking — native multi-device identity
+// ---------------------------------------------------------------------------
+//
+// Two agents (devices/keys) assert they share a logical identity by jointly
+// signing a canonical payload.  Either agent can later revoke.
+//
+// Payload: the two raw AgentPubKey bytes (39 bytes each) concatenated in
+// lexicographic order — giving a stable 78-byte byte string regardless of
+// which agent calls first.
+//
+// Signature encoding: sign() serialises its payload through SerializedBytes
+// (msgpack BIN format).  verify_signature() uses the same encoding.
+
+/// Return the canonical 78-byte payload both agents must sign:
+/// the two raw 39-byte pubkeys concatenated in lexicographic order.
+fn sorted_agent_pair_bytes(a: &AgentPubKey, b: &AgentPubKey) -> Vec<u8> {
+    let raw_a = a.get_raw_39();
+    let raw_b = b.get_raw_39();
+    if raw_a <= raw_b {
+        [raw_a, raw_b].concat()
+    } else {
+        [raw_b, raw_a].concat()
+    }
+}
+
+/// Input for link_agent_identity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkAgentIdentityInput {
+    /// The other agent to link with.
+    pub other_agent:  AgentPubKey,
+    /// Caller's signature over `sorted_agent_pair_bytes(caller, other_agent)`.
+    pub my_signature: Signature,
+    /// Other agent's signature over the same payload.
+    pub other_signature: Signature,
+}
+
+/// Commit an AgentIdentityAttestation joining `caller` and `other_agent`,
+/// then write symmetric AgentToIdentityAttestation links from both pubkeys.
+///
+/// Both signatures are verified before anything is written to the DHT.
+/// Returns the ActionHash of the new entry.
+#[hdk_extern]
+pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<ActionHash> {
+    let caller = agent_info()?.agent_initial_pubkey;
+
+    if caller == input.other_agent {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Cannot link an agent to itself".into(),
+        )));
+    }
+
+    let payload = sorted_agent_pair_bytes(&caller, &input.other_agent);
+
+    // Verify caller's own signature.
+    let caller_ok = verify_signature(
+        caller.clone(),
+        input.my_signature.clone(),
+        payload.clone(),
+    )?;
+    if !caller_ok {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "my_signature failed verification".into(),
+        )));
+    }
+
+    // Verify other agent's signature.
+    let other_ok = verify_signature(
+        input.other_agent.clone(),
+        input.other_signature.clone(),
+        payload.clone(),
+    )?;
+    if !other_ok {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "other_signature failed verification".into(),
+        )));
+    }
+
+    // Build canonical entry (agent_a = lex-smaller key).
+    let raw_caller = caller.get_raw_39();
+    let raw_other  = input.other_agent.get_raw_39();
+    let (agent_a, signature_a, agent_b, signature_b) = if raw_caller <= raw_other {
+        (caller.clone(), input.my_signature, input.other_agent.clone(), input.other_signature)
+    } else {
+        (input.other_agent.clone(), input.other_signature, caller.clone(), input.my_signature)
+    };
+
+    let att = AgentIdentityAttestation { agent_a, signature_a, agent_b, signature_b };
+    let hash = create_entry(EntryTypes::AgentIdentityAttestation(att.clone()))?;
+
+    // Symmetric links so either agent can look up the attestation.
+    create_link(
+        att.agent_a.clone(),
+        hash.clone(),
+        LinkTypes::AgentToIdentityAttestation,
+        (),
+    )?;
+    create_link(
+        att.agent_b.clone(),
+        hash.clone(),
+        LinkTypes::AgentToIdentityAttestation,
+        (),
+    )?;
+
+    Ok(hash)
+}
+
+/// Return all live AgentIdentityAttestation records for the calling agent.
+///
+/// Only entries whose DHT details show no delete actions are returned —
+/// this filters out revoked attestations without relying on link deletion.
+#[hdk_extern]
+pub fn get_linked_agents(_: ()) -> ExternResult<Vec<Record>> {
+    let agent = agent_info()?.agent_initial_pubkey;
+    let links = get_links(
+        LinkQuery::try_new(agent, LinkTypes::AgentToIdentityAttestation)?,
+        GetStrategy::Network,
+    )?;
+
+    let mut results = Vec::new();
+    for link in links {
+        let hash = match link.target.into_action_hash() {
+            Some(h) => h,
+            None => continue,
+        };
+        // Use get_details to distinguish live from deleted entries.
+        match get_details(hash, GetOptions::network())? {
+            Some(Details::Record(rd)) if rd.deletes.is_empty() => {
+                results.push(rd.record);
+            }
+            _ => {}
+        }
+    }
+    Ok(results)
+}
+
+/// Revoke an AgentIdentityAttestation by deleting its entry.
+///
+/// Only one of the two named agents may call this.  The coordinator enforces
+/// that the caller is the agent identified by `agent_info()`; the integrity
+/// zome's delete validation confirms the deleter is agent_a or agent_b.
+#[hdk_extern]
+pub fn revoke_agent_identity_link(attestation_hash: ActionHash) -> ExternResult<ActionHash> {
+    let caller = agent_info()?.agent_initial_pubkey;
+
+    let record = get(attestation_hash.clone(), GetOptions::network())?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "AgentIdentityAttestation not found".into(),
+        )))?;
+
+    let att: AgentIdentityAttestation = record
+        .entry()
+        .to_app_option()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "Record is not an AgentIdentityAttestation".into(),
+        )))?;
+
+    if caller != att.agent_a && caller != att.agent_b {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Only one of the two named agents may revoke this attestation".into(),
+        )));
+    }
+
+    delete_entry(attestation_hash)
+}
+
+/// Sign the canonical payload for a prospective identity link with `other_agent`.
+///
+/// Used by tests so each agent can produce its half of the ceremony without
+/// both conductors needing to be in the same process.  Production UIs should
+/// call `sign()` directly via the app-call API.
+#[hdk_extern]
+pub fn sign_for_identity_link(other_agent: AgentPubKey) -> ExternResult<Signature> {
+    let caller = agent_info()?.agent_initial_pubkey;
+    let payload = sorted_agent_pair_bytes(&caller, &other_agent);
+    sign(caller, payload)
 }
 
 // Note: getrandom 0.3 custom backend for wasm32-unknown-unknown is enabled
