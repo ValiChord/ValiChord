@@ -185,7 +185,7 @@ When ValiChord calls `log_economic_event(VfAction::Work)` in Nondominium for eac
 Without Flowsta, the integration must either assume both systems use the same key (brittle) or implement its own cross-system key mapping (duplicated effort).
 
 **Reputation continuity**
-ValiChord `ValidatorReputation` is currently keyed by device `AgentPubKey`. A validator who rotates a device loses reputation continuity. Flowsta's person-level resolution is the fix — but this is a ValiChord-internal change, independent of the Nondominium integration. It is noted in the Known Gaps section of the architecture doc.
+ValiChord `ValidatorReputation` is keyed by device `AgentPubKey`. A validator who rotates a device loses reputation continuity. ValiChord now has a native solution: `AgentIdentityAttestation` (implemented 2026-03-25) lets two agent keys jointly attest they share a logical identity via mutual Ed25519 signatures. `get_linked_agents()` resolves a key to all its linked alternates. This fixes the within-ValiChord continuity problem without Flowsta. For cross-system attribution (ValiChord key → NDO key), Flowsta's `IsSamePersonEntry` remains the cleanest path where validators use both systems from different devices.
 
 ### Design decision before integration code
 

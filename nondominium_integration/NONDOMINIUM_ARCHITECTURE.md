@@ -225,8 +225,14 @@ ValiChord validator AgentPubKey
   → use matched NDO agent key as provider in log_economic_event()
 ```
 
-This also affects `ValidatorReputation` in ValiChord DNA 4, which is currently keyed by device `AgentPubKey`. If a validator rotates or loses a device, their reputation accrues on an orphaned key. Flowsta's person-level resolution is the fix — see the Known Gaps section of `7_ValiChord_4-DNA_architecture_technical.md`.
+This also affects `ValidatorReputation` in ValiChord DNA 4, which is currently keyed by device `AgentPubKey`. If a validator rotates or loses a device, their reputation accrues on an orphaned key. Two resolution paths exist:
+
+1. **ValiChord native (implemented, 2026-03-25):** `AgentIdentityAttestation` — two agents jointly sign a 78-byte canonical payload (both raw pubkeys in lexicographic order) and store a mutually-verified entry on the ValiChord DHT. Either agent can revoke. This resolves device keys to a shared identity within ValiChord without depending on Flowsta. See `dnas/attestation/zomes/attestation_coordinator/src/lib.rs` — `link_agent_identity`, `get_linked_agents`, `revoke_agent_identity_link`.
+
+2. **Flowsta cross-system (Phase 1):** For resolving ValiChord keys to NDO keys across system boundaries, Flowsta's `IsSamePersonEntry` remains the cleanest path (see below).
 
 ### Integration status
 
 Not yet integrated in either project as of March 2026. Flagged as Phase 1 work in ValiChord's architecture doc. Design decision required: should both systems assume validators use Flowsta Vault, or should Flowsta be optional with a manual fallback? See Decision 4 in `README.md`.
+
+**ValiChord's native `AgentIdentityAttestation` (2026-03-25) handles the within-ValiChord device problem. Cross-system identity resolution (ValiChord ↔ Nondominium) still requires Flowsta or a manual key-mapping fallback.**
