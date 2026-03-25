@@ -207,7 +207,7 @@ describe("S1. Duplicate attestation guard", () => {
 
         // notify_commitment_sealed requires a prior ValidationRequest (inductive chain).
         await att(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: requestRef, num_validators_required: 1 }));
+          makeValidationRequest({ data_hash: requestRef }));
 
         // First commit + reveal — must succeed.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
@@ -244,7 +244,7 @@ describe("S2. Duplicate commitment guard", () => {
 
         // notify_commitment_sealed requires a prior ValidationRequest (inductive chain).
         await att(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: requestRef, num_validators_required: 1 }));
+          makeValidationRequest({ data_hash: requestRef }));
 
         // First commitment — must succeed.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
