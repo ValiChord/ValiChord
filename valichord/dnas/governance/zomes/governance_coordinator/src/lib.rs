@@ -239,13 +239,21 @@ fn write_harmony_record(
     // Build (validator, attestation) pairs in a single pass — guarantees that
     // participating_validators and attestations are always the same length so
     // the zip used for reputation updates is never silently misaligned.
-    let pairs: Vec<(AgentPubKey, ValidationAttestation)> = attestation_records
+    // Sort by validator key bytes before building the record.
+    // Two concurrent calls that see the same attestation set but receive links
+    // in different gossip orders would otherwise produce entries with different
+    // content (and therefore different entry hashes).  Sorting makes the content
+    // deterministic: Holochain's content-addressing then collapses concurrent
+    // writes to the same entry hash, making the TOCTOU race on the idempotency
+    // link check benign.
+    let mut pairs: Vec<(AgentPubKey, ValidationAttestation)> = attestation_records
         .iter()
         .filter_map(|r| {
             let att = r.entry().to_app_option::<ValidationAttestation>().ok().flatten()?;
             Some((r.action().author().clone(), att))
         })
         .collect();
+    pairs.sort_by(|(a, _), (b, _)| a.get_raw_39().cmp(b.get_raw_39()));
 
     let participating_validators: Vec<AgentPubKey> =
         pairs.iter().map(|(v, _)| v.clone()).collect();

@@ -636,16 +636,29 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- AgentIdentityAttestation create: reject self-links ---------------
+        // --- AgentIdentityAttestation create: authorship + self-link checks -----
         //
-        // Canonical ordering (agent_a < agent_b) is enforced by the coordinator
-        // before the entry is committed.  Full signature verification also runs
-        // in the coordinator (verify_signature is HDK-only, unavailable here).
-        // The integrity zome enforces the one rule it can: a key cannot attest
-        // to itself.
+        // Two rules the integrity zome can enforce without verify_signature
+        // (which is HDK-only):
+        //
+        // 1. The action author must be one of the two named agents.
+        //    A modified coordinator could otherwise write attestations for
+        //    arbitrary agents while bypassing signature verification.
+        //    This is the same pattern as CommitmentAnchor.validator == action.author.
+        //
+        // 2. The two named agents must be distinct (no self-attestation).
+        //
+        // Full Ed25519 signature verification runs in the coordinator's
+        // link_agent_identity before the entry is committed.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::AgentIdentityAttestation(ref att), ..
+            app_entry: EntryTypes::AgentIdentityAttestation(ref att),
+            action,
         }) => {
+            if att.agent_a != action.author && att.agent_b != action.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "AgentIdentityAttestation author must be one of the two named agents".into(),
+                ));
+            }
             if att.agent_a == att.agent_b {
                 return Ok(ValidateCallbackResult::Invalid(
                     "AgentIdentityAttestation requires two distinct agents".into(),

@@ -1543,6 +1543,31 @@ pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<Action
         )));
     }
 
+    // Duplicate check: one attestation per ordered pair is sufficient.
+    // A second call for the same pair would produce a duplicate entry and
+    // require two separate revocations.
+    let existing_links = get_links(
+        LinkQuery::try_new(caller.clone(), LinkTypes::AgentToIdentityAttestation)?,
+        GetStrategy::Network,
+    )?;
+    let already_linked = existing_links.into_iter().any(|link| {
+        link.target
+            .into_action_hash()
+            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            .and_then(|r| r.entry().to_app_option::<AgentIdentityAttestation>().ok().flatten())
+            .map(|att| {
+                (att.agent_a == caller && att.agent_b == input.other_agent)
+                    || (att.agent_b == caller && att.agent_a == input.other_agent)
+            })
+            .unwrap_or(false)
+    });
+    if already_linked {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "An AgentIdentityAttestation for this pair already exists — \
+             revoke the existing one before creating a new link".into()
+        )));
+    }
+
     let payload = sorted_agent_pair_bytes(&caller, &input.other_agent);
 
     // Verify caller's own signature.
