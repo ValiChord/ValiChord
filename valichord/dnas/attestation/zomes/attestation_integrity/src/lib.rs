@@ -149,10 +149,13 @@ pub enum AssessmentConfidence { High, Medium, Low }
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct CommitmentAnchor {
-    pub request_ref:     ExternalHash,
-    pub validator:       AgentPubKey,
+    pub request_ref:             ExternalHash,
+    pub validator:               AgentPubKey,
     /// SHA-256 of (msgpack(ValidationAttestation) || nonce). Verified on reveal.
-    pub commitment_hash: Vec<u8>,
+    pub commitment_hash:         Vec<u8>,
+    /// ActionHash of the ValidationRequest this commitment is for.
+    /// Inductive validation chain: CommitmentAnchor → ValidationRequest.
+    pub validation_request_hash: ActionHash,
 }
 
 /// Cryptographic commitment to the researcher's result.
@@ -554,6 +557,74 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      researcher institution — claim rejected",
                     claim.validator_institution,
                 )));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- CommitmentAnchor create: verify it links to a real ValidationRequest ---
+        //
+        // Inductive validation chain: CommitmentAnchor → ValidationRequest.
+        // `validator` must equal the action author (no impersonation).
+        // `request_ref` must equal the ValidationRequest's `data_hash`.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::CommitmentAnchor(ref anchor),
+            action,
+        }) => {
+            let req_record = must_get_valid_record(anchor.validation_request_hash.clone())?;
+            let req: ValidationRequest = req_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "CommitmentAnchor.validation_request_hash does not point to \
+                     a ValidationRequest".into(),
+                )))?;
+            if req.data_hash != anchor.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.request_ref does not match \
+                     ValidationRequest.data_hash".into(),
+                ));
+            }
+            if anchor.validator != action.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.validator must equal the author of \
+                     the create action".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- ValidationAttestation create: verify it links to a CommitmentAnchor ---
+        //
+        // Inductive validation chain: ValidationAttestation → CommitmentAnchor.
+        // Checked only when commitment_anchor_hash is Some (always set by the
+        // coordinator on new entries; None only for entries predating this field).
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ValidationAttestation(ref att),
+            action,
+        }) => {
+            if let Some(ref anchor_hash) = att.commitment_anchor_hash {
+                let anchor_record = must_get_valid_record(anchor_hash.clone())?;
+                let anchor: CommitmentAnchor = anchor_record
+                    .entry()
+                    .to_app_option()
+                    .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                    .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                        "ValidationAttestation.commitment_anchor_hash does not point \
+                         to a CommitmentAnchor".into(),
+                    )))?;
+                if anchor.validator != action.author {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "CommitmentAnchor.validator does not match the \
+                         attestation author".into(),
+                    ));
+                }
+                if anchor.request_ref != att.request_ref {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "CommitmentAnchor.request_ref does not match \
+                         ValidationAttestation.request_ref".into(),
+                    ));
+                }
             }
             Ok(ValidateCallbackResult::Valid)
         }

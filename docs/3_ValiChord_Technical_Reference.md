@@ -47,6 +47,7 @@ The Rust structures and functions in this document describe the *shape* of ValiC
 - **`AgentToProfile` link-tag ordering (March 2026):** `publish_validator_profile` now writes an 8-byte big-endian `i64` microsecond timestamp as the `LinkTag` on each `AgentToProfile` link. All profile reads (`get_validator_profile`, `update_validator_profile`, `get_validator_agent_type`, `claim_study`) use `.max_by_key(|l| profile_link_ts(l))` to select the most recent profile deterministically. `get_validator_profile` previously used `.first()`, which returned the *oldest* profile — a correctness bug. The pattern mirrors the `ValidatorToReputation` link-tag scheme in the governance coordinator. Old links without a tag return `i64::MIN` and always lose — backwards-compatible.
 - **Native multi-device agent linking implemented (March 2026):** `AgentIdentityAttestation` is now a live entry type in `attestation_integrity`. The protocol: both devices sign a canonical 78-byte payload (the two raw `AgentPubKey` bytes in lexicographic order, produced by `sorted_agent_pair_bytes()`); each agent calls `sign_for_identity_link(other_pubkey)` to produce its half; one agent then calls `link_agent_identity({ other_agent, my_signature, other_signature })` — the coordinator verifies both Ed25519 signatures before committing the entry. Symmetric `AgentToIdentityAttestation` links are written from both pubkeys so either agent can call `get_linked_agents()`. Revocation is via `revoke_agent_identity_link(hash)`, restricted to one of the two named agents (enforced in both coordinator and integrity validate()). `get_linked_agents` uses `get_details()` to filter deleted entries so revoked attestations do not appear. The integrity zome adds only the self-link rejection check (`agent_a ≠ agent_b`) and immutability guard on updates; full signature verification runs in the coordinator (`verify_signature` is HDK-only). **This change modified `attestation_integrity` — the DNA hash changed; treat as a deliberate network reset.** Future: populate `person_key` in `ValidatorProfile` and `ValidatorReputation` from `get_linked_agents` to enable stable-key reputation aggregation across device rotations. Future integration note: Flowsta's `agent_linking` zome implements the identical protocol and could replace ValiChord's native version if a shared cross-application identity graph becomes useful later.
 - **`assess_difficulty` now accepts real input (March 2026):** The function signature changed from `(request_ref: ExternalHash)` to `(input: AssessDifficultyInput)`. The caller supplies all assessment fields; the coordinator validates that `predicted_min_secs ≤ predicted_max_secs` and stores the entry verbatim. The previous implementation hardcoded all fields (e.g. `code_volume = 3`) making the function useless for real data collection. Phase 0 uses the collected entries to determine whether surface features predict validation workload; a prediction model is Phase 1.
+- **Inductive validation chain enforced at DHT layer (March 2026):** `CommitmentAnchor` and `ValidationAttestation` now carry back-references that `attestation_integrity::validate()` verifies via `must_get_valid_record`. `CommitmentAnchor` gains `validation_request_hash: ActionHash` — `notify_commitment_sealed` resolves this via the `study.{request_ref}` path; `validate()` confirms `vr.data_hash == anchor.request_ref` and `anchor.validator == action.author`. `ValidationAttestation` gains `commitment_anchor_hash: Option<ActionHash>` — the attestation coordinator injects it after the commit-reveal hash check, so the hash is verified over the original struct before the field is set; `validate()` confirms `anchor.validator == att_author` and `anchor.request_ref == att.request_ref`. Full cryptographic chain: ValidationAttestation → CommitmentAnchor → ValidationRequest. `commitment_anchor_hash` is `Option` with `#[serde(default)]` for backwards compatibility; always `Some` on entries created after 2026-03-25.
 
 **What this document is for:** An engineer reading this should understand what ValiChord needs to do, what data it handles, how components interact, and where the hard problems are. It should save weeks of explanation and allow technical discussion to begin at the right level.
 
@@ -862,6 +863,12 @@ pub struct ValidationAttestation {
     pub confidence:              AttestationConfidence,
     pub deviation_flags:         Vec<UndeclaredDeviation>,
     pub computational_resources: ComputationalResources,
+    pub discipline:              Discipline,
+    /// ActionHash of the CommitmentAnchor this validator published during the commit phase.
+    /// Inductive chain: ValidationAttestation → CommitmentAnchor → ValidationRequest.
+    /// Set by the attestation coordinator (not the caller); None only for pre-2026-03-25 entries.
+    #[serde(default)]
+    pub commitment_anchor_hash:  Option<ActionHash>,
 }
 
 pub struct UndeclaredDeviation {
@@ -891,9 +898,13 @@ Two entry types were added to the Attestation DNA in scaffold v12 to resolve the
 /// IMMUTABLE after publication — enforced by validate() callback.
 #[entry_type(required_validations = 5)]
 pub struct CommitmentAnchor {
-    pub request_ref:     ExternalHash,  // which study this commitment is for
-    pub validator:       AgentPubKey,   // which validator committed (field name: validator, not validator_id)
-    pub commitment_hash: Vec<u8>,       // SHA-256(msgpack(ValidationAttestation) || nonce)
+    pub request_ref:             ExternalHash,  // which study this commitment is for
+    pub validator:               AgentPubKey,   // which validator committed
+    pub commitment_hash:         Vec<u8>,       // SHA-256(msgpack(ValidationAttestation) || nonce)
+    /// ActionHash of the ValidationRequest this commitment is for.
+    /// Inductive chain: CommitmentAnchor → ValidationRequest.
+    /// Resolved by notify_commitment_sealed via the study.{request_ref} path.
+    pub validation_request_hash: ActionHash,
 }
 
 /// DHT-persistent record of the current phase for a validation round.

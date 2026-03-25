@@ -207,17 +207,41 @@ pub struct AttestationRevealInput {
 #[hdk_extern]
 pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
-    let attestation = input.attestation;
+    let mut attestation = input.attestation;
     let disc_tag = attestation.discipline_tag();
     let request_ref = attestation.request_ref.clone();
 
-    // Verify: SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
-    // The serialisation codec matches seal_private_attestation exactly —
-    // SerializedBytes::try_from uses rmp_serde::to_vec_named internally.
+    // Find the CommitmentAnchor written for this agent during the commit phase.
+    // Always required — both for hash verification (production) and for embedding
+    // commitment_anchor_hash in the stored entry (inductive validation chain).
+    let commit_path = Path::from(format!("commitments.{}", request_ref))
+        .typed(LinkTypes::RequestToCommitment)?;
+    let commit_links = get_links(
+        LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
+        GetStrategy::Network,
+    )?;
+    let (anchor_action_hash, prior_commitment_hash) = commit_links
+        .into_iter()
+        .find_map(|link| {
+            let hash = link.target.clone().into_action_hash()?;
+            let record = get(hash.clone(), GetOptions::network()).ok()??;
+            let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
+            if anchor.validator == agent {
+                Some((hash, anchor.commitment_hash))
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "No CommitmentAnchor found for this validator and study — \
+             seal_private_attestation must be committed before reveal".into()
+        )))?;
+
+    // Production: verify SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
+    // Hash is computed over the attestation as submitted (commitment_anchor_hash = None at this
+    // point), matching exactly what seal_private_attestation hashed in the Validator Workspace.
     //
-    // Dev/test bypass: skipped entirely when authorized_joining_certificate_issuer
-    // is empty (same pattern as the membrane-proof and Guard-1 bypasses). In
-    // production the issuer key is always set, so commit-reveal is always enforced.
+    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is empty.
     let reveal_props = DnaProperties::try_from_dna_properties()?;
     if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
         let msgpack_bytes: Vec<u8> = SerializedBytes::try_from(&attestation)
@@ -229,26 +253,6 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         hasher.update(&input.nonce);
         let computed_hash: Vec<u8> = hasher.finalize().to_vec();
 
-        // Find the CommitmentAnchor written for this agent during the commit phase.
-        let commit_path = Path::from(format!("commitments.{}", request_ref))
-            .typed(LinkTypes::RequestToCommitment)?;
-        let commit_links = get_links(
-            LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
-            GetStrategy::Network,
-        )?;
-        let prior_commitment_hash = commit_links
-            .into_iter()
-            .find_map(|link| {
-                let hash = link.target.into_action_hash()?;
-                let record = get(hash, GetOptions::network()).ok()??;
-                let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
-                if anchor.validator == agent { Some(anchor.commitment_hash) } else { None }
-            })
-            .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                "No CommitmentAnchor found for this validator and study — \
-                 seal_private_attestation must be committed before reveal".into()
-            )))?;
-
         if computed_hash != prior_commitment_hash {
             return Err(wasm_error!(WasmErrorInner::Guest(
                 "Hash mismatch — attestation and nonce do not match the previously \
@@ -256,6 +260,10 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
             )));
         }
     }
+
+    // Inject CommitmentAnchor ActionHash for inductive validation chain.
+    // Set after hash verification so the hash check uses the original struct.
+    attestation.commitment_anchor_hash = Some(anchor_action_hash);
 
     // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
     // iff this agent has already attested for this study.  The 39-byte
@@ -1052,17 +1060,35 @@ pub fn notify_commitment_sealed(
         )));
     }
 
-    // Step 1: write CommitmentAnchor to shared DHT.
+    // Step 1: resolve the ValidationRequest ActionHash for the inductive chain.
+    // study.{request_ref} is written by submit_validation_request — always present.
+    let vr_action_hash: ActionHash = {
+        let study_path = Path::from(format!("study.{}", request_ref))
+            .typed(LinkTypes::StudyToValidation)?;
+        let links = get_links(
+            LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+            GetStrategy::Network,
+        )?;
+        links.first()
+            .and_then(|l| l.target.clone().into_action_hash())
+            .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                "No ValidationRequest found for this study — \
+                 call submit_validation_request before sealing a commitment".into(),
+            )))?
+    };
+
+    // Step 2: write CommitmentAnchor to shared DHT.
     let anchor = CommitmentAnchor {
-        request_ref:     request_ref.clone(),
-        validator:       agent,
-        commitment_hash: input.commitment_hash,
+        request_ref:             request_ref.clone(),
+        validator:               agent,
+        commitment_hash:         input.commitment_hash,
+        validation_request_hash: vr_action_hash,
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
     create_link(commit_anchor, anchor_hash, LinkTypes::RequestToCommitment, ())?;
 
-    // Step 2: check if all validators have now committed.
+    // Step 3: check if all validators have now committed.
     if check_all_commitments_sealed_inner(request_ref.clone())? {
         let marker = PhaseMarker {
             request_ref: request_ref.clone(),

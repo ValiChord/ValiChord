@@ -194,6 +194,11 @@ pub struct ValidationAttestation {
     pub deviation_flags:         Vec<UndeclaredDeviation>,
     pub computational_resources: ComputationalResources,
     pub discipline:              Discipline,
+    /// ActionHash of the CommitmentAnchor this validator published during the commit phase.
+    /// Inductive validation chain: ValidationAttestation → CommitmentAnchor → ValidationRequest.
+    /// Set by the coordinator (not the caller) — `None` only for entries predating this field.
+    #[serde(default)]
+    pub commitment_anchor_hash:  Option<ActionHash>,
 }
 
 impl ValidationAttestation {

@@ -80,6 +80,7 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
         computational_resources,
         confidence,
         discipline,
+        commitment_anchor_hash: _, // set by attestation coordinator after reveal
     } = input.attestation;
     let private_attestation = ValidatorPrivateAttestation {
         request_ref,
