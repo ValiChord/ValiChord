@@ -312,13 +312,15 @@ HarmonyRecord {
 
 // Updateable — system_coordinator_key gated
 ValidatorReputation {
-    validator:           AgentPubKey,   // NOTE: keyed by device key, not person — see Known Gaps
-    discipline:          Discipline,
-    total_validations:   u32,
-    agreement_rate:      f64,
-    avg_time_secs:       u64,
-    tier:                CertificationTier,
-    last_updated_secs:   u64,
+    validator:         AgentPubKey,          // device key — see person_key below
+    discipline:        Discipline,
+    total_validations: u32,
+    agreement_rate:    f64,                  // 0.0–1.0
+    avg_time_secs:     u64,
+    tier:              CertificationTier,
+    person_key:        Option<AgentPubKey>,  // Phase 1: canonical person identity across devices.
+                                             // None until Flowsta/Deepkey links are in place.
+                                             // #[serde(default)] — backwards-compatible.
 }
 
 // IMMUTABLE — harmony_record_creator_key gated
@@ -433,7 +435,7 @@ cd tests && npm test
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
 | GoldReproducible badge (7 validators) | DNA 4 / test 12.2 | Test logic correct. Skipped in Codespaces — requires 7 simultaneous conductors (≥16 GB RAM). Run on adequately resourced hardware |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
-| Multi-device identity / agent linking | DNA 3 `ValidatorProfile`, DNA 4 `ValidatorReputation` | Both are keyed by `AgentPubKey` (device key), not a stable person identity. A validator who switches or loses a device accrues reputation on a new orphaned key. The Flowsta `agent_linking` zome (github.com/WeAreFlowsta/flowsta-identity-dna) is an ecosystem drop-in that creates pairwise `IsSamePersonEntry` records with mutual Ed25519 signatures — allowing any lookup to resolve all keys belonging to one person. Not needed for Phase 0 (single-device institutional validators). Design into Phase 1 before reputation scores become operationally meaningful. Will also be partially addressed by Holochain 1.0 Deepkey (key rotation) — coordinate the two designs together |
+| Multi-device identity / agent linking | DNA 3 `ValidatorProfile`, DNA 4 `ValidatorReputation` | **Partially addressed (March 2026):** Both structs now carry `person_key: Option<AgentPubKey>` (`#[serde(default)]`, backwards-compatible). When a cross-device identity system (Flowsta `IsSamePersonEntry`, Deepkey) links a validator's keys to a canonical person, this field carries that stable key — preventing reputation loss on device rotation. The field is `None` for all existing records; population and aggregation logic are Phase 1 work. Full resolution (querying `IsSamePersonEntry` links, deduplicating `CommitmentAnchor` counts by person, COI checks across linked keys) remains deferred. See `nondominium_integration/NONDOMINIUM_ARCHITECTURE.md` for Flowsta context. |
 
 ---
 
