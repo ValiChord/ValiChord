@@ -17,7 +17,10 @@ sleep 1
 
 # ── Start Holochain conductor (background) ────────────────────────────────────
 echo "Starting Holochain conductor..."
-holochain --config-path conductor-config.yaml > conductor.log 2>&1 &
+echo "demo-passphrase" | holochain \
+  --config-path conductor-config.yaml \
+  --piped \
+  > conductor.log 2>&1 &
 CONDUCTOR_PID=$!
 
 # ── Run setup (waits for conductor, installs happ, writes app-config.json) ───

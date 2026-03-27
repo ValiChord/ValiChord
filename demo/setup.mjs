@@ -32,7 +32,7 @@ const HAPP_PATH  = resolve(REPO_DIR, 'valichord/workdir/valichord.happ');
 
 // ── Wait for conductor admin port to be ready ──────────────────────────────
 
-async function connectAdmin(retries = 40) {
+async function connectAdmin(retries = 180) {
   for (let i = 0; i < retries; i++) {
     try {
       return await AdminWebsocket.connect({
