@@ -94,6 +94,39 @@ h1 {
   background: #fff;
   transform: translateY(-1px);
 }
+.cta-button-outline {
+  display: inline-block;
+  padding: 13px 34px;
+  background: transparent;
+  color: #e8e8e4;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 1px solid #445;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: border-color 0.2s, color 0.2s, transform 0.1s;
+}
+.cta-button-outline:hover {
+  border-color: #778;
+  color: #fff;
+  transform: translateY(-1px);
+}
+.cta-badge {
+  display: inline-block;
+  background: #1a2e1a;
+  color: #5dba7d;
+  border: 1px solid #2a4a2a;
+  border-radius: 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  margin-bottom: 14px;
+}
 .status-section {
   margin-bottom: 56px;
 }
@@ -183,14 +216,34 @@ h1 {
   <div class="divider"></div>
 
   <div class="cta-section">
-    <div class="cta-label">Available now</div>
-    <div class="cta-title">ValiChord at Home</div>
+    <div class="cta-badge">&#x25cf; Live</div>
+    <div class="cta-label">Interactive demo</div>
+    <div class="cta-title">See ValiChord in action</div>
     <div class="cta-desc">
-      A reproducibility readiness check for your code repository.
-      24 questions, 5 minutes, nothing tracked.
-      See your work through a validator&rsquo;s eyes.
+      A live Holochain conductor running the full commit-reveal protocol:
+      seal a private attestation, anchor it to the DHT, open the reveal window,
+      submit your findings, and watch a HarmonyRecord emerge from consensus.
     </div>
-    <a href="at-home.html" class="cta-button">Start assessment &rarr;</a>
+    <a href="https://valichord-demo.onrender.com/" class="cta-button" target="_blank" rel="noopener">Open live demo &rarr;</a>
+    <div style="margin-top:10px; font-family:'DM Sans',sans-serif; font-size:13px; color:#556;">
+      Hosted on Render free tier &mdash; may take ~2 min to wake from sleep
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="cta-section">
+    <div class="cta-label">Available now</div>
+    <div class="cta-title">Repository Readiness Checker</div>
+    <div class="cta-desc">
+      Upload your research code repository and receive an instant reproducibility
+      report &mdash; 24 failure-mode checks, structured findings, draft fixes.
+      Nothing stored, nothing tracked.
+    </div>
+    <a href="demo.html" class="cta-button">Check your repository &rarr;</a>
+    <div style="margin-top:16px;">
+      <a href="at-home.html" class="cta-button-outline">Self-assessment questionnaire</a>
+    </div>
   </div>
 
   <div class="divider"></div>
@@ -304,15 +357,6 @@ h1 {
     <p>ValiChord &mdash; Harmony from Dissonance</p>
     <p style="margin-top: 8px;">
       <a href="https://github.com/topeuph-ai/ValiChord" style="color: #556; text-decoration: none; border-bottom: 1px solid #334;">GitHub</a>
-      <div style="text-align:center; margin: 40px 0;">
-  <a href="https://topeuph-ai.github.io/ValiChord/demo.html" 
-     style="display:inline-block; background:#4a90d9; color:white; text-decoration:none; padding:16px 40px; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:1.1em; font-weight:500;">
-    Try the Repository Readiness Check →
-  </a>
-  <p style="color:#6a6460; font-size:0.85em; margin-top:12px; font-family:'DM Sans',sans-serif;">
-    Upload your research repository and receive a reproducibility report in seconds
-  </p>
-</div>
     </p>
   </div>
 
