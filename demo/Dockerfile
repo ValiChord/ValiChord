@@ -1,8 +1,8 @@
 # ── Stage 1: Build holochain binary ──────────────────────────────────────────
-FROM rust:1.82-slim AS builder
+FROM rust:1.82 AS builder
 
 RUN apt-get update && apt-get install -y \
-    libssl-dev pkg-config clang cmake \
+    libssl-dev pkg-config clang libclang-dev cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # holochain 0.6.0 — lair_server_in_proc mode (no separate lair-keystore needed)
