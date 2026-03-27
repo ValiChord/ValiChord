@@ -16,7 +16,7 @@ import { extname, join }   from 'node:path';
 import { fileURLToPath }   from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PORT       = 8888;
+const PORT       = parseInt(process.env.PORT || '8888', 10);  // Render sets PORT
 const APP_PORT   = 4500;
 const ADMIN_PORT = 4444;
 

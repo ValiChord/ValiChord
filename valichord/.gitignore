@@ -1,4 +1,6 @@
 target/
 workdir/*.dna
 workdir/*.happ
+# Track the compiled happ as a deployment artifact for Render Docker build
+!workdir/valichord.happ
 tests/node_modules/

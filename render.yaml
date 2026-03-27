@@ -8,3 +8,14 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+
+  - type: web
+    name: valichord-demo
+    runtime: docker
+    dockerfilePath: ./demo/Dockerfile
+    # Build context is the repo root so COPY can reach both demo/ and valichord/workdir/
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production

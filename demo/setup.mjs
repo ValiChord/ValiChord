@@ -13,13 +13,16 @@
 import { pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR   = resolve(__dirname, '..');
 
-// Resolve @holochain/client from the already-installed tests node_modules.
-const clientPath = resolve(REPO_DIR, 'valichord/tests/node_modules/@holochain/client/lib/index.js');
+// Resolve @holochain/client — prefer local demo/node_modules (Render / Docker),
+// fall back to valichord/tests/node_modules (Codespace dev env).
+const localClientPath = resolve(__dirname, 'node_modules/@holochain/client/lib/index.js');
+const testClientPath  = resolve(REPO_DIR, 'valichord/tests/node_modules/@holochain/client/lib/index.js');
+const clientPath = existsSync(localClientPath) ? localClientPath : testClientPath;
 const { AdminWebsocket } = await import(pathToFileURL(clientPath).href);
 
 const ADMIN_PORT = 4444;
@@ -132,18 +135,20 @@ async function main() {
   const appInfo = updatedApps.find(a => a.installed_app_id === APP_ID);
   const agentPubKey = appInfo.agent_pub_key;
 
-  // ── Resolve WebSocket URLs (localhost vs GitHub Codespace) ───────────────
-  // When running inside a GitHub Codespace the page is served over HTTPS
-  // (e.g. https://{name}-8888.app.github.dev).  Browsers block ws:// from
-  // an https:// page as mixed content, so we must use wss:// instead.
-  // Codespace port-forwarding exposes each port at its own subdomain.
-  const CODESPACE_NAME = process.env.CODESPACE_NAME;
-  const GH_DOMAIN = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
-  // All WebSocket traffic routes through port 8888 (serve.mjs proxy).
-  // This means only one port needs to be forwarded in Codespace.
+  // ── Resolve WebSocket URLs (localhost / GitHub Codespace / Render) ────────
+  // Browsers block ws:// from https:// pages as mixed content; use wss://.
+  // All WebSocket traffic routes through the serve.mjs proxy (/app-ws, /admin-ws)
+  // so only one port needs to be externally reachable.
+  const CODESPACE_NAME  = process.env.CODESPACE_NAME;
+  const GH_DOMAIN       = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+  const RENDER_HOSTNAME = process.env.RENDER_EXTERNAL_HOSTNAME; // e.g. my-service.onrender.com
+  const RENDER_PORT     = process.env.PORT;                     // Render assigns a port (often 10000)
+
   const wsBase = CODESPACE_NAME
     ? `wss://${CODESPACE_NAME}-8888.${GH_DOMAIN}`
-    : `ws://localhost:8888`;
+    : RENDER_HOSTNAME
+      ? `wss://${RENDER_HOSTNAME}`      // Render TLS terminates at the edge; no port in URL
+      : `ws://localhost:${RENDER_PORT || 8888}`;
   const wsUrl = (port) => port === ADMIN_PORT
     ? `${wsBase}/admin-ws`
     : `${wsBase}/app-ws`;

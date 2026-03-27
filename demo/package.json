@@ -1,0 +1,10 @@
+{
+  "name": "valichord-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ValiChord browser demo — Node.js runtime deps for setup.mjs",
+  "dependencies": {
+    "@holochain/client": "0.20.2"
+  }
+}
