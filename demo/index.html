@@ -769,10 +769,18 @@ async function init() {
   mark(0, 'running');
 
   try {
-    const cfg = await fetch('/app-config.json').then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status} — has setup.mjs been run?`);
-      return r.json();
-    });
+    // Poll for app-config.json — on Render the conductor takes ~2 min to start.
+    let cfg;
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const r = await fetch('/app-config.json');
+      if (r.ok) { cfg = await r.json(); break; }
+      if (attempt === 0) {
+        label.textContent = 'Conductor starting… (~2 min on cold start)';
+        pill.className = 'conn-pill';
+      }
+      await new Promise(res => setTimeout(res, 3000));
+    }
+    if (!cfg) throw new Error('Conductor did not start within 6 minutes.');
 
     app = await AppWebsocket.connect({
       url:            new URL(cfg.appWsUrl),

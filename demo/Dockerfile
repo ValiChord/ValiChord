@@ -15,7 +15,10 @@ RUN cargo install holochain --version 0.6.0 --locked
 # ── Stage 2: Runtime (Node.js + holochain binary) ────────────────────────────
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/cargo/bin/holochain /usr/local/bin/holochain
 
