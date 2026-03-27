@@ -775,7 +775,7 @@ async function init() {
     });
 
     app = await AppWebsocket.connect({
-      url:            new URL(`ws://localhost:${cfg.appPort}`),
+      url:            new URL(cfg.appWsUrl),
       token:          new Uint8Array(cfg.token),
       defaultTimeout: 60_000,
     });
@@ -785,7 +785,7 @@ async function init() {
     // keypair, grants it via the conductor admin API, and stores the cap secret
     // + keypair in the module-level map that signZomeCall reads at call time.
     const admin = await AdminWebsocket.connect({
-      url: new URL('ws://localhost:4444'),
+      url: new URL(cfg.adminWsUrl),
       defaultTimeout: 30_000,
     });
     const { cell_info } = app.cachedAppInfo;

@@ -132,9 +132,22 @@ async function main() {
   const appInfo = updatedApps.find(a => a.installed_app_id === APP_ID);
   const agentPubKey = appInfo.agent_pub_key;
 
+  // ── Resolve WebSocket URLs (localhost vs GitHub Codespace) ───────────────
+  // When running inside a GitHub Codespace the page is served over HTTPS
+  // (e.g. https://{name}-8888.app.github.dev).  Browsers block ws:// from
+  // an https:// page as mixed content, so we must use wss:// instead.
+  // Codespace port-forwarding exposes each port at its own subdomain.
+  const CODESPACE_NAME = process.env.CODESPACE_NAME;
+  const GH_DOMAIN = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+  const wsUrl = (port) => CODESPACE_NAME
+    ? `wss://${CODESPACE_NAME}-${port}.${GH_DOMAIN}`
+    : `ws://localhost:${port}`;
+
   // ── Write app-config.json for the demo page ──────────────────────────────
   const config = {
     appPort,
+    appWsUrl:   wsUrl(appPort),
+    adminWsUrl: wsUrl(ADMIN_PORT),
     // AppAuthenticationToken is number[] in the type; Array.from handles Uint8Array too.
     token: Array.from(token),
     agentPubKey: Array.from(agentPubKey),
