@@ -14,6 +14,7 @@ import { createConnection } from 'node:net';
 import { readFile }        from 'node:fs/promises';
 import { extname, join }   from 'node:path';
 import { fileURLToPath }   from 'node:url';
+import { existsSync }      from 'node:fs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT       = parseInt(process.env.PORT || '8888', 10);  // Render sets PORT
@@ -33,6 +34,21 @@ const MIME = {
 const server = createServer(async (req, res) => {
   const url = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   if (url.includes('..')) { res.writeHead(403); res.end(); return; }
+
+  // Diagnostic endpoint — serves conductor.log as plain text.
+  if (url === '/conductor-log') {
+    const logPath = join(__dirname, 'conductor.log');
+    try {
+      const data = await readFile(logPath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
+      res.end(data || '(conductor.log is empty)');
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(existsSync(logPath) ? '(could not read log)' : '(conductor.log not yet created — conductor may not have started)');
+    }
+    return;
+  }
+
   const filePath = join(__dirname, url);
   try {
     const data = await readFile(filePath);
