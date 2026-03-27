@@ -771,7 +771,7 @@ async function init() {
   try {
     // Poll for app-config.json — on Render the conductor takes ~2 min to start.
     let cfg;
-    for (let attempt = 0; attempt < 120; attempt++) {
+    for (let attempt = 0; attempt < 240; attempt++) {
       const r = await fetch('/app-config.json');
       if (r.ok) { cfg = await r.json(); break; }
       if (attempt === 0) {
@@ -780,7 +780,7 @@ async function init() {
       }
       await new Promise(res => setTimeout(res, 3000));
     }
-    if (!cfg) throw new Error('Conductor did not start within 6 minutes.');
+    if (!cfg) throw new Error('Conductor did not start within 12 minutes.');
 
     app = await AppWebsocket.connect({
       url:            new URL(cfg.appWsUrl),

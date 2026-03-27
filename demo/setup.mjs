@@ -38,7 +38,7 @@ async function connectAdmin(retries = 180) {
       return await AdminWebsocket.connect({
         url: new URL(`ws://localhost:${ADMIN_PORT}`),
         wsClientOptions: { origin: 'demo-setup' },
-        defaultTimeout: 120_000,
+        defaultTimeout: 600_000,   // 10 min — WASM JIT on slow hosts can take 5+ min
       });
     } catch {
       process.stdout.write(i === 0 ? 'Waiting for admin port' : '.');
