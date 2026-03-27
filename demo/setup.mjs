@@ -139,9 +139,14 @@ async function main() {
   // Codespace port-forwarding exposes each port at its own subdomain.
   const CODESPACE_NAME = process.env.CODESPACE_NAME;
   const GH_DOMAIN = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
-  const wsUrl = (port) => CODESPACE_NAME
-    ? `wss://${CODESPACE_NAME}-${port}.${GH_DOMAIN}`
-    : `ws://localhost:${port}`;
+  // All WebSocket traffic routes through port 8888 (serve.mjs proxy).
+  // This means only one port needs to be forwarded in Codespace.
+  const wsBase = CODESPACE_NAME
+    ? `wss://${CODESPACE_NAME}-8888.${GH_DOMAIN}`
+    : `ws://localhost:8888`;
+  const wsUrl = (port) => port === ADMIN_PORT
+    ? `${wsBase}/admin-ws`
+    : `${wsBase}/app-ws`;
 
   // ── Write app-config.json for the demo page ──────────────────────────────
   const config = {
