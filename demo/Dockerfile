@@ -1,5 +1,5 @@
 # ── Stage 1: Build holochain binary ──────────────────────────────────────────
-FROM rust:1.85 AS builder
+FROM rust:1.88 AS builder
 
 RUN apt-get update && apt-get install -y \
     libssl-dev pkg-config \
