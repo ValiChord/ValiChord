@@ -785,7 +785,7 @@ async function init() {
     app = await AppWebsocket.connect({
       url:            new URL(cfg.appWsUrl),
       token:          new Uint8Array(cfg.token),
-      defaultTimeout: 60_000,
+      defaultTimeout: 120_000,
     });
 
     // Authorize zome-call signing credentials for all provisioned cells.
@@ -794,7 +794,7 @@ async function init() {
     // + keypair in the module-level map that signZomeCall reads at call time.
     const admin = await AdminWebsocket.connect({
       url: new URL(cfg.adminWsUrl),
-      defaultTimeout: 30_000,
+      defaultTimeout: 120_000,
     });
     const { cell_info } = app.cachedAppInfo;
     for (const cells of Object.values(cell_info)) {
