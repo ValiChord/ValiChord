@@ -10,3 +10,11 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Demo — runtime-generated files
+demo/conductor_data/
+demo/conductor.log
+demo/app-config.json
+
+# Stray Holochain conductor data in repo root
+/S5ryIoZIpRYtsedy_CgK2/
