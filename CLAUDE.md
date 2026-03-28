@@ -1,6 +1,7 @@
 # ValiChord — Claude Code Instructions
 
 ## Always read at session start
+- `PROJECT_STATUS.md` — current project phase, what's live, how Feynman uses ValiChord, open work
 - `docs/Holochain_complete.md` — complete Holochain Build Guide knowledge base
 - `docs/7_ValiChord_4-DNA_architecture_technical.md` — four-DNA architecture
 
