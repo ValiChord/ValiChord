@@ -9,14 +9,15 @@
  * No external dependencies — pure Node.js built-ins.
  */
 
-import { createServer }   from 'node:http';
+import { createServer }    from 'node:http';
 import { createConnection } from 'node:net';
-import { readFile }        from 'node:fs/promises';
-import { extname, join }   from 'node:path';
-import { fileURLToPath }   from 'node:url';
-import { existsSync }      from 'node:fs';
+import { readFile }         from 'node:fs/promises';
+import { extname, join, resolve, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL }    from 'node:url';
+import { existsSync, readFileSync }        from 'node:fs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const REPO_DIR   = resolve(__dirname, '..');
 const PORT       = parseInt(process.env.PORT || '8888', 10);  // Render sets PORT
 const APP_PORT   = 4500;
 const ADMIN_PORT = 4444;
@@ -28,6 +29,231 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.css':  'text/css; charset=utf-8',
 };
+
+// ── Holochain bridge helpers ──────────────────────────────────────────────────
+// Internal-only endpoint (localhost) that lets the Python backend call zome
+// functions without speaking WebSocket/msgpack directly.
+
+// Lazy-loaded @holochain/client — same resolution strategy as setup.mjs.
+let _hcClient = null;
+async function _loadHcClient() {
+  if (_hcClient) return _hcClient;
+  const localPath  = resolve(__dirname, 'node_modules/@holochain/client/lib/index.js');
+  const testPath   = resolve(REPO_DIR,  'valichord/tests/node_modules/@holochain/client/lib/index.js');
+  const clientPath = existsSync(localPath) ? localPath : testPath;
+  _hcClient = await import(pathToFileURL(clientPath).href);
+  return _hcClient;
+}
+
+// Uint8Array ↔ JSON convention: { __bytes: "<base64>" }
+// Lets Python pass ActionHash / ExternalHash values back into subsequent calls.
+function _serialize(v) {
+  if (v instanceof Uint8Array) return { __bytes: Buffer.from(v).toString('base64') };
+  if (Array.isArray(v))        return v.map(_serialize);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, w]) => [k, _serialize(w)]));
+  }
+  return v;
+}
+function _deserialize(v) {
+  // Uint8Array (and Buffer) must pass through unchanged — Object.entries()
+  // on a typed array produces numeric-keyed pairs and destroys the bytes.
+  if (v instanceof Uint8Array) return v;
+  if (v && typeof v === 'object' && typeof v.__bytes === 'string') {
+    return Buffer.from(v.__bytes, 'base64');
+  }
+  if (Array.isArray(v))        return v.map(_deserialize);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, w]) => [k, _deserialize(w)]));
+  }
+  return v;
+}
+
+const _sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function _readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end',  () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+// Open one authenticated session and run fn({ call, hashFrom32AndType, HoloHashType }).
+// `call(role, zome, fn, payload)` makes a zome call with auto serialize/deserialize.
+// Closes the AppWebsocket when fn resolves or rejects.
+async function _withSession(fn) {
+  const configPath = join(__dirname, 'app-config.json');
+  if (!existsSync(configPath)) {
+    throw new Error('app-config.json not found — run node demo/setup.mjs first');
+  }
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const { AdminWebsocket, AppWebsocket, hashFrom32AndType, HoloHashType } = await _loadHcClient();
+
+  // Authorize signing credentials (required by Holochain 0.6.x before callZome).
+  const admin = await AdminWebsocket.connect({
+    url: new URL(`ws://localhost:${ADMIN_PORT}`),
+    wsClientOptions: { origin: 'valichord-bridge' },
+    defaultTimeout: 30_000,
+  });
+  const apps = await admin.listApps({});
+  const appInfo = apps.find(a => a.installed_app_id === config.appId);
+  if (!appInfo) throw new Error(`App '${config.appId}' not installed in conductor`);
+  for (const cells of Object.values(appInfo.cell_info)) {
+    for (const cell of cells) {
+      const cellId = cell.value?.cell_id;
+      if (cellId) await admin.authorizeSigningCredentials(cellId);
+    }
+  }
+  await admin.client.close();
+
+  const appWs = await AppWebsocket.connect({
+    url: new URL(`ws://localhost:${APP_PORT}`),
+    token: new Uint8Array(config.token),
+    wsClientOptions: { origin: 'valichord-bridge' },
+    defaultTimeout: 60_000,
+  });
+
+  const call = (role_name, zome_name, fn_name, payload) =>
+    appWs.callZome({ role_name, zome_name, fn_name, payload: _deserialize(payload) })
+         .then(_serialize);
+
+  try {
+    return await fn({ call, hashFrom32AndType, HoloHashType });
+  } finally {
+    await appWs.client.close();
+  }
+}
+
+// Single-call convenience wrapper (used by POST /holochain/call).
+async function _holochainCall(role_name, zome_name, fn_name, payload) {
+  return _withSession(({ call }) => call(role_name, zome_name, fn_name, payload));
+}
+
+// Full single-agent commit-reveal round → HarmonyRecord ActionHash.
+//
+// Requires the conductor to be running with minimum_validators=1 and
+// authorized_joining_certificate_issuer="" (dev/test bypass).
+//
+// Sequence:
+//   1. submit_validation_request  (attestation)
+//   2. claim_study                (attestation)
+//   3. receive_task               (validator_workspace)
+//   4. seal_private_attestation   (validator_workspace) → post_commit → notify_commitment_sealed
+//   5. poll get_current_phase until RevealOpen
+//   6. submit_attestation         (attestation)  — empty nonce uses dev bypass
+//   7. check_and_create_harmony_record (governance) — explicit call fixes DHT timing
+async function _runValidationRound({ data_hash_hex, outcome, discipline, confidence }) {
+  return _withSession(async ({ call, hashFrom32AndType, HoloHashType }) => {
+    const externalHash = hashFrom32AndType(
+      Buffer.from(data_hash_hex, 'hex'),
+      HoloHashType.External,
+    );
+
+    const disc = discipline ?? { type: 'ComputationalBiology' };
+    const conf = confidence ?? 'Medium';
+
+    const agreementLevel = {
+      Reproduced:          'ExactMatch',
+      PartiallyReproduced: 'DirectionalMatch',
+      FailedToReproduce:   'Divergent',
+      UnableToAssess:      'UnableToAssess',
+    }[outcome?.type] ?? 'DirectionalMatch';
+
+    // The public ValidationAttestation — identical object used for both seal
+    // and reveal so the commitment hash verifies correctly.
+    const validationAttestation = {
+      request_ref: externalHash,
+      outcome,
+      outcome_summary: {
+        key_metrics:                [],
+        effect_direction_matches:   null,
+        confidence_interval_overlap: null,
+        overall_agreement:          agreementLevel,
+      },
+      time_invested_secs: 0,
+      time_breakdown: {
+        environment_setup_secs: 0,
+        data_acquisition_secs:  0,
+        code_execution_secs:    0,
+        troubleshooting_secs:   0,
+      },
+      confidence:          conf,
+      deviation_flags:     [],
+      computational_resources: {
+        personal_hardware_sufficient: true,
+        hpc_required:                 false,
+        gpu_required:                 false,
+        cloud_compute_required:       false,
+        estimated_compute_cost_pence: null,
+      },
+      discipline:             disc,
+      commitment_anchor_hash: null,
+    };
+
+    const nowSecs = Math.floor(Date.now() / 1000);
+
+    // 1. Open a validation request on the shared Attestation DHT.
+    await call('attestation', 'attestation_coordinator', 'submit_validation_request', {
+      protocol_ref:            null,
+      data_hash:               externalHash,
+      num_validators_required: 1,
+      validation_tier:         'Basic',
+      discipline:              disc,
+    });
+
+    // 2. Claim the study (required by notify_commitment_sealed's claim guard).
+    await call('attestation', 'attestation_coordinator', 'claim_study', externalHash);
+
+    // 3. Store the task in the private Validator Workspace DNA.
+    const taskHash = await call(
+      'validator_workspace', 'validator_workspace_coordinator', 'receive_task',
+      {
+        request_ref:      externalHash,
+        assigned_at_secs: nowSecs,
+        discipline:       disc,
+        deadline_secs:    nowSecs + 86400 * 14,
+        validation_focus: 'ComputationalReproducibility',
+        time_cap_secs:    3600,
+        compensation_tier: { Tier1: { amount_pence: 5000 } },
+      },
+    );
+
+    // 4. Seal — post_commit fires and calls notify_commitment_sealed on DNA 3.
+    //    With minimum_validators=1 this immediately writes PhaseMarker(RevealOpen).
+    await call(
+      'validator_workspace', 'validator_workspace_coordinator', 'seal_private_attestation',
+      { task_hash: taskHash, attestation: validationAttestation },
+    );
+
+    // 5. Poll until RevealOpen — post_commit is async relative to seal returning.
+    for (let i = 0; i < 60; i++) {
+      const phase = await call(
+        'attestation', 'attestation_coordinator', 'get_current_phase', externalHash,
+      );
+      if (phase !== null) break;
+      await _sleep(500);
+    }
+
+    // 6. Reveal — empty nonce is accepted because authorized_joining_certificate_issuer
+    //    is empty in dev mode, which bypasses hash verification in submit_attestation.
+    await call('attestation', 'attestation_coordinator', 'submit_attestation', {
+      attestation: validationAttestation,
+      nonce:       new Uint8Array(0),
+    });
+
+    // 7. Trigger HarmonyRecord creation explicitly. submit_attestation fires this
+    //    internally via post_commit but the ValidatorToAttestation link is not yet
+    //    DHT-queryable at that point — governance returns empty. Calling again here
+    //    (after submit_attestation returns) resolves the timing issue.
+    const harmonyHash = await call(
+      'governance', 'governance_coordinator', 'check_and_create_harmony_record', externalHash,
+    );
+
+    return { harmony_record_hash: harmonyHash };
+  });
+}
 
 // ── Static file handler ───────────────────────────────────────────────────────
 
@@ -45,6 +271,79 @@ const server = createServer(async (req, res) => {
     } catch {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end(existsSync(logPath) ? '(could not read log)' : '(conductor.log not yet created — conductor may not have started)');
+    }
+    return;
+  }
+
+  // ── Internal Holochain bridge ──────────────────────────────────────────────
+  // POST /holochain/call — localhost only, used by backend/app.py.
+  if (req.method === 'POST' && url === '/holochain/call') {
+    const remote = req.socket.remoteAddress;
+    if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden — internal endpoint only' }));
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(await _readBody(req));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+    const { role_name, zome_name, fn_name, payload } = body;
+    if (!role_name || !zome_name || !fn_name) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing role_name, zome_name, or fn_name' }));
+      return;
+    }
+    try {
+      const result = await _holochainCall(role_name, zome_name, fn_name, payload ?? null);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ result }));
+    } catch (err) {
+      const msg = err.message ?? String(err);
+      console.error(`[holochain/call] ${fn_name}: ${msg}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  // ── Full commit-reveal round ───────────────────────────────────────────────
+  // POST /holochain/validate-round — localhost only, used by backend/app.py.
+  // Runs the complete single-agent validation protocol and returns the
+  // ActionHash of the resulting HarmonyRecord on the Governance DHT.
+  if (req.method === 'POST' && url === '/holochain/validate-round') {
+    const remote = req.socket.remoteAddress;
+    if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden — internal endpoint only' }));
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(await _readBody(req));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+    if (!body.data_hash_hex || !body.outcome) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing data_hash_hex or outcome' }));
+      return;
+    }
+    try {
+      const result = await _runValidationRound(body);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      const msg = err.message ?? String(err);
+      console.error(`[holochain/validate-round]: ${msg}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
     }
     return;
   }

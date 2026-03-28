@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import hashlib
 import tempfile
 import shutil
 import zipfile
@@ -17,6 +18,7 @@ from detectors.claude_semantic import run_claude_analysis
 from generators.report import generate_cleaning_report, compute_prs
 from generators.drafts import generate_all_drafts
 from generators.log import generate_valichord_log
+from holochain_bridge import run_validation_round
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024   # 100 MB hard cap
@@ -24,6 +26,12 @@ CORS(app)
 
 MAX_SIZE_MB = 100
 JOB_TIMEOUT_SECONDS = 1200  # 20 minutes — enough for a 100 MB deposit
+
+# Optional HTTP Gateway base URL for public HarmonyRecord lookups.
+# When set, /result and /status include a harmony_record_url that any
+# integrator can follow without running a Holochain node.
+# Format: https://gateway.example.com  (no trailing slash)
+HOLOCHAIN_GATEWAY_URL = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
 
 # ── job store ────────────────────────────────────────────────────────────────
 _jobs: dict = {}
@@ -44,6 +52,46 @@ def _watchdog(job_id: str, thread: threading.Thread, work_dir: Path):
                 job['status'] = 'error'
                 job['error'] = f'Processing timed out after {JOB_TIMEOUT_SECONDS // 60} minutes.'
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _compute_harmony_draft(findings, data_hash_hex: str) -> dict:
+    """Derive a would-be HarmonyRecord from analysis findings.
+
+    Outcome mapping:
+      Any CRITICAL finding  → FailedToReproduce
+      SIGNIFICANT only      → PartiallyReproduced
+      No findings           → Reproduced
+    """
+    critical   = [f for f in findings if getattr(f, 'severity', '') == 'CRITICAL']
+    significant = [f for f in findings if getattr(f, 'severity', '') == 'SIGNIFICANT']
+    low        = [f for f in findings if getattr(f, 'severity', '') == 'LOW CONFIDENCE']
+
+    if critical:
+        outcome = {
+            'type': 'FailedToReproduce',
+            'content': {'details': f'{len(critical)} critical issue(s) prevent reproduction'},
+        }
+    elif significant:
+        outcome = {
+            'type': 'PartiallyReproduced',
+            'content': {'details': f'{len(significant)} significant issue(s) require attention'},
+        }
+    else:
+        outcome = {'type': 'Reproduced'}
+
+    return {
+        'outcome': outcome,
+        'data_hash': data_hash_hex,
+        'findings_summary': {
+            'critical':      len(critical),
+            'significant':   len(significant),
+            'low_confidence': len(low),
+            'total':         len(findings),
+        },
+        # Populated in a later phase when the Holochain bridge is wired up.
+        'harmony_record_hash': None,
+        'harmony_record_url':  None,
+    }
 
 
 def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str):
@@ -140,11 +188,30 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
                 if file.is_file():
                     zf.write(file, file.relative_to(output_dir))
 
+        data_hash_hex = hashlib.sha256(upload_path.read_bytes()).hexdigest()
+        harmony_draft = _compute_harmony_draft(findings, data_hash_hex)
+
+        # Attempt to write a real HarmonyRecord to the Governance DHT.
+        # Requires demo/serve.mjs to be running with a live conductor.
+        # Degrades gracefully — analysis always completes even if bridge is down.
+        holochain_result = run_validation_round(
+            data_hash_hex=data_hash_hex,
+            outcome=harmony_draft['outcome'],
+        )
+        if holochain_result:
+            harmony_draft['harmony_record_hash'] = holochain_result.get('harmony_record_hash')
+            if harmony_draft['harmony_record_hash'] and HOLOCHAIN_GATEWAY_URL:
+                harmony_draft['harmony_record_url'] = (
+                    f"{HOLOCHAIN_GATEWAY_URL}/valichord/governance/get_harmony_record"
+                    f"?hash={harmony_draft['harmony_record_hash']}"
+                )
+
         with _jobs_lock:
             _jobs[job_id]['status'] = 'done'
             _jobs[job_id]['output_zip'] = output_zip
             _jobs[job_id]['stem'] = stem
             _jobs[job_id]['prs'] = prs
+            _jobs[job_id]['harmony_record_draft'] = harmony_draft
 
     except Exception as e:
         with _jobs_lock:
@@ -262,7 +329,11 @@ def status(job_id):
         return jsonify({'status': 'running'})
     if job['status'] == 'error':
         return jsonify({'status': 'error', 'error': job['error']})
-    return jsonify({'status': 'done', 'prs': job.get('prs')})
+    return jsonify({
+        'status': 'done',
+        'prs': job.get('prs'),
+        'harmony_record_draft': job.get('harmony_record_draft'),
+    })
 
 
 @app.route('/download/<job_id>', methods=['GET'])
@@ -293,6 +364,76 @@ def download(job_id):
     )
     threading.Thread(target=cleanup, daemon=True).start()
     return response
+
+
+@app.route('/validate', methods=['POST'])
+def validate():
+    """Single-shot deposit validation.
+
+    Accepts multipart/form-data with a 'file' field (ZIP, max 100 MB).
+    Returns { "job_id": "..." } immediately.
+    Poll GET /result/<job_id> for structured JSON results.
+    """
+    file = request.files.get('file')
+    if file is None:
+        return jsonify({'error': 'Missing file field (multipart/form-data, field name: file)'}), 400
+
+    filename = file.filename or 'deposit.zip'
+    work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
+    upload_path = work_dir / 'upload.zip'
+    file.save(str(upload_path))
+
+    size_mb = upload_path.stat().st_size / (1024 * 1024)
+    if size_mb > MAX_SIZE_MB:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        return jsonify({'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'}), 400
+
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _jobs[job_id] = {
+            'status': 'running',
+            'output_zip': None,
+            'error': None,
+            'work_dir': work_dir,
+        }
+
+    worker = threading.Thread(
+        target=_process_job,
+        args=(job_id, upload_path, work_dir, filename),
+        daemon=True,
+    )
+    worker.start()
+    threading.Thread(target=_watchdog, args=(job_id, worker, work_dir), daemon=True).start()
+
+    return jsonify({'job_id': job_id}), 202
+
+
+@app.route('/result/<job_id>', methods=['GET'])
+def result(job_id):
+    """Structured JSON result for a completed validation job.
+
+    Returns:
+      { "status": "running" }
+      { "status": "error", "error": "..." }
+      { "status": "done",
+        "findings": [...],
+        "harmony_record_draft": { outcome, data_hash, findings_summary, ... },
+        "download_url": "/download/<job_id>" }
+    """
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        return jsonify({'error': 'Unknown job'}), 404
+    if job['status'] == 'running':
+        return jsonify({'status': 'running'})
+    if job['status'] == 'error':
+        return jsonify({'status': 'error', 'error': job['error']})
+    return jsonify({
+        'status': 'done',
+        'findings': job.get('prs'),
+        'harmony_record_draft': job.get('harmony_record_draft'),
+        'download_url': f'/download/{job_id}',
+    })
 
 
 if __name__ == '__main__':
