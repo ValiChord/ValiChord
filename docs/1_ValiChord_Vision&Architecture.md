@@ -471,13 +471,23 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **Built and integration-tested.** The four-DNA Holochain infrastructure described in this document has been fully implemented in Rust and tested. As of March 2026, **94 integration tests pass** against live Holochain conductors. Tests run up to 7 independent participants simultaneously — each with their own identity and network presence — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live network. Both validators and the researcher lock their results before validation begins and reveal simultaneously at the end, with the Harmony Record containing a verifiable side-by-side comparison of what the researcher originally expected and what each validator independently found.
 
+**Open to other systems.** ValiChord now has a clean integration surface — an external system can submit a research deposit and get back a structured verdict, including the Harmony Record hash and a publicly verifiable link, in under 60 seconds. The system is designed so that if no live network is available, the analysis still completes and the result is simply recorded without the cryptographic layer — nothing silently fails.
+
+**The verification result is a link anyone can click.** A working demo of the public verification gateway is running alongside the live network. A Harmony Record isn't just a number stored in a database somewhere — it's a link. Anyone who receives that link can independently confirm the outcome without needing any special software, accounts, or access. That's what makes it meaningful to a journal editor or a funder: it's something they can actually check.
+
+**First external partner: Feynman.** [Feynman](https://github.com/getcompanion-ai/feynman) is an AI research agent — a tool that autonomously attempts to replicate scientific studies. Its creator, Advait Paliwal, integrated ValiChord as a built-in skill, meaning Feynman can now submit its replication findings directly to ValiChord and receive a cryptographically sealed Harmony Record in return. This is the first demonstration of ValiChord serving as the integrity layer for an AI validator — the protocol is neutral about whether the validator is a human researcher or an AI agent. Feynman provides the analysis; ValiChord provides the permanent, tamper-evident record.
+
+**Second partnership in design: Nondominium.** Nondominium is an open-value accounting framework built by Sensorica. Conversations are underway to connect the two systems at a deeper level — so that when ValiChord issues a Harmony Record, Nondominium automatically logs it as a verified contribution and issues credit to the validators who participated. This would make validation work formally accountable and compensable within open science networks. No code has been written for this yet; the design is documented and the design decisions are open for agreement between both teams.
+
 **A governance framework.** The social layer — addressing institutional capture, validator gaming, domestication pressure, and the perverse incentives that killed previous attempts — has been designed and stress-tested through extensive adversarial analysis. This is detailed in its own companion document.
 
 **Institutional conversations.** Discussions have been initiated with both Cardiff University and Swansea University regarding academic partnership and institutional hosting. The Holochain Foundation has confirmed technical feasibility. Potential partnerships with UKRN, Centre for Open Science, and the Software Sustainability Institute have been identified.
 
 ### What Doesn't Exist Yet
 
-**Working infrastructure, no UI layer yet.** The four-DNA Holochain infrastructure is implemented and integration-tested. What does not yet exist is a user-facing interface — researcher and validator dashboards, the submission form, the public results portal. The infrastructure is the foundation that a UI layer is built on. Phase 1 builds that layer. The codebase is available for technical review at `valichord/` and the test suite at `valichord/tests/`.
+**No researcher-facing interface yet.** The underlying system works — the network, the analysis pipeline, the Harmony Record, the verification link. What doesn't exist yet is the layer that a researcher or validator would actually interact with: the submission form, the dashboard, the results portal. Right now the system is accessible to developers and technical partners. Phase 1 builds the user-facing layer on top of the working foundation.
+
+**No permanent public address.** The live demo runs in a development environment that goes to sleep when not in use. Making ValiChord available around the clock — so that Feynman or any other external system can call it at any time — requires a server running continuously. The cost is modest (roughly the price of a good lunch per month), but it hasn't been arranged yet. Everything needed to deploy it is already written.
 
 **No confirmed team.** The lead engineer role is unfilled. Shin Sakamoto, an independent Holochain application developer, has been identified as a target candidate but has not been formally recruited. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
 
@@ -485,7 +495,7 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **No empirical evidence.** The critical assumption — that validators will participate — is untested. Phase 0 exists specifically to test it.
 
-This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. The core infrastructure is built and integration-tested; what remains is the user-facing layer, the team, the institutional partnerships, and — most importantly — the empirical test of whether validators will actually participate. The next step is to test that assumption.
+This honesty matters. ValiChord's strength is in the quality of its thinking — about the problem, the architecture, the governance, and the social dynamics that defeated previous attempts. The core infrastructure is built and integration-tested; two external systems are already using or designing integrations with it; what remains is the user-facing layer, the team, the institutional partnerships, and — most importantly — the empirical test of whether validators will actually participate at scale. The next step is to test that assumption.
 
 ---
 
@@ -527,6 +537,8 @@ The next step is to test it.
 - *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
 - *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
+- *ValiChord × Feynman Integration* (`feynman_integration/INTEGRATION_VISION.md`) — How the Feynman AI research agent uses ValiChord, what's live, and what's next
+- *ValiChord × Nondominium Integration* (`nondominium_integration/INTEGRATION_VISION.md`) — Design for connecting ValiChord with Sensorica's open-value accounting framework
 
 **Contact:** Ceri John — topeuph@gmail.com
 

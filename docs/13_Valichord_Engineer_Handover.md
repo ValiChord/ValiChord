@@ -270,7 +270,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **Membrane proof issuance service.** The credential verification is implemented and tested. What does not exist yet is the external service that issues credentials — signs a joining agent's pubkey with the authorised issuer keypair and returns the 64-byte proof. This is a Phase 1 infrastructure component. In dev/test mode, set `authorized_joining_certificate_issuer = ""` to bypass.
 
-**HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. The gateway configuration is not yet deployed. Phase 1.
+**HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. **Demo deployed 2026-03-28** — `hc-http-gw` v0.3.1 runs on port 8090 in the Codespace alongside the conductor; `demo/start-gateway.sh` starts it. Env vars `HOLOCHAIN_GATEWAY_URL`, `HOLOCHAIN_GOVERNANCE_DNA_HASH`, and `HOLOCHAIN_APP_ID` set on the Flask server populate `harmony_record_url` in every `/result/<job_id>` response. Always-on permanent deployment (outside the Codespace) remains Phase 1.
 
 **Cryptographic commitment verification — FULLY RESOLVED 2026-03-18/20.**
 
@@ -466,13 +466,17 @@ Full request/response shapes, `harmony_record_draft` schema, and outcome mapping
 
 **`demo/serve.mjs`** — no longer just a static server + WS proxy. Now also hosts two internal-only POST endpoints (localhost only, HTTP 403 for all other callers):
 - `POST /holochain/call` — generic single zome call
-- `POST /holochain/validate-round` — full single-agent commit-reveal round → returns `{ harmony_record_hash: "uhCkk..." }` or `{ harmony_record_hash: null }`
+- `POST /holochain/validate-round` — full single-agent commit-reveal round → returns `{ harmony_record_hash: "uhCkk...", gateway_payload: "<base64url>" }` or `{ harmony_record_hash: null, gateway_payload: "<base64url>" }` (`gateway_payload` is always present — it is the base64url JSON of the ExternalHash, used to construct `harmony_record_url`)
 
 The commit-reveal sequence in `_runValidationRound` (7 steps): `submit_validation_request` → `claim_study` → `receive_task` → `seal_private_attestation` → poll `get_current_phase` → `submit_attestation` (empty nonce, dev bypass) → `check_and_create_harmony_record` (explicit call to fix DHT timing — post_commit in `submit_attestation` fires before ValidatorToAttestation link is DHT-queryable).
 
 **`__bytes` convention:** Uint8Array values crossing Node→Python→Node boundaries serialise as `{ "__bytes": "<base64>" }`. ActionHash results are converted to canonical `uhCkk...` strings via `encodeHashToBase64` before being returned to Python, so Python can embed them in URLs directly.
 
-**`HOLOCHAIN_GATEWAY_URL` env var:** When set, `harmony_record_url` in responses is populated as `${HOLOCHAIN_GATEWAY_URL}/valichord/governance/get_harmony_record?hash=${hash}`. Requires an always-on Holochain node + HTTP Gateway deployment (not yet deployed).
+**`HOLOCHAIN_GATEWAY_URL` + `HOLOCHAIN_GOVERNANCE_DNA_HASH` + `HOLOCHAIN_APP_ID` env vars:** When all three are set, `harmony_record_url` in responses is populated as:
+```
+${HOLOCHAIN_GATEWAY_URL}/${HOLOCHAIN_GOVERNANCE_DNA_HASH}/${HOLOCHAIN_APP_ID}/governance_coordinator/get_harmony_record?payload=${gateway_payload}
+```
+`gateway_payload` is returned by `POST /holochain/validate-round` — it is the base64url-encoded JSON of the ExternalHash (`encodeHashToBase64(externalHash)`), which is what `get_harmony_record` expects as input. The governance DNA hash for the current Codespace network is `uhC0kdW4dc3_nWr50fp7PgDT2xR0PSwbaAMUgcp8cUKDDyr8On1lF` (printed by `demo/start-gateway.sh` on startup). **This is now working end-to-end in the Codespace demo** — `harmony_record_url` is fully populated in every validation result when the gateway is running.
 
 ---
 

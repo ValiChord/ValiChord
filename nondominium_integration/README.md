@@ -4,6 +4,8 @@
 **Authors:** Ceri John (ValiChord), in dialogue with Tiberius Brastaviceanu and Sacha (Sensorica)
 **Last updated:** March 2026
 
+> **Context:** ValiChord is now integration-ready. A live REST API is running, the Feynman AI research agent has integrated ValiChord as a validator skill (PR #13 merged into Feynman 0.2.15), and the full Harmony Record verification link is working end-to-end. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting. See `feynman_integration/INTEGRATION_VISION.md` for the parallel integration that is already live.
+
 ---
 
 ## Why this document exists

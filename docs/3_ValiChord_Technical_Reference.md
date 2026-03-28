@@ -1652,7 +1652,7 @@ GET  /health                { "status": "ok", "version": "1.0",
 }
 ```
 
-`harmony_record_hash` is null when `demo/serve.mjs` (and the Holochain conductor) is not running — graceful degradation. `harmony_record_url` is null until `HOLOCHAIN_GATEWAY_URL` env var is set on the server.
+`harmony_record_hash` is null when `demo/serve.mjs` (and the Holochain conductor) is not running — graceful degradation. `harmony_record_url` is null until `HOLOCHAIN_GATEWAY_URL`, `HOLOCHAIN_GOVERNANCE_DNA_HASH`, and `HOLOCHAIN_APP_ID` env vars are set on the Flask server. **Both fields are fully populated in the Codespace demo as of 2026-03-28.**
 
 **Outcome mapping (Python findings → Holochain AttestationOutcome):**
 
@@ -1674,7 +1674,8 @@ POST /holochain/call
 POST /holochain/validate-round
   { "data_hash_hex": "<64-char hex>", "outcome": {...},
     "discipline": {...}, "confidence": "Medium" }
-  → { "harmony_record_hash": "<uhCkk... string or null>" }
+  → { "harmony_record_hash": "<uhCkk... string or null>",
+      "gateway_payload": "<base64url-encoded JSON of ExternalHash>" }
 ```
 
 The `__bytes` convention: Uint8Array values crossing the Node/Python boundary are serialized as `{ "__bytes": "<base64>" }` in JSON. The bridge uses `encodeHashToBase64` to convert ActionHash results to canonical `uhCkk...` strings before returning them to Python.
@@ -1683,8 +1684,15 @@ The `__bytes` convention: Uint8Array values crossing the Node/Python boundary ar
 
 | Variable | Default | Effect |
 |---|---|---|
-| `HOLOCHAIN_GATEWAY_URL` | (empty) | When set, populates `harmony_record_url` in responses |
+| `HOLOCHAIN_GATEWAY_URL` | (empty) | Gateway base URL — required for `harmony_record_url` |
+| `HOLOCHAIN_GOVERNANCE_DNA_HASH` | (empty) | Governance DNA hash (printed by `demo/start-gateway.sh`) |
+| `HOLOCHAIN_APP_ID` | `valichord-demo` | Installed app ID on the conductor |
 | `PORT` | 5000 (Flask) / 8888 (serve.mjs) | HTTP port override |
+
+`harmony_record_url` format (when all three gateway vars are set):
+`{HOLOCHAIN_GATEWAY_URL}/{HOLOCHAIN_GOVERNANCE_DNA_HASH}/{HOLOCHAIN_APP_ID}/governance_coordinator/get_harmony_record?payload={gateway_payload}`
+
+**Status (2026-03-28):** `harmony_record_url` is now fully populated end-to-end in the Codespace demo. The HTTP Gateway (`hc-http-gw` v0.3.1) runs on port 8090 alongside the conductor. `demo/start-gateway.sh` starts it and prints the governance DNA hash. Always-on permanent deployment (outside the Codespace) remains Phase 1.
 
 **New file: `backend/holochain_bridge.py`** — Python wrapper for `POST /holochain/validate-round`. Uses `requests` with a 120 s timeout (WASM JIT + DHT operations). All functions return `None` on connection error, so the analysis pipeline always completes without a live conductor.
 
