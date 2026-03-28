@@ -1608,6 +1608,86 @@ PI submits grant application
 → Funding decision informed by validation quality
 ```
 
+### Implemented Integration API (as of 2026-03-28)
+
+The following endpoints are live in `backend/app.py` (Flask). They form the actual integration surface available to external systems today — distinct from the aspirational `/api/v1/` plan above, which remains a future design intent.
+
+**New single-shot endpoints (2026-03-28):**
+
+```
+POST /validate
+  multipart/form-data, field: file (ZIP, max 100 MB)
+  → 202 { "job_id": "uuid" }
+
+GET /result/<job_id>
+  → { "status": "running" }
+  → { "status": "error", "error": "..." }
+  → { "status": "done",
+      "findings": [...],
+      "harmony_record_draft": { ... },
+      "download_url": "/download/<job_id>" }
+```
+
+**Existing endpoints (unchanged, backwards-compatible):**
+
+```
+POST /upload-chunk          chunked upload (1 MB chunks), returns job_id
+GET  /status/<job_id>       returns harmony_record_draft in done response
+GET  /download/<job_id>     returns ZIP file with full report
+GET  /health                { "status": "ok", "version": "1.0",
+                              "conductor": "live"|"offline" }
+```
+
+**`harmony_record_draft` schema:**
+
+```json
+{
+  "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
+  "data_hash": "<sha256 hex of deposit ZIP>",
+  "findings_summary": {
+    "critical": 0, "significant": 2, "low_confidence": 3, "total": 5
+  },
+  "harmony_record_hash": "<uhCkk... ActionHash string, or null>",
+  "harmony_record_url":  "<gateway URL, or null>"
+}
+```
+
+`harmony_record_hash` is null when `demo/serve.mjs` (and the Holochain conductor) is not running — graceful degradation. `harmony_record_url` is null until `HOLOCHAIN_GATEWAY_URL` env var is set on the server.
+
+**Outcome mapping (Python findings → Holochain AttestationOutcome):**
+
+| Python analysis result | AttestationOutcome |
+|---|---|
+| Any CRITICAL finding | `FailedToReproduce` |
+| SIGNIFICANT only | `PartiallyReproduced` |
+| No findings | `Reproduced` |
+
+**Internal Holochain bridge endpoints on `demo/serve.mjs` (localhost only):**
+
+These are not public — the Python backend calls them via `http://localhost:8888`. External callers are rejected with HTTP 403.
+
+```
+POST /holochain/call
+  { "role_name": "...", "zome_name": "...", "fn_name": "...", "payload": {...} }
+  → { "result": <serialized zome return value> }
+
+POST /holochain/validate-round
+  { "data_hash_hex": "<64-char hex>", "outcome": {...},
+    "discipline": {...}, "confidence": "Medium" }
+  → { "harmony_record_hash": "<uhCkk... string or null>" }
+```
+
+The `__bytes` convention: Uint8Array values crossing the Node/Python boundary are serialized as `{ "__bytes": "<base64>" }` in JSON. The bridge uses `encodeHashToBase64` to convert ActionHash results to canonical `uhCkk...` strings before returning them to Python.
+
+**Environment variables:**
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HOLOCHAIN_GATEWAY_URL` | (empty) | When set, populates `harmony_record_url` in responses |
+| `PORT` | 5000 (Flask) / 8888 (serve.mjs) | HTTP port override |
+
+**New file: `backend/holochain_bridge.py`** — Python wrapper for `POST /holochain/validate-round`. Uses `requests` with a 120 s timeout (WASM JIT + DHT operations). All functions return `None` on connection error, so the analysis pipeline always completes without a live conductor.
+
 ---
 
 ## LAYER 8: Access & Presentation

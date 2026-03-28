@@ -444,6 +444,69 @@ Previously described as "actively in progress, could ship any release." **That w
 
 ---
 
+## Integration API and Holochain Bridge (2026-03-28)
+
+Four phases of work were completed on 2026-03-28 to connect the Python analysis pipeline to the Holochain conductor and expose a clean REST integration surface.
+
+### REST API surface
+
+New single-shot endpoints added to `backend/app.py`:
+- `POST /validate` — multipart/form-data, field `file` (ZIP) → `{ "job_id" }`
+- `GET /result/<job_id>` → `{ status, findings, harmony_record_draft, download_url }`
+
+Updated existing endpoints:
+- `GET /status/<job_id>` — now includes `harmony_record_draft` in done response
+- `GET /health` — now includes `conductor: "live"|"offline"` field
+
+Full request/response shapes, `harmony_record_draft` schema, and outcome mapping are documented in `docs/3_ValiChord_Technical_Reference.md` → "Implemented Integration API" section.
+
+### Internal Holochain bridge
+
+**`backend/holochain_bridge.py`** — new file. Python wrapper for `POST /holochain/validate-round` on serve.mjs. Graceful degradation: returns `None` on connection error so analysis always completes even without a live conductor. 120 s timeout for WASM JIT + DHT operations.
+
+**`demo/serve.mjs`** — no longer just a static server + WS proxy. Now also hosts two internal-only POST endpoints (localhost only, HTTP 403 for all other callers):
+- `POST /holochain/call` — generic single zome call
+- `POST /holochain/validate-round` — full single-agent commit-reveal round → returns `{ harmony_record_hash: "uhCkk..." }` or `{ harmony_record_hash: null }`
+
+The commit-reveal sequence in `_runValidationRound` (7 steps): `submit_validation_request` → `claim_study` → `receive_task` → `seal_private_attestation` → poll `get_current_phase` → `submit_attestation` (empty nonce, dev bypass) → `check_and_create_harmony_record` (explicit call to fix DHT timing — post_commit in `submit_attestation` fires before ValidatorToAttestation link is DHT-queryable).
+
+**`__bytes` convention:** Uint8Array values crossing Node→Python→Node boundaries serialise as `{ "__bytes": "<base64>" }`. ActionHash results are converted to canonical `uhCkk...` strings via `encodeHashToBase64` before being returned to Python, so Python can embed them in URLs directly.
+
+**`HOLOCHAIN_GATEWAY_URL` env var:** When set, `harmony_record_url` in responses is populated as `${HOLOCHAIN_GATEWAY_URL}/valichord/governance/get_harmony_record?hash=${hash}`. Requires an always-on Holochain node + HTTP Gateway deployment (not yet deployed).
+
+---
+
+## Feynman Integration Milestone (2026-03-28)
+
+Feynman (getcompanion-ai/feynman) is an open-source AI research agent. ValiChord integrated with it as a validator skill:
+
+- **PR #13** in `getcompanion-ai/feynman` — cherry-picked as commit `2dea96f` into Feynman 0.2.15 by @advaitpaliwal.
+- **Skill files** (in the Feynman repo, not this one):
+  - `skills/valichord-validation/SKILL.md` — skill metadata and entry point description
+  - `prompts/valichord.md` — full workflow prompt for Feynman agents
+
+The prompt was subsequently updated (PR #14, 2026-03-28) to use the new `POST /validate` + `GET /result/<job_id>` single-shot API instead of the chunked upload flow. It now documents the `harmony_record_draft` response shape so Feynman can surface the Harmony Record hash to users.
+
+Feynman and Nondominium are complementary, separate integration layers — Feynman is a REST API client (AI agent), Nondominium is a peer system with direct Holochain zome access. They do not conflict.
+
+---
+
+## Nondominium Integration Status (as of 2026-03-28)
+
+`nondominium_integration/INTEGRATION_VISION.md` is the design document for the ValiChord × Nondominium (Sensorica) integration. It describes a 5-act end-to-end system where Nondominium NRP-CAS (resource tracking) and ValiChord (reproducibility verification) interoperate at the Holochain zome level.
+
+**Status: design phase. No code written for this track.**
+
+Four open design decisions remain pending input from the Sensorica team:
+1. Membrane access — how does Nondominium get credentials to call ValiChord's Attestation DNA?
+2. Identity bridging — how are Nondominium agent keys mapped to ValiChord validator profiles?
+3. Compensation routing — which system owns the `CompensationTier` and when is it written?
+4. Governance scope — does Nondominium have write access to ValiChord's Governance DNA, or only read?
+
+Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondominium work.
+
+---
+
 ## Key Files
 
 | File | Description |
@@ -456,9 +519,13 @@ Previously described as "actively in progress, could ship any release." **That w
 | `valichord/happ.yaml` | Role definitions, DNA property defaults |
 | `valichord/tests/src/attestation.test.ts` | DNA 3 integration tests including membrane proof |
 | `valichord/tests/README.md` | Full test inventory, build instructions, architecture notes |
+| `backend/app.py` | Flask web entry point — REST API including /validate, /result, /health |
+| `backend/holochain_bridge.py` | Python → Holochain bridge wrapper (graceful degradation) |
+| `demo/serve.mjs` | Static server + WS proxy + internal Holochain bridge endpoints |
 | `docs/3_ValiChord_Technical_Reference.md` | Full architectural narrative — read before modifying architecture |
 | `docs/4_ValiChord_RUST_Scaffold.rs` | Single-file scaffold v12 — useful reference for overall structure |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Technical architecture document |
+| `nondominium_integration/INTEGRATION_VISION.md` | Nondominium × ValiChord integration design document |
 
 ---
 
