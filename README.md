@@ -5,7 +5,7 @@
 **An Immune System for Science: Distributed Integrity Infrastructure for Scientific Research**
 
 [![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/Status-Infrastructure_Built-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
+[![Status](https://img.shields.io/badge/Status-Integration_Ready-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-94_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
@@ -63,7 +63,9 @@ valichord/
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**94 integration tests passing (1 skipped — infrastructure limitation only)**, covering:
+**94 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
+
+Test coverage includes:
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
@@ -198,6 +200,15 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [Technical Reference v21](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v13 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 
+### Integrations
+
+| Document | Description |
+| :--- | :--- |
+| [Feynman Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/INTEGRATION_VISION.md) | Full design: how Feynman AI agent uses ValiChord, what's live, open work and decisions |
+| [Feynman Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/README.md) | One-page status table |
+| [Nondominium Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
+| [Nondominium Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/README.md) | Status and open design decisions |
+
 ### Funding & Research
 
 | Document | Description |
@@ -247,7 +258,9 @@ npm test
 
 > For full build details, troubleshooting, and test architecture see the **[Developer Guide wiki](https://github.com/topeuph-ai/ValiChord/wiki/Developer-Guide)**.
 
-> **Note:** This is infrastructure-stage code — four compiled, tested Holochain DNAs with no UI layer yet. There is no application to run as a standalone tool. The codebase is here for technical review and collaboration. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
+> **Running the demo:** `bash demo/start.sh` starts the full stack — Holochain conductor, Node.js bridge, and Flask REST API on port 5000. `bash demo/start-gateway.sh` starts the HTTP Gateway on port 8090, making Harmony Record links publicly verifiable. See [`demo/`](https://github.com/topeuph-ai/ValiChord/tree/main/demo) for full instructions.
+
+> **Note:** There is no end-user UI yet — that is Phase 1. The current interface is a developer demo and integration endpoint. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
 ---
 
@@ -256,8 +269,8 @@ npm test
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
-| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure complete — awaiting Phase 0 funding** |
-| **Phase 2** | **Integration:** Journal and funder API deployments via HTTP Gateway. | **In planning** |
+| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure and integration layer complete — awaiting Phase 0 funding** |
+| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Feynman integration live (demo). HTTP Gateway working. Nondominium integration in design.** |
 
 ---
 
