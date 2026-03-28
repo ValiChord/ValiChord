@@ -247,11 +247,22 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     //    internally via post_commit but the ValidatorToAttestation link is not yet
     //    DHT-queryable at that point — governance returns empty. Calling again here
     //    (after submit_attestation returns) resolves the timing issue.
-    const harmonyHash = await call(
+    const harmonyHashSerialized = await call(
       'governance', 'governance_coordinator', 'check_and_create_harmony_record', externalHash,
     );
 
-    return { harmony_record_hash: harmonyHash };
+    // Convert from { __bytes: "base64" } to the canonical uhCkk... string so
+    // Python can embed it directly in URLs without further transformation.
+    // harmonyHashSerialized is null when governance returns None.
+    let harmonyRecordHash = null;
+    if (harmonyHashSerialized && harmonyHashSerialized.__bytes) {
+      const { encodeHashToBase64 } = await _loadHcClient();
+      harmonyRecordHash = encodeHashToBase64(
+        Buffer.from(harmonyHashSerialized.__bytes, 'base64'),
+      );
+    }
+
+    return { harmony_record_hash: harmonyRecordHash };
   });
 }
 

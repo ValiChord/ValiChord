@@ -65,7 +65,7 @@ Each validator independently runs the analysis. Then:
 
 1. `seal_private_attestation()` — validator enters their findings. A 32-byte nonce is generated. The attestation is serialised to MessagePack and SHA-256(msgpack ∥ nonce) is computed. The private entry containing findings, nonce, and hash is written to the validator's private Workspace DNA — it never leaves their device. Only the hash goes to the shared DHT via `notify_commitment_sealed()`.
 
-2. Once all validators' hashes are on the DHT, `PhaseMarker::RevealOpen` is written. No one can see anyone else's assessment — all that exists on the shared DHT is a set of opaque hashes.1
+2. Once all validators' hashes are on the DHT, `PhaseMarker::RevealOpen` is written. No one can see anyone else's assessment — all that exists on the shared DHT is a set of opaque hashes.
 
 3. The researcher reveals their expected results. ValiChord verifies: SHA-256(msgpack(metrics) ∥ nonce) == the hash they committed earlier. Mismatch → rejected.
 

@@ -222,7 +222,17 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'version': '1.0'})
+    """Liveness check. Includes conductor status so integrators know whether
+    Harmony Records will be written on this deployment."""
+    import requests as _req
+    conductor = 'offline'
+    try:
+        r = _req.get('http://localhost:8888/app-config.json', timeout=2)
+        if r.status_code == 200:
+            conductor = 'live'
+    except Exception:
+        pass
+    return jsonify({'status': 'ok', 'version': '1.0', 'conductor': conductor})
 
 
 @app.route('/upload-chunk', methods=['POST'])
