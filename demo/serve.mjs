@@ -198,9 +198,12 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     await call('attestation', 'attestation_coordinator', 'submit_validation_request', {
       protocol_ref:            null,
       data_hash:               externalHash,
+      data_access_url:         '',
+      protocol_access_url:     null,
       num_validators_required: 1,
       validation_tier:         'Basic',
       discipline:              disc,
+      researcher_institution:  '',
     });
 
     // 2. Claim the study (required by notify_commitment_sealed's claim guard).
@@ -254,15 +257,22 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     // Convert from { __bytes: "base64" } to the canonical uhCkk... string so
     // Python can embed it directly in URLs without further transformation.
     // harmonyHashSerialized is null when governance returns None.
+    const { encodeHashToBase64 } = await _loadHcClient();
     let harmonyRecordHash = null;
     if (harmonyHashSerialized && harmonyHashSerialized.__bytes) {
-      const { encodeHashToBase64 } = await _loadHcClient();
       harmonyRecordHash = encodeHashToBase64(
         Buffer.from(harmonyHashSerialized.__bytes, 'base64'),
       );
     }
 
-    return { harmony_record_hash: harmonyRecordHash };
+    // Compute the base64url-encoded JSON payload for the HTTP Gateway URL.
+    // The gateway expects: GET /{dna-hash}/{app-id}/{zome}/{fn}?payload=<base64url-json>
+    // For get_harmony_record the input is the ExternalHash (data hash), encoded as
+    // a uhC0k... string in JSON: base64url(JSON.stringify("uhC0k..."))
+    const externalHashB64 = encodeHashToBase64(externalHash);
+    const gatewayPayload = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
+
+    return { harmony_record_hash: harmonyRecordHash, gateway_payload: gatewayPayload };
   });
 }
 
