@@ -44,6 +44,10 @@ Open questions:
 - How is Feynman's validator identity credentialed on the network?
 - Do Feynman's attestations carry different weight than human attestations?
 
+**Trigger model:** Rather than always-on, AI validators could activate after a timeout — if no appropriate human validator claims a request within a set window, Feynman picks it up automatically. Human validators always get first pick; science doesn't sit in a queue forever.
+
+**The trust trajectory:** In the near term, AI validators are a fallback. Over ~5 years, assuming ValiChord matures and the Feynman/ValiChord track record accumulates, AI validators may become trusted peers — not because we decided to trust them, but because the evidence says we can. The success of the system itself becomes the credentialing mechanism.
+
 ---
 
 ---
