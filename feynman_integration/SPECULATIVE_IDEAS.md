@@ -76,4 +76,16 @@ Each lap gets the deposit closer to reproducible. The Lap is the journey; the Hi
 
 ---
 
+---
+
+## 5. The endgame
+
+If Feynman × ValiChord is a complete success, it may turn out to be one more thing humans are not needed for. The ultimate irony — a system designed to restore trust in human science, ending up not needing humans at all.
+
+But ValiChord the code doesn't care. The HarmonyRecord has no "human required" field. The protocol is validator-agnostic by design. If AI validators prove reliable enough, ValiChord just keeps running — validators keep validating, HarmonyRecords keep being issued, the reproducibility crisis quietly goes away.
+
+ValiChord works itself out of a job. That would be a success.
+
+---
+
 *Last updated: March 2026. None of this is decided — just ideas worth revisiting.*
