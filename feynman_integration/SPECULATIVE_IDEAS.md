@@ -46,4 +46,14 @@ Open questions:
 
 ---
 
+---
+
+## 4. The Verification Highway™
+
+The overall vision for what ValiChord + Feynman + multi-model AI validation could become: a **Verification Highway** — fast, multi-lane, AI-powered reproducibility verification where studies move quickly through independent validation, dissenting voices are heard, and the outcome is cryptographically permanent.
+
+The name captures the shift from the slow, manual, one-shot world of traditional peer review to something closer to continuous integration in software — but for science.
+
+---
+
 *Last updated: March 2026. None of this is decided — just ideas worth revisiting.*
