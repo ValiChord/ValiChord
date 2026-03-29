@@ -37,6 +37,8 @@ The dissent note matters — if 9/10 say reproduced but one holds firm with spec
 
 ## 3. Feynman as a persistent autonomous validator
 
+*Note for Advait: ValiChord is not exclusively a human validator system — AI validators are equally welcome and are the practical starting point. Human validators are the long-term aspiration: independent researchers who claim validation requests, run the code themselves, and submit attestations. The commit-reveal protocol is neutral — it doesn't care whether the validator is human or AI. Both are part of the vision.*
+
 Rather than a human running `/valichord` each time, Feynman runs as a persistent node — monitoring the ValiChord Attestation DHT for open validation requests, picking them up autonomously, running `/replicate`, and submitting attestations without human initiation.
 
 Open questions:
