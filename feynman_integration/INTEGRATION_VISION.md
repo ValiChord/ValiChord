@@ -236,6 +236,20 @@ This is a design question as much as an implementation one — how Feynman's pro
 
 ---
 
+### 8. Multi-model AI validation (Speculative idea, not a decision)
+
+AI validators are fast and cheap compared to human validators, which opens up a different model: instead of waiting for a small number of human validators to independently assess a study over days or weeks, you could run 10+ different AI models simultaneously as validators. Each seals its attestation independently, then reveals. Consensus across diverse models reduces the hallucination risk that any single AI carries.
+
+This suggests a possible two-tier HarmonyRecord approach:
+- A **provisional record** — fast AI round, returned to the researcher quickly, with failure detail ("here's what 3 of 10 models couldn't reproduce and why"). The researcher fixes the issues and resubmits.
+- A **verified record** — once the deposit passes, a permanent HarmonyRecord is published.
+
+This would turn ValiChord from a one-shot stamp into an iterative improvement loop — closer to how code review actually works in practice.
+
+The original HarmonyRecord was designed for a slower, human-validator world. AI changes the economics. Whether this is the right direction is an open question — noted here as a possibility worth exploring with Advait.
+
+---
+
 ## Open decisions
 
 ### Decision 1 — Permanent validator identity for Feynman

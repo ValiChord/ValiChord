@@ -27,11 +27,13 @@ CORS(app)
 MAX_SIZE_MB = 100
 JOB_TIMEOUT_SECONDS = 1200  # 20 minutes — enough for a 100 MB deposit
 
-# Optional HTTP Gateway base URL for public HarmonyRecord lookups.
-# When set, /result and /status include a harmony_record_url that any
-# integrator can follow without running a Holochain node.
-# Format: https://gateway.example.com  (no trailing slash)
-HOLOCHAIN_GATEWAY_URL = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
+# Optional HTTP Gateway for public HarmonyRecord lookups.
+# Gateway URL format: {HOLOCHAIN_GATEWAY_URL}/{HOLOCHAIN_GOVERNANCE_DNA_HASH}/{HOLOCHAIN_APP_ID}/
+#                     governance_coordinator/get_harmony_record?payload=<base64url-json>
+# When all three are set, harmony_record_url is populated in responses.
+HOLOCHAIN_GATEWAY_URL        = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
+HOLOCHAIN_GOVERNANCE_DNA_HASH = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
+HOLOCHAIN_APP_ID             = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
 
 # ── job store ────────────────────────────────────────────────────────────────
 _jobs: dict = {}
@@ -57,14 +59,20 @@ def _watchdog(job_id: str, thread: threading.Thread, work_dir: Path):
 def _compute_harmony_draft(findings, data_hash_hex: str) -> dict:
     """Derive a would-be HarmonyRecord from analysis findings.
 
-    Outcome mapping:
+    NOTE: This is a PROXY. It maps deposit quality findings to an
+    AttestationOutcome as a stand-in for Phase 0 single-validator mode.
+    In the full protocol, AttestationOutcome comes from a validator
+    (human or AI) actually running the code — not from deposit analysis.
+    See feynman_integration/INTEGRATION_VISION.md for the intended design.
+
+    Outcome mapping (proxy only):
       Any CRITICAL finding  → FailedToReproduce
       SIGNIFICANT only      → PartiallyReproduced
       No findings           → Reproduced
     """
-    critical   = [f for f in findings if getattr(f, 'severity', '') == 'CRITICAL']
-    significant = [f for f in findings if getattr(f, 'severity', '') == 'SIGNIFICANT']
-    low        = [f for f in findings if getattr(f, 'severity', '') == 'LOW CONFIDENCE']
+    critical   = [f for f in findings if f.get('severity') == 'CRITICAL']
+    significant = [f for f in findings if f.get('severity') == 'SIGNIFICANT']
+    low        = [f for f in findings if f.get('severity') == 'LOW CONFIDENCE']
 
     if critical:
         outcome = {
@@ -200,10 +208,18 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         )
         if holochain_result:
             harmony_draft['harmony_record_hash'] = holochain_result.get('harmony_record_hash')
-            if harmony_draft['harmony_record_hash'] and HOLOCHAIN_GATEWAY_URL:
+            gateway_payload = holochain_result.get('gateway_payload')
+            if (harmony_draft['harmony_record_hash']
+                    and HOLOCHAIN_GATEWAY_URL
+                    and HOLOCHAIN_GOVERNANCE_DNA_HASH
+                    and gateway_payload):
                 harmony_draft['harmony_record_url'] = (
-                    f"{HOLOCHAIN_GATEWAY_URL}/valichord/governance/get_harmony_record"
-                    f"?hash={harmony_draft['harmony_record_hash']}"
+                    f"{HOLOCHAIN_GATEWAY_URL}"
+                    f"/{HOLOCHAIN_GOVERNANCE_DNA_HASH}"
+                    f"/{HOLOCHAIN_APP_ID}"
+                    f"/governance_coordinator"
+                    f"/get_harmony_record"
+                    f"?payload={gateway_payload}"
                 )
 
         with _jobs_lock:
