@@ -48,11 +48,25 @@ Open questions:
 
 ---
 
-## 4. The Verification Highway™
+## 4. The Verification Highway™ and the Verification Lap™
 
-The overall vision for what ValiChord + Feynman + multi-model AI validation could become: a **Verification Highway** — fast, multi-lane, AI-powered reproducibility verification where studies move quickly through independent validation, dissenting voices are heard, and the outcome is cryptographically permanent.
+**Verification Highway™** — the overall infrastructure: fast, multi-lane, AI-powered reproducibility verification where studies move quickly through independent validation, dissenting voices are heard, and the outcome is cryptographically permanent. The shift from slow, manual, one-shot peer review to something closer to continuous integration in software — but for science.
 
-The name captures the shift from the slow, manual, one-shot world of traditional peer review to something closer to continuous integration in software — but for science.
+**Verification Lap™** — the iterative loop each study takes within the Highway:
+
+```
+submit → AI validators run → feedback report
+                                    ↓
+                            researcher fixes
+                                    ↓
+                            resubmit → AI validators run → feedback report
+                                                                  ↓
+                                                          researcher fixes
+                                                                  ↓
+                                                          resubmit → passes → HarmonyRecord issued ✓
+```
+
+Each lap gets the deposit closer to reproducible. The Lap is the journey; the Highway is the road.
 
 ---
 
