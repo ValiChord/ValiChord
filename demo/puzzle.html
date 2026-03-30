@@ -461,7 +461,11 @@ window.startChain = async function() {
     const v   = opt?.verdict ?? 'PartiallyReproduced';
     counts[v] = (counts[v] || 0) + 1;
   }
-  const panelVerdict = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  // If top two entries share the same count there is no majority — panel disagreed
+  const panelVerdict = (sorted.length > 1 && sorted[0][1] === sorted[1][1])
+    ? 'PartiallyReproduced'
+    : sorted[0][0];
   const outcomeObj   = panelVerdict === 'Reproduced'
     ? { type: 'Reproduced' }
     : { type: panelVerdict, content: { details: 'Validator panel verdict' } };
