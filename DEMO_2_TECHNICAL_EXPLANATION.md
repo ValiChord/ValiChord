@@ -5,7 +5,7 @@
 
 ## What this demo is
 
-A standalone browser game that lets one person — playing across three browser tabs — experience what it feels like to be three independent validators reaching a blind consensus. No server-side state. No login. No shared infrastructure beyond localStorage. And at the end, the panel's majority verdict is sealed on a real Holochain network.
+A standalone browser game that lets one person — or ideally three people sharing the same computer — experience what it feels like to be three independent validators reaching a blind consensus. Each person takes a turn at the keyboard, picks their answer in their tab, then steps aside so the next person can't see what they chose. No server-side state. No login. No shared infrastructure beyond localStorage. And at the end, the panel's majority verdict is sealed on a real Holochain network.
 
 The page is at the same Codespace URL as Demo 1, on the path `/puzzle.html`.
 
@@ -117,7 +117,7 @@ After the Holochain round completes, the ActionHash is written back to `localSto
 
 ## What this demo is not claiming
 
-- The "three validators" are the same person in three tabs. In a real deployment they would be three different people (or three different AI agents) on three different machines, with no shared localStorage.
+- The "three validators" are ideally three different people sharing one computer, each taking a turn. In a real deployment they would be on three different machines, with no shared localStorage.
 - The puzzle answers are not real research findings. They are designed maths questions that map to verdict categories for demo purposes.
 - The "researcher's answer" is random, not from a real paper. In production, the researcher does not submit an answer — they submit a deposit, and the validators reproduce the results independently.
 - Phase 0: one conductor, one machine. Real inter-validator agreement requires multiple conductors, which is the next phase of the ValiChord project.
