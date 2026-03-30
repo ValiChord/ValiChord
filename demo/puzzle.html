@@ -111,13 +111,13 @@ h1 {
   color: #4a7a4a; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;
 }
 .researcher-row {
-  background: #080808; border: 1px solid #1a1a1a;
-  border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;
-  font-size: 0.85em; color: #a0a8b0;
+  background: #080808; border: 1px solid #2a2a3a;
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 14px;
+  color: #a0a8b0;
 }
-.researcher-row .r-label { color: #8a8898; font-size: 0.85em; margin-bottom: 3px; }
-.researcher-row .r-answer { color: #e0dcd4; font-size: 0.95em; }
-.researcher-row .r-note { color: #6a7080; font-size: 0.8em; margin-top: 3px; }
+.researcher-row .r-label { color: #8a8898; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.researcher-row .r-answer { color: #e8e4dc; font-size: 1.15em; font-weight: 600; }
+.researcher-row .r-note { color: #6a7080; font-size: 0.78em; margin-top: 5px; }
 
 .verdict-row {
   display: flex; align-items: center; gap: 10px;
@@ -217,8 +217,7 @@ h1 {
   <h1>Can you reproduce the result?</h1>
   <p class="subtitle">
     Open this page in three browser tabs — each tab is a validator.
-    Pick your answer blind. All three seal first, then reveal together.
-    The researcher's answer is random. The network records everything honestly.
+    Pick your answer blind. The researcher's result is sealed at the same moment — none of it is visible until all three validators have committed. Everything opens together. The network records it all.
   </p>
   <div class="conn-pill" id="conn-pill">
     <span class="dot" id="conn-dot"></span>
@@ -341,7 +340,7 @@ const PUZZLES = [
       { label: "C", text: "325 samples", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
     ],
     correct: "B",
-    explanation: "500 × 0.80 = 400 after outlier removal; 400 × 0.75 = 300 after duplicates. Any other answer fails to reproduce the claimed result.",
+    explanation: "500 × 0.80 = 400 after outlier removal; 400 × 0.75 = 300 after duplicates.",
   },
   {
     question: "A paper runs 5 independent statistical tests, each at p < 0.05. How many false positives would you expect by chance alone?",
@@ -679,7 +678,7 @@ function renderReveal(s, puzzle) {
   // Correct answer note
   const noteEl = document.getElementById('correct-note');
   const corrOpt = puzzle.options.find(o => o.label === puzzle.correct);
-  noteEl.innerHTML = `<strong>Correct answer:</strong> ${puzzle.correct} — ${corrOpt?.text ?? ''}. ${puzzle.explanation}`;
+  noteEl.innerHTML = `<strong>Correct answer:</strong> ${puzzle.correct} — ${corrOpt?.text ?? ''}. ${puzzle.explanation}<br><em>This demo asks only whether the validators independently reached the same answer as the researcher — not whether it was right. Each validator commits blind, with no knowledge of the researcher's answer or each other's. If the researcher made a mistake, validators who work it out correctly will not match, just as in real research.</em>`;
   noteEl.style.display = 'block';
 
   // Show chain button (only once, from any tab that sees allSealed first)
