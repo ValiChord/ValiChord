@@ -40,7 +40,7 @@ A dataset starts with 500 samples. 20% removed as outliers, then 25% of the rema
 **Puzzle 3 — False positive rate**
 A paper runs 5 independent statistical tests each at p < 0.05. How many false positives would you expect by chance? (5 × 0.05 = 0.25 — not zero, and not one, but a quarter of one on average.)
 
-Each answer option maps to a verdict: Reproduced, Partially Reproduced, or Failed to Reproduce. The viewer does not see which answer maps to which verdict until the reveal.
+The viewer does not see the verdict until the reveal. At that point, each validator's verdict is determined by comparing their answer to the researcher's answer: if they match, the validator's verdict is Reproduced; if they don't, it is Failed to Reproduce. Partially Reproduced only appears at the panel level, when validators disagree with each other.
 
 ---
 
