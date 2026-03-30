@@ -9,7 +9,7 @@
  * No external dependencies — pure Node.js built-ins.
  */
 
-import { createServer }    from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { createConnection } from 'node:net';
 import { readFile }         from 'node:fs/promises';
 import { extname, join, resolve, dirname } from 'node:path';
@@ -366,6 +366,28 @@ const server = createServer(async (req, res) => {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: msg }));
     }
+    return;
+  }
+
+  // ── API proxy → Flask backend (port 5000) ────────────────────────────────
+  // Lets the browser call /api/* on port 8888 without knowing the backend port.
+  if (url.startsWith('/api/')) {
+    const backendPath = url.slice(4); // /api/validate → /validate
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    const proxyReq = httpRequest(
+      { hostname: 'localhost', port: 5000, path: backendPath + qs,
+        method: req.method, headers: { ...req.headers, host: 'localhost:5000' } },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode,
+          { ...proxyRes.headers, 'Access-Control-Allow-Origin': '*' });
+        proxyRes.pipe(res);
+      }
+    );
+    proxyReq.on('error', (err) => {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Backend unavailable: ${err.message}` }));
+    });
+    req.pipe(proxyReq);
     return;
   }
 

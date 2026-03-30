@@ -183,6 +183,11 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         )
         if claude_findings:
             findings = findings + claude_findings
+        top_findings = [
+            {'mode': f.get('mode', ''), 'severity': f.get('severity', ''), 'title': f.get('title', '')}
+            for f in findings
+            if f.get('severity') in ('BLOCKER', 'CRITICAL', 'SIGNIFICANT')
+        ][:6]
         prs = compute_prs(findings)
         generate_all_drafts(repo_dir, all_files, findings, output_dir)
         generate_cleaning_report(original_filename, repo_dir, all_files, findings, output_dir,
@@ -228,6 +233,7 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
             _jobs[job_id]['stem'] = stem
             _jobs[job_id]['prs'] = prs
             _jobs[job_id]['harmony_record_draft'] = harmony_draft
+            _jobs[job_id]['top_findings'] = top_findings
 
     except Exception as e:
         with _jobs_lock:
@@ -459,6 +465,7 @@ def result(job_id):
         'findings': job.get('prs'),
         'harmony_record_draft': job.get('harmony_record_draft'),
         'download_url': f'/download/{job_id}',
+        'top_findings': job.get('top_findings', []),
     })
 
 

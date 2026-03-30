@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ValiChord — Commit-Reveal Demo</title>
+<title>ValiChord — Live Demo</title>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,300;0,400;1,300&family=DM+Mono:wght@400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,8 +51,7 @@ h1 {
 .conn-pill.ok  { color: #90b890; border-color: #1e2e1e; }
 .conn-pill.err { color: #c08080; border-color: #2e1e1e; }
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   background: #333;
   flex-shrink: 0;
@@ -61,18 +60,9 @@ h1 {
 .dot.ok  { background: #4caf50; box-shadow: 0 0 5px #4caf5066; }
 .dot.err { background: #e74c3c; }
 
-.container {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
+.container { max-width: 760px; margin: 0 auto; padding: 0 20px; }
 
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 32px;
-}
+/* ── Buttons ── */
 .btn {
   background: #2a5298;
   color: #d0dcf0;
@@ -83,6 +73,7 @@ h1 {
   font-family: "DM Sans", sans-serif;
   cursor: pointer;
   transition: background 0.18s, opacity 0.18s;
+  white-space: nowrap;
 }
 .btn:hover:not(:disabled) { background: #3468c0; }
 .btn:disabled { opacity: 0.35; cursor: default; }
@@ -92,17 +83,200 @@ h1 {
   border: 1px solid #2a2a40;
 }
 .btn.ghost:hover:not(:disabled) { color: #999; border-color: #3a3a50; }
-.run-msg {
-  font-size: 0.82em;
-  color: #555;
-  flex: 1;
+
+/* ── Phase labels ── */
+.phase-label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.78em;
+  color: #4a5a7a;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
 }
+
+/* ── Drop zone ── */
+.dropzone {
+  border: 1.5px dashed #252540;
+  border-radius: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 12px;
+  user-select: none;
+}
+.dropzone:hover, .dropzone.drag-over {
+  border-color: #4a90d9;
+  background: #080818;
+}
+.dropzone .drop-main { color: #9a96a0; font-size: 0.92em; margin-bottom: 6px; }
+.dropzone .drop-hint { color: #444; font-size: 0.8em; }
+
+/* ── File ready row ── */
+.file-ready {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.file-name-label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.82em;
+  color: #6a70a0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Analysis status ── */
+.analysis-status {
+  font-size: 0.84em;
+  color: #6a7090;
+  margin-bottom: 12px;
+  padding: 6px 0;
+}
+
+/* ── Results card ── */
+.results-card {
+  background: #040c08;
+  border: 1px solid #162616;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 8px;
+}
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.outcome-pill {
+  font-family: "DM Mono", monospace;
+  font-size: 0.82em;
+  padding: 5px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.outcome-pill.reproduced { background: #122212; color: #6cbf6c; border: 1px solid #1e3e1e; }
+.outcome-pill.partial    { background: #2a1e08; color: #d4a04a; border: 1px solid #4a3610; }
+.outcome-pill.failed     { background: #200808; color: #e07070; border: 1px solid #3e1414; }
+.prs-wrap { flex: 1; min-width: 160px; }
+.prs-label { font-size: 0.76em; color: #4a5060; margin-bottom: 5px; }
+.prs-track {
+  height: 5px;
+  background: #101020;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+.prs-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+.prs-fill.high     { background: #4caf50; }
+.prs-fill.moderate { background: #4a90d9; }
+.prs-fill.low      { background: #d4a04a; }
+.prs-fill.critical { background: #e07070; }
+.prs-num { font-family: "DM Mono", monospace; font-size: 0.78em; color: #6a7080; }
+
+.counts-row {
+  font-family: "DM Mono", monospace;
+  font-size: 0.8em;
+  color: #4a5060;
+  margin-bottom: 10px;
+}
+.counts-row .cnt-crit { color: #e07070; }
+.counts-row .cnt-sig  { color: #d4a04a; }
+.counts-row .cnt-low  { color: #5a6070; }
+
+.finding-item {
+  font-size: 0.82em;
+  color: #7a8090;
+  line-height: 1.55;
+  padding: 4px 0 4px 10px;
+  border-left: 2px solid #1e2030;
+  margin-bottom: 4px;
+}
+.finding-item .f-mode { font-family: "DM Mono", monospace; color: #4a90d9; margin-right: 4px; }
+.finding-item.f-sig  { border-left-color: #4a3610; color: #b09060; }
+.finding-item.f-crit { border-left-color: #3e1414; color: #c07070; }
+
+/* ── Phase separator ── */
+.phase-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 20px;
+  font-family: "DM Mono", monospace;
+  font-size: 0.78em;
+  color: #2a3050;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.phase-sep::before, .phase-sep::after { content: ''; flex: 1; height: 1px; background: #111120; }
+
+/* ── Analysis done message ── */
+.analysis-done {
+  font-size: 0.85em;
+  color: #6a7090;
+  margin-bottom: 20px;
+}
+
+/* ── Verdict selector ── */
+.verdict-selector {
+  background: #08080f;
+  border: 1px solid #1a1a2a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+}
+.verdict-label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.78em;
+  color: #4a5a7a;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+.verdict-hint {
+  font-size: 0.8em;
+  color: #444;
+  margin-bottom: 12px;
+}
+.verdict-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.verdict-opt { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.verdict-opt input[type=radio] { display: none; }
+.verdict-pill {
+  font-family: "DM Mono", monospace;
+  font-size: 0.8em;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  opacity: 0.4;
+}
+.verdict-opt input[type=radio]:checked + .verdict-pill { opacity: 1; }
+.verdict-pill.reproduced { background: #122212; color: #6cbf6c; border-color: #1e3e1e; }
+.verdict-pill.partial    { background: #2a1e08; color: #d4a04a; border-color: #4a3610; }
+.verdict-pill.failed     { background: #200808; color: #e07070; border-color: #3e1414; }
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.run-msg { font-size: 0.82em; color: #555; flex: 1; }
 
 /* ── Timeline ── */
 .timeline { display: flex; flex-direction: column; }
-
 .step { display: flex; gap: 0; }
-
 .step-track {
   display: flex;
   flex-direction: column;
@@ -111,8 +285,7 @@ h1 {
   flex-shrink: 0;
 }
 .circle {
-  width: 26px;
-  height: 26px;
+  width: 26px; height: 26px;
   border-radius: 50%;
   border: 2px solid #252530;
   background: #0a0a14;
@@ -133,32 +306,16 @@ h1 {
   box-shadow: 0 0 0 3px rgba(74,144,217,0.12);
   animation: pulse 1.4s ease-in-out infinite;
 }
-.circle.done {
-  border-color: #3a7a3a;
-  background: #1a3a1a;
-  color: #6cbf6c;
-}
-.circle.err {
-  border-color: #7a2a2a;
-  background: #2a0a0a;
-  color: #e07070;
-}
+.circle.done { border-color: #3a7a3a; background: #1a3a1a; color: #6cbf6c; }
+.circle.err  { border-color: #7a2a2a; background: #2a0a0a; color: #e07070; }
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(74,144,217,0.12); }
   50%       { box-shadow: 0 0 0 5px rgba(74,144,217,0.2); }
 }
-.vline {
-  width: 2px;
-  flex: 1;
-  background: #151520;
-  min-height: 20px;
-}
+.vline { width: 2px; flex: 1; background: #151520; min-height: 20px; }
 .step:last-child .vline { background: transparent; }
 
-.step-body {
-  flex: 1;
-  padding: 2px 0 26px 14px;
-}
+.step-body { flex: 1; padding: 2px 0 26px 14px; }
 .step-title {
   font-size: 0.92em;
   font-weight: 500;
@@ -181,7 +338,6 @@ h1 {
   font-size: 0.81em;
   color: #555;
   line-height: 1.55;
-  margin-bottom: 0;
 }
 .step-desc code {
   background: #111120;
@@ -224,11 +380,12 @@ h1 {
 <body>
 
 <div class="header">
-  <h1>Commit-Reveal Protocol Demo</h1>
+  <h1>ValiChord — Live Demo</h1>
   <p class="subtitle">
-    One agent — researcher and validator in a single conductor — walks through
-    a full ValiChord cycle: blind commitment sealed in a private DNA, phase
-    transition detected by DHT poll, public reveal, and final Harmony Record.
+    Submit a research deposit. ValiChord scans it and shows what validators will see.
+    For this demo, the deposit quality score is used as a proxy verdict — so you can
+    watch the full system work end to end. In production, the outcome sealed on-chain
+    is determined by validators (human or AI) who actually run the code.
   </p>
   <div class="conn-pill" id="conn-pill">
     <span class="dot" id="conn-dot"></span>
@@ -237,6 +394,55 @@ h1 {
 </div>
 
 <div class="container">
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- Step 1 — Analyse deposit                                        -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+
+  <div class="phase-label">Step 1 — Analyse deposit</div>
+
+  <div class="dropzone" id="dropzone">
+    <p class="drop-main">Drop a research deposit ZIP here</p>
+    <p class="drop-hint">or click to select a file · max 100 MB</p>
+    <input type="file" id="file-input" accept=".zip" style="display:none">
+  </div>
+
+  <div class="file-ready" id="file-ready" style="display:none">
+    <span class="file-name-label" id="file-name-label"></span>
+    <button class="btn" id="analyse-btn">Analyse</button>
+    <button class="btn ghost" id="change-btn">Change file</button>
+  </div>
+
+  <div class="analysis-status" id="analysis-status" style="display:none"></div>
+  <div class="analysis-done" id="analysis-done" style="display:none">
+    <span class="g">✓ Deposit analysed</span> — select a verdict below and seal it on Holochain.
+  </div>
+
+  <div class="phase-sep">Step 2 — Seal verdict on Holochain</div>
+
+  <div class="verdict-selector" id="verdict-selector" style="display:none">
+    <div class="verdict-label">Validator verdict</div>
+    <div class="verdict-hint">Based on the deposit above — or override if you have run the code yourself.</div>
+    <div class="verdict-options">
+      <label class="verdict-opt">
+        <input type="radio" name="verdict" value="Reproduced">
+        <span class="verdict-pill reproduced">✓ Reproduced</span>
+      </label>
+      <label class="verdict-opt">
+        <input type="radio" name="verdict" value="PartiallyReproduced" checked>
+        <span class="verdict-pill partial">⚠ Partially Reproduced</span>
+      </label>
+      <label class="verdict-opt">
+        <input type="radio" name="verdict" value="FailedToReproduce">
+        <span class="verdict-pill failed">✗ Failed to Reproduce</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- Step 2 — Commit-reveal protocol                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+
   <div class="controls">
     <button class="btn" id="run-btn" disabled>Run Demo</button>
     <button class="btn ghost" id="reset-btn">Reset</button>
@@ -272,8 +478,8 @@ h1 {
         <div class="dna-tag">DNA 3 — Attestation (shared DHT)</div>
         <div class="step-desc">
           Sets <code>institution</code> so that <code>claim_study</code> can enforce
-          the conflict-of-interest rule at the validate() level.
-          Institution must be non-empty — the validator declares affiliation or fails.
+          the conflict-of-interest rule. Institution must be non-empty — the validator
+          declares affiliation or fails.
         </div>
         <div class="out" id="o1"></div>
       </div>
@@ -289,10 +495,9 @@ h1 {
         <div class="step-title" id="t2">Submit validation request</div>
         <div class="dna-tag">DNA 3 — Attestation (shared DHT)</div>
         <div class="step-desc">
-          A fresh random <code>ExternalHash</code> is used as the study data hash each run,
-          so repeated runs never collide on "already claimed" or "already attested" guards.
-          <code>num_validators_required = 1</code> in this demo network; the DNA property
-          <code>minimum_validators</code> is also 1.
+          The deposit's SHA-256 hash is registered on the shared network.
+          This is the cryptographic anchor — neither the researcher nor any validator
+          can change what was submitted.
         </div>
         <div class="out" id="o2"></div>
       </div>
@@ -308,10 +513,8 @@ h1 {
         <div class="step-title" id="t3">Claim study</div>
         <div class="dna-tag">DNA 3 — Attestation (shared DHT)</div>
         <div class="step-desc">
-          Validator self-assigns. <code>validate()</code> enforces the COI rule:
+          Validator self-assigns. The protocol enforces the conflict-of-interest rule:
           <code>validator_institution ≠ researcher_institution</code>.
-          Here <code>researcher_institution = ""</code> (independent researcher)
-          so the COI check is bypassed.
         </div>
         <div class="out" id="o3"></div>
       </div>
@@ -328,8 +531,7 @@ h1 {
         <div class="dna-tag">DNA 2 — Validator Workspace (private, single-agent)</div>
         <div class="step-desc">
           Stores the task assignment as a <em>private</em> entry. Content never leaves
-          this device. The <code>task_hash</code> returned here is passed to
-          <code>seal_private_attestation</code> as a parent reference.
+          this device. GDPR-compliant by architecture, not by policy.
         </div>
         <div class="out" id="o4"></div>
       </div>
@@ -342,13 +544,11 @@ h1 {
         <div class="vline"></div>
       </div>
       <div class="step-body">
-        <div class="step-title" id="t5">Warm up attestation cell init()</div>
+        <div class="step-title" id="t5">Warm up attestation cell</div>
         <div class="dna-tag">DNA 3 — Attestation</div>
         <div class="step-desc">
-          A harmless <code>get_current_phase</code> call forces DNA 3's <code>init()</code>
-          to complete before <code>post_commit</code> fires. Without this, DNA 2's
-          <code>post_commit</code> would trigger init() inside a cross-DNA call while
-          holding the cell operation lock — causing a 30-second conductor deadlock.
+          Forces DNA 3's <code>init()</code> to complete before <code>post_commit</code>
+          fires — prevents a cross-DNA deadlock on first run.
         </div>
         <div class="out" id="o5"></div>
       </div>
@@ -361,18 +561,13 @@ h1 {
         <div class="vline"></div>
       </div>
       <div class="step-body">
-        <div class="step-title" id="t6">Seal private attestation — Commit phase</div>
+        <div class="step-title" id="t6">Seal verdict — Commit phase</div>
         <div class="dna-tag">DNA 2 — Validator Workspace (private)</div>
         <div class="step-desc">
           Generates a 32-byte nonce, computes
-          <code>commitment_hash = SHA-256(msgpack(attestation) ‖ nonce)</code>,
-          writes the private <code>ValidatorPrivateAttestation</code> entry.
-          <br>
-          <strong>post_commit</strong> fires asynchronously, cross-calls DNA 3
-          <code>notify_commitment_sealed</code>, which writes a <code>CommitmentAnchor</code>
-          to the shared DHT. When the CommitmentAnchor count reaches
-          <code>minimum_validators</code> (1), a <code>PhaseMarker(RevealOpen)</code> is
-          also written.
+          <code>commitment_hash = SHA-256(msgpack(verdict) ‖ nonce)</code>,
+          writes the private entry. Only the hash goes to the shared network —
+          the verdict itself stays sealed. The validator cannot change it after this point.
         </div>
         <div class="out" id="o6"></div>
       </div>
@@ -385,12 +580,10 @@ h1 {
         <div class="vline"></div>
       </div>
       <div class="step-body">
-        <div class="step-title" id="t7">Wait for post_commit</div>
+        <div class="step-title" id="t7">Wait for network confirmation</div>
         <div class="step-desc">
-          Holochain's <code>post_commit</code> runs asynchronously after the source chain
-          write. This pause lets the cross-DNA call complete before we poll the DHT.
-          Phase transitions are driven by DHT state — not by signals, which are
-          send-and-forget with no delivery guarantee.
+          Holochain's <code>post_commit</code> runs asynchronously. This pause lets
+          the CommitmentAnchor propagate to the shared DHT before we check phase state.
         </div>
         <div class="out" id="o7"></div>
       </div>
@@ -406,10 +599,9 @@ h1 {
         <div class="step-title" id="t8">Check protocol phase</div>
         <div class="dna-tag">DNA 3 — Attestation</div>
         <div class="step-desc">
-          <code>get_current_phase</code> reads the latest <code>PhaseMarker</code> entry
-          via the <code>RequestToPhaseMarker</code> link path. Returns
-          <code>"RevealOpen"</code>, <code>"Complete"</code>, or <code>null</code> (still
-          in commit phase). The protocol gate is purely DHT state — no signal required.
+          Reads the <code>PhaseMarker</code> entry from the DHT.
+          Returns <code>RevealOpen</code> once all validators have committed.
+          The phase gate is pure DHT state — no central coordinator required.
         </div>
         <div class="out" id="o8"></div>
       </div>
@@ -422,22 +614,18 @@ h1 {
         <div class="vline"></div>
       </div>
       <div class="step-body">
-        <div class="step-title" id="t9">Submit attestation — Reveal phase</div>
-        <div class="dna-tag">DNA 3 — Attestation (shared DHT, required_validations = 7)</div>
+        <div class="step-title" id="t9">Reveal verdict — Reveal phase</div>
+        <div class="dna-tag">DNA 3 — Attestation (shared DHT)</div>
         <div class="step-desc">
-          Publishes the full <code>ValidationAttestation</code>. The coordinator verifies
-          <code>SHA-256(msgpack(attestation) ‖ nonce) == CommitmentAnchor.commitment_hash</code>
-          before writing — preventing adaptive reveals.
-          <em>(Hash check bypassed here: empty issuer = dev mode.)</em>
-          <br>
-          <strong>post_commit</strong> fires and calls governance
-          <code>check_and_create_harmony_record</code>.
+          Publishes the full verdict. The network verifies
+          <code>SHA-256(msgpack(verdict) ‖ nonce) == commitment_hash</code>
+          before accepting. If the verdict was changed after sealing, the reveal is rejected.
         </div>
         <div class="out" id="o9"></div>
       </div>
     </div>
 
-    <!-- 10: wait for harmony record -->
+    <!-- 10: finalise -->
     <div class="step">
       <div class="step-track">
         <div class="circle" id="c10">10</div>
@@ -446,12 +634,8 @@ h1 {
       <div class="step-body">
         <div class="step-title" id="t10">Finalise round in Governance DNA</div>
         <div class="step-desc">
-          Calls <code>check_and_create_harmony_record</code> explicitly.
-          Although <code>submit_attestation</code> calls governance synchronously,
-          the new link isn't DHT-visible within that same transaction.
-          Calling after <code>submit_attestation</code> returns ensures the
-          <code>ValidatorToAttestation</code> link is available for quorum reads.
-          Governance assembles the <code>HarmonyRecord</code> + badge.
+          Calls <code>check_and_create_harmony_record</code>. Governance assembles
+          the HarmonyRecord once the validator quorum is satisfied.
         </div>
         <div class="out" id="o10"></div>
       </div>
@@ -467,9 +651,9 @@ h1 {
         <div class="step-title" id="t11">Retrieve Harmony Record</div>
         <div class="dna-tag">DNA 4 — Governance (public DHT)</div>
         <div class="step-desc">
-          Reads via <code>get_harmony_record(request_ref)</code>, an
-          <code>Unrestricted</code> function accessible via HTTP Gateway.
-          Immutable after writing — the permanent public outcome of the validation round.
+          Reads via <code>get_harmony_record</code> — an <code>Unrestricted</code> function
+          accessible via HTTP Gateway to anyone. Immutable after writing.
+          The permanent public outcome of this validation round.
         </div>
         <div class="out" id="o11"></div>
       </div>
@@ -483,11 +667,16 @@ import { AppWebsocket, AdminWebsocket, hashFrom32AndType, HoloHashType, encodeHa
   from 'https://esm.sh/@holochain/client@0.20.2';
 import { decode } from 'https://esm.sh/@msgpack/msgpack@3.1.3';
 
-// ── Utility ─────────────────────────────────────────────────────────────────
+// ── Utility ──────────────────────────────────────────────────────────────────
 
 function randomExternalHash() {
-  // Fresh random study hash each run — avoids duplicate claim/attest guards.
   return hashFrom32AndType(crypto.getRandomValues(new Uint8Array(32)), HoloHashType.External);
+}
+
+function hexToExternalHash(hex) {
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return hashFrom32AndType(bytes, HoloHashType.External);
 }
 
 function b64short(h) {
@@ -497,7 +686,131 @@ function b64short(h) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── UI ───────────────────────────────────────────────────────────────────────
+// ── Analysis section ─────────────────────────────────────────────────────────
+
+let analysisDataHash = null;    // hex SHA-256 of deposit, set after successful analysis
+let analysisOutcome  = null;    // outcome object for Holochain, set after successful analysis
+
+const dropzone       = document.getElementById('dropzone');
+const fileInput      = document.getElementById('file-input');
+const fileReadyEl    = document.getElementById('file-ready');
+const fileNameLbl    = document.getElementById('file-name-label');
+const analyseBtn     = document.getElementById('analyse-btn');
+const changeBtn      = document.getElementById('change-btn');
+const analysisStatus = document.getElementById('analysis-status');
+const resultsCard    = document.getElementById('results-card');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+changeBtn.addEventListener('click', () => {
+  fileReadyEl.style.display = 'none';
+  dropzone.style.display    = '';
+  fileInput.value = '';
+});
+
+function setFile(file) {
+  fileNameLbl.textContent     = file.name;
+  dropzone.style.display      = 'none';
+  fileReadyEl.style.display   = 'flex';
+  analyseBtn._pendingFile     = file;
+}
+
+analyseBtn.addEventListener('click', async () => {
+  const file = analyseBtn._pendingFile;
+  if (!file) return;
+
+  analyseBtn.disabled = true;
+  changeBtn.disabled  = true;
+  fileReadyEl.style.display    = 'none';
+  analysisStatus.style.display = 'block';
+  analysisStatus.style.color   = '#6a7090';
+  analysisStatus.textContent   = 'Uploading…';
+
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const submitRes = await fetch('/api/validate', { method: 'POST', body: form });
+    if (!submitRes.ok) throw new Error(`Upload failed (HTTP ${submitRes.status})`);
+    const { job_id } = await submitRes.json();
+    if (!job_id) throw new Error('No job_id returned from server');
+
+    analysisStatus.textContent = 'Analysing — about 20 seconds…';
+
+    let result;
+    for (let i = 0; i < 90; i++) {
+      await sleep(2000);
+      const r = await fetch(`/api/result/${job_id}`);
+      const d = await r.json();
+      if (d.status === 'done')  { result = d; break; }
+      if (d.status === 'error') throw new Error(d.error || 'Analysis failed');
+      analysisStatus.textContent = `Analysing… (${(i + 1) * 2}s)`;
+    }
+    if (!result) throw new Error('Analysis timed out after 3 minutes');
+
+    analysisStatus.style.display = 'none';
+    analysisDataHash = result.harmony_record_draft?.data_hash ?? null;
+    analysisOutcome  = result.harmony_record_draft?.outcome   ?? null;
+    document.getElementById('analysis-done').style.display = 'block';
+    document.getElementById('verdict-selector').style.display = 'block';
+
+  } catch (err) {
+    analysisStatus.textContent = `Error: ${err.message}`;
+    analysisStatus.style.color = '#c07070';
+    analyseBtn.disabled = false;
+    changeBtn.disabled  = false;
+    fileReadyEl.style.display = 'flex';
+  }
+});
+
+function showAnalysisResults(result) {
+  const hrd  = result.harmony_record_draft ?? {};
+  const f    = result.findings ?? {};
+  const type = hrd.outcome?.type ?? 'Unknown';
+  const score = f.score ?? 0;
+  const band  = (f.band ?? 'low').toLowerCase();
+
+  // Outcome pill
+  const pill = document.getElementById('outcome-pill');
+  const labels = { Reproduced: '✓ Reproduced', PartiallyReproduced: '⚠ Partially Reproduced', FailedToReproduce: '✗ Failed to Reproduce' };
+  pill.textContent = labels[type] ?? type;
+  pill.className   = 'outcome-pill ' + (type === 'Reproduced' ? 'reproduced' : type === 'PartiallyReproduced' ? 'partial' : 'failed');
+
+  // PRS bar
+  const pct = Math.round(score * 100);
+  const fill = document.getElementById('prs-fill');
+  fill.style.width = `${pct}%`;
+  fill.className   = `prs-fill ${band === 'high' ? 'high' : band === 'moderate' ? 'moderate' : band === 'low' ? 'low' : 'critical'}`;
+  document.getElementById('prs-num').textContent = `${pct} / 100 — ${f.band ?? '—'}`;
+
+  // Counts
+  const crit = f.critical ?? 0, sig = f.significant ?? 0, low = f.low ?? 0;
+  document.getElementById('counts-row').innerHTML =
+    `<span class="cnt-crit">${crit} critical</span> · `
+    + `<span class="cnt-sig">${sig} significant</span> · `
+    + `<span class="cnt-low">${low} low confidence</span>`;
+
+  // Top findings
+  const list = document.getElementById('findings-list');
+  list.innerHTML = '';
+  for (const tf of (result.top_findings ?? [])) {
+    const div = document.createElement('div');
+    div.className = `finding-item ${tf.severity === 'CRITICAL' || tf.severity === 'BLOCKER' ? 'f-crit' : 'f-sig'}`;
+    div.innerHTML = `<span class="f-mode">[${tf.mode}]</span>${tf.title ?? ''}`;
+    list.appendChild(div);
+  }
+
+  resultsCard.style.display = 'block';
+  document.getElementById('seal-btn').style.display = 'inline-block';
+}
+
+// ── UI helpers ───────────────────────────────────────────────────────────────
 
 function mark(n, state) {
   const c = document.getElementById(`c${n}`);
@@ -544,19 +857,32 @@ async function run() {
   document.getElementById('run-btn').disabled = true;
   msg('Running…');
 
-  // A fresh random study hash each run avoids "already claimed" / "already attested" errors.
+  // Always use a fresh random ID so the demo can be run multiple times without
+  // hitting "Study is at capacity". The real deposit SHA-256 is shown in the
+  // step 2 output below for reference — in production it would be the study key.
   const REQUEST_REF = randomExternalHash();
 
-  // The SAME ValidationAttestation is used for both seal and reveal.
-  // The hash verification is bypassed in dev mode (empty issuer key).
+  // Read the verdict the user selected — this is the validator's judgment call.
+  const selectedVerdict = document.querySelector('input[name="verdict"]:checked')?.value ?? 'PartiallyReproduced';
+  const verdictDetails  = { PartiallyReproduced: 'Validator assessment', FailedToReproduce: 'Validator assessment' };
+  const outcomeObj = selectedVerdict === 'Reproduced'
+    ? { type: 'Reproduced' }
+    : { type: selectedVerdict, content: { details: verdictDetails[selectedVerdict] ?? '' } };
+  const agreementMap = {
+    Reproduced:          'ExactMatch',
+    PartiallyReproduced: 'DirectionalMatch',
+    FailedToReproduce:   'Divergent',
+  };
+  const overallAgreement = agreementMap[outcomeObj.type] ?? 'DirectionalMatch';
+
   const ATTESTATION = {
     request_ref: REQUEST_REF,
-    outcome:     { type: 'Reproduced' },
+    outcome:     outcomeObj,
     outcome_summary: {
       key_metrics:                 [],
       effect_direction_matches:    null,
       confidence_interval_overlap: null,
-      overall_agreement:           'ExactMatch',
+      overall_agreement:           overallAgreement,
     },
     time_invested_secs: 3600,
     time_breakdown: {
@@ -589,7 +915,7 @@ async function run() {
       certification_tier:   'Provisional',
       available:            true,
       max_concurrent_tasks: 3,
-      orcid:     null,
+      orcid:      null,
       agent_type: null,
       person_key: null,
     });
@@ -610,8 +936,10 @@ async function run() {
       researcher_institution:  '',
     });
     mark(2, 'done');
-    out(2, `request: <span class="h">${b64short(requestHash)}</span>
-<br>data_hash (request_ref): <span class="h">${b64short(REQUEST_REF)}</span>`);
+    out(2, `request: <span class="h">${b64short(requestHash)}</span>`
+      + (analysisDataHash
+        ? `<br>deposit SHA-256: <span class="g">${analysisDataHash.slice(0,16)}…</span> <em style="color:#444">(in production, this becomes the study key)</em>`
+        : ''));
     lastStep = 2;
 
     // 3 ── Claim study ────────────────────────────────────────────────────────
@@ -619,7 +947,7 @@ async function run() {
     const claimHash = await att('claim_study', REQUEST_REF);
     mark(3, 'done');
     out(3, `claim: <span class="h">${b64short(claimHash)}</span>
-<br>validator_institution: <span class="g">Demo University</span> · researcher: <em>(independent)</em>`);
+<br>validator: <span class="g">Demo University</span> · researcher: <em>(independent)</em>`);
     lastStep = 3;
 
     // 4 ── Receive task in DNA 2 ──────────────────────────────────────────────
@@ -639,29 +967,27 @@ async function run() {
 
     // 5 ── Warm up attestation cell ───────────────────────────────────────────
     mark(5, 'running'); msg('Warming up attestation cell…');
-    // Throwaway hash — we only need the side effect of init() running.
     const warmup = hashFrom32AndType(new Uint8Array(32), HoloHashType.External);
     await att('get_current_phase', warmup);
     mark(5, 'done');
-    out(5, `<span class="g">init() complete</span> — capability grants written, membrane proof verified.
-<br>post_commit can now cross-call this cell safely.`);
+    out(5, `<span class="g">init() complete</span> — capability grants written, membrane proof verified.`);
     lastStep = 5;
 
-    // 6 ── Seal private attestation (commit phase) ────────────────────────────
-    mark(6, 'running'); msg('Sealing commitment…');
+    // 6 ── Seal verdict (commit phase) ────────────────────────────────────────
+    mark(6, 'running'); msg('Sealing verdict…');
     const privateHash = await ws('seal_private_attestation', {
       task_hash:   taskHash,
       attestation: ATTESTATION,
     });
     mark(6, 'done');
-    out(6, `private attestation: <span class="h">${b64short(privateHash)}</span>
+    out(6, `sealed: <span class="h">${b64short(privateHash)}</span>
 <br><span class="w">post_commit</span> → DNA 3 <code>notify_commitment_sealed</code> (async)`);
     lastStep = 6;
 
     // 7 ── Wait for post_commit ───────────────────────────────────────────────
-    await countdown(7, 4, 'Waiting for post_commit to complete');
+    await countdown(7, 4, 'Waiting for network confirmation');
     mark(7, 'done');
-    out(7, `CommitmentAnchor + PhaseMarker(RevealOpen) should be on the DHT.`);
+    out(7, `CommitmentAnchor + PhaseMarker(RevealOpen) propagated to DHT.`);
     lastStep = 7;
 
     // 8 ── Check phase ────────────────────────────────────────────────────────
@@ -676,24 +1002,18 @@ async function run() {
 <br>CommitmentAnchor count (1) ≥ minimum_validators (1) → reveal window open`);
     lastStep = 8;
 
-    // 9 ── Submit attestation (reveal phase) ─────────────────────────────────
-    mark(9, 'running'); msg('Submitting public attestation…');
+    // 9 ── Reveal verdict ────────────────────────────────────────────────────
+    mark(9, 'running'); msg('Revealing verdict…');
     const attHash = await att('submit_attestation', {
       attestation: ATTESTATION,
-      // Empty nonce triggers the dev bypass: authorized_joining_certificate_issuer = ""
-      // skips SHA-256 commitment hash verification in submit_attestation.
       nonce: new Uint8Array(0),
     });
     mark(9, 'done');
     out(9, `attestation: <span class="h">${b64short(attHash)}</span>
-<br>Attestation committed to source chain — links now available for DHT reads.`);
+<br>Commitment verified. Verdict accepted by network.`);
     lastStep = 9;
 
-    // 10 ── Trigger finalisation ───────────────────────────────────────────────
-    // submit_attestation calls check_and_create_harmony_record synchronously,
-    // but the ValidatorToAttestation link is not yet DHT-visible at that point
-    // (just committed locally). We call it explicitly here, after submit_attestation
-    // returns and the link is queryable, to reliably finalise the round.
+    // 10 ── Trigger finalisation ──────────────────────────────────────────────
     mark(10, 'running'); msg('Finalising round in Governance DNA…');
     await gov('check_and_create_harmony_record', REQUEST_REF);
     mark(10, 'done');
@@ -705,10 +1025,9 @@ async function run() {
     const rec = await gov('get_harmony_record', REQUEST_REF);
     if (!rec) throw new Error(
       'HarmonyRecord not found. Governance may not have finalised yet — '
-      + 'wait a moment and reload the page, or increase the countdown in step 10.'
+      + 'wait a moment and reload, or increase the countdown in step 10.'
     );
 
-    // Decode the inner entry bytes (App entry → msgpack-encoded HarmonyRecord struct).
     const entryBytes = rec.entry?.Present?.entry;
     const hr = entryBytes ? decode(entryBytes) : null;
     const actionHash = rec.signed_action?.hashed?.hash;
@@ -716,13 +1035,13 @@ async function run() {
     mark(11, 'done');
 
     if (hr) {
-      const outcome    = hr.outcome?.type    ?? JSON.stringify(hr.outcome);
-      const agreement  = hr.agreement_level  ?? '—';
+      const outcome     = hr.outcome?.type    ?? JSON.stringify(hr.outcome);
+      const agreement   = hr.agreement_level  ?? '—';
       const nValidators = Array.isArray(hr.participating_validators)
         ? hr.participating_validators.length : '—';
-      const durMins    = typeof hr.validation_duration_secs === 'number'
+      const durMins     = typeof hr.validation_duration_secs === 'number'
         ? Math.round(hr.validation_duration_secs / 60) : '—';
-      const hashStr    = actionHash ? b64short(actionHash) : '—';
+      const hashStr     = actionHash ? b64short(actionHash) : '—';
 
       out(11, `
 <table style="border-collapse:collapse;width:100%">
@@ -740,14 +1059,13 @@ async function run() {
 <br><span class="g">✓ Permanent record on the Governance DHT — immutable, HTTP-accessible.</span>
 `, 'card-out');
     } else {
-      out(11, `<span class="g">HarmonyRecord written.</span> (Entry bytes unavailable for display.)`, 'card-out');
+      out(11, `<span class="g">HarmonyRecord written.</span>`, 'card-out');
     }
 
     msg('Demo complete ✓');
 
   } catch (err) {
     console.error(err);
-    // Mark the last active step as error.
     const running = [...document.querySelectorAll('.circle.running')];
     const n = running.length
       ? parseInt(running[running.length - 1].id.slice(1))
@@ -769,7 +1087,6 @@ async function init() {
   mark(0, 'running');
 
   try {
-    // Poll for app-config.json — on Render the conductor takes ~2 min to start.
     let cfg;
     for (let attempt = 0; attempt < 240; attempt++) {
       const r = await fetch('/app-config.json');
@@ -788,10 +1105,6 @@ async function init() {
       defaultTimeout: 120_000,
     });
 
-    // Authorize zome-call signing credentials for all provisioned cells.
-    // AdminWebsocket.authorizeSigningCredentials generates a fresh Ed25519
-    // keypair, grants it via the conductor admin API, and stores the cap secret
-    // + keypair in the module-level map that signZomeCall reads at call time.
     const admin = await AdminWebsocket.connect({
       url: new URL(cfg.adminWsUrl),
       defaultTimeout: 120_000,
