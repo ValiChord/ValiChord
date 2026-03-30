@@ -126,7 +126,7 @@ The record is permanent, immutable, and HTTP-accessible. It cannot be deleted, e
 | Deposit analyser | Python 3, Flask, custom detector suite (~30 checks) |
 | Browser demo | Vanilla HTML/CSS/JS, ES modules |
 | Static server + API proxy | Node.js (serve.mjs) |
-| Blockchain layer | Holochain 0.6.x, 4-DNA architecture |
+| Distributed network layer | Holochain 0.6.x, 4-DNA architecture |
 | Holochain client | @holochain/client 0.20.2 (ES module, loaded from esm.sh) |
 | Serialisation | MessagePack (@msgpack/msgpack 3.1.3) |
 | Runtime environment | GitHub Codespace (Linux, 4-core, 16 GB RAM) |

@@ -109,7 +109,7 @@ After the Holochain round completes, the ActionHash is written back to `localSto
 
 **Consensus is not the point.** All three tabs might pick different answers. The system does not force agreement — it records what each validator found, independently, and then honestly reports whether they agreed or not. A split result is not a failure; it is a signal that the study is ambiguous and may warrant further scrutiny.
 
-**The protocol connects to a real blockchain.** The final step is not cosmetic. A real Holochain conductor is running, real zome calls are being made, and the resulting HarmonyRecord ActionHash is a real cryptographic identifier on a real distributed ledger.
+**The protocol connects to a real Holochain network.** The final step is not cosmetic. A real Holochain conductor is running, real zome calls are being made, and the resulting HarmonyRecord ActionHash is a real cryptographic identifier on a real distributed network.
 
 **No central authority.** No database, no login, no server-side session. The coordination between three tabs happens entirely in the browser, in localStorage, in real time.
 
@@ -139,7 +139,7 @@ This little three-tab puzzle game is, in miniature, that system. The commit happ
 | Game state coordination | Browser localStorage (shared across tabs, same origin) |
 | Per-tab identity | Browser sessionStorage (isolated per tab) |
 | Cross-tab polling | setInterval at 400ms — lightweight, no WebSockets needed |
-| Blockchain layer | Holochain 0.6.x, 4-DNA architecture |
+| Distributed network layer | Holochain 0.6.x, 4-DNA architecture |
 | Holochain client | @holochain/client 0.20.2 (ES module) |
 | Serialisation | MessagePack (@msgpack/msgpack 3.1.3) |
 | UI | Vanilla HTML/CSS/JS, no framework |
