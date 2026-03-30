@@ -336,12 +336,12 @@ const PUZZLES = [
   {
     question: "A dataset starts with 500 samples. 20% are removed as outliers, then 25% of the remainder are removed as duplicates. How many samples remain?",
     options: [
-      { label: "A", text: "275 samples", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
+      { label: "A", text: "400 samples — outlier step reproduced, duplicate step not found", verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
       { label: "B", text: "300 samples", verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
-      { label: "C", text: "325 samples", verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+      { label: "C", text: "325 samples", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
     ],
     correct: "B",
-    explanation: "500 × 0.80 = 400; 400 × 0.75 = 300.",
+    explanation: "500 × 0.80 = 400 after outliers; 400 × 0.75 = 300 after duplicates. A validator who only found the first step gets 400 — a partial result. 325 suggests a different and incorrect methodology.",
   },
   {
     question: "A paper runs 5 independent statistical tests, each at p < 0.05. How many false positives would you expect by chance alone?",
