@@ -454,15 +454,14 @@ window.startChain = async function() {
   if (!s) return;
   const puzzle = PUZZLES[s.puzzle_idx];
 
-  // Determine panel verdict — majority among seals
+  // Determine panel verdict — did each validator match the researcher's claim?
   const counts = {};
   for (const seal of s.seals) {
-    const opt = puzzle.options.find(o => o.label === seal.answer);
-    const v   = opt?.verdict ?? 'PartiallyReproduced';
+    const v = seal.answer === s.researcher_answer ? 'Reproduced' : 'FailedToReproduce';
     counts[v] = (counts[v] || 0) + 1;
   }
   const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-  // If top two entries share the same count there is no majority — panel disagreed
+  // If top two entries share the same count there is no majority — panel split
   const panelVerdict = (sorted.length > 1 && sorted[0][1] === sorted[1][1])
     ? 'PartiallyReproduced'
     : sorted[0][0];
@@ -656,12 +655,12 @@ function renderReveal(s, puzzle) {
     <div class="r-note">Randomly assigned — the researcher may be wrong</div>
   </div>`;
 
-  // Validator answers
+  // Validator answers — verdict is whether they matched the researcher's claim
   s.seals.forEach((seal, i) => {
     const opt    = puzzle.options.find(o => o.label === seal.answer);
     const isMe   = seal.id === MY_ID;
-    const vc     = opt?.verdict ?? 'PartiallyReproduced';
-    const vLabel = opt?.verdictLabel ?? vc;
+    const vc     = seal.answer === s.researcher_answer ? 'Reproduced' : 'FailedToReproduce';
+    const vLabel = vc === 'Reproduced' ? '✓ Reproduced' : '✗ Failed to Reproduce';
     html += `<div class="verdict-row">
       <span class="v-validator-name${isMe ? ' is-you' : ''}">${NAMES[i]}${isMe ? ' (you)' : ''}</span>
       <span class="v-answer">${seal.answer}: ${opt?.text ?? '—'}</span>
