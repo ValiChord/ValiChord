@@ -328,7 +328,7 @@ const PUZZLES = [
     options: [
       { label: "A", text: "Yes — 1,960 ÷ 8 = 245 ms",    verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
       { label: "B", text: "No — the correct average is 280 ms", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
-      { label: "C", text: "No — the correct average is 220 ms", verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+      { label: "C", text: "No — the correct average is 220 ms", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
     ],
     correct: "A",
     explanation: "1,960 ÷ 8 = 245 ms — the claim checks out.",
@@ -347,7 +347,7 @@ const PUZZLES = [
     question: "A paper runs 5 independent statistical tests, each at p < 0.05. How many false positives would you expect by chance alone?",
     options: [
       { label: "A", text: "0 false positives",    verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
-      { label: "B", text: "1 false positive",     verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+      { label: "B", text: "1 false positive",     verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
       { label: "C", text: "0.25 false positives", verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
     ],
     correct: "C",
