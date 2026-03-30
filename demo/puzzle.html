@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ValiChord — Validator Challenge</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,300;0,400;1,300&family=DM+Mono:wght@400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #07070f; color: #c8c4bc;
+  font-family: "DM Sans", sans-serif;
+  min-height: 100vh; padding-bottom: 80px;
+}
+.header { text-align: center; padding: 44px 20px 28px; }
+h1 {
+  font-family: "Newsreader", serif; font-size: 2.1em;
+  font-weight: 300; color: #e8e4dc; margin-bottom: 10px; line-height: 1.2;
+}
+.subtitle {
+  color: #7a7870; font-size: 0.93em; max-width: 560px;
+  margin: 0 auto 22px; line-height: 1.7;
+}
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #0d0d1c; border: 1px solid #1e1e30; border-radius: 20px;
+  padding: 6px 14px; font-size: 0.82em; font-family: "DM Mono", monospace; color: #666;
+}
+.conn-pill.ok { color: #90b890; border-color: #1e2e1e; }
+.conn-pill.err { color: #c08080; border-color: #2e1e1e; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #333; flex-shrink: 0; }
+.dot.ok { background: #4caf50; box-shadow: 0 0 5px #4caf5066; }
+.dot.err { background: #e74c3c; }
+
+.container { max-width: 700px; margin: 0 auto; padding: 0 20px; }
+
+/* ── Puzzle card ── */
+.puzzle-card {
+  background: #0a0a18; border: 1px solid #1a1a2c;
+  border-radius: 10px; padding: 24px; margin-bottom: 24px;
+}
+.puzzle-label {
+  font-family: "DM Mono", monospace; font-size: 0.72em;
+  color: #4a5a7a; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;
+}
+.puzzle-question {
+  font-size: 1.05em; color: #d8d4cc; line-height: 1.65; margin-bottom: 22px;
+}
+
+/* ── Answer options ── */
+.options { display: flex; flex-direction: column; gap: 10px; }
+.option-btn {
+  background: #0d0d1e; border: 1.5px solid #252538;
+  border-radius: 8px; padding: 12px 16px;
+  text-align: left; color: #9a96a0; font-size: 0.9em;
+  font-family: "DM Sans", sans-serif; cursor: pointer;
+  transition: all 0.18s; display: flex; gap: 12px; align-items: center;
+}
+.option-btn:hover:not(:disabled):not(.sealed):not(.chosen) {
+  border-color: #4a90d9; color: #c8c4bc; background: #0f0f24;
+}
+.option-btn .opt-label {
+  font-family: "DM Mono", monospace; font-size: 0.85em;
+  color: #4a90d9; width: 18px; flex-shrink: 0;
+}
+.option-btn.chosen {
+  border-color: #4a5a9a; background: #10102a; color: #c8c4bc;
+}
+.option-btn.chosen .opt-label { color: #7a90d9; }
+.option-btn.sealed {
+  border-color: #2a3a5a; background: #0a0a18; color: #4a5060; cursor: default;
+}
+.option-btn.sealed .opt-label { color: #3a4060; }
+.option-btn:disabled { cursor: default; }
+.opt-lock { margin-left: auto; font-size: 0.85em; color: #3a4060; }
+
+/* ── Validator status ── */
+.validator-status {
+  background: #08080f; border: 1px solid #161620;
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;
+}
+.status-label {
+  font-family: "DM Mono", monospace; font-size: 0.72em;
+  color: #4a5a7a; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;
+}
+.validator-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 0; font-size: 0.85em; color: #5a6070;
+  border-bottom: 1px solid #0f0f18;
+}
+.validator-row:last-child { border-bottom: none; }
+.validator-row.is-you { color: #9a96a0; }
+.validator-row.sealed-row { color: #6a7080; }
+.v-name { font-family: "DM Mono", monospace; font-size: 0.9em; min-width: 80px; }
+.v-status { flex: 1; }
+.v-badge {
+  font-family: "DM Mono", monospace; font-size: 0.78em;
+  padding: 2px 8px; border-radius: 3px;
+}
+.v-badge.waiting { background: #111118; color: #3a3a50; border: 1px solid #1a1a28; }
+.v-badge.sealed-badge { background: #101a10; color: #4a7a4a; border: 1px solid #1a2e1a; }
+.v-badge.you-badge { background: #101828; color: #4a7aaa; border: 1px solid #1a2a38; }
+
+/* ── Reveal section ── */
+.reveal-section {
+  background: #060e08; border: 1px solid #122212;
+  border-radius: 10px; padding: 20px; margin-bottom: 24px;
+}
+.reveal-header {
+  font-family: "DM Mono", monospace; font-size: 0.78em;
+  color: #4a7a4a; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px;
+}
+.researcher-row {
+  background: #080808; border: 1px solid #1a1a1a;
+  border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;
+  font-size: 0.85em; color: #7a8090;
+}
+.researcher-row .r-label { color: #5a6070; font-size: 0.85em; margin-bottom: 3px; }
+.researcher-row .r-answer { color: #c8c4bc; font-size: 0.95em; }
+.researcher-row .r-note { color: #3a4050; font-size: 0.8em; margin-top: 3px; }
+
+.verdict-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; font-size: 0.85em; border-bottom: 1px solid #0a100a;
+}
+.verdict-row:last-of-type { border-bottom: none; margin-bottom: 12px; }
+.v-validator-name { font-family: "DM Mono", monospace; min-width: 100px; color: #6a7080; }
+.v-validator-name.is-you { color: #8a9aaa; }
+.v-answer { flex: 1; color: #9a96a0; }
+.v-verdict-pill {
+  font-family: "DM Mono", monospace; font-size: 0.76em;
+  padding: 3px 8px; border-radius: 3px;
+}
+.v-verdict-pill.reproduced { background: #122212; color: #6cbf6c; border: 1px solid #1e3e1e; }
+.v-verdict-pill.partial    { background: #2a1e08; color: #d4a04a; border: 1px solid #4a3610; }
+.v-verdict-pill.failed     { background: #200808; color: #e07070; border: 1px solid #3e1414; }
+
+.correct-answer-note {
+  background: #0a0a08; border: 1px solid #2a2a18;
+  border-radius: 6px; padding: 10px 14px;
+  font-size: 0.82em; color: #7a7860; line-height: 1.5;
+  margin-top: 10px;
+}
+.correct-answer-note strong { color: #a0a070; }
+
+/* ── Seal button ── */
+.btn {
+  background: #2a5298; color: #d0dcf0; border: none;
+  border-radius: 7px; padding: 9px 20px; font-size: 0.92em;
+  font-family: "DM Sans", sans-serif; cursor: pointer;
+  transition: background 0.18s, opacity 0.18s;
+}
+.btn:hover:not(:disabled) { background: #3468c0; }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn.ghost {
+  background: transparent; color: #666; border: 1px solid #2a2a40;
+}
+.btn.ghost:hover:not(:disabled) { color: #999; border-color: #3a3a50; }
+
+.controls { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+.run-msg { font-size: 0.82em; color: #555; flex: 1; }
+
+/* ── Timeline (same as index.html) ── */
+.phase-sep {
+  display: flex; align-items: center; gap: 12px;
+  margin: 28px 0 20px; font-family: "DM Mono", monospace;
+  font-size: 0.78em; color: #2a3050;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.phase-sep::before, .phase-sep::after { content: ''; flex: 1; height: 1px; background: #111120; }
+
+.timeline { display: flex; flex-direction: column; }
+.step { display: flex; }
+.step-track { display: flex; flex-direction: column; align-items: center; width: 34px; flex-shrink: 0; }
+.circle {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid #252530;
+  background: #0a0a14; display: flex; align-items: center; justify-content: center;
+  font-size: 0.72em; font-family: "DM Mono", monospace; color: #444;
+  transition: all 0.25s; flex-shrink: 0; z-index: 1; user-select: none;
+}
+.circle.running { border-color: #4a90d9; color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.12); animation: pulse 1.4s ease-in-out infinite; }
+.circle.done { border-color: #3a7a3a; background: #1a3a1a; color: #6cbf6c; }
+.circle.err  { border-color: #7a2a2a; background: #2a0a0a; color: #e07070; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(74,144,217,0.12); }
+  50%       { box-shadow: 0 0 0 5px rgba(74,144,217,0.2); }
+}
+.vline { width: 2px; flex: 1; background: #151520; min-height: 20px; }
+.step:last-child .vline { background: transparent; }
+.step-body { flex: 1; padding: 2px 0 22px 14px; }
+.step-title { font-size: 0.92em; font-weight: 500; color: #8a8880; line-height: 1.4; margin-bottom: 3px; transition: color 0.2s; }
+.step-title.running { color: #4a90d9; }
+.step-title.done    { color: #c8c4bc; }
+.step-title.err     { color: #e07070; }
+.dna-tag { font-size: 0.78em; color: #6a5a3a; font-family: "DM Mono", monospace; margin-bottom: 4px; }
+.out {
+  display: none; margin-top: 9px; background: #0a0a16; border: 1px solid #1a1a2a;
+  border-radius: 6px; padding: 9px 12px; font-family: "DM Mono", monospace;
+  font-size: 0.78em; color: #7a80a0; line-height: 1.65; overflow-x: auto;
+}
+.out.show { display: block; }
+.out.err-out { border-color: #2e1010; color: #c07070; }
+.out.card-out { font-family: "DM Sans", sans-serif; font-size: 0.84em; color: #90c090; border-color: #0e2010; background: #060e08; }
+.h { color: #4a90d9; } .g { color: #5ca85c; } .w { color: #d4a04a; }
+
+/* ── Reset link ── */
+.reset-link {
+  text-align: center; margin-top: 32px;
+  font-size: 0.82em; color: #3a3a50; cursor: pointer;
+}
+.reset-link:hover { color: #666; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Can you reproduce the result?</h1>
+  <p class="subtitle">
+    Open this page in three browser tabs — each tab is a validator.
+    Pick your answer blind. All three seal first, then reveal together.
+    The researcher's answer is random. The network records everything honestly.
+  </p>
+  <div class="conn-pill" id="conn-pill">
+    <span class="dot" id="conn-dot"></span>
+    <span id="conn-label">Connecting…</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── Puzzle ── -->
+  <div class="puzzle-card" id="puzzle-card">
+    <div class="puzzle-label">The study claims</div>
+    <div class="puzzle-question" id="puzzle-question"></div>
+    <div class="options" id="options"></div>
+  </div>
+
+  <!-- ── Validator status ── -->
+  <div class="validator-status">
+    <div class="status-label">Validators</div>
+    <div id="validator-rows"></div>
+  </div>
+
+  <!-- ── Reveal (hidden until all 3 sealed) ── -->
+  <div class="reveal-section" id="reveal-section" style="display:none">
+    <div class="reveal-header">Reveal</div>
+    <div id="reveal-content"></div>
+    <div class="correct-answer-note" id="correct-note" style="display:none"></div>
+    <div style="margin-top:16px">
+      <button class="btn" id="chain-btn" style="display:none"
+        onclick="startChain()">
+        Seal panel verdict on Holochain →
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Holochain ── -->
+  <div id="chain-wrap" style="display:none">
+    <div class="phase-sep">Sealing on Holochain</div>
+    <div class="controls">
+      <button class="btn ghost" id="reset-btn" onclick="resetGame()">New puzzle</button>
+      <span class="run-msg" id="run-msg"></span>
+    </div>
+    <div class="timeline">
+
+      <div class="step">
+        <div class="step-track"><div class="circle" id="c1">1</div><div class="vline"></div></div>
+        <div class="step-body">
+          <div class="step-title" id="t1">Submit validation request</div>
+          <div class="dna-tag">DNA 3 — Attestation</div>
+          <div class="out" id="o1"></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-track"><div class="circle" id="c2">2</div><div class="vline"></div></div>
+        <div class="step-body">
+          <div class="step-title" id="t2">Claim study &amp; create task</div>
+          <div class="dna-tag">DNA 3 + DNA 2</div>
+          <div class="out" id="o2"></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-track"><div class="circle" id="c3">3</div><div class="vline"></div></div>
+        <div class="step-body">
+          <div class="step-title" id="t3">Seal verdict — Commit phase</div>
+          <div class="dna-tag">DNA 2 — Validator Workspace (private)</div>
+          <div class="out" id="o3"></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-track"><div class="circle" id="c4">4</div><div class="vline"></div></div>
+        <div class="step-body">
+          <div class="step-title" id="t4">Reveal verdict</div>
+          <div class="dna-tag">DNA 3 — Attestation</div>
+          <div class="out" id="o4"></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-track"><div class="circle" id="c5">✓</div><div class="vline"></div></div>
+        <div class="step-body">
+          <div class="step-title" id="t5">Harmony Record</div>
+          <div class="dna-tag">DNA 4 — Governance (public DHT)</div>
+          <div class="out" id="o5"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="reset-link" onclick="resetGame()">↺ Start a new puzzle</div>
+
+</div><!-- .container -->
+
+<script type="module">
+import { AppWebsocket, AdminWebsocket, hashFrom32AndType, HoloHashType, encodeHashToBase64 }
+  from 'https://esm.sh/@holochain/client@0.20.2';
+import { decode } from 'https://esm.sh/@msgpack/msgpack@3.1.3';
+
+// ── Puzzles ──────────────────────────────────────────────────────────────────
+
+const PUZZLES = [
+  {
+    question: "A researcher reports an average reaction time of 245 ms across 8 participants. The total of all recorded times was 1,960 ms. Does this match their claim?",
+    options: [
+      { label: "A", text: "Yes — 1,960 ÷ 8 = 245 ms",    verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
+      { label: "B", text: "No — the correct average is 280 ms", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
+      { label: "C", text: "No — the correct average is 220 ms", verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+    ],
+    correct: "A",
+    explanation: "1,960 ÷ 8 = 245 ms — the claim checks out.",
+  },
+  {
+    question: "A dataset starts with 500 samples. 20% are removed as outliers, then 25% of the remainder are removed as duplicates. How many samples remain?",
+    options: [
+      { label: "A", text: "275 samples", verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
+      { label: "B", text: "300 samples", verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
+      { label: "C", text: "325 samples", verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+    ],
+    correct: "B",
+    explanation: "500 × 0.80 = 400; 400 × 0.75 = 300.",
+  },
+  {
+    question: "A paper runs 5 independent statistical tests, each at p < 0.05. How many false positives would you expect by chance alone?",
+    options: [
+      { label: "A", text: "0 false positives",    verdict: "FailedToReproduce",   verdictLabel: "✗ Failed to Reproduce" },
+      { label: "B", text: "1 false positive",     verdict: "PartiallyReproduced", verdictLabel: "⚠ Partially Reproduced" },
+      { label: "C", text: "0.25 false positives", verdict: "Reproduced",          verdictLabel: "✓ Reproduced" },
+    ],
+    correct: "C",
+    explanation: "5 × 0.05 = 0.25 — on average, one in four such sets of five tests yields a false positive.",
+  },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+const GAME_KEY = 'vc_puzzle_v1';
+const MAX_V    = 3;
+
+let MY_ID = sessionStorage.getItem('vc_tab_id');
+if (!MY_ID) {
+  MY_ID = Math.random().toString(36).slice(2, 6).toUpperCase();
+  sessionStorage.setItem('vc_tab_id', MY_ID);
+}
+
+function readState() {
+  try { return JSON.parse(localStorage.getItem(GAME_KEY)); } catch { return null; }
+}
+function writeState(s) { localStorage.setItem(GAME_KEY, JSON.stringify(s)); }
+
+function freshState() {
+  const idx = Math.floor(Math.random() * PUZZLES.length);
+  const p   = PUZZLES[idx];
+  const res = p.options[Math.floor(Math.random() * 3)].label;
+  return { puzzle_idx: idx, researcher_answer: res, seals: [], phase: 'sealing', harmony_hash: null };
+}
+
+function getState() {
+  const s = readState();
+  if (!s || s.phase === 'done') {
+    const ns = freshState();
+    writeState(ns);
+    return ns;
+  }
+  return s;
+}
+
+// ── Holochain ─────────────────────────────────────────────────────────────────
+
+let _app = null;
+
+async function initHolochain() {
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  const pill  = document.getElementById('conn-pill');
+  try {
+    let cfg;
+    for (let i = 0; i < 120; i++) {
+      const r = await fetch('/app-config.json');
+      if (r.ok) { cfg = await r.json(); break; }
+      await sleep(3000);
+    }
+    if (!cfg) throw new Error('Conductor not ready');
+    _app = await AppWebsocket.connect({ url: new URL(cfg.appWsUrl), token: new Uint8Array(cfg.token), defaultTimeout: 120_000 });
+    const admin = await AdminWebsocket.connect({ url: new URL(cfg.adminWsUrl), defaultTimeout: 60_000 });
+    const { cell_info } = _app.cachedAppInfo;
+    for (const cells of Object.values(cell_info)) {
+      for (const cell of cells) {
+        const cid = cell.value?.cell_id ?? cell.value?.provisioned?.cell_id;
+        if (cid) await admin.authorizeSigningCredentials(cid);
+      }
+    }
+    await admin.client.close();
+    dot.className   = 'dot ok';
+    pill.className  = 'conn-pill ok';
+    label.textContent = 'Conductor connected';
+  } catch (err) {
+    dot.className  = 'dot err';
+    pill.className = 'conn-pill err';
+    label.textContent = 'Conductor offline — Holochain steps will fail';
+    console.warn(err);
+  }
+}
+
+const att = (fn, p = null) => _app.callZome({ role_name: 'attestation',        zome_name: 'attestation_coordinator',        fn_name: fn, payload: p });
+const ws  = (fn, p = null) => _app.callZome({ role_name: 'validator_workspace', zome_name: 'validator_workspace_coordinator', fn_name: fn, payload: p });
+const gov = (fn, p = null) => _app.callZome({ role_name: 'governance',          zome_name: 'governance_coordinator',          fn_name: fn, payload: p });
+
+const sleep   = ms => new Promise(r => setTimeout(r, ms));
+const b64s    = h  => { const s = encodeHashToBase64(h); return s.slice(0,9)+'…'+s.slice(-4); };
+
+function mark(n, state) {
+  const c = document.getElementById(`c${n}`);
+  const t = document.getElementById(`t${n}`);
+  if (!c) return;
+  c.className = `circle ${state === 'running' ? 'running' : state === 'done' ? 'done' : 'err'}`;
+  t.className = `step-title ${state}`;
+  if (state === 'done' && n < 5) c.textContent = '✓';
+  if (state === 'err')           c.textContent = '✗';
+}
+function out(n, html, cls = '') {
+  const el = document.getElementById(`o${n}`);
+  if (!el) return;
+  el.innerHTML = html;
+  el.className = `out show${cls ? ' '+cls : ''}`;
+}
+function msg(s) { const el = document.getElementById('run-msg'); if (el) el.textContent = s; }
+
+window.startChain = async function() {
+  const s = readState();
+  if (!s) return;
+  const puzzle = PUZZLES[s.puzzle_idx];
+
+  // Determine panel verdict — majority among seals
+  const counts = {};
+  for (const seal of s.seals) {
+    const opt = puzzle.options.find(o => o.label === seal.answer);
+    const v   = opt?.verdict ?? 'PartiallyReproduced';
+    counts[v] = (counts[v] || 0) + 1;
+  }
+  const panelVerdict = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+  const outcomeObj   = panelVerdict === 'Reproduced'
+    ? { type: 'Reproduced' }
+    : { type: panelVerdict, content: { details: 'Validator panel verdict' } };
+
+  document.getElementById('chain-btn').style.display = 'none';
+  document.getElementById('chain-wrap').style.display = 'block';
+
+  if (!_app) { msg('Conductor offline — cannot run Holochain round'); return; }
+
+  const agreementMap = { Reproduced: 'ExactMatch', PartiallyReproduced: 'DirectionalMatch', FailedToReproduce: 'Divergent' };
+  const REQUEST_REF  = hashFrom32AndType(crypto.getRandomValues(new Uint8Array(32)), HoloHashType.External);
+  const ATTESTATION  = {
+    request_ref: REQUEST_REF, outcome: outcomeObj,
+    outcome_summary: { key_metrics: [], effect_direction_matches: null, confidence_interval_overlap: null, overall_agreement: agreementMap[panelVerdict] ?? 'DirectionalMatch' },
+    time_invested_secs: 3600,
+    time_breakdown: { environment_setup_secs: 600, data_acquisition_secs: 300, code_execution_secs: 2400, troubleshooting_secs: 300 },
+    confidence: 'High', deviation_flags: [],
+    computational_resources: { personal_hardware_sufficient: true, hpc_required: false, gpu_required: false, cloud_compute_required: false, estimated_compute_cost_pence: null },
+    discipline: { type: 'ComputationalBiology' }, commitment_anchor_hash: null,
+  };
+
+  try {
+    // 1. Submit + claim + task
+    mark(1, 'running'); msg('Submitting validation request…');
+    await att('publish_validator_profile', { institution: 'Demo University', disciplines: [{ type: 'ComputationalBiology' }], certification_tier: 'Provisional', available: true, max_concurrent_tasks: 3, orcid: null, agent_type: null, person_key: null });
+    const reqHash = await att('submit_validation_request', { protocol_ref: null, data_hash: REQUEST_REF, data_access_url: '', protocol_access_url: null, num_validators_required: 1, validation_tier: 'Basic', discipline: { type: 'ComputationalBiology' }, researcher_institution: '' });
+    mark(1, 'done'); out(1, `request: <span class="h">${b64s(reqHash)}</span>`);
+
+    // 2. Claim + task
+    mark(2, 'running'); msg('Claiming study…');
+    await att('claim_study', REQUEST_REF);
+    const warmup = hashFrom32AndType(new Uint8Array(32), HoloHashType.External);
+    await att('get_current_phase', warmup);
+    const taskHash = await ws('receive_task', { request_ref: REQUEST_REF, discipline: { type: 'ComputationalBiology' }, deadline_secs: 1_800_000_000, validation_focus: 'ComputationalReproducibility', time_cap_secs: 86400, compensation_tier: { Tier1: { amount_pence: 5000 } } });
+    mark(2, 'done'); out(2, `task: <span class="h">${b64s(taskHash)}</span> <em style="color:#444">private — stays on this device</em>`);
+
+    // 3. Seal
+    mark(3, 'running'); msg('Sealing verdict…');
+    const privHash = await ws('seal_private_attestation', { task_hash: taskHash, attestation: ATTESTATION });
+    mark(3, 'done'); out(3, `sealed: <span class="h">${b64s(privHash)}</span><br><span class="w">post_commit →</span> CommitmentAnchor written to shared DHT`);
+
+    // Wait for post_commit
+    await sleep(4000);
+
+    // Check phase
+    const phase = await att('get_current_phase', REQUEST_REF);
+    if (!phase) throw new Error('Phase still null after 4s — retry');
+
+    // 4. Reveal
+    mark(4, 'running'); msg('Revealing verdict…');
+    const attHash = await att('submit_attestation', { attestation: ATTESTATION, nonce: new Uint8Array(0) });
+    mark(4, 'done'); out(4, `attestation: <span class="h">${b64s(attHash)}</span><br>Commitment verified. Verdict accepted.`);
+
+    // 5. HarmonyRecord
+    mark(5, 'running'); msg('Finalising…');
+    await gov('check_and_create_harmony_record', REQUEST_REF);
+    const rec = await gov('get_harmony_record', REQUEST_REF);
+    if (!rec) throw new Error('HarmonyRecord not found');
+
+    const entryBytes = rec.entry?.Present?.entry;
+    const hr = entryBytes ? decode(entryBytes) : null;
+    const actionHash = rec.signed_action?.hashed?.hash;
+    mark(5, 'done');
+
+    if (hr) {
+      const outcome    = hr.outcome?.type ?? JSON.stringify(hr.outcome);
+      const agreement  = hr.agreement_level ?? '—';
+      const hashStr    = actionHash ? b64s(actionHash) : '—';
+      out(5, `
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="color:#556;padding:2px 12px 2px 0">Outcome</td><td><strong style="color:#aee8ae">${outcome}</strong></td></tr>
+  <tr><td style="color:#556;padding:2px 12px 2px 0">Agreement</td><td><strong style="color:#aee8ae">${agreement}</strong></td></tr>
+  <tr><td style="color:#556;padding:2px 12px 2px 0">ActionHash</td><td><span class="h">${hashStr}</span></td></tr>
+</table>
+<br><span class="g">✓ Permanent record on the Governance DHT — immutable, HTTP-accessible.</span>
+`, 'card-out');
+    }
+
+    msg('Done ✓');
+
+    // Store hash for other tabs
+    const ns = readState();
+    if (ns) { ns.harmony_hash = actionHash ? encodeHashToBase64(actionHash) : 'done'; ns.phase = 'done'; writeState(ns); }
+
+  } catch (err) {
+    console.error(err);
+    const running = [...document.querySelectorAll('.circle.running')];
+    const n = running.length ? parseInt(running[running.length-1].id.slice(1)) : 5;
+    mark(n, 'err');
+    out(n, String(err.message ?? err), 'err-out');
+    msg('Error — check console');
+  }
+};
+
+window.resetGame = function() {
+  writeState({ ...freshState() });
+  renderAll();
+};
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+const NAMES = ['Validator 1', 'Validator 2', 'Validator 3'];
+
+function mySlot(seals) { return seals.findIndex(s => s.id === MY_ID); }
+function mySeal(seals) { return seals.find(s => s.id === MY_ID); }
+
+function verdictClass(v) {
+  return v === 'Reproduced' ? 'reproduced' : v === 'PartiallyReproduced' ? 'partial' : 'failed';
+}
+
+function renderAll() {
+  const s      = getState();
+  const puzzle = PUZZLES[s.puzzle_idx];
+
+  // Puzzle question
+  document.getElementById('puzzle-question').textContent = puzzle.question;
+
+  // Options
+  const optWrap = document.getElementById('options');
+  optWrap.innerHTML = '';
+  const mySealData = mySeal(s.seals);
+  const allSealed  = s.seals.length >= MAX_V;
+
+  puzzle.options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    if (mySealData) {
+      btn.disabled = true;
+      if (mySealData.answer === opt.label) btn.classList.add('chosen');
+      else btn.classList.add('sealed');
+    }
+
+    btn.innerHTML = `<span class="opt-label">${opt.label}</span><span>${opt.text}</span>`
+      + (mySealData && mySealData.answer === opt.label ? '<span class="opt-lock">sealed ✓</span>' : '');
+
+    if (!mySealData) {
+      btn.addEventListener('click', () => sealAnswer(opt.label));
+    }
+    optWrap.appendChild(btn);
+  });
+
+  // Validator status rows
+  const rowsEl = document.getElementById('validator-rows');
+  rowsEl.innerHTML = '';
+  const mySlotIdx = mySlot(s.seals);
+
+  for (let i = 0; i < MAX_V; i++) {
+    const seal   = s.seals[i];
+    const isMe   = seal && seal.id === MY_ID;
+    const name   = NAMES[i];
+    const row    = document.createElement('div');
+    row.className = `validator-row${isMe ? ' is-you' : ''}${seal ? ' sealed-row' : ''}`;
+
+    let badge = '';
+    if (seal) {
+      badge = `<span class="v-badge ${isMe ? 'you-badge' : 'sealed-badge'}">${isMe ? 'you — sealed' : 'sealed'}</span>`;
+    } else if (mySlotIdx === -1 && s.seals.length === i) {
+      badge = `<span class="v-badge you-badge">you — pick an answer</span>`;
+    } else {
+      badge = `<span class="v-badge waiting">waiting…</span>`;
+    }
+
+    row.innerHTML = `<span class="v-name">${name}</span><span class="v-status">${badge}</span>`;
+    rowsEl.appendChild(row);
+  }
+
+  // Reveal section
+  const revealEl = document.getElementById('reveal-section');
+  if (allSealed && s.phase !== 'sealing') {
+    revealEl.style.display = 'block';
+    renderReveal(s, puzzle);
+  } else {
+    revealEl.style.display = 'none';
+  }
+}
+
+function renderReveal(s, puzzle) {
+  const contentEl = document.getElementById('reveal-content');
+  const resOpt    = puzzle.options.find(o => o.label === s.researcher_answer);
+  const mySlotIdx = mySlot(s.seals);
+
+  let html = '';
+
+  // Researcher answer
+  html += `<div class="researcher-row">
+    <div class="r-label">Researcher's answer</div>
+    <div class="r-answer">${s.researcher_answer}: ${resOpt?.text ?? '—'}</div>
+    <div class="r-note">Randomly assigned — the researcher may be wrong</div>
+  </div>`;
+
+  // Validator answers
+  s.seals.forEach((seal, i) => {
+    const opt    = puzzle.options.find(o => o.label === seal.answer);
+    const isMe   = seal.id === MY_ID;
+    const vc     = opt?.verdict ?? 'PartiallyReproduced';
+    const vLabel = opt?.verdictLabel ?? vc;
+    html += `<div class="verdict-row">
+      <span class="v-validator-name${isMe ? ' is-you' : ''}">${NAMES[i]}${isMe ? ' (you)' : ''}</span>
+      <span class="v-answer">${seal.answer}: ${opt?.text ?? '—'}</span>
+      <span class="v-verdict-pill ${verdictClass(vc)}">${vLabel}</span>
+    </div>`;
+  });
+
+  contentEl.innerHTML = html;
+
+  // Correct answer note
+  const noteEl = document.getElementById('correct-note');
+  const corrOpt = puzzle.options.find(o => o.label === puzzle.correct);
+  noteEl.innerHTML = `<strong>Correct answer:</strong> ${puzzle.correct} — ${corrOpt?.text ?? ''}. ${puzzle.explanation}`;
+  noteEl.style.display = 'block';
+
+  // Show chain button (only once, from any tab that sees allSealed first)
+  if (s.phase === 'revealing') {
+    document.getElementById('chain-btn').style.display = 'inline-block';
+  }
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+function sealAnswer(label) {
+  const s = readState();
+  if (!s || s.seals.length >= MAX_V || mySeal(s.seals)) return;
+
+  s.seals.push({ id: MY_ID, answer: label });
+  if (s.seals.length >= MAX_V) s.phase = 'revealing';
+  writeState(s);
+  renderAll();
+}
+
+// ── Poll loop ─────────────────────────────────────────────────────────────────
+
+let _lastHash = '';
+
+function poll() {
+  const s = readState();
+  if (!s) return;
+  const hash = JSON.stringify(s);
+  if (hash !== _lastHash) {
+    _lastHash = hash;
+    renderAll();
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+(async () => {
+  // Initialise state
+  getState();
+  renderAll();
+
+  // Start polling for other tabs
+  setInterval(poll, 400);
+
+  // Connect to Holochain conductor
+  await initHolochain();
+})();
+</script>
+</body>
+</html>
