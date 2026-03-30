@@ -474,11 +474,16 @@ window.startChain = async function() {
 
   if (!_app) { msg('Conductor offline — cannot run Holochain round'); return; }
 
-  const agreementMap = { Reproduced: 'ExactMatch', PartiallyReproduced: 'DirectionalMatch', FailedToReproduce: 'Divergent' };
+  // Agreement reflects actual unanimity: all 3 same → ExactMatch, majority (2:1) → DirectionalMatch, split → Divergent
+  const topCount   = sorted[0][1];
+  const isUnanimous = sorted.length === 1 || sorted[1][1] < topCount;
+  const overallAgreement = panelVerdict === 'PartiallyReproduced'
+    ? 'Divergent'
+    : isUnanimous ? 'ExactMatch' : 'DirectionalMatch';
   const REQUEST_REF  = hashFrom32AndType(crypto.getRandomValues(new Uint8Array(32)), HoloHashType.External);
   const ATTESTATION  = {
     request_ref: REQUEST_REF, outcome: outcomeObj,
-    outcome_summary: { key_metrics: [], effect_direction_matches: null, confidence_interval_overlap: null, overall_agreement: agreementMap[panelVerdict] ?? 'DirectionalMatch' },
+    outcome_summary: { key_metrics: [], effect_direction_matches: null, confidence_interval_overlap: null, overall_agreement: overallAgreement },
     time_invested_secs: 3600,
     time_breakdown: { environment_setup_secs: 600, data_acquisition_secs: 300, code_execution_secs: 2400, troubleshooting_secs: 300 },
     confidence: 'High', deviation_flags: [],
