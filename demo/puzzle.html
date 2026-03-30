@@ -530,12 +530,13 @@ window.startChain = async function() {
     mark(5, 'done');
 
     if (hr) {
-      const outcome    = hr.outcome?.type ?? JSON.stringify(hr.outcome);
-      const agreement  = hr.agreement_level ?? '—';
-      const hashStr    = actionHash ? b64s(actionHash) : '—';
+      const outcome      = hr.outcome?.type ?? JSON.stringify(hr.outcome);
+      const agreement    = hr.agreement_level ?? '—';
+      const hashStr      = actionHash ? b64s(actionHash) : '—';
+      const outcomeColor = outcome === 'Reproduced' ? '#6cbf6c' : outcome === 'PartiallyReproduced' ? '#d4a04a' : '#e07070';
       out(5, `
 <table style="border-collapse:collapse;width:100%">
-  <tr><td style="color:#556;padding:2px 12px 2px 0">Outcome</td><td><strong style="color:#aee8ae">${outcome}</strong></td></tr>
+  <tr><td style="color:#556;padding:2px 12px 2px 0">Outcome</td><td><strong style="color:${outcomeColor}">${outcome}</strong></td></tr>
   <tr><td style="color:#556;padding:2px 12px 2px 0">Agreement</td><td><strong style="color:#aee8ae">${agreement}</strong></td></tr>
   <tr><td style="color:#556;padding:2px 12px 2px 0">ActionHash</td><td><span class="h">${hashStr}</span></td></tr>
 </table>

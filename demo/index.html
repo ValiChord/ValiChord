@@ -1043,10 +1043,11 @@ async function run() {
         ? Math.round(hr.validation_duration_secs / 60) : '—';
       const hashStr     = actionHash ? b64short(actionHash) : '—';
 
+      const outcomeColor = outcome === 'Reproduced' ? '#6cbf6c' : outcome === 'PartiallyReproduced' ? '#d4a04a' : '#e07070';
       out(11, `
 <table style="border-collapse:collapse;width:100%">
   <tr><td style="color:#556;padding:2px 12px 2px 0;white-space:nowrap">Outcome</td>
-      <td><strong style="color:#aee8ae">${outcome}</strong></td></tr>
+      <td><strong style="color:${outcomeColor}">${outcome}</strong></td></tr>
   <tr><td style="color:#556;padding:2px 12px 2px 0">Agreement</td>
       <td><strong style="color:#aee8ae">${agreement}</strong></td></tr>
   <tr><td style="color:#556;padding:2px 12px 2px 0">Validators</td>
