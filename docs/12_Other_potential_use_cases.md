@@ -227,6 +227,131 @@ None of these are architectural blockers. They are configuration and compensatio
 
 ---
 
+### 11. Audit Integrity — The Auditor Independence Problem
+
+**The problem:** This use case arrived through an unexpected channel — a LinkedIn
+post from someone working in the regulatory audit field, noting independently that
+the core problem ValiChord solves applies directly to their industry. That
+unsolicited recognition is worth paying attention to.
+
+Professional audits — financial audits, ISO certification audits, SOC2 compliance
+audits, ESG disclosure audits — make a structural claim: *an independent party
+examined this organisation and found what they say they found, without having been
+shown the desired conclusion first.* The problem is that this claim is almost
+never verifiable. The auditor's findings are a document. The process that produced
+those findings is invisible. There is no cryptographic proof that the auditor
+formed their view before seeing management's preferred narrative, or that a second
+auditor would reach the same conclusion from the same evidence.
+
+The audit industry has not solved this. Independence requirements (auditor rotation,
+conflict-of-interest rules, regulatory oversight) address the question of *who*
+audits. They do not address the question of *whether the process was independent*.
+An auditor can be formally independent — no financial relationship, no prior
+engagement — and still anchor entirely on management's framing before forming a
+view. There is no commit-reveal in auditing. There is no Harmony Record. There is
+only a signed opinion letter, which tells you the conclusion but nothing about how
+it was reached.
+
+**Why this is the same problem:** ValiChord's core architecture addresses exactly
+this. A blind commit-reveal protocol in audit would work as follows:
+
+- The auditor examines the evidence (financial statements, control documentation,
+  ESG data, whatever the scope is) and commits a sealed verdict *before* any
+  discussion with management about the expected outcome
+- A second auditor does the same, independently
+- Both reveal simultaneously
+- Agreement and disagreement are recorded in a Harmony Record
+- The record is permanent and tamper-evident — neither the auditors nor the
+  audited organisation can change it after the fact
+
+This does not replace the audit. It adds a layer of cryptographic proof that the
+audit was actually independent — not just formally structured to appear independent.
+
+**Specific high-value sub-cases:**
+
+*Financial audit:* KPMG, Deloitte, EY, PwC audit the same companies year after
+year. Rotation requirements exist but are slow. The Big Four collectively audit
+virtually all FTSE 100 and S&P 500 companies. A Harmony Record showing that two
+independent audit teams, working from the same financial statements without
+coordination, reached the same conclusion would be meaningfully more credible than
+a single opinion letter.
+
+*ESG disclosure auditing:* ESG verification is a fast-growing market with almost
+no standardisation. Companies self-report emissions, supply chain labour
+conditions, and board diversity data. Third-party verifiers sign off on these
+reports. The verification methodology is proprietary. The outputs — "assured in
+accordance with ISAE 3000" — are almost entirely uninformative about whether a
+second verifier would agree. The EU Corporate Sustainability Reporting Directive
+(CSRD) mandates third-party assurance for large companies from 2025. ValiChord's
+pattern is exactly what this mandate needs to be credible rather than compliance
+theatre.
+
+*ISO and SOC2 certification:* Certification bodies audit organisations against
+defined standards (ISO 27001, ISO 9001, SOC2 Type II). The audit is a binary
+outcome: certified or not. There is no record of which controls the auditor
+actually tested, what evidence was examined, or whether a second auditor would
+have found the same gaps. A Harmony Record of the audit — what was tested, what
+was found, whether a second auditor agreed — would transform certification from a
+binary badge into a verifiable claim.
+
+*Regulatory inspection:* MHRA, FDA, FCA, and similar bodies conduct inspections
+that result in findings. These findings drive enforcement decisions. The inspection
+process is documented, but the process by which inspectors form views is not.
+Independent inspection reproducibility — would a second inspector, working from
+the same evidence, reach the same findings? — is never assessed systematically.
+
+**The anti-capture dimension:** The audit industry is structurally captured in
+exactly the way ValiChord's governance framework was designed to resist. Auditors
+are paid by the entities they audit. Audit firms depend on long-term client
+relationships. Inspectors are under institutional pressure to maintain working
+relationships with regulated entities. None of this is conspiracy — it is the
+slow gravitational pull of dependency. The result is well documented: Enron
+(Arthur Andersen), Wirecard (EY), Carillion (KPMG). In each case, the audit
+opinion was clean. The problem was not detected until collapse.
+
+ValiChord's multi-validator architecture with independence guarantees addresses
+this directly. If two auditors commit independently and their findings diverge
+significantly, that divergence is recorded. The question is no longer "did the
+auditor say it was fine?" but "did independent auditors agree?"
+
+**The integration angle:** Unlike pharmaceutical submissions or carbon credit
+verification, audit is a domain where the tools are already digital. Audit firms
+work with financial data, document management systems, and structured evidence
+repositories. The ValiChord REST API — `POST /validate` with a deposit ZIP,
+`GET /result/<job_id>` for structured findings — is already the right integration
+shape for an audit platform to connect to ValiChord. An audit tool that can export
+a structured evidence package as a ZIP can integrate without any domain-specific
+changes to ValiChord's core.
+
+This is the near-term opportunity: not building bespoke audit infrastructure,
+but making the existing REST API integration so clean that an audit SaaS
+platform can build their own connector and get a Harmony Record for their
+findings. The `validator_outcome` field already carries the right semantics for
+audit: `Reproduced` means a second auditor confirmed the same findings;
+`PartiallyReproduced` means partial agreement; `FailedToReproduce` means
+material disagreement.
+
+**The LinkedIn signal:** The unsolicited recognition from someone in this field —
+without knowing about ValiChord specifically — is a meaningful early signal. The
+people who understand the audit independence problem from the inside are the ones
+who will understand immediately why a cryptographically verified commit-reveal
+adds something that regulatory rules cannot. This is worth following up when
+ValiChord has Harmony Records to point to.
+
+**Potential partners:** Institute of Chartered Accountants in England and Wales
+(ICAEW), Financial Reporting Council (FRC), Big Four audit firms (reform
+appetite post-Carillion), B Team / We Mean Business (ESG disclosure integrity),
+CSRD assurance providers, UK Financial Conduct Authority.
+
+**Complications:** Audit evidence often contains confidential client data —
+financial statements before publication, internal control documentation, personnel
+records. ValiChord's local data architecture (only cryptographic proofs distributed,
+not the underlying evidence) is structurally suited to this constraint. But audit
+confidentiality rules (ISA 230 documentation standards, client confidentiality
+obligations) would need careful legal analysis before any implementation.
+
+---
+
 ### 9. Actuarial Models in Insurance
 
 **The problem:** Insurance pricing models have massive social consequences — discriminatory pricing, redlining, denial of coverage — and are almost never independently verified. Regulators review submissions but rarely reproduce the computational claims end-to-end. The model that determines whether someone can afford home insurance in a flood zone, or health insurance with a pre-existing condition, is a black box to everyone except the insurer that built it.
@@ -272,6 +397,31 @@ Even though these extensions are years away, some architectural decisions made n
 **Keep "Harmony Record" generic.** The term and format should describe any multi-validator assessment with preserved disagreement, not just scientific reproducibility assessments. The current design already does this — but naming matters, and "reproducibility" language in the core format could limit perception.
 
 **Document the pattern, not just the implementation.** If ValiChord's contribution to knowledge is the *pattern* (independent distributed verification with preserved disagreement and anti-capture governance), then documenting that pattern clearly — separate from the science-specific implementation — creates the foundation for future extension.
+
+---
+
+## The REST API as the universal entry point
+
+One architectural decision made in early 2026 is worth noting here, because it
+directly enables the multi-domain vision.
+
+ValiChord now exposes a clean, tool-agnostic REST API (`POST /validate`,
+`GET /result/<job_id>`, webhook callbacks, API key auth, OpenAPI spec at
+`GET /openapi.yaml`, interactive docs at `GET /docs`). Any tool that can make
+HTTP requests and produce a ZIP file can integrate with ValiChord — regardless
+of domain.
+
+This means that domain-specific tools do not need to understand Holochain,
+Rust, or ValiChord's internal architecture. A pharmaceutical submission system,
+an audit platform, a carbon credit registry, or an AI benchmarking tool can
+each build their own connector and receive a Harmony Record. The ValiChord core
+remains domain-agnostic. The domain-specific knowledge stays in the connecting
+tool.
+
+The integration guide is at `docs/INTEGRATION_GUIDE.md`. The OpenAPI spec
+describes the full API surface. The `validator_outcome` field already carries
+the right semantics for any domain where an independent party is assessing
+whether a claim holds: `Reproduced`, `PartiallyReproduced`, `FailedToReproduce`.
 
 ---
 
