@@ -6,8 +6,9 @@ import tempfile
 import shutil
 import zipfile
 import threading
+import functools
 from pathlib import Path
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 
 # add valichord_at_home to path
@@ -35,6 +36,37 @@ HOLOCHAIN_GATEWAY_URL        = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstri
 HOLOCHAIN_GOVERNANCE_DNA_HASH = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
 HOLOCHAIN_APP_ID             = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
 
+# ── API key auth (optional) ──────────────────────────────────────────────────
+# Set VALICHORD_API_KEYS to a comma-separated list of valid keys.
+# If unset or empty, the API is open (dev / local mode — current default).
+# Integrators should set this before exposing the endpoint publicly.
+_API_KEYS: set = {
+    k.strip()
+    for k in os.environ.get('VALICHORD_API_KEYS', '').split(',')
+    if k.strip()
+}
+
+
+def _require_api_key(f):
+    """Decorator: enforce API key when VALICHORD_API_KEYS is configured."""
+    @functools.wraps(f)
+    def _decorated(*args, **kwargs):
+        if not _API_KEYS:
+            return f(*args, **kwargs)
+        key = (
+            request.headers.get('X-ValiChord-Key')
+            or request.form.get('api_key', '')
+            or request.args.get('api_key', '')
+        )
+        if key not in _API_KEYS:
+            return jsonify({
+                'error': 'Invalid or missing API key.',
+                'hint': 'Pass your key in the X-ValiChord-Key request header.',
+            }), 401
+        return f(*args, **kwargs)
+    return _decorated
+
+
 # ── job store ────────────────────────────────────────────────────────────────
 _jobs: dict = {}
 _jobs_lock = threading.Lock()
@@ -42,6 +74,23 @@ _jobs_lock = threading.Lock()
 # ── in-progress uploads (chunked) ────────────────────────────────────────────
 _uploads: dict = {}
 _uploads_lock = threading.Lock()
+
+
+def _fire_webhook(callback_url: str, job_id: str, payload: dict):
+    """POST completed job result to callback_url. Fire-and-forget, one retry."""
+    import requests as _req
+    import time as _time
+    headers = {
+        'Content-Type': 'application/json',
+        'X-ValiChord-Job-Id': job_id,
+    }
+    for attempt in range(2):
+        try:
+            _req.post(callback_url, json=payload, headers=headers, timeout=10)
+            return
+        except Exception:
+            if attempt == 0:
+                _time.sleep(5)
 
 
 def _watchdog(job_id: str, thread: threading.Thread, work_dir: Path):
@@ -131,7 +180,8 @@ def _compute_harmony_draft(findings, data_hash_hex: str,
 
 
 def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str,
-                 validator_outcome: str = None, validator_notes: str = ''):
+                 validator_outcome: str = None, validator_notes: str = '',
+                 callback_url: str = None):
     try:
         repo_dir = work_dir / 'repository'
         output_dir = work_dir / 'output'
@@ -266,11 +316,70 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
             _jobs[job_id]['harmony_record_draft'] = harmony_draft
             _jobs[job_id]['top_findings'] = top_findings
 
+        if callback_url:
+            webhook_payload = {
+                'job_id': job_id,
+                'status': 'done',
+                'harmony_record_draft': harmony_draft,
+                'top_findings': top_findings,
+                'download_url': f'/download/{job_id}',
+            }
+            threading.Thread(
+                target=_fire_webhook,
+                args=(callback_url, job_id, webhook_payload),
+                daemon=True,
+            ).start()
+
     except Exception as e:
         with _jobs_lock:
             _jobs[job_id]['status'] = 'error'
             _jobs[job_id]['error'] = str(e)
+        if callback_url:
+            threading.Thread(
+                target=_fire_webhook,
+                args=(callback_url, job_id, {'job_id': job_id, 'status': 'error', 'error': str(e)}),
+                daemon=True,
+            ).start()
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+_OPENAPI_PATH = Path(__file__).parent / 'openapi.yaml'
+_SWAGGER_HTML = """<!DOCTYPE html>
+<html>
+<head>
+  <title>ValiChord API</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  SwaggerUIBundle({
+    url: '/openapi.yaml',
+    dom_id: '#swagger-ui',
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+    layout: 'StandaloneLayout',
+    deepLinking: true,
+  });
+</script>
+</body>
+</html>"""
+
+
+@app.route('/openapi.yaml', methods=['GET'])
+def openapi_spec():
+    """Serve the OpenAPI 3.0 specification."""
+    if not _OPENAPI_PATH.exists():
+        return jsonify({'error': 'OpenAPI spec not found'}), 404
+    return Response(_OPENAPI_PATH.read_text(encoding='utf-8'), mimetype='application/yaml')
+
+
+@app.route('/docs', methods=['GET'])
+def swagger_ui():
+    """Swagger UI — interactive API documentation."""
+    return Response(_SWAGGER_HTML, mimetype='text/html')
 
 
 @app.route('/health', methods=['GET'])
@@ -289,6 +398,7 @@ def health():
 
 
 @app.route('/upload-chunk', methods=['POST'])
+@_require_api_key
 def upload_chunk():
     """Receive one chunk of a multi-part upload.
 
@@ -383,6 +493,7 @@ def upload_chunk():
 
 
 @app.route('/validate', methods=['POST'])
+@_require_api_key
 def validate():
     """Single-shot deposit validation.
 
@@ -394,6 +505,10 @@ def validate():
       validator_notes   (optional) — free-text description of what ran, what failed, max 2000 chars.
                                      Used as the details string in PartiallyReproduced /
                                      FailedToReproduce outcomes.
+      callback_url      (optional) — HTTPS URL to POST the completed result to.
+                                     ValiChord will call this URL once when the job finishes,
+                                     with Content-Type: application/json and
+                                     X-ValiChord-Job-Id header. One retry after 5 s on failure.
 
     Returns { "job_id": "..." } immediately (HTTP 202).
     Poll GET /result/<job_id> for structured JSON results including
@@ -410,6 +525,7 @@ def validate():
                      f'Must be one of: {", ".join(sorted(_VALID_VALIDATOR_OUTCOMES))}'
         }), 400
     validator_notes = (request.form.get('validator_notes') or '')[:2000]
+    callback_url = (request.form.get('callback_url') or '').strip() or None
 
     filename = file.filename or 'deposit.zip'
     work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
@@ -433,7 +549,11 @@ def validate():
     worker = threading.Thread(
         target=_process_job,
         args=(job_id, upload_path, work_dir, filename),
-        kwargs={'validator_outcome': validator_outcome, 'validator_notes': validator_notes},
+        kwargs={
+            'validator_outcome': validator_outcome,
+            'validator_notes': validator_notes,
+            'callback_url': callback_url,
+        },
         daemon=True,
     )
     worker.start()

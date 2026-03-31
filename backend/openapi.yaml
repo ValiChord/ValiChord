@@ -1,0 +1,482 @@
+openapi: 3.0.3
+
+info:
+  title: ValiChord REST API
+  version: "1.0"
+  description: |
+    ValiChord is a scientific reproducibility verification system.
+    Submit a research deposit (ZIP of code + data + documentation), receive
+    structured findings, and get a tamper-evident **HarmonyRecord** written to
+    a Holochain distributed network — a permanent cryptographic proof of the
+    reproducibility verdict.
+
+    ## Two modes of use
+
+    **Researcher mode** — submit your own deposit for pre-validation.
+    ValiChord runs structural checks and returns a provisional verdict.
+    No `validator_outcome` field needed.
+
+    **Validator mode** — submit someone else's deposit after actually running
+    the code (e.g. Feynman running `/replicate`). Include `validator_outcome`
+    and `validator_notes`. The HarmonyRecord will reflect your real replication
+    result, not a proxy.
+
+    ## Authentication
+
+    Authentication is **optional** (off by default for local/dev deployments).
+    When the server operator has configured API keys, include your key in the
+    `X-ValiChord-Key` request header on write endpoints.
+
+    ## Asynchronous jobs
+
+    `POST /validate` returns a `job_id` immediately (HTTP 202). The analysis
+    runs in the background. Poll `GET /result/{job_id}` until `status` is
+    `"done"` or `"error"`, or supply a `callback_url` to receive a push
+    notification when the job finishes.
+
+servers:
+  - url: http://localhost:5000
+    description: Local / development
+  - url: https://improved-space-couscous-5gjwpp546jrg27p5q-5000.app.github.dev
+    description: Codespace demo (sleeps when inactive)
+
+security: []   # open by default; see X-ValiChord-Key below
+
+components:
+  securitySchemes:
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-ValiChord-Key
+      description: |
+        Required when the server has `VALICHORD_API_KEYS` configured.
+        Omit entirely on open (dev) deployments.
+
+  schemas:
+
+    JobId:
+      type: object
+      required: [job_id]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          example: "3f2a1b4c-8e9d-4f0a-b1c2-d3e4f5a6b7c8"
+
+    StatusRunning:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [running]
+
+    StatusError:
+      type: object
+      required: [status, error]
+      properties:
+        status:
+          type: string
+          enum: [error]
+        error:
+          type: string
+          example: "Processing timed out after 20 minutes."
+
+    Finding:
+      type: object
+      properties:
+        mode:
+          type: string
+          description: Detector code, e.g. "A", "B", "C", "AG"
+          example: "B"
+        severity:
+          type: string
+          enum: [CRITICAL, SIGNIFICANT, LOW CONFIDENCE, INFO]
+          example: "SIGNIFICANT"
+        title:
+          type: string
+          example: "No requirements file found"
+        detail:
+          type: string
+          example: "Found Python imports but no requirements.txt or environment.yml."
+        files:
+          type: array
+          items:
+            type: string
+          example: ["analysis/run.py", "analysis/utils.py"]
+
+    AttestationOutcome:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+          example: "PartiallyReproduced"
+        content:
+          type: object
+          description: Present for PartiallyReproduced and FailedToReproduce only.
+          properties:
+            details:
+              type: string
+              example: "2 significant issue(s) require attention"
+
+    FindingsSummary:
+      type: object
+      required: [critical, significant, low_confidence, total]
+      properties:
+        critical:
+          type: integer
+          example: 0
+        significant:
+          type: integer
+          example: 2
+        low_confidence:
+          type: integer
+          example: 3
+        total:
+          type: integer
+          example: 5
+
+    HarmonyRecordDraft:
+      type: object
+      required: [outcome, validator_attested, data_hash, findings_summary,
+                 harmony_record_hash, harmony_record_url]
+      properties:
+        outcome:
+          $ref: '#/components/schemas/AttestationOutcome'
+        validator_attested:
+          type: boolean
+          description: |
+            `true` — outcome came from a validator who actually ran the code
+            (validator_outcome was supplied on POST /validate).
+            `false` — outcome is a proxy derived from deposit quality findings.
+          example: false
+        data_hash:
+          type: string
+          description: SHA-256 hex digest of the deposit ZIP.
+          example: "e3b0c44298fc1c149afb4c8996fb92427ae41e4649b934ca495991b7852b855"
+        findings_summary:
+          $ref: '#/components/schemas/FindingsSummary'
+        harmony_record_hash:
+          type: string
+          nullable: true
+          description: |
+            Holochain ActionHash of the HarmonyRecord on the Governance DHT.
+            Null when the Holochain conductor is not running — analysis results
+            are always returned regardless.
+          example: "uhCkk7mXy3nWr50fp7PgDT2xR0PSwbaAMUgcp8cUKDDyr8On1lF"
+        harmony_record_url:
+          type: string
+          nullable: true
+          description: |
+            Public HTTP Gateway URL where anyone can verify the HarmonyRecord
+            independently — no account or login required.
+            Null until a permanent HTTP Gateway is deployed.
+          example: "https://gateway.valichord.org/uhC0k.../valichord/governance_coordinator/get_harmony_record?payload=..."
+
+    ResultDone:
+      type: object
+      required: [status, findings, harmony_record_draft, top_findings, download_url]
+      properties:
+        status:
+          type: string
+          enum: [done]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Finding'
+          description: All findings from structural and semantic analysis.
+        harmony_record_draft:
+          $ref: '#/components/schemas/HarmonyRecordDraft'
+        top_findings:
+          type: array
+          description: Up to 6 highest-severity findings for quick display.
+          items:
+            type: object
+            properties:
+              mode:
+                type: string
+              severity:
+                type: string
+              title:
+                type: string
+        download_url:
+          type: string
+          description: Relative path to download the full report ZIP.
+          example: "/download/3f2a1b4c-8e9d-4f0a-b1c2-d3e4f5a6b7c8"
+
+    HealthResponse:
+      type: object
+      required: [status, version, conductor]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: "1.0"
+        conductor:
+          type: string
+          enum: [live, offline]
+          description: |
+            `live` — Holochain conductor is running; HarmonyRecords will be
+            written to the DHT on successful validation.
+            `offline` — analysis runs but no HarmonyRecord is written.
+
+  responses:
+    Unauthorized:
+      description: API key missing or invalid (only when VALICHORD_API_KEYS is configured).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Invalid or missing API key."
+              hint:
+                type: string
+                example: "Pass your key in the X-ValiChord-Key request header."
+
+paths:
+
+  /health:
+    get:
+      summary: Liveness check
+      description: Returns server status and whether the Holochain conductor is running.
+      operationId: health
+      responses:
+        "200":
+          description: Server is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /validate:
+    post:
+      summary: Submit a research deposit for validation
+      description: |
+        Accepts a research deposit ZIP and starts an asynchronous analysis job.
+        Returns a `job_id` immediately. Poll `GET /result/{job_id}` for results,
+        or supply `callback_url` to receive a push notification.
+
+        **Validator mode:** include `validator_outcome` when you have actually
+        run the research code. The HarmonyRecord will reflect your real verdict.
+
+        **Researcher mode:** submit only `file`. A provisional verdict is
+        derived from deposit quality until a validator runs the code.
+      operationId: validate
+      security:
+        - ApiKeyHeader: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: ZIP of the research deposit. Max 100 MB.
+                validator_outcome:
+                  type: string
+                  enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+                  description: |
+                    Your replication verdict. Only supply this if you actually
+                    ran the research code and observed the result.
+                validator_notes:
+                  type: string
+                  maxLength: 2000
+                  description: |
+                    Free-text notes on your replication attempt — what ran,
+                    what failed, specific error messages. Used as the `details`
+                    string in PartiallyReproduced / FailedToReproduce outcomes.
+                callback_url:
+                  type: string
+                  format: uri
+                  description: |
+                    HTTPS URL to POST the completed result to. ValiChord calls
+                    this once when the job finishes, with:
+                    - Content-Type: application/json
+                    - X-ValiChord-Job-Id: <job_id>
+                    One retry after 5 seconds on failure.
+      responses:
+        "202":
+          description: Job accepted. Poll GET /result/{job_id} for results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobId'
+        "400":
+          description: Bad request — missing file, invalid validator_outcome, or file too large.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /result/{job_id}:
+    get:
+      summary: Poll for job results
+      description: |
+        Returns `{ "status": "running" }` while the job is in progress.
+        Returns the full structured result once complete.
+        The job and its output ZIP are cleaned up after `GET /download/{job_id}`
+        is called, so download before polling again.
+      operationId: getResult
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Current job status.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StatusRunning'
+                  - $ref: '#/components/schemas/StatusError'
+                  - $ref: '#/components/schemas/ResultDone'
+                discriminator:
+                  propertyName: status
+        "404":
+          description: Unknown job_id.
+
+  /download/{job_id}:
+    get:
+      summary: Download the full report ZIP
+      description: |
+        Returns the output ZIP containing:
+        - `CLEANING_REPORT.md` — human-readable summary of all findings
+        - `README_DRAFT.md` — suggested README corrections
+        - `LICENCE_DRAFT.txt` — suggested licence file
+        - `INVENTORY_DRAFT.md` — file inventory
+        - `ASSESSMENT.md` — verification questions for the researcher
+        - `VALICHORD_LOG.json` — machine-readable event log
+
+        The job is cleaned up from server memory after this call.
+      operationId: downloadResult
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report ZIP file.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Unknown job_id.
+        "409":
+          description: Job not yet complete.
+
+  /upload-chunk:
+    post:
+      summary: Upload a large deposit in chunks (legacy)
+      description: |
+        For deposits larger than 100 MB or when single-shot upload is unreliable.
+        Split the file into 1 MB chunks and POST them in order.
+        When the final chunk arrives, an analysis job starts automatically.
+
+        Prefer `POST /validate` for deposits under 100 MB.
+      operationId: uploadChunk
+      security:
+        - ApiKeyHeader: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [upload_id, chunk_index, total_chunks, chunk]
+              properties:
+                upload_id:
+                  type: string
+                  format: uuid
+                  description: Client-generated UUID for this upload session.
+                chunk_index:
+                  type: integer
+                  minimum: 0
+                  description: 0-based index of this chunk.
+                total_chunks:
+                  type: integer
+                  minimum: 1
+                  description: Total number of chunks in this upload.
+                chunk:
+                  type: string
+                  format: binary
+                  description: Binary chunk data (recommended max 1 MB per chunk).
+      responses:
+        "200":
+          description: Chunk received; more chunks expected.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [received]
+                  chunk:
+                    type: integer
+        "202":
+          description: All chunks received; analysis job started.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [processing]
+                  job_id:
+                    type: string
+                    format: uuid
+        "400":
+          description: Missing fields or upload session not found.
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /openapi.yaml:
+    get:
+      summary: This OpenAPI specification
+      operationId: getSpec
+      responses:
+        "200":
+          description: OpenAPI 3.0 YAML document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /docs:
+    get:
+      summary: Swagger UI — interactive API documentation
+      operationId: getDocs
+      responses:
+        "200":
+          description: HTML page with Swagger UI.
+          content:
+            text/html:
+              schema:
+                type: string
