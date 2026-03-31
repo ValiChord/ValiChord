@@ -54,7 +54,37 @@ Open questions:
 
 ---
 
-## 4. The Verification Highway™ and the Verification Lap™
+## 4. Feynman as quality engineer for valichord_at_home
+
+Two distinct roles for Feynman, kept deliberately separate:
+
+**Role 1 — Verification (now):** Feynman runs `/replicate`, submits a real
+replication verdict to ValiChord, gets a HarmonyRecord. This is the live
+integration.
+
+**Role 2 — Improvement (future):** Once `valichord_at_home` is more mature and
+its detectors are calibrated against real data, Feynman can help improve the
+tool itself. The insight: when Feynman fails to reproduce a study, it has
+direct evidence of *why* — a specific error, a missing dependency, an
+undocumented step. That evidence might reveal a failure mode that
+`valichord_at_home` currently misses entirely or mislabels.
+
+Concretely, Feynman could:
+- Run `/replicate` on a set of deposits, then compare what it found against
+  what `valichord_at_home` predicted — surfacing cases where the tool was
+  wrong in either direction (false CRITICAL, missed blocker)
+- Flag new failure mode patterns worth adding as detectors
+- Help calibrate the PRS scoring weights by providing ground-truth
+  reproducibility outcomes to compare against
+
+This is using Feynman as a quality engineer for the static analysis tool, not
+just as a validator of individual studies. It only makes sense once
+`valichord_at_home` has enough real-world usage to have something worth
+calibrating against.
+
+---
+
+## 5. The Verification Highway™ and the Verification Lap™
 
 **Verification Highway™** — the overall infrastructure: fast, multi-lane, AI-powered reproducibility verification where studies move quickly through independent validation, dissenting voices are heard, and the outcome is cryptographically permanent. The shift from slow, manual, one-shot peer review to something closer to continuous integration in software — but for science.
 
