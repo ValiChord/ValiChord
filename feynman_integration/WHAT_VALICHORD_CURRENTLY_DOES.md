@@ -37,22 +37,42 @@ Feynman can call `POST /validate`, poll for the result, and present the verdict 
 
 ---
 
-## What is a proxy (important to understand)
+## Two modes: validator-attested vs proxy
 
-The current `AttestationOutcome` — `Reproduced`, `PartiallyReproduced`, `FailedToReproduce` — is **derived from the deposit analysis findings**, not from anyone actually running the code.
+The `AttestationOutcome` in the HarmonyRecord can now come from one of two places.
+The response field `harmony_record_draft.validator_attested` tells you which.
 
-In other words:
+### Validator-attested (`validator_attested: true`)
+
+A real validator (human or AI — Feynman, for example) actually ran the code and
+submitted their replication verdict via the `validator_outcome` field on
+`POST /validate`. The outcome means exactly what it says:
+
+- `Reproduced` — the validator ran it and got the same result
+- `PartiallyReproduced` — it ran but outputs differed in specific ways
+- `FailedToReproduce` — it failed to run, or outputs were fundamentally different
+
+This is the real thing. This is what ValiChord is designed for.
+
+### Proxy (`validator_attested: false`)
+
+No validator has run the code yet. The outcome is derived from deposit quality
+findings — a structural assessment of whether the repository *looks* runnable:
+
 - CRITICAL findings → `FailedToReproduce`
 - SIGNIFICANT findings only → `PartiallyReproduced`
 - No findings → `Reproduced`
 
-This is a reasonable stand-in for now, but it conflates two different questions:
-- **Deposit quality** — is the repository well organised and documented? (what the detectors measure)
-- **Reproducibility** — does the code actually run and produce the same results? (what a validator determines by running it)
+This is a reasonable stand-in, but it conflates two different questions:
+- **Deposit quality** — is the repository well documented and structured?
+- **Reproducibility** — does the code actually run and produce the same results?
 
-A messy deposit *can* still reproduce. A tidy deposit *can* still fail. The proxy doesn't distinguish between these cases.
+A messy deposit can still reproduce. A tidy deposit can still fail. The proxy
+doesn't distinguish these cases.
 
-**The proxy will be replaced** when Feynman (or another validator) actually runs `/replicate` on the deposit and submits a genuine attestation based on whether the code ran successfully.
+**When Feynman runs `/replicate` and submits `validator_outcome`**, the proxy
+is replaced by a genuine attestation. The HarmonyRecord on Holochain will then
+reflect what actually happened when someone ran the code.
 
 ---
 
@@ -60,7 +80,7 @@ A messy deposit *can* still reproduce. A tidy deposit *can* still fail. The prox
 
 | What's missing | Why it matters |
 |---|---|
-| A real validator running the code | The verdict currently comes from deposit analysis, not actual execution |
+| Feynman running `/replicate` before submitting | PR #15 (in progress) wires this up — currently Feynman submits without running the code first |
 | Multiple validators | The protocol supports many validators reaching consensus — currently only one (the system itself) |
 | Bronze / Silver / Gold badges | These require multi-validator consensus in the Governance DNA — not yet triggered |
 | Always-on hosting | The system runs in a Codespace that sleeps when inactive — not production-ready |

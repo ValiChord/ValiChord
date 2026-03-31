@@ -56,53 +56,82 @@ def _watchdog(job_id: str, thread: threading.Thread, work_dir: Path):
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def _compute_harmony_draft(findings, data_hash_hex: str) -> dict:
-    """Derive a would-be HarmonyRecord from analysis findings.
+_VALID_VALIDATOR_OUTCOMES = {'Reproduced', 'PartiallyReproduced', 'FailedToReproduce'}
 
-    NOTE: This is a PROXY. It maps deposit quality findings to an
-    AttestationOutcome as a stand-in for Phase 0 single-validator mode.
-    In the full protocol, AttestationOutcome comes from a validator
-    (human or AI) actually running the code — not from deposit analysis.
-    See feynman_integration/INTEGRATION_VISION.md for the intended design.
 
-    Outcome mapping (proxy only):
-      Any CRITICAL finding  → FailedToReproduce
-      SIGNIFICANT only      → PartiallyReproduced
-      No findings           → Reproduced
+def _compute_harmony_draft(findings, data_hash_hex: str,
+                           validator_outcome: str = None,
+                           validator_notes: str = '') -> dict:
+    """Build the HarmonyRecord draft that will be written to the Governance DHT.
+
+    Two modes:
+
+    1. Validator-attested (validator_outcome is supplied):
+       A real validator (human or AI) actually ran the code and is submitting
+       their genuine replication verdict.  Use it directly — this is what
+       ValiChord is designed for.
+
+    2. Proxy (validator_outcome is None):
+       No one has run the code yet.  Derive a provisional outcome from the
+       deposit quality findings as a stand-in.  This is replaced by a real
+       attestation once a validator submits one.
+
+       Proxy mapping:
+         Any CRITICAL finding  → FailedToReproduce
+         SIGNIFICANT only      → PartiallyReproduced
+         No findings           → Reproduced
     """
-    critical   = [f for f in findings if f.get('severity') == 'CRITICAL']
+    critical    = [f for f in findings if f.get('severity') == 'CRITICAL']
     significant = [f for f in findings if f.get('severity') == 'SIGNIFICANT']
-    low        = [f for f in findings if f.get('severity') == 'LOW CONFIDENCE']
+    low         = [f for f in findings if f.get('severity') == 'LOW CONFIDENCE']
 
-    if critical:
-        outcome = {
-            'type': 'FailedToReproduce',
-            'content': {'details': f'{len(critical)} critical issue(s) prevent reproduction'},
-        }
-    elif significant:
-        outcome = {
-            'type': 'PartiallyReproduced',
-            'content': {'details': f'{len(significant)} significant issue(s) require attention'},
-        }
+    attested = validator_outcome in _VALID_VALIDATOR_OUTCOMES
+
+    if attested:
+        if validator_outcome == 'Reproduced':
+            outcome = {'type': 'Reproduced'}
+        elif validator_outcome == 'PartiallyReproduced':
+            outcome = {
+                'type': 'PartiallyReproduced',
+                'content': {'details': validator_notes or 'Validator reported partial reproduction'},
+            }
+        else:  # FailedToReproduce
+            outcome = {
+                'type': 'FailedToReproduce',
+                'content': {'details': validator_notes or 'Validator reported failure to reproduce'},
+            }
     else:
-        outcome = {'type': 'Reproduced'}
+        # Proxy — derived from deposit quality, not actual execution.
+        if critical:
+            outcome = {
+                'type': 'FailedToReproduce',
+                'content': {'details': f'{len(critical)} critical issue(s) prevent reproduction'},
+            }
+        elif significant:
+            outcome = {
+                'type': 'PartiallyReproduced',
+                'content': {'details': f'{len(significant)} significant issue(s) require attention'},
+            }
+        else:
+            outcome = {'type': 'Reproduced'}
 
     return {
         'outcome': outcome,
+        'validator_attested': attested,
         'data_hash': data_hash_hex,
         'findings_summary': {
-            'critical':      len(critical),
-            'significant':   len(significant),
+            'critical':       len(critical),
+            'significant':    len(significant),
             'low_confidence': len(low),
-            'total':         len(findings),
+            'total':          len(findings),
         },
-        # Populated in a later phase when the Holochain bridge is wired up.
         'harmony_record_hash': None,
         'harmony_record_url':  None,
     }
 
 
-def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str):
+def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str,
+                 validator_outcome: str = None, validator_notes: str = ''):
     try:
         repo_dir = work_dir / 'repository'
         output_dir = work_dir / 'output'
@@ -202,7 +231,9 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
                     zf.write(file, file.relative_to(output_dir))
 
         data_hash_hex = hashlib.sha256(upload_path.read_bytes()).hexdigest()
-        harmony_draft = _compute_harmony_draft(findings, data_hash_hex)
+        harmony_draft = _compute_harmony_draft(findings, data_hash_hex,
+                                               validator_outcome=validator_outcome,
+                                               validator_notes=validator_notes)
 
         # Attempt to write a real HarmonyRecord to the Governance DHT.
         # Requires demo/serve.mjs to be running with a live conductor.
@@ -351,6 +382,66 @@ def upload_chunk():
     return jsonify({'status': 'processing', 'job_id': job_id}), 202
 
 
+@app.route('/validate', methods=['POST'])
+def validate():
+    """Single-shot deposit validation.
+
+    Accepts multipart/form-data with:
+      file              (required) — ZIP of the research deposit, max 100 MB
+      validator_outcome (optional) — "Reproduced" | "PartiallyReproduced" | "FailedToReproduce"
+                                     Provide when a validator has actually run the code.
+                                     If omitted, outcome is derived from deposit quality (proxy).
+      validator_notes   (optional) — free-text description of what ran, what failed, max 2000 chars.
+                                     Used as the details string in PartiallyReproduced /
+                                     FailedToReproduce outcomes.
+
+    Returns { "job_id": "..." } immediately (HTTP 202).
+    Poll GET /result/<job_id> for structured JSON results including
+    harmony_record_draft.validator_attested (true when validator_outcome was supplied).
+    """
+    file = request.files.get('file')
+    if file is None:
+        return jsonify({'error': 'Missing file field (multipart/form-data, field name: file)'}), 400
+
+    validator_outcome = (request.form.get('validator_outcome') or '').strip() or None
+    if validator_outcome and validator_outcome not in _VALID_VALIDATOR_OUTCOMES:
+        return jsonify({
+            'error': f'Invalid validator_outcome "{validator_outcome}". '
+                     f'Must be one of: {", ".join(sorted(_VALID_VALIDATOR_OUTCOMES))}'
+        }), 400
+    validator_notes = (request.form.get('validator_notes') or '')[:2000]
+
+    filename = file.filename or 'deposit.zip'
+    work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
+    upload_path = work_dir / 'upload.zip'
+    file.save(str(upload_path))
+
+    size_mb = upload_path.stat().st_size / (1024 * 1024)
+    if size_mb > MAX_SIZE_MB:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        return jsonify({'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'}), 400
+
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _jobs[job_id] = {
+            'status': 'running',
+            'output_zip': None,
+            'error': None,
+            'work_dir': work_dir,
+        }
+
+    worker = threading.Thread(
+        target=_process_job,
+        args=(job_id, upload_path, work_dir, filename),
+        kwargs={'validator_outcome': validator_outcome, 'validator_notes': validator_notes},
+        daemon=True,
+    )
+    worker.start()
+    threading.Thread(target=_watchdog, args=(job_id, worker, work_dir), daemon=True).start()
+
+    return jsonify({'job_id': job_id}), 202
+
+
 @app.route('/status/<job_id>', methods=['GET'])
 def status(job_id):
     with _jobs_lock:
@@ -396,48 +487,6 @@ def download(job_id):
     )
     threading.Thread(target=cleanup, daemon=True).start()
     return response
-
-
-@app.route('/validate', methods=['POST'])
-def validate():
-    """Single-shot deposit validation.
-
-    Accepts multipart/form-data with a 'file' field (ZIP, max 100 MB).
-    Returns { "job_id": "..." } immediately.
-    Poll GET /result/<job_id> for structured JSON results.
-    """
-    file = request.files.get('file')
-    if file is None:
-        return jsonify({'error': 'Missing file field (multipart/form-data, field name: file)'}), 400
-
-    filename = file.filename or 'deposit.zip'
-    work_dir = Path(tempfile.mkdtemp(prefix='valichord_'))
-    upload_path = work_dir / 'upload.zip'
-    file.save(str(upload_path))
-
-    size_mb = upload_path.stat().st_size / (1024 * 1024)
-    if size_mb > MAX_SIZE_MB:
-        shutil.rmtree(work_dir, ignore_errors=True)
-        return jsonify({'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'}), 400
-
-    job_id = str(uuid.uuid4())
-    with _jobs_lock:
-        _jobs[job_id] = {
-            'status': 'running',
-            'output_zip': None,
-            'error': None,
-            'work_dir': work_dir,
-        }
-
-    worker = threading.Thread(
-        target=_process_job,
-        args=(job_id, upload_path, work_dir, filename),
-        daemon=True,
-    )
-    worker.start()
-    threading.Thread(target=_watchdog, args=(job_id, worker, work_dir), daemon=True).start()
-
-    return jsonify({'job_id': job_id}), 202
 
 
 @app.route('/result/<job_id>', methods=['GET'])

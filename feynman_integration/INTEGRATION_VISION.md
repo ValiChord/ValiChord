@@ -31,7 +31,10 @@ Two new endpoints as of 2026-03-28:
 
 ```
 POST /validate
-  multipart/form-data, field: file (ZIP, max 100 MB)
+  multipart/form-data fields:
+    file              (required)  ZIP of research deposit, max 100 MB
+    validator_outcome (optional)  "Reproduced" | "PartiallyReproduced" | "FailedToReproduce"
+    validator_notes   (optional)  free text, max 2000 chars
   → 202 { "job_id": "uuid" }
 
 GET /result/<job_id>
@@ -39,22 +42,33 @@ GET /result/<job_id>
       "findings": [...],
       "harmony_record_draft": {
         "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
+        "validator_attested": true,          ← true when validator_outcome was supplied
         "data_hash": "<sha256 hex>",
         "findings_summary": { "critical": 0, "significant": 2, "low_confidence": 3, "total": 5 },
         "harmony_record_hash": "<uhCkk... or null>",
         "harmony_record_url":  "<gateway URL or null>"
       },
+      "top_findings": [...],
       "download_url": "/download/<job_id>" }
 
 GET /health
   → { "status": "ok", "version": "1.0", "conductor": "live"|"offline" }
 ```
 
-`harmony_record_hash` is null when the Holochain conductor is not running — the analysis always completes either way. `harmony_record_url` is null until a public HTTP Gateway is deployed (see open work below).
+`harmony_record_hash` is null when the Holochain conductor is not running — the
+analysis always completes either way. `harmony_record_url` is null until a
+public HTTP Gateway is deployed (see open work below).
 
-**Outcome mapping** — findings severity → AttestationOutcome written to the Holochain DHT:
+**Outcome sources** — two modes depending on whether a validator ran the code:
 
-| Python findings | Holochain AttestationOutcome |
+| `validator_outcome` field | `validator_attested` | AttestationOutcome written to DHT |
+|---|---|---|
+| Supplied by validator | `true` | The validator's actual replication verdict |
+| Omitted (researcher submission) | `false` | Proxy: derived from deposit quality findings |
+
+**Proxy mapping** (used only when `validator_outcome` is not supplied):
+
+| Deposit findings | Proxy AttestationOutcome |
 |---|---|
 | Any CRITICAL finding | `FailedToReproduce` |
 | SIGNIFICANT only | `PartiallyReproduced` |
@@ -79,40 +93,66 @@ Added two files to the Feynman repository:
 
 **PR #14** — open, 2026-03-28.
 
-Updated `prompts/valichord.md` to use the new single-shot API (`POST /validate` + `GET /result/<job_id>`) instead of the old chunked upload flow. Documents `harmony_record_draft` so Feynman can surface the Harmony Record hash and URL to the user.
+Updated `prompts/valichord.md` to use the single-shot API (`POST /validate` +
+`GET /result/<job_id>`) instead of the old chunked upload flow. Documents
+`harmony_record_draft` response shape.
+
+**PR #15** — to be opened.
+
+Rewrites `prompts/valichord.md` so that validators run `/replicate` before
+submitting — making Feynman a genuine validator rather than a deposit-quality
+checker. Adds `validator_outcome` and `validator_notes` to the submission,
+surfaces `validator_attested` in the report. The new prompt is in
+`feynman_integration/valichord_prompt_v2.md` in the ValiChord repository.
+
+This also requires the ValiChord backend change (merged alongside PR #15) that
+adds `validator_outcome` / `validator_notes` to `POST /validate`.
 
 ---
 
 ## Current end-to-end flow
 
+### Validator flow (Feynman runs `/replicate` first — the real thing)
+
 ```
 User runs /valichord in Feynman
     │
-    │  1. ZIP the research deposit
+    │  1. Ask: researcher or validator?
     │
-    │  POST /validate  (multipart, field: file)
+    │  2. (validator) Run /replicate on the deposit
+    │     - install environment (Docker / local / Modal / RunPod)
+    │     - execute the research code
+    │     - compare outputs to claimed results
+    │     - form verdict: Reproduced / PartiallyReproduced / FailedToReproduce
+    │
+    │  3. ZIP the deposit
+    │
+    │  POST /validate  (file + validator_outcome + validator_notes)
     ▼
 ValiChord Flask backend  (/workspaces/ValiChord/backend/app.py)
     │
-    │  2. Run analysis pipeline
+    │  4. Run analysis pipeline
     │     - Structural detectors (100+ checks)
     │     - Claude semantic analysis
     │     - Generate cleaning report + drafts
     │
-    │  3. Compute SHA-256 of deposit ZIP
+    │  5. Compute SHA-256 of deposit ZIP
+    │     Use validator_outcome directly (not proxy mapping)
+    │     validator_attested = true
     │
     │  POST localhost:8888/holochain/validate-round
     ▼
 serve.mjs Holochain bridge  (/workspaces/ValiChord/demo/serve.mjs)
     │
-    │  4. Run 7-step commit-reveal:
+    │  6. Run 7-step commit-reveal:
     │     submit_validation_request → claim_study → receive_task
     │     → seal_private_attestation → poll RevealOpen
     │     → submit_attestation → check_and_create_harmony_record
     ▼
 Holochain conductor (Governance DNA)
     │
-    │  5. HarmonyRecord written to DHT
+    │  7. HarmonyRecord written to DHT
+    │     outcome = Feynman's actual replication verdict
     │     harmony_record_hash: "uhCkk..."
     │
     ◀─────────────────────────────────────────────────────
@@ -121,13 +161,30 @@ Holochain conductor (Governance DNA)
     ▼
 Feynman receives:
     - outcome: Reproduced / PartiallyReproduced / FailedToReproduce
-    - findings summary (counts by severity)
+    - validator_attested: true  (real attestation)
+    - findings summary (structural analysis)
     - harmony_record_hash (cryptographic proof on DHT)
-    - download_url (full report ZIP)
+    - download_url (full cleaning report ZIP)
     │
-    │  6. Feynman presents summary to user
+    │  8. Feynman presents replication summary + verdict to user
     ▼
-User sees verdict + Harmony Record hash
+User sees: what Feynman ran, what worked, what failed + Harmony Record hash
+```
+
+### Researcher flow (no `/replicate` — deposit submission only)
+
+```
+User runs /valichord in Feynman (researcher mode)
+    │
+    │  1. ZIP the deposit
+    │
+    │  POST /validate  (file only — no validator_outcome)
+    ▼
+ValiChord backend runs structural analysis
+    validator_attested = false  (proxy outcome, no one ran the code yet)
+    ▼
+User sees: deposit quality findings + provisional verdict + Harmony Record hash
+           (verdict will update when a real validator runs the code)
 ```
 
 ---
