@@ -177,16 +177,20 @@ components:
 
     ResultDone:
       type: object
-      required: [status, findings, harmony_record_draft, top_findings, download_url]
+      required: [status, prs, harmony_record_draft, top_findings, download_url]
       properties:
         status:
           type: string
           enum: [done]
-        findings:
-          type: array
-          items:
-            $ref: '#/components/schemas/Finding'
-          description: All findings from structural and semantic analysis.
+        prs:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: >
+            Process Reproducibility Score — a float 0–1 derived from the
+            findings. 1.0 means no issues found. Deductions: blocker −0.20,
+            critical −0.10, significant −0.05, low confidence −0.01.
         harmony_record_draft:
           $ref: '#/components/schemas/HarmonyRecordDraft'
         top_findings:

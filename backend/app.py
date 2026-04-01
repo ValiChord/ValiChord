@@ -7,6 +7,8 @@ import shutil
 import zipfile
 import threading
 import functools
+import time
+from collections import defaultdict
 from pathlib import Path
 from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
@@ -46,13 +48,48 @@ _API_KEYS: set = {
     if k.strip()
 }
 
+# ── Per-key rate limiting ─────────────────────────────────────────────────────
+# VALICHORD_RATE_LIMIT — max requests per key per minute on write endpoints.
+# Defaults to 10. Set to 0 to disable rate limiting.
+# When the API is open (no keys configured) rate limiting uses the client IP.
+_RATE_LIMIT = int(os.environ.get('VALICHORD_RATE_LIMIT', '10'))
+_rate_buckets: dict = defaultdict(list)   # key/ip → [timestamp, ...]
+_rate_lock = threading.Lock()
+
+
+def _check_rate_limit(identity: str) -> bool:
+    """Return True if the request is within the rate limit, False if exceeded.
+
+    Uses a sliding 60-second window. Thread-safe.
+    """
+    if _RATE_LIMIT == 0:
+        return True
+    now = time.monotonic()
+    window_start = now - 60.0
+    with _rate_lock:
+        timestamps = _rate_buckets[identity]
+        # Evict timestamps older than the window
+        _rate_buckets[identity] = [t for t in timestamps if t > window_start]
+        if len(_rate_buckets[identity]) >= _RATE_LIMIT:
+            return False
+        _rate_buckets[identity].append(now)
+        return True
+
 
 def _require_api_key(f):
-    """Decorator: enforce API key when VALICHORD_API_KEYS is configured."""
+    """Decorator: enforce API key (when configured) and per-key rate limit."""
     @functools.wraps(f)
     def _decorated(*args, **kwargs):
         if not _API_KEYS:
+            # Open mode — rate-limit by IP
+            identity = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown')
+            if not _check_rate_limit(identity):
+                return jsonify({
+                    'error': 'Rate limit exceeded.',
+                    'hint': f'Maximum {_RATE_LIMIT} requests per minute. Please wait before retrying.',
+                }), 429
             return f(*args, **kwargs)
+
         key = (
             request.headers.get('X-ValiChord-Key')
             or request.form.get('api_key', '')
@@ -63,6 +100,11 @@ def _require_api_key(f):
                 'error': 'Invalid or missing API key.',
                 'hint': 'Pass your key in the X-ValiChord-Key request header.',
             }), 401
+        if not _check_rate_limit(key):
+            return jsonify({
+                'error': 'Rate limit exceeded.',
+                'hint': f'Maximum {_RATE_LIMIT} requests per minute per API key. Please wait before retrying.',
+            }), 429
         return f(*args, **kwargs)
     return _decorated
 
@@ -617,8 +659,9 @@ def result(job_id):
       { "status": "running" }
       { "status": "error", "error": "..." }
       { "status": "done",
-        "findings": [...],
+        "prs": <float 0-1>,
         "harmony_record_draft": { outcome, data_hash, findings_summary, ... },
+        "top_findings": [...],
         "download_url": "/download/<job_id>" }
     """
     with _jobs_lock:
@@ -631,7 +674,7 @@ def result(job_id):
         return jsonify({'status': 'error', 'error': job['error']})
     return jsonify({
         'status': 'done',
-        'findings': job.get('prs'),
+        'prs': job.get('prs'),
         'harmony_record_draft': job.get('harmony_record_draft'),
         'download_url': f'/download/{job_id}',
         'top_findings': job.get('top_findings', []),

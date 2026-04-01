@@ -112,7 +112,7 @@ Response when done:
 ```json
 {
   "status": "done",
-  "findings": [...],
+  "prs": 0.87,
   "harmony_record_draft": {
     "outcome": { "type": "Reproduced" },
     "validator_attested": true,
