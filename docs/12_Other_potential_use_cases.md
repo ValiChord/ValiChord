@@ -352,6 +352,101 @@ obligations) would need careful legal analysis before any implementation.
 
 ---
 
+### 12. AI Output Governance — Proving Oversight Was Independent
+
+**The problem:** AI tools are now embedded in everyday organisational work —
+drafting documents, producing research summaries, answering customer queries,
+supporting internal decisions. For most organisations, the question is no longer
+whether AI will be used, but how to govern its use responsibly.
+
+The governance frameworks being built to answer this question share a structural
+gap. They can specify *that* AI outputs must be reviewed by a human before being
+acted upon. They can document *who* reviewed them. What they cannot do is prove
+*that the review was genuinely independent* — that the reviewer formed their own
+view before being shown the AI's conclusion, rather than anchoring on it and
+finding reasons to agree.
+
+This is not a theoretical problem. It is the same social desirability bias that
+affects scientific peer review: a reviewer who sees a plausible, confident AI
+output and does not want to create friction will tend to validate it. The policy
+says "human oversight required." The practice is often closer to "human
+rubber-stamp applied." There is currently no infrastructure that makes the
+difference between these two things visible.
+
+**Why this is the same problem:** ValiChord's commit-reveal protocol solves
+exactly this. Applied to AI output governance, it works as follows:
+
+- The AI produces an output (a draft, an analysis, a recommendation)
+- The reviewer forms their own independent assessment and *commits* it
+  cryptographically before seeing the AI's conclusion
+- Both are revealed simultaneously
+- Agreement and disagreement are recorded in a Harmony Record
+- The record is permanent and tamper-evident
+
+This does not replace the reviewer. It proves that the reviewer was genuinely
+independent — that the oversight was structural, not procedural.
+
+**The pre-registered threshold dimension:** The strongest version of this
+architecture requires the organisation to pre-register its acceptance criteria
+before the review begins. What counts as an acceptable AI output for this use
+case? What divergence from the reviewer's independent assessment triggers
+escalation? When those thresholds are declared in advance and sealed on the DHT,
+the review process becomes objectively auditable — not just documented.
+
+**Who this is for:** This use case is particularly relevant for:
+
+- Regulated organisations using AI in decision support (financial services,
+  healthcare, legal, public sector) where regulators are beginning to ask
+  "how do you know your oversight was real?"
+- Charities and public interest bodies with accountability obligations to
+  funders or beneficiaries
+- Any organisation subject to the EU AI Act's human oversight requirements
+  for high-risk AI systems
+- AI governance consultancies and DPOs advising organisations on how to
+  operationalise oversight frameworks — who currently have no tool that
+  provides cryptographic proof of independent review
+
+**The distinction from section 7 (AI Model Auditing):** Section 7 addresses
+auditing the AI model itself — does it perform as claimed? This section addresses
+auditing the *use* of AI outputs — was the human review of those outputs
+genuinely independent? These are complementary but distinct. An organisation can
+have a well-audited model and still have a rubber-stamp review culture. ValiChord
+addresses both layers but through different mechanisms.
+
+**The REST API fit:** Unlike some use cases that require domain-specific
+infrastructure, this one fits the existing API surface directly. An organisation's
+AI governance tool exports the AI output and the reviewer's independent assessment
+as a structured ZIP. `POST /validate` accepts it. `GET /result/<job_id>` returns
+a Harmony Record. The `validator_outcome` field carries the right semantics:
+`Reproduced` means the reviewer independently reached the same conclusion as the
+AI; `PartiallyReproduced` means partial agreement; `FailedToReproduce` means
+material divergence that should trigger escalation.
+
+No domain-specific changes to ValiChord's core are required. The governance tool
+builds the connector; ValiChord provides the permanent, tamper-evident record.
+
+**Potential partners:** AI governance consultancies (particularly those bridging
+governance, data protection, and operational practice); DPO service providers;
+organisations subject to EU AI Act high-risk system requirements; UK CDEI (Centre
+for Data Ethics and Innovation); ICO (Information Commissioner's Office, which is
+developing AI audit guidance); regulated sector compliance teams.
+
+**Complications:** Defining "independent assessment" in practice varies by use
+case — a reviewer assessing a drafted contract is doing something different from
+a reviewer assessing an automated lending decision. The pre-registration of
+acceptance criteria requires upfront investment from the organisation. And the
+cultural shift from "human signs off" to "human commits independently before
+reveal" is non-trivial. These are adoption challenges, not architectural ones.
+
+**Why this matters now:** The AI governance market is maturing rapidly. Frameworks
+exist; enforcement is beginning; organisations are realising that "we have a
+policy" is not the same as "we have evidence the policy works." ValiChord is
+the missing layer between policy and proof. The timing — before the market
+settles on a standard for what "evidence of independent oversight" looks like —
+is the right moment to be visible in this conversation.
+
+---
+
 ### 9. Actuarial Models in Insurance
 
 **The problem:** Insurance pricing models have massive social consequences — discriminatory pricing, redlining, denial of coverage — and are almost never independently verified. Regulators review submissions but rarely reproduce the computational claims end-to-end. The model that determines whether someone can afford home insurance in a flood zone, or health insurance with a pre-existing condition, is a black box to everyone except the insurer that built it.

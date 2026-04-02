@@ -1,8 +1,8 @@
 # ValiChord × Feynman — Integration Notes
 
-**Status:** Phase 1 complete. PR #15 in progress (Feynman as genuine validator).
+**Status:** Phase 1 complete. Feynman at **0.2.16**, ValiChord now tracked as **PR #23** in Feynman repo.
 **Authors:** Ceri John (ValiChord), in dialogue with Advait Paliwal (Feynman)
-**Last updated:** March 2026
+**Last updated:** 2026-03-31
 
 ---
 
@@ -15,9 +15,9 @@
 | `validator_attested` flag in responses | **Live** | Distinguishes real attestations from proxy outcomes |
 | Holochain bridge | **Live** | HarmonyRecords written to DHT when conductor is running |
 | `harmony_record_draft` in responses | **Live** | Outcome, data hash, findings summary, hash + URL when available |
-| Feynman skill — PR #13 | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal |
-| Feynman prompt update — PR #14 | **Open** | Migrates prompt to single-shot API, documents `harmony_record_draft` |
-| Feynman `/replicate`-first prompt — PR #15 | **Open** | Makes Feynman a genuine validator; see `valichord_prompt_v2.md` |
+| Feynman skill — was PR #13 | **Merged** | Cherry-picked into Feynman 0.2.15; Feynman now at **0.2.16**, ValiChord tracked as **PR #23** |
+| Feynman prompt update — PR #14 | **Rejected** | Rejected by @advaitpaliwal; superseded by PR #23 |
+| Feynman `/replicate`-first prompt — PR #15 | **Never pushed** | Local draft only (`valichord_prompt_v2.md`); never submitted to Feynman repo |
 | Demo endpoint (Codespace) | **Live** | `https://improved-space-couscous-5gjwpp546jrg27p5q-5000.app.github.dev` |
 
 ## What is not done yet

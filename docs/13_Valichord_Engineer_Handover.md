@@ -444,21 +444,77 @@ Previously described as "actively in progress, could ship any release." **That w
 
 ---
 
-## Integration API and Holochain Bridge (2026-03-28)
+## Integration API and Holochain Bridge (2026-03-28, extended 2026-03-31)
 
-Four phases of work were completed on 2026-03-28 to connect the Python analysis pipeline to the Holochain conductor and expose a clean REST integration surface.
+Four phases of work were completed on 2026-03-28 to connect the Python analysis pipeline to the Holochain conductor and expose a clean REST integration surface. The API was extended in March 2026 to support real validator attestations, API key authentication, webhook callbacks, and machine-readable OpenAPI docs.
 
 ### REST API surface
 
-New single-shot endpoints added to `backend/app.py`:
-- `POST /validate` — multipart/form-data, field `file` (ZIP) → `{ "job_id" }`
-- `GET /result/<job_id>` → `{ status, findings, harmony_record_draft, download_url }`
+All endpoints live in `backend/app.py`. See `backend/openapi.yaml` for the full machine-readable spec, or `GET /docs` for Swagger UI.
 
-Updated existing endpoints:
-- `GET /status/<job_id>` — now includes `harmony_record_draft` in done response
-- `GET /health` — now includes `conductor: "live"|"offline"` field
+**Write endpoints** (require `X-ValiChord-Key` header when `VALICHORD_API_KEYS` env var is set):
 
-Full request/response shapes, `harmony_record_draft` schema, and outcome mapping are documented in `docs/3_ValiChord_Technical_Reference.md` → "Implemented Integration API" section.
+- `POST /validate` — multipart/form-data
+  - Required: `file` (ZIP, max 100 MB)
+  - Optional: `validator_outcome` — `Reproduced | PartiallyReproduced | FailedToReproduce`
+  - Optional: `validator_notes` — free text, used as `details` string in non-Reproduced outcomes
+  - Optional: `callback_url` — HTTPS URL to POST the result to once complete (one retry after 5 s)
+  - Returns: `{ "job_id": "<uuid>" }` (HTTP 202)
+
+- `POST /upload-chunk` — chunked upload for deposits > 100 MB
+
+**Read endpoints** (always open, no key needed):
+
+- `GET /result/<job_id>` → `{ status: running | done | error, ... }`
+- `GET /download/<job_id>` → ZIP containing `CLEANING_REPORT.md`, `README_DRAFT.md`, `LICENCE_DRAFT.txt`, `INVENTORY_DRAFT.md`, `ASSESSMENT.md`, `VALICHORD_LOG.json` (job cleaned up after download)
+- `GET /health` → `{ status: ok, version, conductor: live | offline }`
+- `GET /openapi.yaml` → OpenAPI 3.0.3 YAML spec
+- `GET /docs` → Swagger UI HTML (CDN-hosted, no dependencies)
+
+### Two modes: validator-attested vs proxy
+
+**Validator-attested (`validator_attested: true`):** When `validator_outcome` is supplied in `POST /validate`, the `HarmonyRecord` outcome comes directly from the validator's stated verdict — not from deposit quality analysis. This is the genuine replication path. Feynman runs `/replicate`, forms a verdict, then submits it here.
+
+**Proxy (`validator_attested: false`):** When no `validator_outcome` is supplied, the outcome is derived from structural findings:
+- No CRITICAL or SIGNIFICANT findings → `Reproduced`
+- Only SIGNIFICANT findings → `PartiallyReproduced`
+- Any CRITICAL findings → `FailedToReproduce`
+
+The `validator_attested` boolean is always present in `harmony_record_draft`.
+
+### `harmony_record_draft` response shape
+
+```json
+{
+  "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
+  "validator_attested": true,
+  "data_hash": "<sha256 hex of the deposit ZIP>",
+  "findings_summary": { "critical": 0, "significant": 2, "low_confidence": 3, "total": 5 },
+  "harmony_record_hash": "uhCkk7mXy...",
+  "harmony_record_url": "https://gateway.valichord.org/..."
+}
+```
+
+### API authentication
+
+Controlled by the `VALICHORD_API_KEYS` environment variable (comma-separated list of valid keys). When empty, all endpoints are open (dev default). When set, write endpoints (`POST /validate`, `POST /upload-chunk`) require:
+
+```
+X-ValiChord-Key: your-api-key
+```
+
+Implemented via the `_require_api_key` decorator in `backend/app.py`. Read endpoints are always open.
+
+### Webhooks
+
+When `callback_url` is supplied in `POST /validate`, ValiChord fires a single `POST` to that URL when the job completes:
+- `Content-Type: application/json`
+- `X-ValiChord-Job-Id: <job_id>` header
+- Body: same JSON as `GET /result/<job_id>` when `status == "done"`
+
+One retry after 5 seconds if the first attempt fails. Implemented via `_fire_webhook()` in `backend/app.py` using `threading.Thread(daemon=True)`.
+
+Full request/response shapes are documented in `backend/openapi.yaml` and `docs/INTEGRATION_GUIDE.md`.
 
 ### Internal Holochain bridge
 
@@ -480,7 +536,7 @@ ${HOLOCHAIN_GATEWAY_URL}/${HOLOCHAIN_GOVERNANCE_DNA_HASH}/${HOLOCHAIN_APP_ID}/go
 
 ---
 
-## Feynman Integration Milestone (2026-03-28)
+## Feynman Integration Milestone (2026-03-28, extended 2026-03-31)
 
 Feynman (getcompanion-ai/feynman) is an open-source AI research agent. ValiChord integrated with it as a validator skill:
 
@@ -489,7 +545,11 @@ Feynman (getcompanion-ai/feynman) is an open-source AI research agent. ValiChord
   - `skills/valichord-validation/SKILL.md` — skill metadata and entry point description
   - `prompts/valichord.md` — full workflow prompt for Feynman agents
 
-The prompt was subsequently updated (PR #14, 2026-03-28) to use the new `POST /validate` + `GET /result/<job_id>` single-shot API instead of the chunked upload flow. It now documents the `harmony_record_draft` response shape so Feynman can surface the Harmony Record hash to users.
+- **PR #14** (open) — migrates to the `POST /validate` + `GET /result/<job_id>` single-shot API; documents `harmony_record_draft` response shape.
+
+- **PR #15** (draft) — adds the full validator flow. The critical architectural change: Feynman runs `/replicate` (actual code execution in Docker/Modal) *before* submitting to ValiChord. The verdict from `/replicate` is passed as `validator_outcome` + `validator_notes` in `POST /validate`, producing `validator_attested: true` in the HarmonyRecord. Prompt lives at `feynman_integration/valichord_prompt_v2.md`.
+
+**Key architectural distinction:** valichord_at_home (static analysis only, no code execution) is for researchers self-checking deposit structure. Feynman's `/replicate` is for validators actually running the code. They are complementary, not competing. ValiChord accepts verdicts from both paths — `validator_attested` tells you which one produced the result.
 
 Feynman and Nondominium are complementary, separate integration layers — Feynman is a REST API client (AI agent), Nondominium is a peer system with direct Holochain zome access. They do not conflict.
 

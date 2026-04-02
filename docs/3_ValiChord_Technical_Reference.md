@@ -18,11 +18,17 @@
 
 ## Important Note on Status
 
-**These are design intent documents, not implementation code.**
+**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 94 integration tests pass against live Holochain conductors (Tryorama).
 
-The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They are illustrative sketches developed during twelve months of architectural design, intended to communicate system intent to engineers clearly and precisely.
+The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They were illustrative sketches developed during twelve months of architectural design. The system is now built. For the authoritative implementation, see:
+- Source files under `valichord/dnas/`
+- Engineering handover: `docs/13_Valichord_Engineer_Handover.md`
+- REST API spec: `backend/openapi.yaml`
+- Integration guide: `docs/INTEGRATION_GUIDE.md`
 
-**Implementation update (March 2026):** The four-DNA hApp described in this document has been fully implemented and tested. 94 integration tests pass against live Holochain conductors (Tryorama). The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. For the authoritative implementation, see the source files under `valichord/dnas/` and the engineering handover in `docs/13_Valichord_Engineer_Handover.md`. Key divergences from this document:
+**What this document is still useful for:** Understanding *why* the architecture was designed the way it was, what problems each DNA membrane solves, and how the data flow is intended to work. It also records all key divergences from the original design.
+
+The specific structs in this document were the design starting point — the actual implementation may differ in field names and structure. Key divergences from this document:
 
 - Self-reported timestamp fields were removed from `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` — Holochain Action timestamps are authoritative and tamper-evident; do not add them back.
 - `ReproducibilityBadge.issued_to` resolves the researcher via cross-DNA lookup, not the first validator.
@@ -2084,20 +2090,72 @@ The first wave of submissions will come disproportionately from reproducibility 
 
 ---
 
+## Implemented Integration API (March 2026)
+
+The REST API layer connects the Python analysis pipeline to the live Holochain network. It is live and fully operational in the Codespace demo.
+
+### Endpoints
+
+| Method | Path | Auth required | Description |
+|---|---|---|---|
+| `POST` | `/validate` | When keys set | Submit deposit ZIP; returns `job_id` immediately (202) |
+| `GET` | `/result/<job_id>` | Never | Poll for results |
+| `GET` | `/download/<job_id>` | Never | Download full report ZIP (cleans up job) |
+| `GET` | `/health` | Never | Liveness check; includes `conductor: live\|offline` |
+| `GET` | `/openapi.yaml` | Never | OpenAPI 3.0.3 spec |
+| `GET` | `/docs` | Never | Swagger UI |
+| `POST` | `/upload-chunk` | When keys set | Chunked upload for deposits > 100 MB |
+
+### POST /validate — extended form fields
+
+```
+file            required  ZIP of the research deposit (max 100 MB)
+validator_outcome  optional  Reproduced | PartiallyReproduced | FailedToReproduce
+validator_notes    optional  Free text — what ran, what failed, specific errors
+callback_url       optional  HTTPS URL to POST the completed result to
+```
+
+When `validator_outcome` is supplied, `harmony_record_draft.validator_attested` is `true` — the outcome is a genuine replication verdict. When omitted, `validator_attested` is `false` and the outcome is derived from deposit quality analysis (proxy mode).
+
+### harmony_record_draft response shape
+
+```json
+{
+  "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
+  "validator_attested": true,
+  "data_hash": "e3b0c44298fc1c149afb4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "findings_summary": { "critical": 0, "significant": 2, "low_confidence": 3, "total": 5 },
+  "harmony_record_hash": "uhCkk7mXy...",
+  "harmony_record_url": "https://..."
+}
+```
+
+`harmony_record_hash` is `null` when the Holochain conductor is offline — the analysis results are always returned regardless.
+
+### API key authentication
+
+Set the `VALICHORD_API_KEYS` environment variable to a comma-separated list of valid keys. When unset, all endpoints are open (dev default). Clients include their key in `X-ValiChord-Key: <key>` on write requests.
+
+### Webhooks
+
+Supply `callback_url` in the `POST /validate` form. ValiChord fires one POST to that URL when the job completes, with `Content-Type: application/json`, `X-ValiChord-Job-Id: <job_id>` header, and the full result body. One retry after 5 seconds on failure.
+
+For full API documentation and code examples in Python and TypeScript, see `docs/INTEGRATION_GUIDE.md`. The machine-readable spec is at `backend/openapi.yaml`.
+
+---
+
 ## What This Document Does and Doesn't Claim
 
 **It does claim:**
 - The architectural approach is sound and confirmed feasible by Holochain Foundation engineers
-- The individual technical patterns (content-addressed storage, blind commitment via private source chain entries and countersigned reveal, DHT, collusion detection) are established and proven
-- The combination of these patterns for reproducibility validation is novel and well-reasoned
-- The data models capture the essential information the system needs to handle
+- The four-DNA hApp is fully implemented and tested — 94 integration tests pass against live conductors
+- The REST API layer is live, with API keys, webhooks, OpenAPI spec, and Swagger UI
+- The first external integration (Feynman) is working
 
 **It does not claim:**
-- That this code compiles, runs, or has been tested
-- That these specific struct definitions are final
-- That implementation timelines are reliable (they are rough estimates)
-- That all engineering problems are solved (several are flagged above)
-- That the system can be built by one person (it requires a team)
+- That these specific struct definitions are final (see Important Note on Status for actual divergences)
+- That all engineering problems are solved (Known Gaps are documented in the Engineer Handover)
+- That the system can be built or operated by one person without infrastructure support
 - That ValiChord validates data provenance — it validates computation (see Known Risks and Scope Limitations)
 
 ---
@@ -2107,6 +2165,8 @@ The first wave of submissions will come disproportionately from reproducibility 
 - *ValiChord Governance Framework* — How the system resists corruption
 - *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
+- *Engineer Handover* (`docs/13_Valichord_Engineer_Handover.md`) — Authoritative implementation reference
+- *Integration Guide* (`docs/INTEGRATION_GUIDE.md`) — REST API integration for external tools
 
 **Contact:** Ceri John — topeuph@gmail.com
 

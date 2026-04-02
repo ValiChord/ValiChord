@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-03-28
-**Phase:** Integration-ready. Core demo complete. Feynman integration live.
+**Last updated:** 2026-03-31 (Feynman version updated: 0.2.16, PR #23)
+**Phase:** Integration-ready. Core demo complete. Feynman integration live (0.2.16, PR #23). REST API fully open for external tools.
 
 ---
 
@@ -15,15 +15,21 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 
 | Component | Status | Detail |
 |---|---|---|
-| Flask REST API | **Live** | `POST /validate`, `GET /result/<job_id>`, `GET /health` |
+| Flask REST API | **Live** | `POST /validate`, `GET /result/<job_id>`, `GET /download/<job_id>`, `GET /health` |
 | Analysis pipeline | **Live** | 100+ detectors + Claude semantic analysis |
+| `validator_outcome` / `validator_notes` | **Live** | Validators submit real replication verdicts; `validator_attested: true` in result |
+| API key authentication | **Live** | `VALICHORD_API_KEYS` env var; `X-ValiChord-Key` header on write endpoints |
+| Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
+| OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
+| Swagger UI | **Live** | `GET /docs` — interactive API explorer |
 | Holochain conductor | **Live in Codespace** | Governance + Attestation + Workspace + Researcher DNAs |
 | Node.js bridge (`demo/serve.mjs`) | **Live in Codespace** | Runs 7-step commit-reveal round; exposes `POST /holochain/validate-round` |
 | `harmony_record_hash` | **Working** | Returns `uhCkk...` canonical string in every result |
 | `harmony_record_url` | **Working in Codespace** | Full gateway URL, publicly clickable when Codespace is running |
 | HTTP Gateway (`hc-http-gw`) | **Live in Codespace** | Port 8090, exposes `get_harmony_record` and `get_harmony_records_by_discipline` |
-| Feynman skill (PR #13) | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal |
-| Feynman prompt update (PR #14) | **Open** | Migrates to single-shot API, documents `harmony_record_draft` |
+| Feynman skill (was PR #13) | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal; Feynman now at 0.2.16, ValiChord tracked as PR #23 |
+| Feynman prompt update (PR #14) | **Rejected** | Rejected by @advaitpaliwal; content superseded by PR #23 |
+| Feynman validator flow (PR #15) | **Never pushed** | Local draft only (`valichord_prompt_v2.md`); was never submitted to Feynman repo |
 
 **Demo endpoint (Codespace, sleeps when inactive):**
 `https://improved-space-couscous-5gjwpp546jrg27p5q-5000.app.github.dev`
@@ -32,31 +38,48 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 
 ## How Feynman uses ValiChord
 
-Feynman is an AI research agent CLI. It is an **API client**, not a Holochain peer. The integration is entirely via the REST API:
+Feynman is an AI research agent CLI. It is an **API client**, not a Holochain peer. The integration is entirely via the REST API. Two flows:
 
+**Validator flow (Feynman actually runs the code):**
 ```
-1. User runs /valichord in Feynman
+1. User runs /valichord in Feynman — selects "validator" role
+2. Feynman runs /replicate — executes the research code, forms a verdict
+3. Feynman ZIPs the research deposit
+4. POST /validate  (multipart: file + validator_outcome + validator_notes)
+   → 202 { "job_id": "uuid" }
+5. Poll GET /result/<job_id> until status == "done"
+6. Response includes harmony_record_draft.validator_attested = true
+   (real verdict, not a proxy)
+```
+
+**Researcher flow (submitting own deposit):**
+```
+1. User runs /valichord in Feynman — selects "researcher" role
 2. Feynman ZIPs the research deposit
-3. POST /validate  (multipart, field: file, max 100 MB)
+3. POST /validate  (multipart: file only)
    → 202 { "job_id": "uuid" }
 4. Poll GET /result/<job_id> until status == "done"
-5. Response includes:
-   {
-     "status": "done",
-     "findings": { "band": "...", "critical": N, "significant": N, ... },
-     "harmony_record_draft": {
-       "outcome": { "type": "Reproduced" },        ← or PartiallyReproduced / FailedToReproduce
-       "data_hash": "<sha256 hex>",
-       "findings_summary": { "critical": 0, "significant": 2, ... },
-       "harmony_record_hash": "uhCkk...",           ← permanent cryptographic record
-       "harmony_record_url": "https://..."          ← public verifiable link (when gateway running)
-     },
-     "download_url": "/download/<job_id>"           ← full report ZIP
-   }
-6. Feynman presents verdict + Harmony Record hash/URL to user
+5. Response includes harmony_record_draft.validator_attested = false
+   (structural assessment, not a full replication verdict)
 ```
 
-**Key point for Advait:** ValiChord provides the integrity layer. Feynman provides the AI replication agent. They are independent — ValiChord works with any client that can POST a ZIP.
+Both flows return the same response shape:
+```json
+{
+  "status": "done",
+  "harmony_record_draft": {
+    "outcome": { "type": "Reproduced" },
+    "validator_attested": true,
+    "data_hash": "<sha256 hex>",
+    "findings_summary": { "critical": 0, "significant": 2, ... },
+    "harmony_record_hash": "uhCkk...",
+    "harmony_record_url": "https://..."
+  },
+  "download_url": "/download/<job_id>"
+}
+```
+
+**Key point:** ValiChord provides the integrity layer. Feynman provides the AI replication agent. They are independent — ValiChord works with any client that can POST a ZIP.
 
 ---
 
@@ -81,7 +104,8 @@ Anyone with this URL can independently verify the outcome on the DHT — no acco
 |---|---|---|
 | Always-on hosting | **High** | Codespace sleeps. Need ~2 GB RAM VPS (Render free tier can't handle the conductor). Docker setup in `demo/Dockerfile` + `render.yaml` is ready. |
 | HTTP Gateway permanent deployment | **High** | Currently only runs in Codespace. Needs a permanent server alongside the conductor. |
-| API authentication | **Medium** | `POST /validate` is open — no API keys or rate limiting yet. |
+| Rate limiting | **Medium** | API keys are in (auth done). No per-key rate limiting yet. |
+| Feynman PR #14 / PR #15 acceptance | **Medium** | PRs open at Feynman repo. Waiting on @advaitpaliwal review. |
 | Feynman as persistent AI validator | **Long-term** | Feynman joining the Holochain network directly (not via REST), holding an Ed25519 validator identity, autonomously picking up validation requests. |
 | Multi-agent rounds | **Long-term** | Currently `minimum_validators=1` (dev bypass). Production needs multiple validators to commit before reveal. |
 
@@ -91,10 +115,13 @@ Anyone with this URL can independently verify the outcome on the DHT — no acco
 
 | File | What it contains |
 |---|---|
+| `docs/INTEGRATION_GUIDE.md` | Tool-agnostic REST API integration guide (curl, Python, TypeScript examples) |
+| `backend/openapi.yaml` | OpenAPI 3.0 spec — served at `GET /openapi.yaml`, rendered at `GET /docs` |
 | `feynman_integration/INTEGRATION_VISION.md` | Full architecture, end-to-end flow diagram, all open work items, open decisions |
 | `feynman_integration/README.md` | One-page status table |
+| `feynman_integration/valichord_prompt_v2.md` | Feynman PR #15 prompt — validator flow with `/replicate` as first step |
 | `nondominium_integration/INTEGRATION_VISION.md` | Nondominium (Sensorica) integration plan |
-| `backend/app.py` | Flask REST API — `/validate`, `/result`, `/health` |
+| `backend/app.py` | Flask REST API — `/validate` (with `validator_outcome`), `/result`, `/download`, `/health`, `/docs`, `/openapi.yaml` |
 | `demo/serve.mjs` | Node.js Holochain bridge — commit-reveal round, gateway payload |
 | `demo/start.sh` | How to start the full demo stack |
 | `demo/start-gateway.sh` | How to start the HTTP Gateway alongside the conductor |
@@ -104,9 +131,9 @@ Anyone with this URL can independently verify the outcome on the DHT — no acco
 
 ## Open decisions that involve Advait
 
-1. **Feynman's validator identity** — stable `AgentPubKey` (builds reputation on DHT) vs ephemeral key per session. Stable is better long-term but requires key management on Feynman's side.
-2. **Who runs the always-on infrastructure** — ValiChord's responsibility, but Advait may have hosting contacts or funding that could help. ~£10–20/month VPS would suffice.
-3. **Prompt depth (PR #14)** — current prompt is a general workflow. A richer version could parse findings in detail and integrate with Feynman's `/replicate` command.
+1. **Feynman 0.2.16 / PR #23** — Feynman has advanced to 0.2.16. ValiChord integration is now PR #23 in the Feynman repo. Verify what PR #23 contains and whether PRs #14 / #15 were folded in, superseded, or are still open before doing any integration work.
+2. **Feynman's validator identity** — stable `AgentPubKey` (builds reputation on DHT) vs ephemeral key per session. Stable is better long-term but requires key management on Feynman's side.
+3. **Who runs the always-on infrastructure** — ValiChord's responsibility, but Advait may have hosting contacts or funding that could help. ~£10–20/month VPS would suffice.
 
 ---
 

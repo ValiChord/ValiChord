@@ -2032,6 +2032,12 @@ def run_simple_detectors(repo_dir, all_files, zip_name=None):
     all_findings += detect_DH_undeclared_imports(repo_dir, all_files)
     print("  [DI] Variable name mismatch check...")
     all_findings += detect_DI_variable_mismatch(repo_dir, all_files)
+    print("  [DJ] Build artefacts check...")
+    all_findings += detect_DJ_build_artefacts(repo_dir, all_files)
+    print("  [DK] Filename typo check...")
+    all_findings += detect_DK_filename_typos(repo_dir, all_files)
+    print("  [DL] MATLAB autosave artefacts check...")
+    all_findings += detect_DL_matlab_autosave(repo_dir, all_files)
 
     # [DB] is a more specific form of [G] for Shiny apps — when [DB] fires,
     # its "expected values for specific input combinations" requirement already
@@ -9430,6 +9436,178 @@ def detect_DI_variable_mismatch(repo_dir, all_files):
         + (['(list truncated)'] if len(mismatched) > 8 else [])
         + [f'Data files checked: {", ".join(tf.name for tf in tabular[:5])}']
         + (['(more files exist)'] if len(tabular) > 5 else [])
+    ))
+    return findings
+
+
+# ── [DJ] Committed build artefacts ───────────────────────────────────────────
+
+_BUILD_ARTEFACT_EXTS = {'.class', '.jar', '.o', '.obj'}
+_BUILD_ARTEFACT_DIRS = {
+    'target', '__pycache__', 'build', 'bin', 'out', 'dist',
+    'cmake-build-debug', 'cmake-build-release', '.gradle',
+}
+# Directories where bundled JARs are legitimate (lib/, vendor/, libs/)
+_JAR_ALLOWED_PARENTS = {'lib', 'libs', 'vendor', 'third_party', 'jars'}
+
+
+def detect_DJ_build_artefacts(repo_dir, all_files):
+    """[DJ] Compiled build artefacts committed to the repository.
+
+    .class, .jar (outside lib/), target/classes/, build/ with compiled output,
+    etc. These are machine-specific, version-specific, and should never be
+    committed — they prevent clean reproduction on a different machine.
+    """
+    findings = []
+    artefacts = []
+    for f in all_files:
+        ext = f.suffix.lower()
+        parts = [p.lower() for p in f.relative_to(repo_dir).parts]
+
+        # .jar is legitimate inside lib/ / vendor/ / libs/ etc.
+        if ext == '.jar' and len(parts) > 1 and parts[0] in _JAR_ALLOWED_PARENTS:
+            continue
+
+        # .pyc / .pyo are already caught by [BE] — skip here to avoid duplication
+        if ext in {'.pyc', '.pyo'}:
+            continue
+
+        if ext in _BUILD_ARTEFACT_EXTS:
+            artefacts.append(f)
+            continue
+
+        # Flag any file sitting inside a known build output directory
+        if any(p in _BUILD_ARTEFACT_DIRS for p in parts[:-1]):
+            artefacts.append(f)
+
+    if not artefacts:
+        return findings
+
+    class_count = sum(1 for f in artefacts if f.suffix.lower() == '.class')
+    jar_count   = sum(1 for f in artefacts if f.suffix.lower() == '.jar')
+    other_count = len(artefacts) - class_count - jar_count
+
+    summary_parts = []
+    if class_count:
+        summary_parts.append(f'{class_count} .class file(s)')
+    if jar_count:
+        summary_parts.append(f'{jar_count} .jar file(s) outside lib/')
+    if other_count:
+        summary_parts.append(f'{other_count} other compiled artefact(s)')
+
+    findings.append(finding(
+        'DJ', 'SIGNIFICANT',
+        f'Compiled build artefacts committed ({", ".join(summary_parts)})',
+        'Compiled output files (.class, .jar, .o, etc.) are committed to the '
+        'repository. These are machine- and version-specific: a validator on a '
+        'different OS, JVM version, or compiler will produce different binaries, '
+        'making the build non-reproducible. Add the relevant output directories '
+        '(target/, build/, bin/) to .gitignore and remove these files from git '
+        'history with `git rm --cached`.',
+        [f'Examples: {", ".join(f.name for f in artefacts[:6])}']
+        + (['(list truncated)'] if len(artefacts) > 6 else [])
+        + ['Fix: echo "target/\\nbuild/\\nbin/\\n*.class" >> .gitignore',
+           'Then: git rm -r --cached target/ build/ bin/ 2>/dev/null']
+    ))
+    return findings
+
+
+# ── [DK] Filename typo detector ───────────────────────────────────────────────
+
+# Common research/academic words frequently seen in filenames.
+# Conservative — only words long enough (≥6 chars) to have unambiguous
+# near-neighbours, and common enough to appear in deposits.
+_DK_WORDLIST = [
+    'analysis', 'results', 'output', 'figure', 'script', 'method',
+    'sample', 'filter', 'matrix', 'import', 'export', 'report',
+    'summary', 'config', 'parameter', 'calibration', 'validation',
+    'training', 'testing', 'preprocessing', 'processing', 'cleaned',
+    'merged', 'subset', 'random', 'baseline', 'prediction',
+    'classification', 'regression', 'correlation', 'simulation',
+    'experiment', 'dataset', 'metadata', 'citation', 'reference',
+    'comparison', 'decision', 'selection', 'collection', 'extraction',
+    'estimation', 'evaluation', 'distribution', 'threshold', 'response',
+    'variable', 'encoding', 'normalisation', 'normalization',
+    'aggregation', 'transformation', 'visualisation', 'visualization',
+    'statistics', 'statistical',
+]
+
+
+def detect_DK_filename_typos(repo_dir, all_files):
+    """[DK] Likely typos in filenames.
+
+    Splits each filename stem into alphabetic tokens of 6+ characters and
+    checks each against a curated list of common research terms using
+    difflib close-match. Fires LOW CONFIDENCE only.
+    """
+    import difflib as _difflib
+
+    findings = []
+    _tok_pat = re.compile(r'[A-Za-z]{6,}')
+    flagged = []
+    seen_tokens: set = set()
+
+    for f in all_files:
+        tokens = _tok_pat.findall(f.stem)
+        for tok in tokens:
+            tok_lower = tok.lower()
+            if tok_lower in _DK_WORDLIST:
+                continue
+            if tok_lower in seen_tokens:
+                continue
+            matches = _difflib.get_close_matches(
+                tok_lower, _DK_WORDLIST, n=1, cutoff=0.82
+            )
+            if matches:
+                seen_tokens.add(tok_lower)
+                flagged.append((f.name, tok, matches[0]))
+
+    if not flagged:
+        return findings
+
+    findings.append(finding(
+        'DK', 'LOW CONFIDENCE',
+        f'{len(flagged)} filename token(s) may contain typos',
+        'One or more filenames contain tokens that closely resemble common '
+        'research terms but are not exact matches. This may indicate a typo '
+        'that could make scripts harder to read or cause string-matching '
+        'failures in code that constructs filenames programmatically. '
+        'Review each case — abbreviations and domain-specific terms may be '
+        'intentional.',
+        [f'"{tok}" in {fname} — did you mean "{sugg}"?'
+         for fname, tok, sugg in flagged[:8]]
+        + (['(list truncated)'] if len(flagged) > 8 else [])
+    ))
+    return findings
+
+
+# ── [DL] MATLAB autosave artefacts (.asv files) ───────────────────────────────
+
+def detect_DL_matlab_autosave(repo_dir, all_files):
+    """[DL] MATLAB editor autosave files (.asv) committed to the repository.
+
+    .asv files are created automatically by the MATLAB editor as crash-recovery
+    backups. They are transient editor state and should never be in a deposit.
+    Their presence suggests the deposit was assembled by copying a live working
+    directory rather than preparing a clean release.
+    """
+    findings = []
+    asv_files = [f for f in all_files if f.suffix.lower() == '.asv']
+    if not asv_files:
+        return findings
+
+    findings.append(finding(
+        'DL', 'LOW CONFIDENCE',
+        f'{len(asv_files)} MATLAB autosave file(s) committed (.asv)',
+        'MATLAB editor autosave files (.asv) are committed to the repository. '
+        'These are crash-recovery backups created automatically by the MATLAB '
+        'editor — they are not part of the codebase and should not be included '
+        'in a deposit. Their presence suggests the deposit was made by copying '
+        'a live working directory rather than preparing a clean release. '
+        'Remove them and add *.asv to .gitignore.',
+        [f'Files: {", ".join(f.name for f in asv_files[:6])}']
+        + (['(list truncated)'] if len(asv_files) > 6 else [])
+        + ['Fix: git rm --cached *.asv && echo "*.asv" >> .gitignore']
     ))
     return findings
 

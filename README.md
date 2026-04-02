@@ -63,7 +63,7 @@ valichord/
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**94 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
+**94 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can POST a ZIP can integrate. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
 
 Test coverage includes:
 
@@ -204,6 +204,8 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 
 | Document | Description |
 | :--- | :--- |
+| [Integration Guide](https://github.com/topeuph-ai/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide for any tool — curl, Python, TypeScript examples, webhooks |
+| [OpenAPI 3.0 Spec](https://github.com/topeuph-ai/ValiChord/blob/main/backend/openapi.yaml) | Machine-readable API spec; served live at `GET /openapi.yaml` |
 | [Feynman Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/INTEGRATION_VISION.md) | Full design: how Feynman AI agent uses ValiChord, what's live, open work and decisions |
 | [Feynman Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/README.md) | One-page status table |
 | [Nondominium Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
@@ -229,7 +231,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
 | Technical Reference v21 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
-| Engineer Handover | [`docs/13_ValiChord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_ValiChord_Engineer_Handover.md) |
+| Engineer Handover | [`docs/13_Valichord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_Valichord_Engineer_Handover.md) |
 
 ### ⚡ Quickstart — clone to passing tests
 
@@ -270,7 +272,7 @@ npm test
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure and integration layer complete — awaiting Phase 0 funding** |
-| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Feynman integration live (demo). HTTP Gateway working. Nondominium integration in design.** |
+| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Feynman integration live (demo). REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
 ---
 

@@ -18,3 +18,9 @@ demo/app-config.json
 
 # Stray Holochain conductor data in repo root
 /S5ryIoZIpRYtsedy_CgK2/
+
+# Large binary and data files not meant for version control
+*.mp4
+*.mp3
+tweets_clean.csv
+backend/app.log

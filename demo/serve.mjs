@@ -1,4 +1,4 @@
-/**
+ /**
  * Static file server + WebSocket proxy for the ValiChord demo page.
  * Serves files from the demo/ directory on http://localhost:8888.
  * Also proxies WebSocket connections to the local Holochain conductor:
