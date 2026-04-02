@@ -59,10 +59,8 @@ pub struct ReputationUpdateInput {
 // Write functions
 // ---------------------------------------------------------------------------
 
-/// After this many seconds a stuck round is eligible for force-finalisation.
-/// Default: 7 days. Override by calling force_finalize_round on a test network
-/// with a shorter-lived ValidationRequest.
-const ROUND_TIMEOUT_SECS: i64 = 7 * 24 * 3600;
+// ROUND_TIMEOUT_SECS is now a DNA property (round_timeout_secs in DnaProperties).
+// Default: 604800 s (7 days). Set to 0 in test DNA properties to bypass the clock.
 
 // ---------------------------------------------------------------------------
 // Cross-DNA call helper
@@ -148,7 +146,7 @@ pub fn check_and_create_harmony_record(
     Ok(Some(hash))
 }
 
-/// Force-finalise a stuck round after ROUND_TIMEOUT_SECS have elapsed.
+/// Force-finalise a stuck round after `round_timeout_secs` (DNA property) have elapsed.
 ///
 /// Called by any participant (researcher, validator, or operator) when a round
 /// is stuck because a validator claimed a study and then went dark.  The absent
@@ -159,7 +157,7 @@ pub fn check_and_create_harmony_record(
 /// Requires:
 ///   - No HarmonyRecord already exists (idempotency).
 ///   - At least one attestation has been submitted.
-///   - The ValidationRequest was created ≥ ROUND_TIMEOUT_SECS ago.
+///   - The ValidationRequest was created ≥ `round_timeout_secs` ago.
 ///
 /// The resulting HarmonyRecord is identical in structure to one created by the
 /// normal path. Readers can identify reduced-quorum completion by comparing
@@ -212,7 +210,7 @@ pub fn force_finalize_round(
             let now = sys_time()?;
             let vr_time = vr.action().timestamp();
             let elapsed_secs = (now.0 - vr_time.0) / 1_000_000;
-            if elapsed_secs < ROUND_TIMEOUT_SECS {
+            if elapsed_secs < props.round_timeout_secs as i64 {
                 return Ok(None); // Round has not timed out yet.
             }
             // Age check passed — fall through to write.

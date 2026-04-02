@@ -1,0 +1,3 @@
+[toolchain]
+channel = "1.94.0"          # verified working version in dev
+targets = ["wasm32-unknown-unknown"]

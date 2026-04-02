@@ -1182,11 +1182,11 @@ describe("10. Delete-immutability guards", () => {
 // Bypasses the num_validators_required gate but requires:
 //   - No HarmonyRecord already exists.
 //   - At least one attestation present.
-//   - ValidationRequest created ≥ ROUND_TIMEOUT_SECS (7 days) ago.
+//   - ValidationRequest created ≥ round_timeout_secs ago.
 //
-// ROUND_TIMEOUT_SECS is hardcoded (604800 s). Tests cannot wind the clock so
-// we verify the "not yet timed out" and "no attestations" guard paths.
-// The successful timeout path is exercised in the shadow-track environment.
+// round_timeout_secs is a DNA property (default 604800 s / 7 days).
+// Tests that need the timeout to have elapsed set round_timeout_secs: 0
+// in their DNA properties modifiers.
 
 describe("11. force_finalize_round", () => {
   test(
@@ -1245,6 +1245,77 @@ describe("11. force_finalize_round", () => {
         // No attestations — must return null.
         const result = await gov(alice, "force_finalize_round", dataHash);
         expect(result).toBeNull();
+      }, true, { timeout: 300_000 });
+    },
+  );
+
+  test(
+    "writes HarmonyRecord when attestation present and round_timeout_secs is 0",
+    { timeout: 300_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alicePlayer, bobPlayer] = await scenario.addPlayers(2);
+        const aliceKeyB64 = encodeHashToBase64(alicePlayer.agentPubKey);
+
+        // Install with round_timeout_secs: 0 so the age check always passes.
+        const configWithZeroTimeout = {
+          appBundleSource: { type: "path" as const, value: HAPP_PATH },
+          options: {
+            rolesSettings: {
+              attestation: {
+                type: "provisioned" as const,
+                value: {
+                  membrane_proof: validMembraneProof(),
+                  modifiers: {
+                    properties: {
+                      minimum_validators: 2,
+                      discipline: "genomics",
+                      authorized_joining_certificate_issuer: "",
+                    },
+                  },
+                },
+              },
+              governance: {
+                type: "provisioned" as const,
+                value: {
+                  modifiers: {
+                    properties: {
+                      system_coordinator_key: aliceKeyB64,
+                      min_attestations_for_finalization: 0,
+                      round_timeout_secs: 0,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+
+        const [alice, bob] = await scenario.installAppsForPlayers(
+          [configWithZeroTimeout, configWithZeroTimeout],
+          [alicePlayer, bobPlayer],
+        );
+
+        const attDnaHash = dnaHashForRole(alice, "attestation");
+        const dataHash = fakeExternalHash(0x7c);
+
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: dataHash }));
+
+        const requestRef = dataHash;
+
+        // One attestation — partial quorum, but force_finalize bypasses num_validators_required.
+        await att(alice, "notify_commitment_sealed", commitInput(requestRef));
+        await dhtSync([alice, bob], attDnaHash);
+        await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
+        await dhtSync([alice, bob], attDnaHash);
+
+        // round_timeout_secs = 0 → age check always passes → HarmonyRecord written.
+        const result = await gov(alice, "force_finalize_round", requestRef);
+        expect(result).not.toBeNull();
+
+        const record = await gov(alice, "get_harmony_record", requestRef);
+        expect(record).not.toBeNull();
       }, true, { timeout: 300_000 });
     },
   );

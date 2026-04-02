@@ -83,11 +83,16 @@ Both projects target the same Holochain release:
 
 | Dependency | ValiChord | Nondominium |
 |---|---|---|
-| `hdk` | `0.6` | `^0.6.0` |
-| `hdi` | `0.7` | `^0.7.0` |
+| `hdk` | `0.6` | `0.6.0` |
+| `hdi` | `0.7` | `0.6.x` |
 | Test framework | Tryorama + Vitest | Tryorama + Vitest |
 
 No version upgrades required on either side to begin integration work.
+
+**Note (April 2026):** Nondominium has no `DnaProperties` struct and `dna.yaml` has `properties: ~`.
+Any integration configuration (e.g. ValiChord callback URL or contract address) cannot live in
+Nondominium DNA properties — it must live in ValiChord's DNA properties or in an application-layer
+config agreed at deployment time.
 
 ---
 

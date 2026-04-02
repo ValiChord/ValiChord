@@ -22,6 +22,8 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTi
 // only, not at the network validation layer.
 // ---------------------------------------------------------------------------
 
+fn default_round_timeout() -> u64 { 604_800 } // 7 days
+
 #[dna_properties]
 pub struct DnaProperties {
     /// Only this key may write GovernanceDecision entries.
@@ -35,6 +37,11 @@ pub struct DnaProperties {
     /// #[serde(default)] allows omitting this field in DNA properties YAML.
     #[serde(default)]
     pub min_attestations_for_finalization: u32,
+    /// Seconds after ValidationRequest creation before force_finalize_round
+    /// may close the round with partial attestations. Default: 604800 (7 days).
+    /// Set to 0 in tests to bypass the clock constraint.
+    #[serde(default = "default_round_timeout")]
+    pub round_timeout_secs: u64,
 }
 
 // ---------------------------------------------------------------------------
