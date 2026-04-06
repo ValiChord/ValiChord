@@ -3,8 +3,7 @@ use researcher_repository_integrity::{
     DeclaredDeviation, EntryTypes, LinkTypes, LockedResult, PreRegisteredProtocol, ResearchStudy,
     VerifiedDataSnapshot,
 };
-use valichord_shared_types::{MetricResult, UndeclaredDeviation};
-use attestation_integrity::ResearcherCommitmentInput;
+use valichord_shared_types::{MetricResult, ResearcherCommitmentInput, UndeclaredDeviation};
 use sha2::{Sha256, Digest};
 use rmp_serde as rmps;
 

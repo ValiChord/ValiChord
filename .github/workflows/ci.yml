@@ -93,3 +93,88 @@ jobs:
       - name: Run integration tests
         working-directory: valichord/tests
         run: npm test
+
+  sweettest:
+    name: Sweettest (Rust native)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Runs after the Tryorama job so the WASM build cache is already populated.
+    needs: [test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain (same pin as the workspace) ──────────────────────────
+      - name: Install Rust (stable + wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # ── System C/C++ deps needed by datachannel-sys and openssl-sys ─────────
+      - name: Install build dependencies
+        run: sudo apt-get install -y cmake libssl-dev pkg-config
+
+      # ── Cargo registry cache (covers sweettest's large dep tree) ────────────
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-sweettest-${{ hashFiles('valichord/sweettest_integration/Cargo.lock', 'valichord/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-sweettest-
+            ${{ runner.os }}-cargo-registry-
+
+      # ── Cache the sweettest build artifacts (biggest time win after first run)
+      - name: Cache sweettest build artifacts
+        uses: actions/cache@v4
+        with:
+          path: valichord/sweettest_integration/target
+          key: ${{ runner.os }}-sweettest-target-${{ hashFiles('valichord/sweettest_integration/Cargo.lock', 'valichord/sweettest_integration/**/*.rs', 'valichord/**/*.rs', 'valichord/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-sweettest-target-
+
+      # ── Restore packed DNAs from the parent job's WASM cache ────────────────
+      - name: Restore WASM build artifacts
+        uses: actions/cache@v4
+        with:
+          path: valichord/target
+          key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wasm-
+
+      # ── Holochain CLI (for dna/app pack) ────────────────────────────────────
+      - name: Cache Holochain binaries
+        uses: actions/cache@v4
+        id: cache-hc-bin-sweettest
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-hc-bin-${{ hashFiles('valichord/Cargo.lock') }}
+
+      - name: Install holochain + hc + lair_keystore
+        if: steps.cache-hc-bin-sweettest.outputs.cache-hit != 'true'
+        run: |
+          cargo install holochain --version 0.6.0 --locked
+          cargo install holochain_cli --version 0.6.0 --locked
+          cargo install lair_keystore --version 0.6.3 --locked
+
+      # ── Build WASMs and pack DNAs ────────────────────────────────────────────
+      - name: Build WASM zomes and pack DNAs
+        working-directory: valichord
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          hc dna pack dnas/attestation            -o workdir/attestation.dna
+          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+          hc dna pack dnas/governance             -o workdir/governance.dna
+          hc app pack .                           -o workdir/valichord.happ
+
+      # ── Kill any stray conductors, then run Sweettest ────────────────────────
+      - name: Kill any orphaned Holochain processes
+        run: |
+          pkill -f holochain     || true
+          pkill -f lair-keystore || true
+          sleep 2
+
+      - name: Run Sweettest integration tests
+        working-directory: valichord/sweettest_integration
+        run: cargo test -- --test-threads=1

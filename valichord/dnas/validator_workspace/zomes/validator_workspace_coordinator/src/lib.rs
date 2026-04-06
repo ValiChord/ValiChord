@@ -1,7 +1,6 @@
 use hdk::prelude::*;
 use validator_workspace_integrity::{EntryTypes, LinkTypes, ValidationTask, ValidatorPrivateAttestation};
-use valichord_shared_types::ValidationAttestation;
-use attestation_integrity::CommitmentSealedInput;
+use valichord_shared_types::{CommitmentSealedInput, ValidationAttestation};
 use sha2::{Digest, Sha256};
 
 // ---------------------------------------------------------------------------

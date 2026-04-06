@@ -187,28 +187,9 @@ pub struct ResearcherResultCommitment {
 // ---------------------------------------------------------------------------
 
 /// Payload sent from validator_workspace post_commit to attestation
-/// `notify_commitment_sealed`.
-///
-/// **Membrane boundary — do NOT add fields here.**
-/// This struct crosses from the private Validator Workspace DNA to the shared
-/// Attestation DHT via a cross-DNA call in post_commit.  Any field added to
-/// this struct is automatically transmitted to the shared network.  The only
-/// safe fields are public identifiers (request_ref) and opaque hashes
-/// (commitment_hash).  Never add assessment content, scores, or any data
-/// derived from the private `ValidatorPrivateAttestation`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommitmentSealedInput {
-    pub request_ref:     ExternalHash,
-    pub commitment_hash: Vec<u8>,
-}
-
-/// Payload sent from researcher_repository `lock_result` to attestation
-/// `publish_researcher_commitment`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResearcherCommitmentInput {
-    pub request_ref:            ExternalHash,
-    pub result_commitment_hash: Vec<u8>,
-}
+/// Re-exported from `valichord_shared_types` so downstream code that already
+/// imports from `attestation_integrity` continues to compile unchanged.
+pub use valichord_shared_types::{CommitmentSealedInput, ResearcherCommitmentInput};
 
 /// Payload for `reveal_researcher_result`.
 ///
@@ -708,6 +689,17 @@ fn validate_membrane_proof(
     // If that check fails, `init()` returns `InitCallbackResult::Fail`, the
     // cell cannot be used to write any protocol data, and the agent is
     // effectively a read-only observer on the DHT.
+
+    // Dev/test bypass: when authorized_joining_certificate_issuer is empty the
+    // whole credential system is bypassed (same pattern as coordinator init()
+    // and submit_attestation()).  Skip the format check so Sweettest conductors
+    // can install the DNA without providing a dummy membrane proof.
+    if let Ok(props) = DnaProperties::try_from_dna_properties() {
+        if props.authorized_joining_certificate_issuer.is_empty() {
+            return Ok(ValidateCallbackResult::Valid);
+        }
+    }
+
     let proof = match membrane_proof {
         None => {
             return Ok(ValidateCallbackResult::Invalid(
@@ -732,6 +724,15 @@ fn validate_membrane_proof(
 pub fn genesis_self_check(
     data: GenesisSelfCheckData,
 ) -> ExternResult<ValidateCallbackResult> {
+    // Dev/test bypass: dna_info() is available here (GenesisSelfCheckDataV2
+    // elides dna_info from the struct but the host function still works).
+    // When issuer key is empty the credential system is inactive — skip the
+    // membrane proof requirement so Sweettest can install without a dummy proof.
+    if let Ok(props) = DnaProperties::try_from_dna_properties() {
+        if props.authorized_joining_certificate_issuer.is_empty() {
+            return Ok(ValidateCallbackResult::Valid);
+        }
+    }
     match data.membrane_proof {
         None => Ok(ValidateCallbackResult::Invalid(
             "Attestation DNA requires a membrane proof".into(),

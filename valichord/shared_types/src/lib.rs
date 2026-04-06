@@ -206,3 +206,34 @@ impl ValidationAttestation {
         discipline_tag(&self.discipline)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Cross-DNA coordinator input types
+//
+// These are plain payload structs used when one coordinator calls a function
+// on a different DNA's coordinator via `call()`.  They live here (not in
+// any integrity zome) so that cross-DNA coordinators can import them without
+// taking a dependency on another DNA's integrity zome — which would pull
+// that integrity zome's `#[no_mangle]` HDI symbols into the native (test)
+// build and cause duplicate-symbol link errors.
+// ---------------------------------------------------------------------------
+
+/// Payload sent from `validator_workspace_coordinator` `seal_private_attestation`
+/// to `attestation_coordinator` `notify_commitment_sealed`.
+///
+/// Only safe fields are included: public identifiers (`request_ref`) and
+/// opaque hashes (`commitment_hash`).  Never add assessment content, scores,
+/// or any data derived from the private `ValidatorPrivateAttestation`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitmentSealedInput {
+    pub request_ref:     ExternalHash,
+    pub commitment_hash: Vec<u8>,
+}
+
+/// Payload sent from `researcher_repository_coordinator` `lock_researcher_result`
+/// to `attestation_coordinator` `publish_researcher_commitment`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResearcherCommitmentInput {
+    pub request_ref:            ExternalHash,
+    pub result_commitment_hash: Vec<u8>,
+}

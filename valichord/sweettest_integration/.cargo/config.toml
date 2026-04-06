@@ -1,0 +1,13 @@
+# Sweettest-specific linker configuration.
+#
+# Multiple Holochain integrity zomes are linked into the same native test
+# binary (one per DNA).  Each integrity zome's HDI proc-macros emit
+# `#[no_mangle] pub extern "C" fn __num_entry_types()` and `__num_link_types()`.
+# These functions are only meaningful inside the WASM sandbox (the Holochain
+# conductor calls them there); in the native binary they are dead code.
+#
+# --allow-multiple-definition tells LLD to silently use the first definition
+# rather than erroring on duplicate `#[no_mangle]` symbols.  This is safe
+# because the test code never calls these functions directly.
+[build]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]

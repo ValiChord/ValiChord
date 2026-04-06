@@ -16,4 +16,3 @@ researcher_repository_integrity = { path = "../researcher_repository_integrity" 
 sha2 = { workspace = true }
 getrandom = { workspace = true }
 rmp-serde = { workspace = true }
-attestation_integrity = { path = "../../../attestation/zomes/attestation_integrity" }
