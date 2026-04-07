@@ -93,7 +93,11 @@ function fakeExternalHash(coreByte: number): Uint8Array {
  * to write HarmonyRecord, ReproducibilityBadge, and ValidatorReputation
  * entries. In production, set these to the real coordinator keys.
  */
-function playerConfig(membraneProof?: Uint8Array, minValidators: number = 2) {
+function playerConfig(
+  membraneProof?: Uint8Array,
+  minValidators: number = 2,
+  issuerKey: string = "",
+) {
   return {
     appBundleSource: {
       type: "path" as const,
@@ -111,9 +115,11 @@ function playerConfig(membraneProof?: Uint8Array, minValidators: number = 2) {
               properties: {
                 minimum_validators: minValidators,
                 discipline: "genomics",
-                // Empty string = dev/test bypass in coordinator init().
+                // Empty string = dev/test bypass in coordinator init() and
+                // genesis_self_check.  Pass a non-empty value to activate the
+                // format check (tested in tests 1.2 and 1.3).
                 // Full Ed25519 verification is tested in tests 1.4 and 1.5.
-                authorized_joining_certificate_issuer: "",
+                authorized_joining_certificate_issuer: issuerKey,
               },
             },
           },
@@ -314,10 +320,11 @@ describe("1. Membrane proof", () => {
     { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        // Missing proof should cause genesis_self_check to fail, so
-        // addPlayersWithApps should throw.
+        // Non-empty issuer key activates the format check — the bypass only
+        // fires when the key is "".  Any non-empty value is sufficient here
+        // because genesis_self_check only checks is_empty(), not the key value.
         await expect(
-          scenario.addPlayersWithApps([playerConfig(undefined)]),
+          scenario.addPlayersWithApps([playerConfig(undefined, 2, "non-empty-issuer")]),
         ).rejects.toThrow();
       }, true, { timeout: 300_000 });
     },
@@ -329,7 +336,7 @@ describe("1. Membrane proof", () => {
     async () => {
       await runScenario(async (scenario) => {
         await expect(
-          scenario.addPlayersWithApps([playerConfig(shortMembraneProof())]),
+          scenario.addPlayersWithApps([playerConfig(shortMembraneProof(), 2, "non-empty-issuer")]),
         ).rejects.toThrow();
       }, true, { timeout: 300_000 });
     },
