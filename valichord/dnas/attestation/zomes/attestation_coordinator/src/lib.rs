@@ -1074,7 +1074,7 @@ pub fn notify_commitment_sealed(
     // Step 2: write CommitmentAnchor to shared DHT.
     let anchor = CommitmentAnchor {
         request_ref:             request_ref.clone(),
-        validator:               agent,
+        validator:               agent.clone(),
         commitment_hash:         input.commitment_hash,
         validation_request_hash: vr_action_hash,
     };
@@ -1100,11 +1100,26 @@ pub fn notify_commitment_sealed(
             (),
         )?;
 
-        // UI notification only — NOT a protocol gate.
-        emit_signal(PhaseSignal {
-            phase:       "RevealOpen".into(),
-            request_ref: request_ref.clone(),
-        })?;
+        // UI notification — NOT a protocol gate.
+        // emit_signal fires locally (this agent's subscriber only).
+        // send_remote_signal notifies every other validator who committed so
+        // they can react immediately without polling get_current_phase().
+        // Both are best-effort: agents may be offline. DHT state is always
+        // the authoritative source of truth for protocol decisions.
+        let reveal_signal = Signal::RevealOpen { request_ref: request_ref.clone() };
+        emit_signal(&reveal_signal)?;
+
+        // Collect pubkeys of the other committed validators (all commits
+        // excluding the current agent, who already got the local signal).
+        let others: Vec<AgentPubKey> = existing_links.iter()
+            .filter(|l| l.author != agent)
+            .map(|l| l.author.clone())
+            .collect();
+        if !others.is_empty() {
+            if let Ok(bytes) = ExternIO::encode(&reveal_signal) {
+                let _ = send_remote_signal(bytes, others);
+            }
+        }
     }
 
     Ok(())
@@ -1388,7 +1403,7 @@ fn check_all_commitments_sealed_inner(
 // ---------------------------------------------------------------------------
 
 #[hdk_extern]
-pub fn recv_remote_signal(signal: SerializedBytes) -> ExternResult<()> {
+pub fn recv_remote_signal(signal: Signal) -> ExternResult<()> {
     emit_signal(signal)?;
     Ok(())
 }
@@ -1501,13 +1516,28 @@ fn call_governance_fire_and_forget(
 }
 
 // ---------------------------------------------------------------------------
-// Signal type
+// Signal types
 // ---------------------------------------------------------------------------
+//
+// All signals emitted by this DNA use the adjacent-tag serde encoding so the
+// JS side sees `{ type: "RevealOpen", content: { request_ref: "uhCEk..." } }`.
+// This mirrors the Discipline / AttestationOutcome enum encoding convention.
+//
+// Two emission paths:
+//   • emit_signal(...)     — local only (the agent whose zome call just ran)
+//   • send_remote_signal   — fire-and-forget push to other committed validators
+//
+// The receiving end is recv_remote_signal below, which simply re-emits locally
+// so the receiving agent's UI / AppWebsocket subscriber sees the same payload.
 
 #[derive(Debug, Serialize, Deserialize)]
-struct PhaseSignal {
-    phase:       String,
-    request_ref: ExternalHash,
+#[serde(tag = "type", content = "content")]
+pub enum Signal {
+    /// Emitted locally AND sent to all other committed validators the moment
+    /// the reveal window opens (every required validator has committed).
+    /// UI note: NOT a protocol gate — always verify via get_current_phase()
+    /// or check_all_commitments_sealed().  Signals can be lost.
+    RevealOpen { request_ref: ExternalHash },
 }
 
 // ---------------------------------------------------------------------------

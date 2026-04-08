@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 89 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-22, all four DNAs have been reviewed and optimised, and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 94 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-03-22, all four DNAs have been reviewed and optimised, and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -65,7 +65,7 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 **Membrane proof:** Real Ed25519 verification is implemented in the **coordinator** `init()`, not the integrity zome. The integrity zome does format-only checks (≥64 bytes). The coordinator queries the source chain for `AgentValidationPkg`, reads `authorized_joining_certificate_issuer` from DNA properties, and calls `verify_signature()`. Empty string in DNA properties = dev/test bypass.
 
-**Phase transitions** are DHT-poll-driven, not signal-driven. `get_current_phase()` is the authoritative source of phase state. Signals are send-and-forget notifications only — do not use them as protocol gates.
+**Phase transitions** are DHT-poll-driven. `get_current_phase()` is always the authoritative source of phase state — signals are best-effort and can be lost if an agent is offline. When the last commitment arrives, `notify_commitment_sealed` emits a typed `Signal::RevealOpen { request_ref }` locally via `emit_signal` AND fire-and-forget pushes it to all other committed validators via `send_remote_signal`. The receiving end is `recv_remote_signal(signal: Signal)` — it re-emits locally so the agent's `AppWebsocket` subscriber sees the same payload. Serde encoding: `{ type: "RevealOpen", content: { request_ref: "uhCEk..." } }` (adjacent tag, matching ValiChord's enum convention). Do not gate protocol logic on signals — always verify state via DHT.
 
 `CommitmentAnchor`, `PhaseMarker`, `ValidationAttestation`, and `ResearcherResultCommitment` are all immutable after creation — enforced in `validate()` and tested.
 
@@ -89,7 +89,7 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 **Validator self-assignment (`StudyClaim`)** — implemented 2026-03-14. Validators discover studies via `get_pending_requests_for_discipline` and call `claim_study(request_ref: ExternalHash)` to self-assign without any central matchmaker. The coordinator resolves the `ValidationRequest` ActionHash via the `StudyToValidation` path, reads the validator's institution from their `ValidatorProfile`, enforces capacity (no more than `num_validators_required` claims per study) and duplicate (no double-claiming) at the coordinator layer, then writes a `StudyClaim` entry plus two link indexes — `RequestToClaim` (base = request_ref, for `get_claims_for_request`) and `ValidatorToClaim` (base = agent pubkey, for `get_my_claimed_studies`). The integrity zome's `validate()` enforces conflict-of-interest at the network layer: if both `validator_institution` and `researcher_institution` are non-empty and equal, the claim is rejected. `release_claim(request_ref)` deletes both links (freeing the slot for another validator); the `StudyClaim` entry remains permanently as an audit record. Empty institution on either side bypasses the COI check (dev mode / researcher did not declare institution). `ValidationRequest` now also carries `researcher_institution: String` alongside the pointer fields `data_access_url` and `protocol_access_url`.
 
-**Dropout recovery** — implemented 2026-03-14. `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` is callable by any participant. It verifies the claim is older than `timeout_secs` AND the absent validator has not attested, then deletes both link indexes to free the slot. Use `timeout_secs = 604800` (7 days) in production; `0` in tests. The companion function `force_finalize_round(request_ref)` in DNA 4 closes a round still stuck after `ROUND_TIMEOUT_SECS` (7 days, hardcoded constant) with whatever attestations are present, subject to `min_attestations_for_finalization` (see governance `DnaProperties`). Neither function requires special keys — both are open to any participant, consistent with the decentralised governance model.
+**Dropout recovery** — implemented 2026-03-14. `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` is callable by any participant. It verifies the claim is older than `timeout_secs` AND the absent validator has not attested, then deletes both link indexes to free the slot. Use `timeout_secs = 604800` (7 days) in production; `0` in tests. The companion function `force_finalize_round(request_ref)` in DNA 4 closes a round still stuck after `round_timeout_secs` seconds (DNA property, default 604 800 s / 7 days; set to `0` in tests so the age check always passes) with whatever attestations are present, subject to `min_attestations_for_finalization` (see governance `DnaProperties`). Neither function requires special keys — both are open to any participant, consistent with the decentralised governance model.
 
 **`check_all_commitments_sealed_inner` fix** — 2026-03-16. Previously used `props.minimum_validators` (network-wide DNA property) to decide when to open the reveal window. Now calls `get_num_validators_required(request_ref)` which reads `num_validators_required` from the actual `ValidationRequest` entry. The phase transition now opens when the correct number of validators *for that specific study* have committed, not the network minimum.
 
@@ -153,6 +153,14 @@ All cross-DNA types live in `valichord/shared_types/` — a pure `rlib` crate im
 
 Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `ValidatorAgentType`, `discipline_tag()`.
 
+**April 2026 additions (ad4m-inspired refactoring):**
+
+- `ValiChordError` / `ValiChordResult<T>` — domain error enum (`thiserror::Error`) with `#[from]` derivations for `WasmError` and `SerializedBytesError`. `impl From<ValiChordError> for WasmError` allows `?` propagation across the extern boundary. Use `ValiChordResult<T>` as the return type for internal helpers; convert to `ExternResult<T>` at the `#[hdk_extern]` boundary.
+- `ValidationAttestation::msgpack_bytes(&self) -> ExternResult<Vec<u8>>` — shared serialisation method. Replaces the ad-hoc `SerializedBytes::try_from(&attestation)...map_err(|e| wasm_error!(...))` pattern that was duplicated in DNA 2 (`seal_private_attestation`) and DNA 3 (`submit_attestation`). Both now call `attestation.msgpack_bytes()?` for byte-for-byte consistency between commit and reveal.
+- `derive_majority_outcome(attestations: &[ValidationAttestation]) -> Option<AttestationOutcome>` — pure function, moved from `governance_coordinator` to `shared_types` so it can be unit-tested without a conductor.
+- `derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel` — likewise moved.
+- 11 conductor-free unit tests in `shared_types/src/lib.rs` (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
+
 ---
 
 ## Hard-Won Engineering Constraints
@@ -198,7 +206,10 @@ The Gold badge test (7 validators) is skipped because spinning up 7 simultaneous
 ### 12. get_private_attestation_for_task — use query(), not get()
 Private entries retrieved by the owning agent must be looked up via `query()`, not `get(target, GetOptions::local())`. In singleFork Tryorama tests, all cells share the same conductor and local DB, so `get()` with local options crosses cell boundaries — Bob's cell can retrieve Alice's private entry. `query()` is strictly bound to the calling agent's source chain and cannot cross this boundary. Pattern: follow the link to get the target ActionHash, then `query(ChainQueryFilter::new().include_entries(true))?.into_iter().find(|r| *r.action_address() == target)`.
 
-### 13. reveal_researcher_result — idempotency guard required before hash check
+### 13. Fire-and-forget cross-DNA calls use a named helper, not inline `call()`
+`submit_attestation` in DNA 3 fires a same-agent call to `check_and_create_harmony_record` in DNA 4 after writing each attestation. This pattern is wrapped in `call_governance_fire_and_forget(fn_name, input)` — a private helper that swallows errors with `let _ = call(...)`. Failures are intentionally ignored (the caller still continues); if every validator's reveal silently drops the governance call, the HarmonyRecord simply doesn't appear yet — any participant can re-trigger `check_and_create_harmony_record` later. Do not unwrap the result; do not panic. The one-liner suppresses the `unused Result` warning and makes the intent explicit.
+
+### 14. reveal_researcher_result — idempotency guard required before hash check
 `reveal_researcher_result` checks for an existing `RequestToResearcherReveal` link **before** the SHA-256 hash verification step. Without this guard, a researcher could call the function multiple times, creating multiple `ResearcherReveal` entries linked from the same deterministic path. `get_researcher_reveal` uses `links.last()`, which is non-deterministic under concurrent DHT propagation, so duplicate entries introduce result ambiguity even though content is forced to match the commitment. Pattern mirrors `publish_researcher_commitment`: query the path's existing links at the top of the function and return an error immediately if any exist. Commitment hash for `metrics=[], nonce=[]` is `SHA256(0x90) = 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd` — used in S6 test fixture.
 
 ---
@@ -253,6 +264,14 @@ cd tests && npm test
 | `security.test.ts` | 7 | S1 duplicate attestation, S2 duplicate commitment, S3 researcher commitment idempotency, S4.1 reclaim timeout floor enforced, S4.2 zero floor allows immediate reclaim, S5 force_finalize_round conservative abort on missing VR, S6 reveal_researcher_result idempotency |
 
 Full test inventory: `valichord/tests/README.md`
+
+### Sweettest (native Rust integration tests)
+
+A separate Rust-native test suite lives in `valichord/sweettest_integration/`. These tests use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead. They are the preferred home for new security and protocol tests because they compile alongside the WASM and are checked by `cargo test`.
+
+CI splits the sweettest suite into 5 parallel matrix jobs (`attestation`, `governance`, `researcher_repository`, `validator_workspace`, `security`) to stay under GitHub Actions job time limits. The Tryorama suite (`valichord/tests/`) runs as a single additional job.
+
+Run locally: `cd valichord && cargo test --test '*' -- --nocapture`
 
 ---
 

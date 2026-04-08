@@ -47,6 +47,8 @@ cd tests && npm test
 > all four roles, making every cell require the attestation membrane proof.
 > Always use `hc dna pack` + `hc app pack` directly.
 
+> **Sweettest (Rust-native tests):** A companion test suite in `valichord/sweettest_integration/` uses `SweetConductor` directly in Rust — no Node.js required. Run with `cargo test --test '*'` from the `valichord/` workspace root. CI splits the sweettest into 5 parallel matrix jobs. Prefer sweettest for new protocol and security tests; use Tryorama for TypeScript client-facing scenarios.
+
 ---
 
 ## Test inventory
@@ -189,7 +191,7 @@ These are areas not yet covered by tests, ordered by value.
 | Area | What to add | Notes |
 |------|-------------|-------|
 | DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
-| DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama. Exercise in shadow-track environment with a real conductor running for 7+ days, or temporarily lower the constant for a dedicated integration run |
+| DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | **Covered by sweettest** (`valichord/sweettest_integration/tests/governance.rs`) using `round_timeout_secs: 0` in DNA properties so the age check always passes. Tryorama cannot wind the clock, so this path remains a Tryorama gap; run the sweettest instead. |
 | DNA 1 — lock_researcher_result | `lock_researcher_result` stores LockedResult + calls `publish_researcher_commitment` in DNA 3; `get_locked_result` returns the private record | Requires a cross-DNA call to DNA 3 in the test scenario |
 | DNA 3 — reveal_researcher_result happy path | Correct metrics+nonce → `ResearcherReveal` on DHT; `get_researcher_reveal` returns reveal across multiple validators | Idempotency guard (S6) and error path covered; happy-path multi-validator scenario not yet tested |
 
@@ -206,6 +208,11 @@ These are areas not yet covered by tests, ordered by value.
 - `submit_attestation` (DNA 3) automatically fires a same-agent cross-DNA call to
   `check_and_create_harmony_record` (DNA 4) after writing each attestation. The last
   validator to reveal triggers HarmonyRecord creation without a central coordinator node.
+- `notify_commitment_sealed` emits a typed `Signal::RevealOpen { request_ref }` (adjacent-tag
+  serde encoding: `{ type: "RevealOpen", content: { request_ref: "uhCEk..." } }`) locally via
+  `emit_signal` AND sends it to all other committed validators via `send_remote_signal` (fire-and-forget).
+  Signals are best-effort — agents may be offline. DHT state (`get_current_phase()`) is always
+  authoritative. Test 3.1 confirms the DHT-poll fallback works without a signal.
 - Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
 - Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production
   this is triggered by DNA 2's `post_commit` (exercised by test 9.1). The function now
@@ -245,7 +252,7 @@ These are areas not yet covered by tests, ordered by value.
   "attestations.{discipline_tag}" paths and read by `get_attestations_for_discipline`.
   Provides cross-study analytics on attestation outcomes by discipline.
 - `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` (DNA 3) — any participant can free a slot held by a validator who has gone dark, once the claim is older than `timeout_secs` and the validator hasn't attested. Use `timeout_secs=0` in tests; `timeout_secs=604800` (7 days) in production. The StudyClaim entry stays as audit.
-- `force_finalize_round(request_ref)` (DNA 4) — closes a stuck round after `ROUND_TIMEOUT_SECS` (7 days, hardcoded). Requires `attestation_count >= min_attestations_for_finalization` (governance `DnaProperties`) and no existing HarmonyRecord. Policy: set `min_attestations_for_finalization` equal to panel size for ≤4 validators (no dropout); one lower for larger panels (one dropout tolerated). Value `0` = at-least-one fallback. Produces a normal HarmonyRecord; reduced-quorum completion is identifiable by comparing `participating_validators.len()` against the study's `num_validators_required`. Callable by any participant.
+- `force_finalize_round(request_ref)` (DNA 4) — closes a stuck round after `round_timeout_secs` seconds (DNA property, default 604 800 s / 7 days; set to `0` in sweettest so the age check always passes). Requires `attestation_count >= min_attestations_for_finalization` (governance `DnaProperties`) and no existing HarmonyRecord. Policy: set `min_attestations_for_finalization` equal to panel size for ≤4 validators (no dropout); one lower for larger panels (one dropout tolerated). Value `0` = at-least-one fallback. Produces a normal HarmonyRecord; reduced-quorum completion is identifiable by comparing `participating_validators.len()` against the study's `num_validators_required`. Callable by any participant.
 - `StudyClaim` (DNA 3) — validators self-assign via `claim_study(request_ref)`.
   Two link indexes are written: `RequestToClaim` (base = request_ref) and `ValidatorToClaim`
   (base = agent pubkey). The coordinator enforces capacity and duplicate checks;
