@@ -34,7 +34,7 @@ use attestation_coordinator::{AssessDifficultyInput, LinkAgentIdentityInput, Rec
 
 /// Commit phase for one validator (notify_commitment_sealed with empty hash).
 async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: ExternalHash) {
-    let _: ActionHash = conductor
+    let _: () = conductor
         .call(
             &app.attestation_zome(),
             "notify_commitment_sealed",

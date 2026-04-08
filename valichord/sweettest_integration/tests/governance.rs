@@ -39,7 +39,7 @@ use governance_integrity::BadgeType;
 
 /// Run the commit phase for a single validator: notify_commitment_sealed.
 async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: ExternalHash) {
-    let _: ActionHash = conductor
+    let _: () = conductor
         .call(
             &app.attestation_zome(),
             "notify_commitment_sealed",

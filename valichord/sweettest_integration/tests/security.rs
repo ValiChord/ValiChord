@@ -23,7 +23,7 @@ use holochain_types::prelude::YamlProperties;
 // ---------------------------------------------------------------------------
 
 async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: ExternalHash) {
-    let _: ActionHash = conductor
+    let _: () = conductor
         .call(
             &app.attestation_zome(),
             "notify_commitment_sealed",
@@ -181,7 +181,7 @@ async fn s2_duplicate_commitment_rejected() {
     commit(&conductor, &app, request_ref.clone()).await;
 
     // Second commitment for the same study — must be rejected.
-    let result: Result<ActionHash, _> = conductor
+    let result: Result<(), _> = conductor
         .call_fallible(
             &zome,
             "notify_commitment_sealed",
@@ -444,7 +444,7 @@ async fn s6_reveal_researcher_result_idempotency() {
     // Alice commits as the sole validator — with min_validators=1 this
     // triggers check_all_commitments_sealed_inner to return true.
     conductor
-        .call::<_, ActionHash>(
+        .call::<_, ()>(
             &zome,
             "notify_commitment_sealed",
             CommitmentSealedInput {
