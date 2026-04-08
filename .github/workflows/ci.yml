@@ -94,12 +94,24 @@ jobs:
         working-directory: valichord/tests
         run: npm test
 
+  # ── Sweettest: one parallel job per test binary ──────────────────────────────
+  # Each matrix leg runs a single --test binary so all five run concurrently.
+  # Wall-clock is ~the slowest binary (~80 min) rather than their serial sum
+  # (~256 min).  fail-fast:false lets all legs report even when one fails.
   sweettest:
-    name: Sweettest (Rust native)
+    name: Sweettest (${{ matrix.test }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # Runs after the Tryorama job so the WASM build cache is already populated.
+    timeout-minutes: 150
     needs: [test]
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - attestation         # 19 tests ≈ 80 min
+          - governance          # 12 tests ≈ 50 min
+          - security            #  7 tests ≈ 30 min
+          - researcher_repository # 17 tests ≈ 70 min
+          - validator_workspace #  9 tests ≈ 38 min
 
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +138,9 @@ jobs:
             ${{ runner.os }}-cargo-registry-sweettest-
             ${{ runner.os }}-cargo-registry-
 
-      # ── Cache the sweettest build artifacts (biggest time win after first run)
+      # ── Cache the sweettest build artifacts ─────────────────────────────────
+      # All matrix legs share the same cache key — first save wins, rest are
+      # no-ops.  On subsequent runs all legs restore the compiled target dir.
       - name: Cache sweettest build artifacts
         uses: actions/cache@v4
         with:
@@ -168,13 +182,13 @@ jobs:
           hc dna pack dnas/governance             -o workdir/governance.dna
           hc app pack .                           -o workdir/valichord.happ
 
-      # ── Kill any stray conductors, then run Sweettest ────────────────────────
+      # ── Kill any stray conductors, then run this binary's tests ─────────────
       - name: Kill any orphaned Holochain processes
         run: |
           pkill -f holochain     || true
           pkill -f lair-keystore || true
           sleep 2
 
-      - name: Run Sweettest integration tests
+      - name: Run Sweettest (${{ matrix.test }})
         working-directory: valichord/sweettest_integration
-        run: cargo test -- --test-threads=1
+        run: cargo test --test ${{ matrix.test }} -- --test-threads=1
