@@ -681,6 +681,126 @@ def result(job_id):
     })
 
 
+@app.route('/attest', methods=['POST'])
+@_require_api_key
+def attest():
+    """Validator attestation — fast path for AI/human validators.
+
+    Takes a deposit ZIP, hashes it, runs the Holochain commit-reveal protocol
+    with the supplied outcome, and returns the HarmonyRecord synchronously
+    (no polling required).
+
+    Unlike POST /validate, this endpoint does NOT run the structural analysis
+    (valichord_at_home detectors).  It is intended for validators who have
+    already executed the research code and are submitting a real replication
+    verdict.
+
+    Accepts multipart/form-data:
+      file        (required) — deposit ZIP, max 100 MB
+      outcome     (required) — Reproduced | PartiallyReproduced | FailedToReproduce
+      notes       (optional) — replication notes, max 2000 chars
+      discipline  (optional) — JSON discipline object; default {"type":"ComputationalBiology"}
+      confidence  (optional) — High | Medium | Low; default Medium
+
+    Returns:
+      {
+        "data_hash": "<64-char hex SHA-256 of deposit ZIP>",
+        "outcome": "Reproduced",
+        "validator_attested": true,
+        "harmony_record_hash": "<uhCkk... ActionHash or null>",
+        "harmony_record_url":  "<gateway URL or null>"
+      }
+
+    harmony_record_hash is null when the Holochain conductor is offline;
+    the response still succeeds so the caller knows the hash was computed
+    but not yet recorded.
+    """
+    import json as _json
+
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'Missing file field (multipart/form-data, field name: file)'}), 400
+
+    outcome_str = (request.form.get('outcome') or '').strip()
+    if outcome_str not in _VALID_VALIDATOR_OUTCOMES:
+        return jsonify({
+            'error': (
+                f'outcome is required and must be one of: '
+                f'{", ".join(sorted(_VALID_VALIDATOR_OUTCOMES))}'
+            )
+        }), 400
+
+    notes      = (request.form.get('notes')      or '')[:2000]
+    confidence = (request.form.get('confidence') or 'Medium').strip()
+
+    discipline_raw = (request.form.get('discipline') or '').strip()
+    if discipline_raw:
+        try:
+            discipline = _json.loads(discipline_raw)
+        except Exception:
+            return jsonify({'error': 'discipline must be valid JSON, e.g. {"type":"ComputationalBiology"}'}), 400
+    else:
+        discipline = {'type': 'ComputationalBiology'}
+
+    if outcome_str == 'Reproduced':
+        outcome = {'type': 'Reproduced'}
+    elif outcome_str == 'PartiallyReproduced':
+        outcome = {'type': 'PartiallyReproduced',
+                   'content': {'details': notes or 'Partial reproduction reported by validator'}}
+    else:
+        outcome = {'type': 'FailedToReproduce',
+                   'content': {'details': notes or 'Failed to reproduce — reported by validator'}}
+
+    work_dir = Path(tempfile.mkdtemp(prefix='valichord_attest_'))
+    upload_path = work_dir / 'deposit.zip'
+    try:
+        file.save(str(upload_path))
+
+        size_mb = upload_path.stat().st_size / (1024 * 1024)
+        if size_mb > MAX_SIZE_MB:
+            return jsonify({
+                'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'
+            }), 400
+
+        data_hash_hex = hashlib.sha256(upload_path.read_bytes()).hexdigest()
+
+        holochain_result = run_validation_round(
+            data_hash_hex=data_hash_hex,
+            outcome=outcome,
+            discipline=discipline,
+            confidence=confidence,
+        )
+
+        harmony_record_hash = None
+        harmony_record_url  = None
+        if holochain_result:
+            harmony_record_hash = holochain_result.get('harmony_record_hash')
+            gateway_payload     = holochain_result.get('gateway_payload')
+            if (harmony_record_hash
+                    and HOLOCHAIN_GATEWAY_URL
+                    and HOLOCHAIN_GOVERNANCE_DNA_HASH
+                    and gateway_payload):
+                harmony_record_url = (
+                    f"{HOLOCHAIN_GATEWAY_URL}"
+                    f"/{HOLOCHAIN_GOVERNANCE_DNA_HASH}"
+                    f"/{HOLOCHAIN_APP_ID}"
+                    f"/governance_coordinator"
+                    f"/get_harmony_record"
+                    f"?payload={gateway_payload}"
+                )
+
+        return jsonify({
+            'data_hash':          data_hash_hex,
+            'outcome':            outcome_str,
+            'validator_attested': True,
+            'harmony_record_hash': harmony_record_hash,
+            'harmony_record_url':  harmony_record_url,
+        })
+
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
