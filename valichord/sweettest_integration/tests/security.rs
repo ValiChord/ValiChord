@@ -50,17 +50,23 @@ async fn reveal(conductor: &SweetConductor, app: &ValiChordApp, request_ref: Ext
 
 /// Build a custom single-conductor setup with non-default attestation DNA properties.
 ///
-/// `extra_props` is appended to the base attestation properties YAML before parsing.
+/// `extra_attestation_props` is a YAML string whose keys override the base defaults.
 /// Example: `"min_claim_timeout_secs: 86400\n"` or `"minimum_validators: 1\n"`.
 async fn setup_single_custom_attestation(extra_attestation_props: &str) -> (SweetConductor, ValiChordApp) {
-    let base = format!(
+    let mut props: serde_yaml::Value = serde_yaml::from_str(
         "authorized_joining_certificate_issuer: \"\"\n\
          discipline: computational_biology\n\
          min_claim_timeout_secs: 0\n\
-         minimum_validators: 2\n\
-         {extra_attestation_props}"
-    );
-    let props: serde_yaml::Value = serde_yaml::from_str(&base).unwrap();
+         minimum_validators: 2\n"
+    ).unwrap();
+    if !extra_attestation_props.is_empty() {
+        let extra: serde_yaml::Value = serde_yaml::from_str(extra_attestation_props).unwrap();
+        if let (Some(base_map), Some(extra_map)) = (props.as_mapping_mut(), extra.as_mapping()) {
+            for (k, v) in extra_map {
+                base_map.insert(k.clone(), v.clone());
+            }
+        }
+    }
 
     let attestation = SweetDnaFile::from_bundle_with_overrides(
         &dna_path("attestation.dna"),
@@ -86,14 +92,20 @@ async fn setup_single_custom_attestation(extra_attestation_props: &str) -> (Swee
 
 /// Build a custom 2-conductor setup with non-default attestation DNA properties.
 async fn setup_two_agents_custom_attestation(extra_attestation_props: &str) -> TwoAgentSetup {
-    let base = format!(
+    let mut props: serde_yaml::Value = serde_yaml::from_str(
         "authorized_joining_certificate_issuer: \"\"\n\
          discipline: computational_biology\n\
          min_claim_timeout_secs: 0\n\
-         minimum_validators: 2\n\
-         {extra_attestation_props}"
-    );
-    let props: serde_yaml::Value = serde_yaml::from_str(&base).unwrap();
+         minimum_validators: 2\n"
+    ).unwrap();
+    if !extra_attestation_props.is_empty() {
+        let extra: serde_yaml::Value = serde_yaml::from_str(extra_attestation_props).unwrap();
+        if let (Some(base_map), Some(extra_map)) = (props.as_mapping_mut(), extra.as_mapping()) {
+            for (k, v) in extra_map {
+                base_map.insert(k.clone(), v.clone());
+            }
+        }
+    }
 
     let attestation = SweetDnaFile::from_bundle_with_overrides(
         &dna_path("attestation.dna"),
