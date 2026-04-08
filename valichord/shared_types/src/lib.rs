@@ -2,6 +2,41 @@ use hdi::prelude::*;
 use std::borrow::Cow;
 
 // ---------------------------------------------------------------------------
+// Domain error type — shared across all ValiChord coordinator zomes
+// ---------------------------------------------------------------------------
+//
+// Internal helper functions return `ValiChordResult<T>` and use `?` freely.
+// The `#[hdk_extern]` boundary converts back to `ExternResult<T>` via
+// `fn_inner(args).map_err(Into::into)` — keeping wasm_error! at the surface.
+//
+// Pattern borrowed from ad4m's `SocialContextError`.
+
+#[derive(thiserror::Error, Debug)]
+pub enum ValiChordError {
+    /// Wraps any WasmError already produced by an HDK/HDI call.
+    #[error(transparent)]
+    Wasm(#[from] WasmError),
+    /// Application-level rejection with a human-readable message.
+    #[error("{0}")]
+    Guest(String),
+    /// Serialization failure (SerializedBytes / msgpack round-trip).
+    #[error(transparent)]
+    Serialization(#[from] SerializedBytesError),
+}
+
+pub type ValiChordResult<T> = Result<T, ValiChordError>;
+
+/// Convert a `ValiChordError` back to the `WasmError` that `ExternResult` expects.
+impl From<ValiChordError> for WasmError {
+    fn from(e: ValiChordError) -> Self {
+        match e {
+            ValiChordError::Wasm(w) => w,
+            other => wasm_error!(WasmErrorInner::Guest(other.to_string())),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Core type alias
 // ---------------------------------------------------------------------------
 
@@ -205,6 +240,18 @@ impl ValidationAttestation {
     pub fn discipline_tag(&self) -> Cow<'static, str> {
         discipline_tag(&self.discipline)
     }
+
+    /// Serialise `self` to MessagePack bytes — the same encoding used by the
+    /// Holochain DHT.  Both `seal_private_attestation` (DNA 2) and
+    /// `submit_attestation` (DNA 3) call this when computing the SHA-256
+    /// commitment hash, guaranteeing byte-for-byte consistency.
+    ///
+    /// Inspired by ad4m's `PerspectiveDiff::get_sb()` pattern.
+    pub fn msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
+        SerializedBytes::try_from(self)
+            .map(|sb| sb.bytes().to_vec())
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -236,4 +283,205 @@ pub struct CommitmentSealedInput {
 pub struct ResearcherCommitmentInput {
     pub request_ref:            ExternalHash,
     pub result_commitment_hash: Vec<u8>,
+}
+
+// ---------------------------------------------------------------------------
+// Pure outcome functions — moved here from governance_coordinator so they can
+// be unit-tested without a Holochain conductor.
+//
+// Pattern: "functional core, imperative shell" — all decision logic lives in
+// pure functions over shared types; the coordinator handles DHT I/O only.
+// ---------------------------------------------------------------------------
+
+/// Plurality-vote majority outcome across a set of attestations.
+///
+/// In the event of a tie among non-Reproduced outcomes, precedence is given
+/// to `PartiallyReproduced` over `FailedToReproduce` over `UnableToAssess`.
+pub fn derive_majority_outcome(attestations: &[ValidationAttestation]) -> AttestationOutcome {
+    let (mut reproduced, mut partial, mut failed, mut unable) = (0u32, 0u32, 0u32, 0u32);
+    for a in attestations {
+        match &a.outcome {
+            AttestationOutcome::Reproduced               => reproduced += 1,
+            AttestationOutcome::PartiallyReproduced { .. } => partial  += 1,
+            AttestationOutcome::FailedToReproduce { .. }   => failed   += 1,
+            AttestationOutcome::UnableToAssess { .. }      => unable   += 1,
+        }
+    }
+    let max = reproduced.max(partial).max(failed).max(unable);
+    if reproduced == max {
+        AttestationOutcome::Reproduced
+    } else if partial == max {
+        AttestationOutcome::PartiallyReproduced { details: "Majority partially reproduced".into() }
+    } else if failed == max {
+        AttestationOutcome::FailedToReproduce   { details: "Majority failed to reproduce".into() }
+    } else {
+        AttestationOutcome::UnableToAssess      { reason:  "Majority unable to assess".into() }
+    }
+}
+
+/// Derive AgreementLevel from the success rate across a set of attestations.
+///
+/// Thresholds (fraction of Reproduced + PartiallyReproduced outcomes):
+///   ≥ 90% → ExactMatch | ≥ 70% → WithinTolerance | ≥ 50% → DirectionalMatch
+///   < 50% but > 0 successes → Divergent | 0 successes → UnableToAssess
+pub fn derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel {
+    if attestations.is_empty() {
+        return AgreementLevel::UnableToAssess;
+    }
+    let successes = attestations
+        .iter()
+        .filter(|a| matches!(
+            &a.outcome,
+            AttestationOutcome::Reproduced | AttestationOutcome::PartiallyReproduced { .. }
+        ))
+        .count();
+    let rate = successes as f64 / attestations.len() as f64;
+    if rate >= 0.90 {
+        AgreementLevel::ExactMatch
+    } else if rate >= 0.70 {
+        AgreementLevel::WithinTolerance
+    } else if rate >= 0.50 {
+        AgreementLevel::DirectionalMatch
+    } else if successes > 0 {
+        AgreementLevel::Divergent
+    } else {
+        AgreementLevel::UnableToAssess
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests — run with `cargo test -p valichord_shared_types`
+// No Holochain conductor or WASM required.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Minimal `ValidationAttestation` for testing pure outcome functions.
+    fn att(outcome: AttestationOutcome) -> ValidationAttestation {
+        ValidationAttestation {
+            request_ref: ExternalHash::from_raw_32(vec![0u8; 32]),
+            outcome,
+            outcome_summary: OutcomeSummary {
+                key_metrics: vec![],
+                effect_direction_matches: None,
+                confidence_interval_overlap: None,
+                overall_agreement: AgreementLevel::ExactMatch,
+            },
+            time_invested_secs: 0,
+            time_breakdown: TimeBreakdown {
+                environment_setup_secs: 0,
+                data_acquisition_secs: 0,
+                code_execution_secs: 0,
+                troubleshooting_secs: 0,
+            },
+            confidence: AttestationConfidence::High,
+            deviation_flags: vec![],
+            computational_resources: ComputationalResources {
+                personal_hardware_sufficient: true,
+                hpc_required: false,
+                gpu_required: false,
+                cloud_compute_required: false,
+                estimated_compute_cost_pence: None,
+            },
+            discipline: Discipline::ComputationalBiology,
+            commitment_anchor_hash: None,
+        }
+    }
+
+    // --- derive_majority_outcome ---
+
+    #[test]
+    fn majority_all_reproduced() {
+        let atts = vec![att(AttestationOutcome::Reproduced); 3];
+        assert!(matches!(derive_majority_outcome(&atts), AttestationOutcome::Reproduced));
+    }
+
+    #[test]
+    fn majority_failed_wins() {
+        let atts = vec![
+            att(AttestationOutcome::Reproduced),
+            att(AttestationOutcome::FailedToReproduce { details: "x".into() }),
+            att(AttestationOutcome::FailedToReproduce { details: "y".into() }),
+        ];
+        assert!(matches!(
+            derive_majority_outcome(&atts),
+            AttestationOutcome::FailedToReproduce { .. }
+        ));
+    }
+
+    #[test]
+    fn majority_partial_wins_on_tie_with_failed() {
+        // Tie between partial and failed — partial takes precedence.
+        let atts = vec![
+            att(AttestationOutcome::PartiallyReproduced { details: "a".into() }),
+            att(AttestationOutcome::FailedToReproduce   { details: "b".into() }),
+        ];
+        assert!(matches!(
+            derive_majority_outcome(&atts),
+            AttestationOutcome::PartiallyReproduced { .. }
+        ));
+    }
+
+    #[test]
+    fn majority_single_unable() {
+        let atts = vec![att(AttestationOutcome::UnableToAssess { reason: "no data".into() })];
+        assert!(matches!(
+            derive_majority_outcome(&atts),
+            AttestationOutcome::UnableToAssess { .. }
+        ));
+    }
+
+    // --- derive_agreement_level ---
+
+    #[test]
+    fn agreement_empty_is_unable() {
+        assert_eq!(derive_agreement_level(&[]), AgreementLevel::UnableToAssess);
+    }
+
+    #[test]
+    fn agreement_all_reproduced_is_exact_match() {
+        let atts = vec![att(AttestationOutcome::Reproduced); 4];
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::ExactMatch);
+    }
+
+    #[test]
+    fn agreement_90_percent_is_exact_match() {
+        // 9 reproduced, 1 failed → 90 % → ExactMatch
+        let mut atts = vec![att(AttestationOutcome::Reproduced); 9];
+        atts.push(att(AttestationOutcome::FailedToReproduce { details: String::new() }));
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::ExactMatch);
+    }
+
+    #[test]
+    fn agreement_70_percent_is_within_tolerance() {
+        // 7 reproduced, 3 failed → 70 % → WithinTolerance
+        let mut atts = vec![att(AttestationOutcome::Reproduced); 7];
+        atts.extend(vec![att(AttestationOutcome::FailedToReproduce { details: String::new() }); 3]);
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::WithinTolerance);
+    }
+
+    #[test]
+    fn agreement_50_percent_is_directional_match() {
+        let mut atts = vec![att(AttestationOutcome::Reproduced); 1];
+        atts.push(att(AttestationOutcome::FailedToReproduce { details: String::new() }));
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::DirectionalMatch);
+    }
+
+    #[test]
+    fn agreement_all_failed_is_unable_to_assess() {
+        let atts = vec![
+            att(AttestationOutcome::FailedToReproduce { details: String::new() });
+            3
+        ];
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::UnableToAssess);
+    }
+
+    #[test]
+    fn agreement_one_success_among_many_failures_is_divergent() {
+        let mut atts = vec![att(AttestationOutcome::Reproduced); 1];
+        atts.extend(vec![att(AttestationOutcome::FailedToReproduce { details: String::new() }); 4]);
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::Divergent);
+    }
 }

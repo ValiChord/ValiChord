@@ -4,7 +4,10 @@ use governance_integrity::{
     BadgeType, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
 };
-use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation, discipline_tag};
+use valichord_shared_types::{
+    AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation,
+    derive_agreement_level, derive_majority_outcome, discipline_tag,
+};
 
 // ---------------------------------------------------------------------------
 // init() — capability grants for public read functions
@@ -559,63 +562,6 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
         .typed(LinkTypes::DisciplinePath)?;
     path.ensure()?;
     path.path_entry_hash()
-}
-
-/// Plurality-vote majority outcome across attestations.
-fn derive_majority_outcome(attestations: &[ValidationAttestation]) -> AttestationOutcome {
-    let (mut reproduced, mut partial, mut failed, mut unable) = (0u32, 0u32, 0u32, 0u32);
-    for a in attestations {
-        match &a.outcome {
-            AttestationOutcome::Reproduced => reproduced += 1,
-            AttestationOutcome::PartiallyReproduced { .. } => partial += 1,
-            AttestationOutcome::FailedToReproduce { .. } => failed += 1,
-            AttestationOutcome::UnableToAssess { .. } => unable += 1,
-        }
-    }
-    let max = reproduced.max(partial).max(failed).max(unable);
-    if reproduced == max {
-        AttestationOutcome::Reproduced
-    } else if partial == max {
-        AttestationOutcome::PartiallyReproduced {
-            details: "Majority partially reproduced".into(),
-        }
-    } else if failed == max {
-        AttestationOutcome::FailedToReproduce {
-            details: "Majority failed to reproduce".into(),
-        }
-    } else {
-        AttestationOutcome::UnableToAssess {
-            reason: "Majority unable to assess".into(),
-        }
-    }
-}
-
-/// Derive AgreementLevel from the success rate of the attestation set.
-fn derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel {
-    if attestations.is_empty() {
-        return AgreementLevel::UnableToAssess;
-    }
-    let successes = attestations
-        .iter()
-        .filter(|a| {
-            matches!(
-                &a.outcome,
-                AttestationOutcome::Reproduced | AttestationOutcome::PartiallyReproduced { .. }
-            )
-        })
-        .count();
-    let rate = successes as f64 / attestations.len() as f64;
-    if rate >= 0.90 {
-        AgreementLevel::ExactMatch
-    } else if rate >= 0.70 {
-        AgreementLevel::WithinTolerance
-    } else if rate >= 0.50 {
-        AgreementLevel::DirectionalMatch
-    } else if successes > 0 {
-        AgreementLevel::Divergent
-    } else {
-        AgreementLevel::UnableToAssess
-    }
 }
 
 /// Return a BadgeType if the validator count and agreement level meet thresholds.

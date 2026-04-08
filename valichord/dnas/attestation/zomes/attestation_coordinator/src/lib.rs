@@ -6,7 +6,10 @@ use attestation_integrity::{
     ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
     StudyClaim, ValidatorAgentType, ValidatorProfile, ValidationRequest,
 };
-use valichord_shared_types::{Discipline, ValidationAttestation, ValidationPhase, discipline_tag};
+use valichord_shared_types::{
+    Discipline, ValidationAttestation, ValidationPhase, ValiChordError, ValiChordResult,
+    discipline_tag,
+};
 use sha2::{Digest, Sha256};
 use rmp_serde as rmps;
 use std::collections::HashSet;
@@ -59,8 +62,8 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     // DHT and the AgentValidationPkg action is on the source chain.
     // verify_signature is an HDK host function not available in integrity zomes.
     // Empty issuer = dev/test bypass (matches the governance DNA pattern).
-    if let Err(reason) = verify_membrane_proof() {
-        return Ok(InitCallbackResult::Fail(reason));
+    if let Err(e) = verify_membrane_proof() {
+        return Ok(InitCallbackResult::Fail(e.to_string()));
     }
 
     Ok(InitCallbackResult::Pass)
@@ -70,8 +73,8 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
 // Membrane proof — Ed25519 verification (coordinator-side, HDK only)
 // ---------------------------------------------------------------------------
 
-fn verify_membrane_proof() -> Result<(), String> {
-    let props = DnaProperties::try_from_dna_properties().map_err(|e| e.to_string())?;
+fn verify_membrane_proof() -> ValiChordResult<()> {
+    let props = DnaProperties::try_from_dna_properties()?;
 
     // Empty string = dev/test bypass: skip crypto verification.
     if props.authorized_joining_certificate_issuer.is_empty() {
@@ -82,13 +85,13 @@ fn verify_membrane_proof() -> Result<(), String> {
     let issuer_b64 = props
         .authorized_joining_certificate_issuer
         .parse::<HoloHashB64<hash_type::Agent>>()
-        .map_err(|_| {
-            "authorized_joining_certificate_issuer is not a valid AgentPubKey".to_string()
-        })?;
+        .map_err(|_| ValiChordError::Guest(
+            "authorized_joining_certificate_issuer is not a valid AgentPubKey".into(),
+        ))?;
     let issuer_key = AgentPubKey::from(issuer_b64);
 
     // Find the AgentValidationPkg action on our own source chain (genesis action 2).
-    let records = query(ChainQueryFilter::new()).map_err(|e| e.to_string())?;
+    let records = query(ChainQueryFilter::new())?;
     // Use Option<Option<MembraneProof>>: outer None = AVP not found;
     // inner None = AVP found but membrane_proof field is absent.
     let mut avp_result: Option<Option<MembraneProof>> = None;
@@ -99,17 +102,19 @@ fn verify_membrane_proof() -> Result<(), String> {
         }
     }
     let proof = avp_result
-        .ok_or_else(|| "AgentValidationPkg not found on source chain".to_string())?
-        .ok_or_else(|| "Attestation DNA requires a membrane proof".to_string())?;
+        .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?
+        .ok_or_else(|| ValiChordError::Guest("Attestation DNA requires a membrane proof".into()))?;
 
     if proof.bytes().len() < 64 {
-        return Err("Membrane proof too short — must be at least 64 bytes".to_string());
+        return Err(ValiChordError::Guest(
+            "Membrane proof too short — must be at least 64 bytes".into(),
+        ));
     }
 
     // Extract the 64-byte Ed25519 signature from the start of the proof.
     let sig_bytes: [u8; 64] = proof.bytes()[0..64]
         .try_into()
-        .map_err(|_| "proof slice wrong size".to_string())?;
+        .map_err(|_| ValiChordError::Guest("proof slice wrong size".into()))?;
     let signature = Signature::from(sig_bytes);
 
     // Signed data = joining agent's raw 39-byte pubkey as Vec<u8>.
@@ -119,16 +124,14 @@ fn verify_membrane_proof() -> Result<(), String> {
     // encoded key, e.g. encode(Buffer.from(agentPubKey)) with a msgpack library
     // that treats Buffer/Uint8Array as bytes — NOT encode(Array.from(agentPubKey)),
     // which would produce a fixarray and fail verification.
-    let joining_agent = agent_info().map_err(|e| e.to_string())?.agent_initial_pubkey;
+    let joining_agent = agent_info()?.agent_initial_pubkey;
     let raw_bytes: Vec<u8> = joining_agent.get_raw_39().to_vec();
-    let valid = verify_signature(issuer_key, signature, raw_bytes)
-        .map_err(|e| e.to_string())?;
+    let valid = verify_signature(issuer_key, signature, raw_bytes)?;
 
     if !valid {
-        return Err(
-            "Membrane proof signature is invalid — not signed by the authorized issuer"
-                .to_string(),
-        );
+        return Err(ValiChordError::Guest(
+            "Membrane proof signature is invalid — not signed by the authorized issuer".into(),
+        ));
     }
 
     Ok(())
@@ -244,10 +247,7 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     // Dev/test bypass: skipped when authorized_joining_certificate_issuer is empty.
     let reveal_props = DnaProperties::try_from_dna_properties()?;
     if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
-        let msgpack_bytes: Vec<u8> = SerializedBytes::try_from(&attestation)
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-            .bytes()
-            .to_vec();
+        let msgpack_bytes = attestation.msgpack_bytes()?;
         let mut hasher = Sha256::new();
         hasher.update(&msgpack_bytes);
         hasher.update(&input.nonce);
@@ -305,13 +305,7 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
 
     // Attempt to finalise the round.  Errors are swallowed — a failed
     // finalisation attempt does not invalidate the attestation itself.
-    let _ = call(
-        CallTargetCell::OtherRole("governance".into()),
-        ZomeName::from("governance_coordinator"),
-        FunctionName::from("check_and_create_harmony_record"),
-        None,
-        request_ref,
-    );
+    call_governance_fire_and_forget("check_and_create_harmony_record", request_ref);
 
     Ok(attestation_hash)
 }
@@ -1479,6 +1473,31 @@ fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
         }
     }
     Ok(records)
+}
+
+// ---------------------------------------------------------------------------
+// Cross-DNA call helpers
+// ---------------------------------------------------------------------------
+
+/// Fire-and-forget call to the governance coordinator.
+///
+/// Symmetric to `call_attestation_zome_opt` in `governance_coordinator` —
+/// but intentionally discards the result.  A failed governance call does not
+/// invalidate the caller's own write; the governance DNA will be retried by
+/// the next validator who calls `submit_attestation`.
+///
+/// Inspired by ad4m's `send_broadcast` / `send_signal` distinction.
+fn call_governance_fire_and_forget(
+    fn_name: &str,
+    input: impl serde::Serialize + std::fmt::Debug,
+) {
+    let _ = call(
+        CallTargetCell::OtherRole("governance".into()),
+        ZomeName::from("governance_coordinator"),
+        FunctionName::from(fn_name),
+        None,
+        input,
+    );
 }
 
 // ---------------------------------------------------------------------------
