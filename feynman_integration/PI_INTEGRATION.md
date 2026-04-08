@@ -7,7 +7,7 @@
 | `POST /attest` endpoint (backend/app.py) | **Merged to main** |
 | PI extension (index.ts, package.json, README.md) | **Pushed to topeuph-ai/pi-mono main** |
 | PI skill (SKILL.md) | **Pushed to topeuph-ai/pi-mono main** |
-| Issue on badlogic/pi-mono | **Open — awaiting `lgtm`** → https://github.com/badlogic/pi-mono/issues/2942 |
+| Issue on badlogic/pi-mono | **Auto-closed (OSS weekend pause) — reopen after 2026-04-13** → https://github.com/badlogic/pi-mono/issues/2942 |
 | PR to badlogic/pi-mono | Pending `lgtm` |
 
 ---
@@ -100,7 +100,7 @@ ValiChord's independence is not affected. The commit-reveal rules are enforced a
 
 ## Next steps
 
-1. Wait for maintainer `lgtm` on https://github.com/badlogic/pi-mono/issues/2942
+1. **Reopen** https://github.com/badlogic/pi-mono/issues/2942 after 2026-04-13 (auto-closed during OSS weekend pause), then wait for maintainer `lgtm`
 2. Open PR from `topeuph-ai:main` → `badlogic:main`
 3. Before opening PR, verify `npm run check` and `./test.sh` pass in the pi-mono monorepo (requires `npm install` in the monorepo root first)
 
