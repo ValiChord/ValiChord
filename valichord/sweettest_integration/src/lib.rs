@@ -359,6 +359,8 @@ pub fn make_validation_request(data_hash: ExternalHash) -> ValidationRequest {
         protocol_ref: None,
         data_hash,
         data_access_url: "https://osf.io/example".into(),
+        deposit_access_type: Default::default(),
+        deposit_token: None,
         protocol_access_url: None,
         num_validators_required: 2,
         validation_tier: ValidationTier::Basic,
