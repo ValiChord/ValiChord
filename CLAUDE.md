@@ -48,6 +48,23 @@ Holochain is **agent-centric distributed computing**:
 
 ---
 
+## Hard separation — ValiChord proper vs valichord_at_home
+
+**These are two completely separate projects. Never conflate them.**
+
+| Project | Path | What it does | Deployed |
+|---|---|---|---|
+| **ValiChord proper** | `valichord/` | Holochain commit-reveal protocol — 4 DNAs, blind attestation, HarmonyRecord on DHT | Dev only (local conductor) — NOT live |
+| **valichord_at_home** | `valichord_at_home/` | Standalone deposit quality checker — 80+ detectors, cleaning reports, draft generation | Live on Render via `backend/app.py` |
+
+Rules:
+- When describing ValiChord's architecture → talk about the 4 DNAs, commit-reveal, Holochain. Do NOT mention detectors or ASSESSMENT.md.
+- When asked what's deployed/live → valichord_at_home analysis is live on Render. ValiChord protocol is NOT deployed to a live network.
+- `backend/app.py` integrates both (runs analysis then optionally calls Holochain bridge) — that is an integration choice, not a definition of either project.
+- Before any response touching both, stop and verify you are not conflating them.
+
+---
+
 ## Hard constraints
 - Never use `pack_dna.py` to build DNAs — it is broken (embeds the same DNA bytes for all four roles)
 - Always use `hc dna pack` + `hc app pack` (see `.claude/skills/integration-testing.md`)
