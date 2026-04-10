@@ -22,6 +22,9 @@ def run_validation_round(
     outcome: dict,
     discipline: dict | None = None,
     confidence: str | None = None,
+    deposit_access_type: str | None = None,
+    deposit_token: str | None = None,
+    data_access_url: str | None = None,
 ) -> dict | None:
     """Run the full single-agent commit-reveal round via the Node bridge.
 
@@ -38,6 +41,17 @@ def run_validation_round(
         Defaults to ComputationalBiology when omitted.
     confidence : str, optional
         "High" | "Medium" | "Low".  Defaults to "Medium".
+    deposit_access_type : str, optional
+        "PublicUrl" (default) or "TokenGated".
+        Pass "TokenGated" for institutional deployments where the deposit is
+        served from the researcher's own infrastructure.
+    deposit_token : str, optional
+        Access token included in the ValidationRequest on the Attestation DHT.
+        Only used when deposit_access_type is "TokenGated".
+        Validators append ?token=<value> to data_access_url to download the deposit.
+    data_access_url : str, optional
+        URL where validators can download the deposit.
+        For TokenGated: the researcher's private endpoint (e.g. https://inst.example.com/deposit/<job_id>).
 
     Returns
     -------
@@ -46,10 +60,13 @@ def run_validation_round(
         Returns None if the bridge is unreachable or the round fails.
     """
     payload = {
-        'data_hash_hex': data_hash_hex,
-        'outcome':       outcome,
-        'discipline':    discipline or {'type': 'ComputationalBiology'},
-        'confidence':    confidence or 'Medium',
+        'data_hash_hex':       data_hash_hex,
+        'outcome':             outcome,
+        'discipline':          discipline or {'type': 'ComputationalBiology'},
+        'confidence':          confidence or 'Medium',
+        'deposit_access_type': deposit_access_type or 'PublicUrl',
+        'deposit_token':       deposit_token,
+        'data_access_url':     data_access_url or '',
     }
     try:
         r = requests.post(

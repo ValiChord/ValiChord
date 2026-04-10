@@ -34,7 +34,7 @@ The specific structs in this document were the design starting point — the act
 - `ReproducibilityBadge.issued_to` resolves the researcher via cross-DNA lookup, not the first validator.
 - `GovernanceDecision` write/list API and `get_badges_by_type` `BadgePath` index are implemented and tested.
 - Validator self-assignment (`StudyClaim`) is implemented — validators claim studies directly with COI enforcement in the integrity zome's `validate()`.
-- `ValidationRequest` carries `researcher_institution`, `data_access_url`, and `protocol_access_url` fields.
+- `ValidationRequest` carries `researcher_institution`, `data_access_url`, and `protocol_access_url` fields. Two additional fields were added April 2026: `deposit_access_type: DepositAccessType` (default `PublicUrl`; `TokenGated` for institutional private deployments) and `deposit_token: Option<String>` (bearer credential for `TokenGated` deposits, protected by the Attestation DHT membrane). Both fields use `#[serde(default)]` — existing entries on the DHT without these fields deserialise correctly.
 - Governance `DnaProperties` includes `min_attestations_for_finalization: u32`.
 - `check_all_commitments_sealed_inner` uses `num_validators_required` from the per-study `ValidationRequest`, not the network-wide `minimum_validators` DNA property.
 - The reveal step is automatic — the frontend detects `RevealOpen` phase and calls `submit_attestation` without user action.

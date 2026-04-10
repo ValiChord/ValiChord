@@ -43,8 +43,21 @@ pub struct DnaProperties {
 pub struct ValidationRequest {
     pub protocol_ref:            Option<ExternalHash>,
     pub data_hash:               ExternalHash,
-    /// URL where validators can download the dataset (OSF, Zenodo, institutional repo, etc.).
+    /// URL where validators can download the deposit.
+    ///
+    /// For `PublicUrl`: a direct public link (Zenodo, OSF, institutional repo, etc.).
+    /// For `TokenGated`: the researcher's private deposit endpoint —
+    ///   validators append `?token={deposit_token}` to authenticate.
     pub data_access_url:         String,
+    /// How validators should access the deposit.
+    /// Defaults to `PublicUrl` — existing entries without this field deserialise correctly.
+    #[serde(default)]
+    pub deposit_access_type:     DepositAccessType,
+    /// One-time access token for `TokenGated` deposits.
+    /// `None` when `deposit_access_type` is `PublicUrl`.
+    /// Protected by the Attestation DHT membrane — only credentialed validators can read it.
+    #[serde(default)]
+    pub deposit_token:           Option<String>,
     /// DOI or URL of the pre-registered analysis plan (OSF, AsPredicted, ClinicalTrials, etc.).
     pub protocol_access_url:     Option<String>,
     pub num_validators_required: u8,
@@ -79,6 +92,25 @@ pub struct StudyClaim {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValidationTier { Basic, Enhanced, Comprehensive }
+
+/// How validators should access the deposit for this study.
+///
+/// Stored in `ValidationRequest` on the shared Attestation DHT.
+/// The DHT is membrane-gated (credentialed validators only), so a
+/// `deposit_token` value here is protected by the joining rules —
+/// only agents who hold a valid membrane proof can read it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub enum DepositAccessType {
+    /// `data_access_url` is publicly reachable — no credential required.
+    /// Suitable for deposits already published on Zenodo, OSF, institutional repos, etc.
+    #[default]
+    PublicUrl,
+    /// `data_access_url` is a private endpoint.
+    /// Validators authenticate by appending `?token={deposit_token}` to the URL.
+    /// Appropriate when the researcher's institution hosts the deposit internally
+    /// and the researcher's node is always-on.
+    TokenGated,
+}
 
 // ValidationAttestation, OutcomeSummary, MetricResult, AgreementLevel are
 // defined in valichord_shared_types — imported above.

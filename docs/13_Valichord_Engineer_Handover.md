@@ -79,6 +79,19 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 **`ValidationRequest` carries two new pointer fields** added 2026-03-14: `data_access_url: String` (URL where validators download the dataset — OSF, Zenodo, institutional repo, etc.) and `protocol_access_url: Option<String>` (DOI or URL of the pre-registered analysis plan). The actual data never touches the DHT — these are pointers only. The researcher fills these from their private DNA before calling `submit_validation_request`.
 
+**`ValidationRequest` deposit access mechanism** — added April 2026. Two new optional fields (both `#[serde(default)]`, backwards-compatible with existing entries):
+
+- `deposit_access_type: DepositAccessType` — `PublicUrl` (default) or `TokenGated`. Tells validators how to authenticate when fetching the deposit.
+- `deposit_token: Option<String>` — a `secrets.token_urlsafe(32)` bearer credential. Only set when `deposit_access_type == TokenGated`.
+
+`DepositAccessType` is defined in `attestation_integrity`. The DHT membrane (credentialed joining, membrane proof required) protects the token — only validators with a valid `authorized_joining_certificate_issuer` signature can read the `ValidationRequest` entry and therefore the token.
+
+**`TokenGated` flow:** the researcher's Flask backend generates the token at job creation time, stores it in `_jobs[job_id]`, and passes `data_access_url = {VALICHORD_BASE_URL}/deposit/{job_id}` + `deposit_token` to `_runValidationRound` in `serve.mjs`, which includes both in the `submit_validation_request` call. Validators read the `ValidationRequest` from the shared DHT, append `?token={deposit_token}` to the URL, and `GET /deposit/<job_id>` serves the ZIP back (token verified with `secrets.compare_digest`).
+
+**`VALICHORD_BASE_URL` env var** — must be set in institutional deployments to the server's public address (e.g. `https://valichord.example.com`). Defaults to `http://localhost:5000` for dev/Codespace.
+
+**Critical Holochain constraint:** `call_remote` cannot cross DNA network boundaries. DNA 1 (Researcher Repository) is a private single-agent DNA in a different network from DNA 3 (Attestation). Validators cannot `call_remote` to the researcher's DNA 1 to fetch the deposit. The token in the `ValidationRequest` entry and the HTTP endpoint in `backend/app.py` are the correct architecture — Holochain carries the credential, HTTP delivers the bytes.
+
 **Governance DNA is now fully decentralised** (2026-03-14): `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are no longer author-gated by a designated coordinator key. Any participant who was part of the round can trigger finalisation by calling `check_and_create_harmony_record`. The function enforces completeness (must have ≥ `num_validators_required` attestations before writing) and idempotency (a second call short-circuits if a record already exists). `submit_attestation` in the Attestation DNA now automatically fires a same-agent cross-DNA call to `check_and_create_harmony_record` — the last validator to submit their attestation triggers the HarmonyRecord write without any central coordinator node.
 
 `GovernanceDecision` remains key-gated by `system_coordinator_key` — governance votes are human deliberation outcomes that require a designated recorder. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
@@ -141,7 +154,7 @@ These functions exist and compile but return placeholder values. They are design
 | `assess_difficulty` / `get_difficulty_assessment` | DNA 3 coordinator | **Now accepts real caller-provided `AssessDifficultyInput`** (2026-03-25) — all fields are stored verbatim; retrieval works via `DifficultyPath` | Automated prediction model (ML / heuristic) — Phase 1, after Phase 0 workload data collected |
 | Cumulative reputation | DNA 4 coordinator | Single-round reputation only | Multi-round cumulative tier progression |
 | Real membrane proof issuance | Outside codebase | Not implemented | A credential issuance service that signs joining agents' pubkeys with the issuer keypair |
-| Researcher identity blinding | Outside codebase | Not enforced — `ValidationRequest.data_access_url` is visible to validators in full; if the URL contains researcher identity it defeats the blinding | A blinding proxy service that serves dataset access via opaque URLs, stripping researcher identity before the `ValidationRequest` is visible to validators. Until built, double-blinding is an operational convention, not an architectural guarantee |
+| Researcher identity blinding | Outside codebase | Partially improved — `TokenGated` deposits use an opaque `/deposit/<job_id>?token=...` URL that does not expose researcher identity. Public URL deposits (`PublicUrl`) still expose the full URL (e.g. `osf.io/jsmith/my-study`). A full blinding proxy would replace any URL with an opaque token before writing the `ValidationRequest` to the DHT. Until built, identity blinding for `PublicUrl` deposits is an operational convention. |
 
 ---
 
@@ -486,6 +499,7 @@ All endpoints live in `backend/app.py`. See `backend/openapi.yaml` for the full 
 
 - `GET /result/<job_id>` → `{ status: running | done | error, ... }`
 - `GET /download/<job_id>` → ZIP containing `CLEANING_REPORT.md`, `README_DRAFT.md`, `LICENCE_DRAFT.txt`, `INVENTORY_DRAFT.md`, `ASSESSMENT.md`, `VALICHORD_LOG.json` (job cleaned up after download)
+- `GET /deposit/<job_id>?token=<token>` → the original deposit ZIP, served to validators who obtained the token from the `ValidationRequest` entry on the Attestation DHT. Returns 401 if token is missing or wrong, 410 if the file has been cleaned up. Token validated with `secrets.compare_digest` (timing-safe). This endpoint is how `TokenGated` deposit access works — Holochain carries the credential, HTTP delivers the file.
 - `GET /health` → `{ status: ok, version, conductor: live | offline }`
 - `GET /openapi.yaml` → OpenAPI 3.0.3 YAML spec
 - `GET /docs` → Swagger UI HTML (CDN-hosted, no dependencies)
@@ -544,6 +558,18 @@ Full request/response shapes are documented in `backend/openapi.yaml` and `docs/
 - `POST /holochain/validate-round` — full single-agent commit-reveal round → returns `{ harmony_record_hash: "uhCkk...", gateway_payload: "<base64url>" }` or `{ harmony_record_hash: null, gateway_payload: "<base64url>" }` (`gateway_payload` is always present — it is the base64url JSON of the ExternalHash, used to construct `harmony_record_url`)
 
 The commit-reveal sequence in `_runValidationRound` (7 steps): `submit_validation_request` → `claim_study` → `receive_task` → `seal_private_attestation` → poll `get_current_phase` → `submit_attestation` (empty nonce, dev bypass) → `check_and_create_harmony_record` (explicit call to fix DHT timing — post_commit in `submit_attestation` fires before ValidatorToAttestation link is DHT-queryable).
+
+`_runValidationRound` now accepts three additional optional params passed through from `holochain_bridge.py`: `deposit_access_type` (`"PublicUrl"` | `"TokenGated"`), `deposit_token` (string or null), and `data_access_url` (string). All three are forwarded into the `submit_validation_request` zome call. Callers that do not supply them get `PublicUrl` / null / `""` defaults — fully backwards-compatible.
+
+### Two commit-reveal protocol modes
+
+ValiChord's commit-reveal protocol can operate in two modes depending on whether the researcher is a ValiChord participant:
+
+**Validator-only commit-reveal (current demo / plugin path):** The researcher is not on the Holochain network — their deposit is on Zenodo, OSF, or a `TokenGated` endpoint. Only the validator side of the blind commit-reveal runs. Validators seal their verdict independently before seeing what others found. The `CommitmentAnchor` on DNA 3 proves no validator changed their assessment after the consensus became visible. This is what `_runValidationRound` currently executes.
+
+**Full double-blind commit-reveal (native ValiChord path):** The researcher also participates. They call `lock_researcher_result()` in DNA 1 before the round opens, which publishes a `ResearcherResultCommitment` (SHA-256 hash of their metrics + nonce) to DNA 3. After all validators have committed and revealed, the researcher calls `reveal_researcher_result()` — the commitment hash is verified on-chain before the metrics land on the shared DHT. This proves the researcher did not adjust their claimed result after seeing validator findings.
+
+The Rust code for both modes is fully implemented. `_runValidationRound` currently runs the validator-only path. To activate the full double-blind, add `lock_researcher_result` (DNA 1) before `submit_validation_request`, and `reveal_researcher_result` (DNA 3) after `submit_attestation`. These are steps 0 and 7.5 in the sequence — the other 7 steps are unchanged.
 
 **`__bytes` convention:** Uint8Array values crossing Node→Python→Node boundaries serialise as `{ "__bytes": "<base64>" }`. ActionHash results are converted to canonical `uhCkk...` strings via `encodeHashToBase64` before being returned to Python, so Python can embed them in URLs directly.
 

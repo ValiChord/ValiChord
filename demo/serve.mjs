@@ -144,7 +144,8 @@ async function _holochainCall(role_name, zome_name, fn_name, payload) {
 //   5. poll get_current_phase until RevealOpen
 //   6. submit_attestation         (attestation)  — empty nonce uses dev bypass
 //   7. check_and_create_harmony_record (governance) — explicit call fixes DHT timing
-async function _runValidationRound({ data_hash_hex, outcome, discipline, confidence }) {
+async function _runValidationRound({ data_hash_hex, outcome, discipline, confidence,
+                                     deposit_access_type, deposit_token, data_access_url }) {
   return _withSession(async ({ call, hashFrom32AndType, HoloHashType }) => {
     const externalHash = hashFrom32AndType(
       Buffer.from(data_hash_hex, 'hex'),
@@ -198,7 +199,9 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     await call('attestation', 'attestation_coordinator', 'submit_validation_request', {
       protocol_ref:            null,
       data_hash:               externalHash,
-      data_access_url:         '',
+      data_access_url:         data_access_url    ?? '',
+      deposit_access_type:     deposit_access_type ?? 'PublicUrl',
+      deposit_token:           deposit_token       ?? null,
       protocol_access_url:     null,
       num_validators_required: 1,
       validation_tier:         'Basic',

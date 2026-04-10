@@ -1,7 +1,10 @@
+# valichord_at_home API — deposit quality checks for researchers.
+# For the ValiChord protocol API (validators / PI / Feynman), see app_protocol.py.
 import os
 import sys
 import uuid
 import hashlib
+import secrets
 import tempfile
 import shutil
 import zipfile
@@ -37,6 +40,12 @@ JOB_TIMEOUT_SECONDS = 1200  # 20 minutes — enough for a 100 MB deposit
 HOLOCHAIN_GATEWAY_URL        = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
 HOLOCHAIN_GOVERNANCE_DNA_HASH = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
 HOLOCHAIN_APP_ID             = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
+
+# Public base URL for this Flask server — used to build deposit download URLs
+# embedded in ValidationRequest entries on the Attestation DHT.
+# Set VALICHORD_BASE_URL in production (e.g. https://valichord.example.com).
+# Defaults to localhost for dev / Codespace use.
+VALICHORD_BASE_URL = os.environ.get('VALICHORD_BASE_URL', 'http://localhost:5000').rstrip('/')
 
 # ── API key auth (optional) ──────────────────────────────────────────────────
 # Set VALICHORD_API_KEYS to a comma-separated list of valid keys.
@@ -223,7 +232,7 @@ def _compute_harmony_draft(findings, data_hash_hex: str,
 
 def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filename: str,
                  validator_outcome: str = None, validator_notes: str = '',
-                 callback_url: str = None):
+                 callback_url: str = None, deposit_token: str = None):
     try:
         repo_dir = work_dir / 'repository'
         output_dir = work_dir / 'output'
@@ -330,9 +339,19 @@ def _process_job(job_id: str, upload_path: Path, work_dir: Path, original_filena
         # Attempt to write a real HarmonyRecord to the Governance DHT.
         # Requires demo/serve.mjs to be running with a live conductor.
         # Degrades gracefully — analysis always completes even if bridge is down.
+        #
+        # When a deposit_token is set (institutional always-on deployments), the
+        # ValidationRequest written to the Attestation DHT includes the token and
+        # a deposit URL so validators can fetch the deposit directly from this server.
         holochain_result = run_validation_round(
             data_hash_hex=data_hash_hex,
             outcome=harmony_draft['outcome'],
+            deposit_access_type='TokenGated' if deposit_token else 'PublicUrl',
+            deposit_token=deposit_token,
+            data_access_url=(
+                f'{VALICHORD_BASE_URL}/deposit/{job_id}'
+                if deposit_token else ''
+            ),
         )
         if holochain_result:
             harmony_draft['harmony_record_hash'] = holochain_result.get('harmony_record_hash')
@@ -579,13 +598,21 @@ def validate():
         shutil.rmtree(work_dir, ignore_errors=True)
         return jsonify({'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'}), 400
 
+    # Generate a deposit token for institutional deployments where the deposit
+    # needs to be served back to validators via the Attestation DHT.
+    # The token is embedded in the ValidationRequest entry (membrane-protected)
+    # and validators use it to authenticate GET /deposit/<job_id>?token=<token>.
+    deposit_token = secrets.token_urlsafe(32)
+
     job_id = str(uuid.uuid4())
     with _jobs_lock:
         _jobs[job_id] = {
-            'status': 'running',
-            'output_zip': None,
-            'error': None,
-            'work_dir': work_dir,
+            'status':        'running',
+            'output_zip':    None,
+            'error':         None,
+            'work_dir':      work_dir,
+            'upload_path':   upload_path,
+            'deposit_token': deposit_token,
         }
 
     worker = threading.Thread(
@@ -593,8 +620,9 @@ def validate():
         args=(job_id, upload_path, work_dir, filename),
         kwargs={
             'validator_outcome': validator_outcome,
-            'validator_notes': validator_notes,
-            'callback_url': callback_url,
+            'validator_notes':   validator_notes,
+            'callback_url':      callback_url,
+            'deposit_token':     deposit_token,
         },
         daemon=True,
     )
@@ -651,6 +679,42 @@ def download(job_id):
     return response
 
 
+@app.route('/deposit/<job_id>', methods=['GET'])
+def deposit(job_id):
+    """Serve the original deposit ZIP to an authenticated validator.
+
+    Validators discover this URL and token inside the ValidationRequest entry
+    on the Attestation DHT (membrane-gated — only credentialed validators can
+    read that entry).  The token is a single-use bearer credential that ties
+    the download to the specific validation round.
+
+    Query parameters:
+      token  (required) — deposit_token from the ValidationRequest entry.
+
+    Returns the deposit ZIP, or 401/403/404 as appropriate.
+    """
+    token = request.args.get('token', '')
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        return jsonify({'error': 'Unknown job'}), 404
+
+    expected = job.get('deposit_token', '')
+    if not expected or not secrets.compare_digest(token, expected):
+        return jsonify({'error': 'Invalid or missing deposit token'}), 401
+
+    upload_path = job.get('upload_path')
+    if not upload_path or not Path(upload_path).exists():
+        return jsonify({'error': 'Deposit file no longer available'}), 410
+
+    return send_file(
+        str(upload_path),
+        as_attachment=True,
+        download_name=f'deposit_{job_id}.zip',
+        mimetype='application/zip',
+    )
+
+
 @app.route('/result/<job_id>', methods=['GET'])
 def result(job_id):
     """Structured JSON result for a completed validation job.
@@ -686,9 +750,8 @@ def result(job_id):
 def attest():
     """Validator attestation — fast path for AI/human validators.
 
-    Takes a deposit ZIP, hashes it, runs the Holochain commit-reveal protocol
-    with the supplied outcome, and returns the HarmonyRecord synchronously
-    (no polling required).
+    Runs the Holochain commit-reveal protocol with the supplied outcome and
+    returns the HarmonyRecord synchronously (no polling required).
 
     Unlike POST /validate, this endpoint does NOT run the structural analysis
     (valichord_at_home detectors).  It is intended for validators who have
@@ -696,15 +759,19 @@ def attest():
     verdict.
 
     Accepts multipart/form-data:
-      file        (required) — deposit ZIP, max 100 MB
-      outcome     (required) — Reproduced | PartiallyReproduced | FailedToReproduce
-      notes       (optional) — replication notes, max 2000 chars
-      discipline  (optional) — JSON discipline object; default {"type":"ComputationalBiology"}
-      confidence  (optional) — High | Medium | Low; default Medium
+      data_hash   (required*) — 64-char hex SHA-256 of the deposit.
+                                Preferred: compute locally so no upload is needed.
+      file        (optional*) — deposit ZIP; used to compute data_hash when the
+                                caller cannot compute it.  Exactly one of
+                                data_hash or file must be supplied.
+      outcome     (required)  — Reproduced | PartiallyReproduced | FailedToReproduce
+      notes       (optional)  — replication notes, max 2000 chars
+      discipline  (optional)  — JSON discipline object; default {"type":"ComputationalBiology"}
+      confidence  (optional)  — High | Medium | Low; default Medium
 
     Returns:
       {
-        "data_hash": "<64-char hex SHA-256 of deposit ZIP>",
+        "data_hash": "<64-char hex SHA-256 of deposit>",
         "outcome": "Reproduced",
         "validator_attested": true,
         "harmony_record_hash": "<uhCkk... ActionHash or null>",
@@ -716,10 +783,7 @@ def attest():
     but not yet recorded.
     """
     import json as _json
-
-    file = request.files.get('file')
-    if not file:
-        return jsonify({'error': 'Missing file field (multipart/form-data, field name: file)'}), 400
+    import re as _re
 
     outcome_str = (request.form.get('outcome') or '').strip()
     if outcome_str not in _VALID_VALIDATOR_OUTCOMES:
@@ -742,6 +806,25 @@ def attest():
     else:
         discipline = {'type': 'ComputationalBiology'}
 
+    # Resolve data_hash: accept direct hex (preferred) or compute from file (fallback).
+    data_hash_hex = (request.form.get('data_hash') or '').strip().lower()
+    file = request.files.get('file')
+    work_dir = None
+
+    if data_hash_hex:
+        if not _re.fullmatch(r'[0-9a-f]{64}', data_hash_hex):
+            return jsonify({'error': 'data_hash must be a 64-character lowercase hex SHA-256 string'}), 400
+    elif file:
+        work_dir = Path(tempfile.mkdtemp(prefix='valichord_attest_'))
+        upload_path = work_dir / 'deposit.zip'
+        file.save(str(upload_path))
+        data_hash_hex = hashlib.sha256(upload_path.read_bytes()).hexdigest()
+    else:
+        return jsonify({
+            'error': 'Either data_hash (preferred) or file must be supplied. '
+                     'Compute the SHA-256 hex of your deposit ZIP locally and pass it as data_hash.'
+        }), 400
+
     if outcome_str == 'Reproduced':
         outcome = {'type': 'Reproduced'}
     elif outcome_str == 'PartiallyReproduced':
@@ -751,19 +834,7 @@ def attest():
         outcome = {'type': 'FailedToReproduce',
                    'content': {'details': notes or 'Failed to reproduce — reported by validator'}}
 
-    work_dir = Path(tempfile.mkdtemp(prefix='valichord_attest_'))
-    upload_path = work_dir / 'deposit.zip'
     try:
-        file.save(str(upload_path))
-
-        size_mb = upload_path.stat().st_size / (1024 * 1024)
-        if size_mb > MAX_SIZE_MB:
-            return jsonify({
-                'error': f'File too large ({size_mb:.0f} MB). Maximum is {MAX_SIZE_MB} MB.'
-            }), 400
-
-        data_hash_hex = hashlib.sha256(upload_path.read_bytes()).hexdigest()
-
         holochain_result = run_validation_round(
             data_hash_hex=data_hash_hex,
             outcome=outcome,
@@ -798,7 +869,8 @@ def attest():
         })
 
     finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
+        if work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 if __name__ == '__main__':
