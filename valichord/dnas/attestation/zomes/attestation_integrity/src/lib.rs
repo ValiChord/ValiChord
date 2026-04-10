@@ -116,18 +116,9 @@ pub enum DepositAccessType {
 // defined in valichord_shared_types — imported above.
 // This avoids cdylib→cdylib dependency issues with validator_workspace and governance.
 
-/// Discriminates between human validators, institutional accounts, and
-/// automated tools.  Stored as `Option` so profiles created before this
-/// field was introduced deserialise as `None` (backwards-compatible).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ValidatorAgentType {
-    /// A human individual acting under their own identity.
-    Individual,
-    /// An institutional or group account (e.g. a lab or review committee).
-    Institution,
-    /// An automated tool or pipeline (e.g. a CI-based reproducer).
-    AutomatedTool,
-}
+/// Re-exported from `valichord_shared_types` — moved there so governance_integrity
+/// can embed ValidatorAgentType in HarmonyRecord without a cdylib→cdylib dependency.
+pub use valichord_shared_types::ValidatorAgentType;
 
 #[hdk_entry_helper]
 #[derive(Clone)]

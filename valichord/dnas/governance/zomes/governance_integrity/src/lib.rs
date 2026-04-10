@@ -1,5 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline};
+use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidatorAgentType};
 
 // ---------------------------------------------------------------------------
 // DNA Properties — one key, baked into the DNA hash.
@@ -68,6 +68,13 @@ pub struct HarmonyRecord {
     pub agreement_level:          AgreementLevel,
     /// Agent keys of all validators who participated.
     pub participating_validators: Vec<AgentPubKey>,
+    /// Agent type of each participating validator, parallel to
+    /// `participating_validators` — position [i] is the type for validator [i].
+    /// `None` if the validator had no profile or the field was not set.
+    /// `#[serde(default)]` ensures records written before this field was added
+    /// deserialise without error (backwards-compatible).
+    #[serde(default)]
+    pub validator_types:          Vec<Option<ValidatorAgentType>>,
     /// Max time invested across validators (Phase 0 data collection).
     pub validation_duration_secs: u64,
     pub discipline:               Discipline,

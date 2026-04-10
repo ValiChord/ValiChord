@@ -6,7 +6,7 @@ use governance_integrity::{
 };
 use valichord_shared_types::{
     AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation,
-    derive_agreement_level, derive_majority_outcome, discipline_tag,
+    ValidatorAgentType, derive_agreement_level, derive_majority_outcome, discipline_tag,
 };
 
 // ---------------------------------------------------------------------------
@@ -275,6 +275,19 @@ fn write_harmony_record(
     }
     let discipline = discipline_opt.unwrap_or_else(|| Discipline::Other("unknown".into()));
 
+    // Look up each validator's declared agent type — parallel to participating_validators.
+    // On cross-DNA failure the slot is None; the record is still written.
+    let validator_types: Vec<Option<ValidatorAgentType>> = participating_validators
+        .iter()
+        .map(|v| {
+            call_attestation_zome_opt::<AgentPubKey, ValidatorAgentType>(
+                "get_validator_agent_type",
+                v.clone(),
+            )
+            .unwrap_or(None)
+        })
+        .collect();
+
     // Pre-compute before discipline/validators are moved into the struct.
     let disc_anchor    = discipline_anchor(&discipline)?;
     let validator_count = participating_validators.len();
@@ -285,6 +298,7 @@ fn write_harmony_record(
         outcome,
         agreement_level,
         participating_validators,   // moved — no clone
+        validator_types,
         validation_duration_secs,
         discipline,                 // moved — no clone
     };

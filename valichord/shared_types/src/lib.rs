@@ -196,6 +196,22 @@ pub enum CertificationTier {
     Senior,
 }
 
+/// Discriminates between human validators, institutional accounts, and
+/// automated tools.  Stored as `Option` so profiles created before this
+/// field was introduced deserialise as `None` (backwards-compatible).
+///
+/// Defined in shared_types (not attestation_integrity) so HarmonyRecord in
+/// governance_integrity can embed it without a cdylib→cdylib dependency.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ValidatorAgentType {
+    /// A human individual acting under their own identity.
+    Individual,
+    /// An institutional or group account (e.g. a lab or review committee).
+    Institution,
+    /// An automated tool or pipeline (e.g. a CI-based reproducer or AI system).
+    AutomatedTool,
+}
+
 /// Structured per-metric outcome — included in OutcomeSummary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricResult {
