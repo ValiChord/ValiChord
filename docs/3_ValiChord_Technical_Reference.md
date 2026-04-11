@@ -2148,6 +2148,182 @@ For full API documentation and code examples in Python and TypeScript, see `docs
 
 ---
 
+## Two-Round Protocol — Proposed Extension (NOT YET IMPLEMENTED)
+
+**Status: Design proposal only. No code has been written. The existing single-round protocol is unchanged.**
+
+Full specification: `docs/23_Two_Round_Protocol_Proposal.md`
+
+---
+
+### Motivation
+
+In the current single-round protocol, validators seal their `AttestationOutcome` (Reproduced / PartiallyReproduced / FailedToReproduce / UnableToAssess) *before* the reveal phase — based on comparing their execution output to the researcher's **published paper** claims. The `ResearcherReveal` (the formally committed values, cryptographically proven against the pre-submission hash) arrives on the DHT at the same moment validators reveal their attestations. The formal comparison between `validator.produced_value` and `researcher.committed_value` therefore happens outside the protocol as a background inference, not as a structured decision step.
+
+The two-round protocol makes that comparison a first-class protocol step with its own commit-reveal cycle. Validators commit to raw findings first; see the researcher's formally committed values; then commit to their verdict blind to the other validators.
+
+---
+
+### Protocol Sequence (two-round studies only)
+
+```
+Round 1 — Raw Findings
+  validator: seal_raw_findings()          → ValidatorRawFindings (DNA 2, private)
+                                          → RawFindingsAnchor    (DNA 3, shared DHT)
+  [all anchors present]
+  validator: submit_raw_findings()        → ValidatorRawFindings published (DNA 3)
+  researcher: [auto-triggered]
+             reveal_researcher_result()  → ResearcherReveal (DNA 3)
+
+Round 2 — Verdict
+  validator: seal_verdict()               → VerdictAnchor (DNA 3, shared DHT)
+  [all verdict anchors present]
+  validator: submit_verdict()             → ValidationAttestation (DNA 3)
+                                            ↑ same entry type as single-round reveal
+  [all ValidationAttestations present]
+  any validator: → check_and_create_harmony_record() (DNA 4)
+```
+
+---
+
+### Changes Required
+
+**`valichord/shared_types/src/lib.rs`**
+
+Updated `ValidationPhase` enum — two new variants (added after `RevealOpen`):
+```rust
+pub enum ValidationPhase {
+    RevealOpen,
+    VerdictCommitOpen,   // all Round 1 reveals + ResearcherReveal present
+    VerdictRevealOpen,   // all VerdictAnchors sealed
+    Complete,
+}
+```
+
+No new outcome types. Round 2 verdict uses the existing `AttestationOutcome` enum unchanged.
+
+---
+
+**`attestation_integrity` — new `ValidationRequest` field**
+
+```rust
+pub struct ValidationRequest {
+    // ... existing fields unchanged ...
+
+    /// Opt-in two-round protocol for human validators.
+    /// When true: Round 1 seals raw findings only; Round 2 seals the verdict
+    /// (Reproduced / PartiallyReproduced / etc.) after ResearcherReveal is on the DHT.
+    /// When false (default): existing single-round behaviour.
+    /// #[serde(default)] — all existing entries on the DHT deserialise as false.
+    #[serde(default)]
+    pub two_round_protocol: bool,
+}
+```
+
+---
+
+**`attestation_integrity` — new entry types**
+
+```rust
+/// Round 1 sealed record — raw execution findings, no verdict.
+/// Private entry in DNA 2 (Validator Workspace). Never leaves the validator's device.
+/// Replaces ValidatorPrivateAttestation as the DNA 2 commit entry for two-round studies.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct ValidatorRawFindings {
+    pub request_ref:             ExternalHash,
+    pub produced_values:         Vec<ProducedMetric>,  // what the execution output
+    pub time_invested_secs:      u64,
+    pub time_breakdown:          TimeBreakdown,
+    pub computational_resources: ComputationalResources,
+    pub discipline:              Discipline,
+    pub nonce:                   Vec<u8>,               // generated at seal time
+    pub commitment_hash:         Vec<u8>,               // SHA-256(msgpack(self) || nonce)
+}
+
+/// Simple produced-value record for Round 1 — no expected_value yet.
+/// expected_value is filled from ResearcherReveal.metrics at Round 2 verdict time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProducedMetric {
+    pub metric_name:    String,
+    pub produced_value: String,
+}
+
+/// Round 2 commitment anchor — proof that a validator has sealed their verdict,
+/// with no indication of what that verdict is.
+/// Immutable after creation.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct VerdictAnchor {
+    pub request_ref:              ExternalHash,
+    pub validator:                AgentPubKey,
+    /// SHA-256(msgpack(ValidationAttestation) || nonce). Verified at submit_verdict.
+    pub verdict_commitment_hash:  Vec<u8>,
+    pub validation_request_hash:  ActionHash,
+}
+```
+
+New link types in `attestation_integrity::LinkTypes`:
+```rust
+/// request_ref path → RawFindingsAnchor ActionHash
+RequestToRawFindingsAnchor,
+/// request_ref path → VerdictAnchor ActionHash
+RequestToVerdictAnchor,
+/// AgentPubKey → ValidatorVerdict ActionHash (tag = request_ref bytes)
+ValidatorToVerdict,
+```
+
+Immutability rules: `VerdictAnchor` blocks updates and deletes in `validate()`, identical to `CommitmentAnchor`.
+
+---
+
+**`attestation_coordinator` — new functions**
+
+```rust
+/// Round 1 commit. DNA 2 equivalent of seal_private_attestation.
+/// Creates ValidatorRawFindings (private, DNA 2) and fires
+/// notify_raw_findings_sealed to DNA 3 (analogous to notify_commitment_sealed).
+/// Gated: only for two_round_protocol = true studies.
+pub fn seal_raw_findings(input: RawFindingsInput) -> ExternResult<ActionHash>
+
+/// Round 1 reveal. DNA 3 equivalent of submit_attestation.
+/// Gated: all RawFindingsAnchors present for this study.
+/// Writes ValidatorRawFindings to the shared DHT.
+/// When all Round 1 reveals are present, auto-triggers reveal_researcher_result
+/// (researcher reveal is protocol-driven in the two-round flow).
+pub fn submit_raw_findings(input: RawFindingsRevealInput) -> ExternResult<ActionHash>
+
+/// Round 2 commit. Creates VerdictAnchor on shared DHT.
+/// Gated: all Round 1 reveals AND ResearcherReveal present.
+/// If called on a two_round_protocol = false study, rejected.
+pub fn seal_verdict(input: VerdictSealInput) -> ExternResult<ActionHash>
+
+/// Round 2 reveal. Takes AttestationRevealInput (same struct as submit_attestation).
+/// Verifies SHA-256(msgpack(attestation) || nonce) against VerdictAnchor.commitment_hash.
+/// Writes ValidationAttestation — same entry type as single-round reveal.
+/// OutcomeSummary.key_metrics[i].expected_value is populated from ResearcherReveal.metrics.
+/// When all ValidationAttestations present, fires check_and_create_harmony_record.
+pub fn submit_verdict(input: AttestationRevealInput) -> ExternResult<ActionHash>
+```
+
+**Modified `submit_attestation`** — skips the `call_governance_fire_and_forget` call when `two_round_protocol = true` on the study. Governance finalisation is triggered by `submit_verdict` instead.
+
+---
+
+**Governance DNA — no structural changes**
+
+`HarmonyRecord`, `derive_majority_outcome`, `derive_agreement_level`, `check_and_create_harmony_record`, and the badge system all work unchanged. The Round 2 `submit_verdict` produces `ValidationAttestation` entries in exactly the same form as the single-round `submit_attestation`. The governance layer cannot distinguish between the two flows — and does not need to.
+
+---
+
+### Backwards Compatibility
+
+- `ValidationRequest.two_round_protocol` uses `#[serde(default)]` — all existing entries deserialise as `false`
+- All existing single-round studies, tests, and integrations are completely unaffected
+- DNA hash changes only if this feature is merged into `attestation_integrity` — treat as a deliberate network reset at that point
+
+---
+
 ## What This Document Does and Doesn't Claim
 
 **It does claim:**
