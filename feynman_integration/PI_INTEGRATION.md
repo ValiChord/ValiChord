@@ -16,19 +16,23 @@
 
 ### 1. `POST /attest` — ValiChord backend (`backend/app.py`)
 
-A new synchronous endpoint for validators who have already run the research code.
+A synchronous endpoint for validators who have already run the research code.
+Runs the Holochain commit-reveal protocol and returns the HarmonyRecord directly — no polling.
 
 **Accepts** (multipart/form-data):
-- `file` — deposit ZIP (required, max 100 MB)
+- `data_hash` — 64-char hex SHA-256 of the deposit (**preferred** — compute locally, no upload)
+- `file` — deposit ZIP (**fallback only** — used when caller cannot compute the hash; Flask global 100 MB limit applies)
 - `outcome` — `Reproduced` | `PartiallyReproduced` | `FailedToReproduce` (required)
 - `notes` — replication notes, max 2000 chars (optional)
 - `discipline` — JSON, e.g. `{"type":"ComputationalBiology"}` (optional, default ComputationalBiology)
 - `confidence` — `High` | `Medium` | `Low` (optional, default Medium)
 
+Exactly one of `data_hash` or `file` must be supplied.  The Holochain protocol only needs the hash — PI and Feynman should always use `data_hash`.
+
 **Returns** (synchronous, under 2 min — no polling needed):
 ```json
 {
-  "data_hash": "<64-char hex SHA-256 of deposit ZIP>",
+  "data_hash": "<64-char hex SHA-256 of deposit>",
   "outcome": "Reproduced",
   "validator_attested": true,
   "harmony_record_hash": "<uhCkk... ActionHash or null>",
@@ -36,7 +40,9 @@ A new synchronous endpoint for validators who have already run the research code
 }
 ```
 
-**Why not `POST /validate`:** `/validate` runs the full valichord_at_home structural analysis pipeline (detectors, cleaning report, 5–20 min). That is a researcher tool for deposit quality — not needed when a validator already has a real execution verdict. `/attest` skips the analysis and goes straight to the Holochain commit-reveal round.
+**Why not `POST /validate`:** `/validate` runs the full valichord_at_home structural analysis pipeline (detectors, cleaning report, 5–20 min) and requires a ZIP upload. That is a researcher tool for deposit quality — not needed when a validator already has a real execution verdict. `/attest` skips the analysis entirely and goes straight to the Holochain commit-reveal round.
+
+**Note on the 100 MB limit:** that limit exists because the demo is hosted on Render's free tier (`backend/app.py` line 27, Flask `MAX_CONTENT_LENGTH`). It applies to `/validate` (which needs the ZIP for structural analysis) and to the `/attest` `file` fallback only. PI and Feynman pass `data_hash` and are unaffected.
 
 ---
 
@@ -49,10 +55,10 @@ A new synchronous endpoint for validators who have already run the research code
 
 **`valichord_validate` tool — two modes:**
 
-| Mode | Trigger | Endpoint | Timing |
-|---|---|---|---|
-| Validator | `validator_outcome` supplied | `POST /attest` | Synchronous, under 2 min |
-| Researcher | No `validator_outcome` | `POST /validate` + poll `GET /result/<job_id>` | 5–20 min |
+| Mode | Trigger | What is sent | Endpoint | Timing |
+|---|---|---|---|---|
+| Validator | `validator_outcome` supplied | `data_hash` (SHA-256 computed locally — no upload) | `POST /attest` | Synchronous, under 2 min |
+| Researcher | No `validator_outcome` | `file` (ZIP upload) | `POST /validate` + poll `GET /result/<job_id>` | 5–20 min |
 
 **`valichord_health` tool:**
 - `GET /health` — checks API + conductor status before submission
@@ -62,8 +68,10 @@ A new synchronous endpoint for validators who have already run the research code
 
 **Configuration:**
 ```bash
-export VALICHORD_BASE_URL=https://valichord.example.org   # default: http://localhost:5000
-export VALICHORD_API_KEY=your-key-here                    # optional
+# Point PI at the ValiChord protocol API (app_protocol.py), not the valichord_at_home API (app.py).
+# The protocol API runs on port 5001 in the Codespace.
+export VALICHORD_BASE_URL=http://localhost:5001   # protocol API (app_protocol.py) — this is the default in the extension
+export VALICHORD_API_KEY=your-key-here            # optional
 ```
 
 ---
@@ -122,7 +130,7 @@ gh pr create \
 
 | File | Why |
 |---|---|
-| `backend/app.py` | `/attest` endpoint (lines ~607–686) |
+| `backend/app.py` | `/attest` endpoint (search `def attest`) |
 | `backend/holochain_bridge.py` | `run_validation_round` — wraps the Node bridge |
 | `demo/serve.mjs` | `_runValidationRound` — 7-step Holochain protocol |
 | `packages/coding-agent/examples/extensions/valichord/index.ts` | PI extension |

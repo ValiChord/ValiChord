@@ -1,0 +1,238 @@
+openapi: 3.0.3
+
+info:
+  title: ValiChord Protocol API
+  version: "1.0"
+  description: |
+    The ValiChord commit-reveal protocol API.
+
+    A validator (human or AI) independently runs research code, forms a verdict,
+    and submits it here. ValiChord runs the blind commit-reveal round on the
+    Holochain peer-to-peer network and returns a **HarmonyRecord** — a
+    cryptographically tamper-evident proof that an independent party reproduced
+    (or failed to reproduce) the researcher's results.
+
+    This API has no knowledge of deposit *structure*. It does not run the
+    valichord_at_home 100+ checks. Validators who have actually run the code
+    do not need them — running the code is the validation.
+
+    ## Authentication
+
+    Optional (off by default). When `VALICHORD_API_KEYS` is set, pass your key
+    in the `X-ValiChord-Key` header.
+
+    ## Submitting a verdict
+
+    Compute the SHA-256 hex of the deposit ZIP locally and POST it as `data_hash`
+    along with your `outcome`. No upload required — the Holochain protocol only
+    needs the hash to identify the deposit uniquely.
+
+    ```bash
+    # Linux
+    DATA_HASH=$(sha256sum deposit.zip | awk '{print $1}')
+    # macOS
+    DATA_HASH=$(shasum -a 256 deposit.zip | awk '{print $1}')
+
+    curl -X POST http://localhost:5001/attest \
+      -F "data_hash=$DATA_HASH" \
+      -F "outcome=Reproduced" \
+      -F "notes=Code ran; all outputs matched within tolerance."
+    ```
+
+servers:
+  - url: http://localhost:5001
+    description: Local / Codespace (run backend/app_protocol.py)
+
+security: []
+
+components:
+  securitySchemes:
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-ValiChord-Key
+      description: Required when VALICHORD_API_KEYS is configured. Omit on open deployments.
+
+  schemas:
+    AttestationResult:
+      type: object
+      required: [data_hash, outcome, validator_attested, harmony_record_hash, harmony_record_url]
+      properties:
+        data_hash:
+          type: string
+          description: SHA-256 hex digest of the deposit (64 lowercase hex chars).
+          example: "e3b0c44298fc1c149afb4c8996fb924..."
+        outcome:
+          type: string
+          enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+          description: The validator's replication verdict.
+        validator_attested:
+          type: boolean
+          enum: [true]
+          description: Always true — this API only accepts real execution verdicts.
+        harmony_record_hash:
+          type: string
+          nullable: true
+          description: |
+            Holochain ActionHash of the HarmonyRecord on the Governance DHT.
+            Null when the conductor is offline — the response still returns 200
+            so the caller knows the hash was computed but not yet recorded.
+          example: "uhCkk7mXy3nWr50fp7PgDT2xR0PSwbaAMUgcp8cUKDDyr8On1lF"
+        harmony_record_url:
+          type: string
+          nullable: true
+          description: |
+            Public HTTP Gateway URL for independent verification.
+            Null until a permanent gateway is deployed.
+
+    HealthResponse:
+      type: object
+      required: [status, version, conductor]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: "1.0"
+        conductor:
+          type: string
+          enum: [live, offline]
+          description: |
+            `live` — Holochain conductor is running; HarmonyRecords will be
+            written to the DHT.
+            `offline` — /attest still responds but harmony_record_hash will be null.
+
+  responses:
+    Unauthorized:
+      description: API key missing or invalid.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              hint:
+                type: string
+
+paths:
+
+  /health:
+    get:
+      summary: Liveness check
+      description: Returns server status and whether the Holochain conductor is reachable.
+      operationId: health
+      responses:
+        "200":
+          description: Server is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /attest:
+    post:
+      summary: Submit a validator attestation
+      description: |
+        Runs the full Holochain commit-reveal protocol with the supplied verdict
+        and returns the HarmonyRecord synchronously (~60 s). No polling required.
+
+        **Preferred:** pass `data_hash` (SHA-256 hex of the deposit ZIP).
+        The validator computes this locally — no bytes are uploaded to the server.
+
+        **Fallback:** pass `file` (the deposit ZIP). The server hashes it and
+        discards the bytes. Use only when you cannot compute the hash locally.
+
+        Exactly one of `data_hash` or `file` is required.
+      operationId: attest
+      security:
+        - ApiKeyHeader: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                data_hash:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+                  description: |
+                    64-char lowercase hex SHA-256 of the deposit ZIP.
+                    Preferred over `file` — no upload needed.
+                  example: "e3b0c44298fc1c149afb4c8996fb92427ae41e4649b934ca495991b7852b855"
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    Deposit ZIP. Used only when the caller cannot compute `data_hash`
+                    locally. The server hashes and discards it immediately.
+                outcome:
+                  type: string
+                  enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+                  description: The validator's replication verdict.
+                notes:
+                  type: string
+                  maxLength: 2000
+                  description: |
+                    Replication notes — what ran, what failed, exact error messages,
+                    environment used (OS, language version, key package versions).
+                discipline:
+                  type: string
+                  description: |
+                    JSON discipline object.
+                    Default: `{"type":"ComputationalBiology"}`.
+                  example: '{"type":"ComputationalBiology"}'
+                confidence:
+                  type: string
+                  enum: [High, Medium, Low]
+                  description: Validator's confidence in the verdict. Default Medium.
+      responses:
+        "200":
+          description: Attestation accepted. HarmonyRecord written (or null if conductor offline).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationResult'
+        "400":
+          description: |
+            Missing or invalid outcome; malformed data_hash; neither data_hash
+            nor file supplied; invalid JSON in discipline.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "429":
+          description: Rate limit exceeded.
+
+  /openapi.yaml:
+    get:
+      summary: This OpenAPI specification
+      operationId: getSpec
+      responses:
+        "200":
+          description: OpenAPI 3.0 YAML.
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /docs:
+    get:
+      summary: Swagger UI
+      operationId: getDocs
+      responses:
+        "200":
+          description: Interactive API documentation.
+          content:
+            text/html:
+              schema:
+                type: string

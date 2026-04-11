@@ -1,0 +1,6 @@
+# Minimal requirements for app_protocol.py — ValiChord Protocol API only.
+# Does not include the valichord_at_home dependencies (rarfile, py7zr, etc.)
+flask==3.0.0
+flask-cors==4.0.0
+gunicorn==21.2.0
+requests>=2.31.0

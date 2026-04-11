@@ -393,6 +393,119 @@ paths:
         "409":
           description: Job not yet complete.
 
+  /attest:
+    post:
+      summary: Submit a validator attestation (synchronous)
+      description: |
+        Fast path for AI and human validators who have already executed the
+        research code.  Runs the full Holochain commit-reveal protocol and
+        returns the HarmonyRecord directly — no polling required (~60 s).
+
+        Unlike `POST /validate`, this endpoint does **not** run the structural
+        deposit analysis (valichord_at_home detectors).  The caller supplies
+        their replication verdict; ValiChord records it on the Governance DHT.
+
+        **Preferred usage:** compute the SHA-256 hex of the deposit ZIP locally
+        and pass it as `data_hash`.  No file upload required — the Holochain
+        protocol only needs the hash, not the bytes.
+
+        **Fallback:** if the caller cannot compute the hash, send `file` instead.
+        ValiChord will hash it server-side.  Subject to the global 100 MB request
+        limit (Flask `MAX_CONTENT_LENGTH`).
+      operationId: attest
+      security:
+        - ApiKeyHeader: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                data_hash:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+                  description: |
+                    64-char lowercase hex SHA-256 of the deposit ZIP.
+                    Preferred over `file` — no upload needed.
+                    Exactly one of `data_hash` or `file` must be supplied.
+                  example: "e3b0c44298fc1c149afb4c8996fb92427ae41e4649b934ca495991b7852b855"
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    Deposit ZIP.  Only needed when the caller cannot compute
+                    `data_hash` locally.  One of `data_hash` or `file` required.
+                outcome:
+                  type: string
+                  enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+                  description: |
+                    Replication verdict from actually executing the research code.
+                notes:
+                  type: string
+                  maxLength: 2000
+                  description: |
+                    Replication notes — what ran, what failed, exact error
+                    messages, environment used.  Max 2000 characters.
+                discipline:
+                  type: string
+                  description: |
+                    JSON discipline object, e.g. `{"type":"ComputationalBiology"}`.
+                    Defaults to ComputationalBiology.
+                  example: '{"type":"ComputationalBiology"}'
+                confidence:
+                  type: string
+                  enum: [High, Medium, Low]
+                  description: Validator's confidence in the verdict. Defaults to Medium.
+      responses:
+        "200":
+          description: Attestation accepted and HarmonyRecord written (or attempted).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data_hash, outcome, validator_attested,
+                           harmony_record_hash, harmony_record_url]
+                properties:
+                  data_hash:
+                    type: string
+                    description: SHA-256 hex digest of the deposit.
+                    example: "e3b0c44298fc1c149afb4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  outcome:
+                    type: string
+                    enum: [Reproduced, PartiallyReproduced, FailedToReproduce]
+                  validator_attested:
+                    type: boolean
+                    enum: [true]
+                  harmony_record_hash:
+                    type: string
+                    nullable: true
+                    description: |
+                      Holochain ActionHash of the HarmonyRecord on the Governance DHT.
+                      Null when the conductor is offline — the response still succeeds.
+                    example: "uhCkk7mXy3nWr50fp7PgDT2xR0PSwbaAMUgcp8cUKDDyr8On1lF"
+                  harmony_record_url:
+                    type: string
+                    nullable: true
+                    description: |
+                      Public HTTP Gateway URL for independent verification.
+                      Null until a permanent gateway is deployed.
+        "400":
+          description: |
+            Bad request — missing or invalid outcome, neither data_hash nor file
+            supplied, malformed data_hash, or invalid JSON in discipline.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
   /upload-chunk:
     post:
       summary: Upload a large deposit in chunks (legacy)

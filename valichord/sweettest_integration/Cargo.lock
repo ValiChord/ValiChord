@@ -7033,6 +7033,7 @@ dependencies = [
  "hdi",
  "holochain_serialized_bytes",
  "serde",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

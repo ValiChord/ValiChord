@@ -27,22 +27,32 @@ Feynman's role in the integration: it is an **AI validator**. ValiChord's protoc
 
 **REST API** — `backend/app.py`
 
-Two new endpoints as of 2026-03-28:
+Three endpoints as of 2026-03-28 (updated with `/attest` split-out):
 
 ```
-POST /validate
+POST /attest                        ← validator path (AI agents, Feynman, PI)
   multipart/form-data fields:
-    file              (required)  ZIP of research deposit, max 100 MB
-    validator_outcome (optional)  "Reproduced" | "PartiallyReproduced" | "FailedToReproduce"
-    validator_notes   (optional)  free text, max 2000 chars
+    data_hash  (required*)  64-char hex SHA-256 of deposit — compute locally, no upload
+    file       (optional*)  deposit ZIP — fallback only; one of data_hash or file required
+    outcome    (required)   "Reproduced" | "PartiallyReproduced" | "FailedToReproduce"
+    notes      (optional)   free text, max 2000 chars
+    discipline (optional)   JSON, e.g. {"type":"ComputationalBiology"}
+    confidence (optional)   "High" | "Medium" | "Low"
+  → 200 { "data_hash", "outcome", "validator_attested": true,
+          "harmony_record_hash", "harmony_record_url" }
+  Synchronous (~60 s). No structural analysis. No polling.
+
+POST /validate                      ← researcher path (deposit quality check)
+  multipart/form-data fields:
+    file  (required)  ZIP of research deposit, max 100 MB
   → 202 { "job_id": "uuid" }
+  Async. Runs 100+ structural detectors. Poll GET /result/<job_id>.
 
 GET /result/<job_id>
   → { "status": "done",
-      "findings": [...],
       "harmony_record_draft": {
         "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
-        "validator_attested": true,          ← true when validator_outcome was supplied
+        "validator_attested": false,         ← always false from /validate (no one ran the code)
         "data_hash": "<sha256 hex>",
         "findings_summary": { "critical": 0, "significant": 2, "low_confidence": 3, "total": 5 },
         "harmony_record_hash": "<uhCkk... or null>",
@@ -56,15 +66,15 @@ GET /health
 ```
 
 `harmony_record_hash` is null when the Holochain conductor is not running — the
-analysis always completes either way. `harmony_record_url` is null until a
+protocol always completes either way. `harmony_record_url` is null until a
 public HTTP Gateway is deployed (see open work below).
 
-**Outcome sources** — two modes depending on whether a validator ran the code:
+**Outcome sources** — two entirely separate paths:
 
-| `validator_outcome` field | `validator_attested` | AttestationOutcome written to DHT |
-|---|---|---|
-| Supplied by validator | `true` | The validator's actual replication verdict |
-| Omitted (researcher submission) | `false` | Proxy: derived from deposit quality findings |
+| Path | Caller | What is sent | `validator_attested` | Outcome source |
+|---|---|---|---|---|
+| `POST /attest` | AI validator (PI, Feynman) | `data_hash` + verdict | `true` | The validator's actual execution result |
+| `POST /validate` | Researcher | ZIP upload | `false` | Proxy: derived from deposit quality findings |
 
 **Proxy mapping** (used only when `validator_outcome` is not supplied):
 
@@ -99,45 +109,43 @@ Updated `prompts/valichord.md` to use the single-shot API (`POST /validate` +
 
 **PR #15** — to be opened.
 
-Rewrites `prompts/valichord.md` so that validators run `/replicate` before
-submitting — making Feynman a genuine validator rather than a deposit-quality
-checker. Adds `validator_outcome` and `validator_notes` to the submission,
-surfaces `validator_attested` in the report. The new prompt is in
-`feynman_integration/valichord_prompt_v2.md` in the ValiChord repository.
+Rewrites `prompts/valichord.md` so that validators run the research code before
+submitting, then call `POST /attest` with `data_hash` + verdict — making
+Feynman a genuine validator rather than a deposit-quality checker.
 
-This also requires the ValiChord backend change (merged alongside PR #15) that
-adds `validator_outcome` / `validator_notes` to `POST /validate`.
+The ValiChord backend change merged alongside: a dedicated `POST /attest`
+endpoint that takes `data_hash` (no upload), runs the Holochain commit-reveal
+round synchronously, and returns the HarmonyRecord directly.  Validators do not
+use `POST /validate` — that endpoint is for researchers running structural analysis.
 
 ---
 
 ## Current end-to-end flow
 
-### Validator flow (Feynman runs `/replicate` first — the real thing)
+### Validator flow (PI / Feynman runs the code first — the real thing)
 
 ```
-User runs /valichord in Feynman
+User runs /valichord in PI or Feynman
     │
     │  1. Ask: researcher or validator?
     │
-    │  2. (validator) Run /replicate on the deposit
+    │  2. (validator) Run the research code
     │     - install environment (Docker / local / Modal / RunPod)
-    │     - execute the research code
+    │     - execute the code
     │     - compare outputs to claimed results
     │     - form verdict: Reproduced / PartiallyReproduced / FailedToReproduce
     │
-    │  3. ZIP the deposit
+    │  3. Ensure deposit is a ZIP (zip directory if needed)
     │
-    │  POST /validate  (file + validator_outcome + validator_notes)
+    │  4. Compute SHA-256 of deposit locally (no upload to server)
+    │     data_hash = sha256(deposit.zip)
+    │
+    │  POST /attest  (data_hash + outcome + notes)
     ▼
 ValiChord Flask backend  (/workspaces/ValiChord/backend/app.py)
     │
-    │  4. Run analysis pipeline
-    │     - Structural detectors (100+ checks)
-    │     - Claude semantic analysis
-    │     - Generate cleaning report + drafts
-    │
-    │  5. Compute SHA-256 of deposit ZIP
-    │     Use validator_outcome directly (not proxy mapping)
+    │  5. No structural analysis — validator already ran the code.
+    │     Validate data_hash format (64-char hex).
     │     validator_attested = true
     │
     │  POST localhost:8888/holochain/validate-round
@@ -152,23 +160,22 @@ serve.mjs Holochain bridge  (/workspaces/ValiChord/demo/serve.mjs)
 Holochain conductor (Governance DNA)
     │
     │  7. HarmonyRecord written to DHT
-    │     outcome = Feynman's actual replication verdict
+    │     outcome = validator's actual replication verdict
     │     harmony_record_hash: "uhCkk..."
     │
-    ◀─────────────────────────────────────────────────────
+    ◀─────────────────────────────────────────────────────────────
     │
-    │  GET /result/<job_id>
+    │  Response returned synchronously (no polling needed, ~60 s)
     ▼
-Feynman receives:
+PI / Feynman receives:
     - outcome: Reproduced / PartiallyReproduced / FailedToReproduce
-    - validator_attested: true  (real attestation)
-    - findings summary (structural analysis)
+    - validator_attested: true  (real attestation — validator ran the code)
+    - data_hash: SHA-256 of the deposit
     - harmony_record_hash (cryptographic proof on DHT)
-    - download_url (full cleaning report ZIP)
     │
-    │  8. Feynman presents replication summary + verdict to user
+    │  8. Present replication summary + HarmonyRecord to user
     ▼
-User sees: what Feynman ran, what worked, what failed + Harmony Record hash
+User sees: what ran, what worked, what failed + Harmony Record hash
 ```
 
 ### Researcher flow (no `/replicate` — deposit submission only)
@@ -232,13 +239,15 @@ User sees: deposit quality findings + provisional verdict + Harmony Record hash
 
 ---
 
-### 4. Deposit size for large studies (Medium priority)
+### 4. Deposit size for large studies (Medium priority — researcher path only)
 
-**Problem:** `POST /validate` has a 100 MB limit. Some research deposits (neuroimaging, genomics, large simulation outputs) are larger.
+**Problem:** `POST /validate` (researcher path) has a 100 MB limit. Some research deposits (neuroimaging, genomics, large simulation outputs) are larger.
 
-**What's needed:**
+**Not a problem for validators:** `POST /attest` takes `data_hash` only — no upload at all, regardless of deposit size.
+
+**What's needed for researchers:**
 - Either raise the limit on a paid hosting plan
-- Or keep the chunked upload flow (`POST /upload-chunk`) as the path for large files and have Feynman's prompt select the right path based on deposit size
+- Or keep the chunked upload flow (`POST /upload-chunk`) as the path for large files and have the prompt select the right path based on deposit size
 
 The chunked upload API is still present and working — the prompt update in PR #14 simplified the default path but didn't remove it.
 
