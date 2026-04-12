@@ -235,6 +235,8 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Technical Reference v24 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Engineer Handover | [`docs/13_Valichord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_Valichord_Engineer_Handover.md) |
 
+Integration partners, domain validators (HPC, clinical, environmental), and frontend contributors are equally welcome — the protocol is language-agnostic and the REST API is the entry point for non-Rust contributors.
+
 ### ⚡ Quickstart — clone to passing tests
 
 ```bash
