@@ -7135,7 +7135,7 @@ def detect_DB_shiny_app(repo_dir, all_files):
         if app_dirs else '.'
     )
     details = [
-        f'Shiny files detected: {', '.join(shiny_files[:4]) if shiny_files else ', '.join(shiny_names & {f.name for f in all_files})}',
+        'Shiny files detected: ' + (', '.join(shiny_files[:4]) if shiny_files else ', '.join(shiny_names & {f.name for f in all_files})),
         'shiny::runApp() launches a web server — no output files are generated',
         'Validators must interact with the UI and visually verify outputs',
     ]
