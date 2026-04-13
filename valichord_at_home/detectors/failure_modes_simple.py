@@ -7382,8 +7382,8 @@ def detect_CX_system_dependencies(repo_dir, all_files):
     brew_pkgs = [_SYSTEM_LIB_BREW[lib] for lib in sorted(triggered) if lib in _SYSTEM_LIB_BREW]
     py_pkgs = sorted({p for ps in triggered.values() for p in ps})
     details = [
-        f'Packages requiring system libraries: {', '.join(py_pkgs)}',
-        f'System libraries needed: {', '.join(sorted(triggered.keys()))}',
+        'Packages requiring system libraries: ' + ', '.join(py_pkgs),
+        'System libraries needed: ' + ', '.join(sorted(triggered.keys())),
     ]
     if apt_pkgs:
         details.append('Ubuntu/Debian: sudo apt-get install ' + ' '.join(apt_pkgs))
@@ -7396,7 +7396,7 @@ def detect_CX_system_dependencies(repo_dir, all_files):
     ]
     findings.append(finding(
         'CX', 'SIGNIFICANT',
-        f'System-level C/C++ libraries required for {', '.join(py_pkgs)}',
+        'System-level C/C++ libraries required for ' + ', '.join(py_pkgs),
         'One or more Python packages require system-level C/C++ libraries that '
         'cannot be installed via pip alone. On a clean machine, pip install will '
         'fail with a cryptic compilation error unless these system libraries are '
