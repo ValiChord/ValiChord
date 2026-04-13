@@ -155,6 +155,7 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
 
     try:
         import urllib.request
+import urllib.error
         payload = json.dumps({
             'data_hash_hex':      data_hash,
             'outcome':            {'type': verdict['outcome']},
@@ -173,6 +174,9 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
         with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read())
 
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        die(f'Bridge returned {e.code}: {body}')
     except OSError as e:
         die(
             f'Cannot reach Holochain bridge at {BRIDGE_URL}.\n'
