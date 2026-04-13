@@ -195,6 +195,19 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
 
     const nowSecs = Math.floor(Date.now() / 1000);
 
+    // 0. Publish a validator profile (required before claim_study).
+    //    Safe to call on every round — each call creates a new profile entry
+    //    but claim_study only checks that at least one profile exists.
+    await call('attestation', 'attestation_coordinator', 'publish_validator_profile', {
+      institution:          'ValiChord Demo',
+      disciplines:          [disc],
+      available:            true,
+      max_concurrent_tasks: 4,
+      orcid:                null,
+      agent_type:           null,
+      person_key:           null,
+    });
+
     // 1. Open a validation request on the shared Attestation DHT.
     await call('attestation', 'attestation_coordinator', 'submit_validation_request', {
       protocol_ref:            null,
