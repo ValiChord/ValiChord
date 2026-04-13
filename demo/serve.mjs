@@ -201,6 +201,7 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     await call('attestation', 'attestation_coordinator', 'publish_validator_profile', {
       institution:          'ValiChord Demo',
       disciplines:          [disc],
+      certification_tier:   'Provisional',
       available:            true,
       max_concurrent_tasks: 4,
       orcid:                null,
