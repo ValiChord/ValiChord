@@ -33,6 +33,7 @@ echo "  Node: $(node --version)  npm: $(npm --version)"
 
 # ── Python deps ───────────────────────────────────────────────────────────────
 echo "[3/6] Installing Python dependencies…"
+pip3 install --quiet --upgrade pip
 pip3 install --quiet \
     flask flask-cors gunicorn requests rarfile py7zr \
     python-docx pyreadstat pdfplumber xlrd anthropic
