@@ -3,6 +3,7 @@ ValiChord Auto-Generate
 Simple (pattern-matching) failure mode detectors
 Implements failure modes from ValiChord Specification v15
 """
+from __future__ import annotations
 
 import re
 from pathlib import Path
