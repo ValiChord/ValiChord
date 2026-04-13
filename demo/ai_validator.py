@@ -31,6 +31,7 @@ import sys
 import time
 import zipfile
 import tempfile
+import urllib.error
 from pathlib import Path
 
 BRIDGE_URL  = os.environ.get('VALICHORD_BRIDGE_URL', 'http://localhost:8888')
@@ -155,7 +156,6 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
 
     try:
         import urllib.request
-import urllib.error
         payload = json.dumps({
             'data_hash_hex':      data_hash,
             'outcome':            {'type': verdict['outcome']},
