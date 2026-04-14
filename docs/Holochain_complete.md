@@ -639,6 +639,82 @@ const getHolochainClient = (() => {
 
 ---
 
+## 25. HOLOCHAIN 0.6.0 CONDUCTOR CONFIG — VERIFIED FROM SOURCE
+
+### NetworkConfig fields (holochain_conductor_api 0.6.0)
+
+```yaml
+network:
+  bootstrap_url: https://...      # kitsune2 bootstrap server (peer discovery)
+  signal_url: wss://...           # SBD signal server (tx5/WebRTC signalling)
+  webrtc_config: ...              # Optional WebRTC peer connection config
+  target_arc_factor: 1            # 0 = leacher (no gossip contribution)
+  advanced:                       # Direct kitsune2 JSON config (merged with above)
+    tx5Transport:
+      signalAllowPlainText: true  # Allow ws:// instead of wss://
+      timeoutS: 60                # Connection/idle timeout (default: 60s)
+      dangerForceSignalRelay: false
+    coreBootstrap:
+      serverUrl: ...              # Overridden by bootstrap_url if both set
+```
+
+**IMPORTANT:** `mem_bootstrap`, `disable_bootstrap`, `disable_publish`, `disable_gossip` are `#[cfg(feature = "test-utils")]` — they only exist in test builds, NOT the production `holochain` binary. Do not add them to conductor-config.yaml.
+
+**`advanced` merge behaviour:** `to_k2_config()` starts with `advanced`, then inserts `coreBootstrap.serverUrl` (from `bootstrap_url`) and `tx5Transport.serverUrl` (from `signal_url`), overwriting existing values with a warning. Other keys in `advanced.tx5Transport` (like `signalAllowPlainText`) are preserved.
+
+### tx5 single-agent "Peer connection failed" issue
+
+In Holochain 0.6.0, `get_links` propagates ANY tx5 send error as a fatal WasmError (see `get_links.rs` line 76). In single-agent dev mode the conductor tries to contact peers via the SBD relay and fails — even when all DHT data is held locally.
+
+**Fix for Oracle / local dev:** run `kitsune2-bootstrap-srv` locally and point the conductor at it:
+
+```yaml
+# conductor-config.yaml
+network:
+  bootstrap_url: http://localhost:9000
+  signal_url: ws://localhost:9000
+  advanced:
+    tx5Transport:
+      signalAllowPlainText: true
+```
+
+```bash
+# Start local server (installs once via cargo)
+cargo install kitsune2_bootstrap_srv --version 0.3.2 --locked
+kitsune2-bootstrap-srv --listen 127.0.0.1:9000 --sbd-disable-rate-limiting &
+```
+
+The `kitsune2-bootstrap-srv` binary handles BOTH bootstrap (HTTP) and SBD signal (WebSocket) on the same port. In "testing" mode (default) it runs lightweight with no TLS.
+
+### HTTP Gateway (hc-http-gw 0.3.1) — verified from source
+
+URL format: `GET /{dna_hash}/{app_id}/{zome_name}/{fn_name}?payload=<base64>`
+
+- `payload` query parameter: base64url WITH `=` padding (`BASE64_URL_SAFE` = Rust base64 crate URL_SAFE engine with PAD)
+- axum's `Query` extractor URL-decodes the parameter automatically (`%3D` → `=`)
+- Payload is base64url of the JSON-encoded zome input (e.g., a quoted hash string `"uhCkk..."`)
+- On success returns JSON-encoded zome output
+- Error "Invalid base64 encoding" = the base64 decode failed before reaching Holochain
+- `max_identifier_chars` limit: 100 characters for app_id, zome_name, fn_name
+- Allowed functions configured via env var: `HC_GW_ALLOWED_FNS_{APP_ID}=zome/fn,zome/fn`
+
+### ExternalHash in JavaScript (@holochain/client)
+
+```js
+import { hashFrom32AndType, HoloHashType, encodeHashToBase64 } from '@holochain/client';
+// sha256hex: 32-byte hex string (e.g. from Node crypto.createHash('sha256').digest())
+const externalHash = hashFrom32AndType(Buffer.from(sha256hex, 'hex'), HoloHashType.External);
+const hashB64 = encodeHashToBase64(externalHash);  // "uhC8k..." string
+```
+
+To build a gateway payload from an ExternalHash:
+```js
+const b64 = Buffer.from(JSON.stringify(hashB64)).toString('base64url');  // no-pad
+const gatewayPayload = b64 + '='.repeat((4 - b64.length % 4) % 4);      // add padding
+```
+
+---
+
 ## HANDOVER NOTES FOR NEW CHAT
 
 1. Read this file first — it is the complete knowledge base.
