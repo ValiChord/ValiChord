@@ -65,13 +65,19 @@ except Exception as e:
 
 export HOLOCHAIN_GATEWAY_URL="http://${SERVER_IP}:8090"
 export HOLOCHAIN_GOVERNANCE_DNA_HASH="$GOVERNANCE_DNA_HASH"
+export VALICHORD_PUBLIC_API_KEY="${VALICHORD_PUBLIC_API_KEY:-valichord-demo-2026}"
 
-printf 'HOLOCHAIN_GATEWAY_URL=%s\nHOLOCHAIN_GOVERNANCE_DNA_HASH=%s\n' \
-  "$HOLOCHAIN_GATEWAY_URL" "$GOVERNANCE_DNA_HASH" \
+printf 'HOLOCHAIN_GATEWAY_URL=%s\nHOLOCHAIN_GOVERNANCE_DNA_HASH=%s\nVALICHORD_BRIDGE_URL=%s\nVALICHORD_API_KEY=%s\n' \
+  "$HOLOCHAIN_GATEWAY_URL" \
+  "$GOVERNANCE_DNA_HASH" \
+  "http://${SERVER_IP}:5000" \
+  "$VALICHORD_PUBLIC_API_KEY" \
   > "$SCRIPT_DIR/holochain-config.env"
 
 echo "  Gateway URL:         $HOLOCHAIN_GATEWAY_URL"
 echo "  Governance DNA hash: $GOVERNANCE_DNA_HASH"
+echo "  Public API URL:      http://${SERVER_IP}:5000"
+echo "  API key:             $VALICHORD_PUBLIC_API_KEY"
 echo "  Env written to:      demo/holochain-config.env"
 
 # ── Start bridge + gateway ─────────────────────────────────────────────────────
@@ -86,13 +92,17 @@ sleep 3
 echo ""
 echo "=== Stack is up ==="
 echo "  HTTP Gateway:  http://${SERVER_IP}:8090"
+echo "  Public API:    http://${SERVER_IP}:5000  (X-ValiChord-Key: $VALICHORD_PUBLIC_API_KEY)"
 echo ""
-echo "Run the AI validator demo:"
+echo "Local demo (on this server):"
 echo "  export ANTHROPIC_API_KEY=sk-ant-..."
 echo "  python3 demo/ai_validator.py"
 echo ""
-echo "  (HOLOCHAIN_GATEWAY_URL and HOLOCHAIN_GOVERNANCE_DNA_HASH are auto-loaded"
-echo "   from demo/holochain-config.env — no need to set them manually)"
+echo "Remote demo (from any machine — no Holochain install needed):"
+echo "  export ANTHROPIC_API_KEY=sk-ant-..."
+echo "  export VALICHORD_BRIDGE_URL=http://${SERVER_IP}:5000"
+echo "  export VALICHORD_API_KEY=$VALICHORD_PUBLIC_API_KEY"
+echo "  python3 demo/ai_validator.py"
 echo ""
 echo "Press Ctrl+C to stop."
 

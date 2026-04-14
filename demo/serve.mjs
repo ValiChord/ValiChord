@@ -470,3 +470,89 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`WS proxy   → /app-ws → :${APP_PORT}, /admin-ws → :${ADMIN_PORT}`);
   console.log('Press Ctrl+C to stop.');
 });
+
+// ── Public API server (port 5000) ─────────────────────────────────────────────
+// Exposes the commit-reveal round to external callers (developers, ci, etc.).
+// Requires X-ValiChord-Key header.  No localhost restriction.
+//
+// Routes:
+//   GET  /health                  — unauthenticated liveness probe
+//   POST /validate-round          — full commit-reveal → HarmonyRecord URL
+//   POST /holochain/validate-round — alias (same as above; keeps ai_validator.py unchanged)
+
+const PUBLIC_API_PORT = parseInt(process.env.PUBLIC_API_PORT || '5000', 10);
+const PUBLIC_API_KEY  = process.env.VALICHORD_PUBLIC_API_KEY || 'valichord-demo-2026';
+
+const publicServer = createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin',  '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-ValiChord-Key');
+
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  const url = req.url?.split('?')[0] ?? '/';
+
+  // ── Liveness probe — no auth ────────────────────────────────────────────
+  if (req.method === 'GET' && url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'ValiChord public API' }));
+    return;
+  }
+
+  // ── API key gate ────────────────────────────────────────────────────────
+  const provided = req.headers['x-valichord-key'] ?? '';
+  if (!PUBLIC_API_KEY || provided !== PUBLIC_API_KEY) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Missing or invalid X-ValiChord-Key header' }));
+    return;
+  }
+
+  // ── POST /validate-round  (also /holochain/validate-round for compat) ───
+  const isValidateRound = req.method === 'POST' &&
+    (url === '/validate-round' || url === '/holochain/validate-round');
+
+  if (isValidateRound) {
+    let body;
+    try {
+      body = JSON.parse(await _readBody(req));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+    if (!body.data_hash_hex || !body.outcome) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing data_hash_hex or outcome' }));
+      return;
+    }
+    try {
+      const result = await _runValidationRound(body);
+
+      // Build the full public URL if gateway config is available.
+      const gatewayUrl = (process.env.HOLOCHAIN_GATEWAY_URL || '').replace(/\/$/, '');
+      const dnaHash    = process.env.HOLOCHAIN_GOVERNANCE_DNA_HASH || '';
+      const appId      = process.env.HOLOCHAIN_APP_ID || 'valichord-demo';
+      if (gatewayUrl && dnaHash && result.gateway_payload) {
+        result.harmony_record_url =
+          `${gatewayUrl}/${dnaHash}/${appId}` +
+          `/governance_coordinator/get_harmony_record` +
+          `?payload=${result.gateway_payload}`;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      const msg = err.message ?? String(err);
+      console.error(`[public /validate-round]: ${msg}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Not found' }));
+});
+
+publicServer.listen(PUBLIC_API_PORT, '0.0.0.0', () => {
+  console.log(`Public API → http://0.0.0.0:${PUBLIC_API_PORT}  (X-ValiChord-Key required)`);
+});

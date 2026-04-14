@@ -35,15 +35,12 @@ import tempfile
 import urllib.error
 from pathlib import Path
 
-BRIDGE_URL  = os.environ.get('VALICHORD_BRIDGE_URL', 'http://localhost:8888')
 DEMO_DIR    = Path(__file__).parent
 STUDY_DIR   = DEMO_DIR / 'synthetic_study'
 
-# Auto-load holochain-config.env (written by start_oracle.sh) so callers do not
-# need to manually export HOLOCHAIN_GATEWAY_URL / HOLOCHAIN_GOVERNANCE_DNA_HASH.
+# Auto-load holochain-config.env (written by start_oracle.sh / documented in README).
+# Uses setdefault so any var already in the environment takes precedence.
 def _load_config_env():
-    if os.environ.get('HOLOCHAIN_GATEWAY_URL'):
-        return  # already set — nothing to do
     env_file = DEMO_DIR / 'holochain-config.env'
     if not env_file.exists():
         return
@@ -54,6 +51,9 @@ def _load_config_env():
             os.environ.setdefault(key.strip(), val.strip())
 
 _load_config_env()
+
+BRIDGE_URL      = os.environ.get('VALICHORD_BRIDGE_URL', 'http://localhost:8888')
+VALICHORD_KEY   = os.environ.get('VALICHORD_API_KEY', '')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -187,10 +187,14 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
             'data_access_url':    '',
         }).encode()
 
+        headers = {'Content-Type': 'application/json'}
+        if VALICHORD_KEY:
+            headers['X-ValiChord-Key'] = VALICHORD_KEY
+
         req = urllib.request.Request(
             f'{BRIDGE_URL}/holochain/validate-round',
             data=payload,
-            headers={'Content-Type': 'application/json'},
+            headers=headers,
             method='POST',
         )
         with urllib.request.urlopen(req, timeout=120) as resp:
