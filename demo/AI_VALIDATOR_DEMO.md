@@ -334,7 +334,7 @@ The protocol is symmetric. Neither the researcher nor any validator can change t
 | (6b) Validators reveal | `attestation` DNA | Each publishes ValidationAttestation; dev bypass skips hash check |
 | (7) HarmonyRecord | `governance` DNA | Permanent immutable record on public DHT |
 
-**Why the researcher also commits**: Without the researcher commit-reveal, a researcher could wait to see all validator outputs and then claim their result matches. The commitment published at step (0) — before any validator commits — makes this impossible.
+**Why the researcher also commits**: The commitment is a two-way blind. First, it prevents the researcher from waiting to see all validator outputs and then claiming their result matches — the hash published at step (0) locks them in before any validator commits. Second, and equally important, it prevents validators from seeing the researcher's claimed values before forming their own verdict. Validators see only the commitment hash during the commit phase — not the actual metrics — so their assessment cannot be anchored or biased by what the researcher claimed. Both directions of information leakage are blocked by the same mechanism.
 
 ---
 
