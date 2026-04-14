@@ -282,12 +282,14 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
       );
     }
 
-    // Compute the base64url-encoded JSON payload for the HTTP Gateway URL.
-    // The gateway expects: GET /{dna-hash}/{app-id}/{zome}/{fn}?payload=<base64url-json>
-    // For get_harmony_record the input is the ExternalHash (data hash), encoded as
-    // a uhC0k... string in JSON: base64url(JSON.stringify("uhC0k..."))
+    // Compute the gateway payload for the HTTP Gateway URL.
+    // hc-http-gw expects BASE64_URL_SAFE (with padding) of the JSON-encoded input.
+    // For get_harmony_record the input is the ExternalHash encoded as a JSON string.
+    // Node's .toString('base64url') omits padding — add it back so Rust's
+    // BASE64_URL_SAFE.decode() accepts it.
     const externalHashB64 = encodeHashToBase64(externalHash);
-    const gatewayPayload = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
+    const b64 = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
+    const gatewayPayload = b64 + '='.repeat((4 - b64.length % 4) % 4);
 
     return { harmony_record_hash: harmonyRecordHash, gateway_payload: gatewayPayload };
   });

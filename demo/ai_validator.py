@@ -233,10 +233,12 @@ def display_result(result: dict):
     app_id      = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
 
     if gateway_url and dna_hash and gateway_payload:
+        # URL-encode the payload: = padding must be %3D in query strings.
+        encoded_payload = gateway_payload.replace('=', '%3D')
         url = (
             f'{gateway_url}/{dna_hash}/{app_id}'
             f'/governance_coordinator/get_harmony_record'
-            f'?payload={gateway_payload}'
+            f'?payload={encoded_payload}'
         )
         print(f'\n  Permanent URL:\n  {url}')
     else:
