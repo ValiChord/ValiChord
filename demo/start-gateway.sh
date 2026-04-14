@@ -17,6 +17,9 @@
 
 set -euo pipefail
 
+# Ensure cargo-installed binaries (hc-http-gw) are on PATH.
+source "$HOME/.cargo/env" 2>/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
+
 ADMIN_PORT=4444
 GATEWAY_PORT=8090
 APP_ID="valichord-demo"

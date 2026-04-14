@@ -20,12 +20,21 @@ source "$HOME/.cargo/env" 2>/dev/null || true
 
 echo "=== Starting ValiChord demo on $SERVER_IP ==="
 
+# ── Option: --fresh (wipe conductor state) ────────────────────────────────────
+FRESH=false
+for arg in "$@"; do [[ "$arg" == "--fresh" ]] && FRESH=true; done
+
 # ── Kill any old processes ─────────────────────────────────────────────────────
 pkill -f "holochain.*conductor-config" 2>/dev/null || true
 pkill -f "lair-keystore"               2>/dev/null || true
 pkill -f "serve.mjs"                   2>/dev/null || true
 pkill -f "hc-http-gw"                  2>/dev/null || true
 sleep 2
+
+if $FRESH; then
+  echo "  Removing conductor data (fresh start)."
+  rm -rf "$SCRIPT_DIR/conductor_data"
+fi
 
 # ── Start Holochain conductor ──────────────────────────────────────────────────
 echo "[1/3] Starting Holochain conductor…"
