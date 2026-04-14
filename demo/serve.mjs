@@ -113,7 +113,7 @@ async function _withSession(fn) {
   const admin = await AdminWebsocket.connect({
     url: new URL(`ws://localhost:${ADMIN_PORT}`),
     wsClientOptions: { origin: 'valichord-bridge' },
-    defaultTimeout: 30_000,
+    defaultTimeout: 60_000,
   });
   const apps = await admin.listApps({});
   const appInfo = apps.find(a => a.installed_app_id === config.appId);
@@ -130,7 +130,7 @@ async function _withSession(fn) {
     url: new URL(`ws://localhost:${APP_PORT}`),
     token: new Uint8Array(config.token),
     wsClientOptions: { origin: 'valichord-bridge' },
-    defaultTimeout: 60_000,
+    defaultTimeout: 120_000,
   });
 
   const call = (role_name, zome_name, fn_name, payload) =>

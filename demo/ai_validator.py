@@ -198,7 +198,7 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
             headers=headers,
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             result = json.loads(resp.read())
 
     except urllib.error.HTTPError as e:
