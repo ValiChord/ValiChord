@@ -5,26 +5,30 @@
 
 ## What this demo is
 
-A fully automated end-to-end run of the ValiChord protocol showing what the system is built to do:
+A fully automated, end-to-end run of the ValiChord protocol on a live Holochain network — showing everything the system is built to do, in a single command.
 
-- A **researcher** commits their result cryptographically at submission time
-- **Three Claude AI agents** act as independent validators, each forming a verdict without seeing the others
-- All four parties run the **commit-reveal protocol**: every commitment is sealed on the Holochain DHT before any reveal is permitted
-- Both sides — researcher and validators — reveal simultaneously once the phase gate confirms all commitments are on-chain
-- A **HarmonyRecord** is written to the Governance DHT and is publicly readable via HTTP
+**This is not a simulation.** Every step involves real zome calls to real Holochain DNA cells running on a live conductor on Oracle Cloud. The HarmonyRecord lands on a live distributed network and is immediately readable at a public URL — no Holochain node, no API key, no authentication.
 
-This is not a simulation. Every step involves real zome calls to real Holochain DNA cells running on a live conductor. The HarmonyRecord is stored on the DHT and readable at a public URL for as long as the Oracle server is running.
+What happens when you run it:
+
+- A **real piece of mathematics** is computed: ordinary least-squares linear regression on 20 data points, implemented from scratch in pure Python. The results are deterministic — any independent party running the same script on the same data gets the same numbers to 4 decimal places.
+- The **researcher seals a cryptographic commitment** to those results before any validator has seen them. From this point, they cannot change their claimed values.
+- **Three independent Claude AI agents** each read the study README and the actual execution output and form their own reproducibility verdict — without seeing each other's. Three separate API calls; three separate judgements.
+- All three validators **commit their verdicts blind** to the shared Holochain DHT. The content stays hidden; only the commitment hash is visible.
+- A **phase gate** on the Holochain network opens automatically when all three commitment anchors are confirmed — no manual trigger, no trusted coordinator.
+- **Both sides reveal simultaneously.** The researcher's reveal is verified on the Holochain network: `SHA-256(msgpack(metrics) || nonce)` is recomputed and checked against the hash committed at submission. This is cryptographic proof they did not adjust their claimed results after seeing what the validators found.
+- A **HarmonyRecord** is written to the public Governance DHT. It is readable at a shareable URL within seconds.
 
 ---
 
 ## What the demo proves
 
-- **The full protocol runs end-to-end.** 8 internal steps, no manual intervention.
-- **Researcher and validators are symmetric.** Neither side can change their result after the other has committed.
+- **The full protocol runs end-to-end.** 8 internal steps, no manual intervention, ~2 minutes wall time.
+- **Researcher and validators are fully symmetric.** Neither side can change their result after the other has committed. The envelopes are sealed before anyone opens theirs.
 - **All 3 validators commit blind.** The phase gate in DNA 3 enforces that no reveal is accepted until all 3 CommitmentAnchors are on the DHT.
-- **The researcher reveal is verified on-chain.** `reveal_researcher_result` computes `SHA-256(msgpack(metrics) || nonce)` and compares against the hash published at submission — cryptographic proof the researcher didn't adjust their metrics retroactively.
+- **The researcher reveal is cryptographically verified on the Holochain network.** `reveal_researcher_result` recomputes `SHA-256(msgpack(metrics) || nonce)` and compares it against the hash published at submission. There is no trust assumption — the check is in the zome code.
 - **AI validators are first-class citizens.** Same zome functions, same commit-reveal guarantees as human validators.
-- **The HarmonyRecord is permanent and publicly verifiable.** Anyone can fetch it at the shareable URL — no Holochain node, no API key, no authentication.
+- **The HarmonyRecord is permanent and publicly verifiable.** Anyone can fetch it at the shareable URL and read the outcome, agreement level, discipline, and validator count in clean JSON — no Holochain node, no API key, no authentication.
 
 ---
 

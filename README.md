@@ -119,6 +119,38 @@ The protocol is implemented across all four DNAs and is fully tested:
 
 ---
 
+## 🤖 Live Demo — AI Validators Running the Full Protocol
+
+> **This is not a simulation.** Every step involves real zome calls to real Holochain DNA cells running on a live conductor. The HarmonyRecord is stored on a live distributed network and readable at a public URL — no Holochain node, no API key, no authentication required.
+
+The demo runs the complete ValiChord protocol end-to-end, with Claude AI agents as the validators:
+
+1. A **synthetic study** is loaded — a real linear regression on 20 data points (temperature variability vs species richness index). The mathematics are genuine: `study.py` computes the OLS slope, intercept, and R² from first principles in pure Python with no external dependencies. The numbers it produces — slope 2.4086, intercept 1.1742, R² 0.9991 — are deterministic and independently verifiable.
+2. The **researcher seals a cryptographic commitment** to their result metrics before any validator has seen them. Only the hash leaves their private DNA. They are bound to their claim from this point forward.
+3. **Three independent Claude AI agents** each receive the study README and the actual execution output and form their own verdict — `Reproduced`, `PartiallyReproduced`, `FailedToReproduce`, or `UnableToAssess` — with confidence level and one-sentence reasoning. Each call is made separately; the agents do not see each other's verdicts.
+4. All three validators **seal their verdicts blind** to the shared DHT as commitment anchors. The actual content remains hidden.
+5. A **phase gate** opens automatically when all three commitment anchors are confirmed on the DHT.
+6. **Both sides reveal simultaneously**: the researcher's `reveal_researcher_result` verifies `SHA-256(msgpack(metrics) || nonce)` on the Holochain network — cryptographic proof they did not adjust their claimed values after seeing the validator outputs. All three validators publish their attestations at the same time.
+7. A **HarmonyRecord** is written to the public Governance DHT. It is immediately readable at a shareable URL — clean JSON, no credentials required.
+
+The result of a recent run:
+
+```json
+{
+  "harmony_record_hash": "uhC8keNXEqhp2moKLAgREgood7hy-V4vRl9U4pqFpJenMfVOFtOsr",
+  "outcome":         { "type": "Reproduced" },
+  "agreement_level": "ExactMatch",
+  "discipline":      { "type": "ComputationalBiology" },
+  "validator_count": 3
+}
+```
+
+The whole run takes about 2 minutes. The URL stays live as long as the Oracle server is running.
+
+📄 **[Full demo guide and instructions →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)**
+
+---
+
 ## ⚖️ Governance Philosophy: Designing Against Domestication
 
 Most validation systems fail not because of bad technology but because of institutional capture — funders, publishers, or powerful research groups gradually bend the rules in their favour. ValiChord's governance framework is designed from the ground up to resist this.
@@ -264,7 +296,7 @@ npm test
 
 > For full build details, troubleshooting, and test architecture see the **[Developer Guide wiki](https://github.com/topeuph-ai/ValiChord/wiki/Developer-Guide)**.
 
-> **Running the demo:** See [`demo/AI_VALIDATOR_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md) — a live end-to-end run on Oracle Cloud in which a Claude AI agent executes a synthetic study, forms a blind verdict, runs the full commit-reveal protocol, and writes a permanent HarmonyRecord to the Governance DHT with a publicly verifiable URL.
+> **Running the demo:** See [`demo/AI_VALIDATOR_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md) for full instructions.
 
 > **Note:** There is no end-user UI yet — that is Phase 1. The current interface is a developer demo and integration endpoint. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
