@@ -21,14 +21,34 @@ source "$HOME/.cargo/env" 2>/dev/null || true
 echo "=== Starting ValiChord demo on $SERVER_IP ==="
 
 # ── Kill any old processes ─────────────────────────────────────────────────────
-pkill -f "holochain.*conductor-config" 2>/dev/null || true
-pkill -f "lair-keystore"               2>/dev/null || true
-pkill -f "serve.mjs"                   2>/dev/null || true
-pkill -f "hc-http-gw"                  2>/dev/null || true
+pkill -f "holochain.*conductor-config"  2>/dev/null || true
+pkill -f "lair-keystore"                2>/dev/null || true
+pkill -f "serve.mjs"                    2>/dev/null || true
+pkill -f "hc-http-gw"                   2>/dev/null || true
+pkill -f "kitsune2-bootstrap-srv"       2>/dev/null || true
 sleep 2
 
+# ── Install + start local bootstrap + SBD signal server ───────────────────────
+# Holochain 0.6.0 uses tx5/WebRTC transport.  By default it tries to reach
+# dev-test-bootstrap2.holochain.org, which causes "Peer connection failed"
+# errors in single-agent mode on Oracle (no external peer to connect to).
+# Running kitsune2-bootstrap-srv locally on port 9000 gives the conductor a
+# working SBD relay without any internet dependency.
+echo "[1/4] Starting local kitsune2 bootstrap + signal server (port 9000)…"
+if ! command -v kitsune2-bootstrap-srv &>/dev/null; then
+    echo "  Installing kitsune2_bootstrap_srv 0.3.2 (one-time, may take a few minutes)…"
+    cargo install kitsune2_bootstrap_srv --version 0.3.2 --locked
+fi
+kitsune2-bootstrap-srv \
+    --listen 127.0.0.1:9000 \
+    --sbd-disable-rate-limiting \
+    > "$SCRIPT_DIR/bootstrap.log" 2>&1 &
+BOOTSTRAP_PID=$!
+sleep 1
+echo "  PID $BOOTSTRAP_PID — logs: demo/bootstrap.log"
+
 # ── Start Holochain conductor ──────────────────────────────────────────────────
-echo "[1/3] Starting Holochain conductor…"
+echo "[2/4] Starting Holochain conductor…"
 cd "$SCRIPT_DIR"
 echo "demo-passphrase" | holochain \
     --config-path conductor-config.yaml \
@@ -47,7 +67,7 @@ for i in $(seq 1 60); do
 done
 
 # ── Run setup ─────────────────────────────────────────────────────────────────
-echo "[2/3] Running setup…"
+echo "[3/4] Running setup…"
 cd "$REPO_DIR"
 node "$SCRIPT_DIR/setup.mjs"
 
@@ -81,7 +101,7 @@ echo "  API key:             $VALICHORD_PUBLIC_API_KEY"
 echo "  Env written to:      demo/holochain-config.env"
 
 # ── Start bridge + gateway ─────────────────────────────────────────────────────
-echo "[3/3] Starting Holochain bridge (port 8888) and HTTP Gateway (port 8090)…"
+echo "[4/4] Starting Holochain bridge (port 8888) and HTTP Gateway (port 8090)…"
 node "$SCRIPT_DIR/serve.mjs" &
 SERVE_PID=$!
 sleep 2
