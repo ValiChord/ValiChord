@@ -25,16 +25,32 @@ FRESH=false
 for arg in "$@"; do [[ "$arg" == "--fresh" ]] && FRESH=true; done
 
 # ── Kill any old processes ─────────────────────────────────────────────────────
-pkill -f "holochain.*conductor-config" 2>/dev/null || true
-pkill -f "lair-keystore"               2>/dev/null || true
-pkill -f "serve.mjs"                   2>/dev/null || true
-pkill -f "hc-http-gw"                  2>/dev/null || true
+pkill -f "holochain.*conductor-config"  2>/dev/null || true
+pkill -f "lair-keystore"                2>/dev/null || true
+pkill -f "serve.mjs"                    2>/dev/null || true
+pkill -f "hc-http-gw"                   2>/dev/null || true
+pkill -f "kitsune2-bootstrap-srv"       2>/dev/null || true
 sleep 2
 
 if $FRESH; then
   echo "  Removing conductor data (fresh start)."
   rm -rf "$SCRIPT_DIR/conductor_data"
 fi
+
+# ── Start local kitsune2 bootstrap/SBD server ─────────────────────────────────
+# Runs locally on port 9000 — conductor-config.yaml points here.
+# Avoids Oracle-specific WebRTC/tx5 failures against the external relay.
+echo "[0/3] Starting local kitsune2 bootstrap server on port 9000…"
+BOOTSTRAP_BIN="$SCRIPT_DIR/bin/kitsune2-bootstrap-srv"
+if [ ! -x "$BOOTSTRAP_BIN" ]; then
+  echo "  ERROR: $BOOTSTRAP_BIN not found or not executable."
+  echo "  Run: git pull   (the binary is committed to the repo)"
+  exit 1
+fi
+"$BOOTSTRAP_BIN" --listen 127.0.0.1:9000 --sbd-disable-rate-limiting \
+  > "$SCRIPT_DIR/bootstrap.log" 2>&1 &
+echo "  PID $! — logs: demo/bootstrap.log"
+sleep 1   # brief pause so port 9000 is open before conductor starts
 
 # ── Start Holochain conductor ──────────────────────────────────────────────────
 echo "[1/3] Starting Holochain conductor…"
@@ -55,12 +71,6 @@ for i in $(seq 1 60); do
     sleep 1; echo -n "."
 done
 
-# Give the tx5 transport time to fully register with the SBD relay server
-# before any zome calls are made.  get_links calls the tx5 layer and returns
-# a fatal error if the relay registration is not yet complete.
-echo -n "  Waiting 60s for tx5 network layer to initialise"
-for i in $(seq 1 60); do sleep 1; echo -n "."; done
-echo " done."
 
 # ── Run setup ─────────────────────────────────────────────────────────────────
 echo "[2/3] Running setup…"

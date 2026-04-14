@@ -25,3 +25,4 @@ demo/holochain-config.env
 *.mp3
 tweets_clean.csv
 backend/app.log
+demo/bootstrap.log
