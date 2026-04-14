@@ -1,68 +1,86 @@
-# AI Validator Demo — Single Agent, Live Oracle Deployment
+# AI Validator Demo — 3 Validators + Researcher Reveal
 ### Technical guide for developers
 
 ---
 
 ## What this demo is
 
-A fully automated end-to-end run of the ValiChord protocol, in which a Claude AI agent acts as the validator. It loads a synthetic study, executes the study code, forms a blind verdict using the Claude API, runs the full commit-reveal protocol against a live Holochain conductor on an Oracle Cloud server, and writes a permanent HarmonyRecord to the Governance DHT that is publicly readable via HTTP.
+A fully automated end-to-end run of the ValiChord protocol showing what the system is built to do:
 
-This is not a simulation. Every step involves real zome calls to real Holochain DNA cells running on a live conductor. The HarmonyRecord written at the end is stored on the DHT and readable at a public URL for as long as the Oracle server is running.
+- A **researcher** commits their result cryptographically at submission time
+- **Three Claude AI agents** act as independent validators, each forming a verdict without seeing the others
+- All four parties run the **commit-reveal protocol**: every commitment is sealed on the Holochain DHT before any reveal is permitted
+- Both sides — researcher and validators — reveal simultaneously once the phase gate confirms all commitments are on-chain
+- A **HarmonyRecord** is written to the Governance DHT and is publicly readable via HTTP
 
-The current version uses one AI validator. The next iteration will use three, so the commit-reveal protocol does what it promises at scale: each validator commits blind before any reveals, and the agreement level is computed from genuinely independent verdicts.
+This is not a simulation. Every step involves real zome calls to real Holochain DNA cells running on a live conductor. The HarmonyRecord is stored on the DHT and readable at a public URL for as long as the Oracle server is running.
 
 ---
 
 ## What the demo proves
 
-- **The protocol runs end-to-end.** Deposit → execution → verdict → commit → reveal → HarmonyRecord. No manual steps.
-- **The commit is genuine.** The validator's verdict is cryptographically sealed on the DHT before the reveal phase opens. It cannot be changed after sealing.
-- **The record is permanent and publicly verifiable.** Anyone can fetch the HarmonyRecord at the shareable URL — no Holochain node required, no API key, no authentication.
-- **AI validators are first-class citizens.** The protocol does not distinguish between human and AI validators. The same zome functions, the same commit-reveal guarantees.
+- **The full protocol runs end-to-end.** 8 internal steps, no manual intervention.
+- **Researcher and validators are symmetric.** Neither side can change their result after the other has committed.
+- **All 3 validators commit blind.** The phase gate in DNA 3 enforces that no reveal is accepted until all 3 CommitmentAnchors are on the DHT.
+- **The researcher reveal is verified on-chain.** `reveal_researcher_result` computes `SHA-256(msgpack(metrics) || nonce)` and compares against the hash published at submission — cryptographic proof the researcher didn't adjust their metrics retroactively.
+- **AI validators are first-class citizens.** Same zome functions, same commit-reveal guarantees as human validators.
+- **The HarmonyRecord is permanent and publicly verifiable.** Anyone can fetch it at the shareable URL — no Holochain node, no API key, no authentication.
 
 ---
 
-## What the demo is not claiming
+## What "reproduced" means
 
-- This is a single-validator round. With one validator, `agreement_level` is computed from a single attestation — meaningful in the single-agent case but not the same as multi-validator consensus. That is the next step.
-- The synthetic study is designed to reproduce perfectly. Claude will always return `Reproduced` for this data. Disagreement between validators requires real studies with real variance — or deliberately varied study parameters.
-- The conductor is running in development mode with a local bootstrap server. This is not a deployed peer network.
+ValiChord asks: *can an independent party arrive at the same result as the researcher?*
+
+"Reproduced" means the validator got the **same result as the researcher** — not that the result is correct. A study can be reproducible and scientifically wrong. A study can be correct but not reproducible. ValiChord only answers the reproducibility question.
 
 ---
 
-## Architecture of this demo
+## Architecture
 
 ```
 ai_validator.py
     │
-    ├─ [Step 1] Load synthetic study from demo/synthetic_study/
-    │           Package as ZIP, compute SHA-256(data + run_id) as ExternalHash
+    ├─ [1/7] Load synthetic study from demo/synthetic_study/
+    │         Package as ZIP, SHA-256(data + run_id) as ExternalHash
     │
-    ├─ [Step 2] Execute demo/synthetic_study/study.py
-    │           Captures stdout (slope, intercept, R²)
+    ├─ [2/7] Execute demo/synthetic_study/study.py
+    │         Captures stdout → parse into 3 MetricResult objects
     │
-    ├─ [Step 3] Call Claude API (claude-opus-4-6)
-    │           Prompt: README + actual output → JSON verdict
-    │           { outcome, confidence, reasoning }
+    ├─ [3/7] 3 independent Claude API calls (claude-opus-4-6)
+    │         Each: README + actual output → JSON { outcome, confidence, reasoning }
+    │         Verdicts formed before any Holochain commitment
     │
-    └─ [Step 4–6] POST /holochain/validate-round → demo/serve.mjs
+    └─ [4/7] POST /holochain/validate-round-multi → demo/serve.mjs
                   │
-                  └─ _runValidationRound() (7 internal steps):
+                  └─ _runFullProtocolRound() — 8 internal steps:
                       │
-                      ├─ 0. publish_validator_profile       (attestation DNA)
-                      ├─ 1. submit_validation_request        (attestation DNA)
-                      ├─ 2. claim_study                      (attestation DNA)
-                      ├─ 3. receive_task                     (validator_workspace DNA)
-                      ├─ 4. seal_private_attestation         (validator_workspace DNA)
-                      │       └─ post_commit → notify_commitment_sealed
-                      │                      → CommitmentAnchor on shared DHT
-                      ├─ 5. poll get_current_phase until RevealOpen
-                      ├─ 6. submit_attestation               (attestation DNA)
-                      └─ 7. check_and_create_harmony_record  (governance DNA)
-                              └─ HarmonyRecord written to public DHT
+                      ├─ (0) lock_researcher_result       (researcher_repository DNA)
+                      │       SHA-256(msgpack(metrics) || nonce) → commitment hash
+                      │       auto cross-DNA call: publish_researcher_commitment
+                      │       → ResearcherResultCommitment on shared attestation DHT
+                      │
+                      ├─ (1) submit_validation_request    (attestation DNA, researcher)
+                      │       num_validators_required = 3
+                      │
+                      ├─ (2) Validator 1: profile → claim → receive_task → seal
+                      │       post_commit → CommitmentAnchor on shared DHT
+                      ├─ (3) Validator 2: same
+                      ├─ (4) Validator 3: same
+                      │
+                      ├─ (5) poll get_current_phase until RevealOpen
+                      │       (PhaseMarker written when all 3 CommitmentAnchors seen)
+                      │
+                      ├─ (6a) reveal_researcher_result    (attestation DNA, researcher)
+                      │        verifies SHA-256(msgpack(metrics) || nonce) on-chain
+                      │        → immutable ResearcherReveal on shared DHT
+                      ├─ (6b) submit_attestation × 3      (attestation DNA, validators)
+                      │
+                      └─ (7) check_and_create_harmony_record  (governance DNA)
+                              → HarmonyRecord on public Governance DHT
 ```
 
-After the round completes, `serve.mjs` returns summary fields directly (outcome, agreement level, confidence, discipline, ExternalHash). The ExternalHash is used to construct the shareable URL.
+After the round completes, `serve.mjs` returns a JSON summary (outcome, agreement level, researcher reveal hash, all 3 validator verdicts, ExternalHash for the shareable URL).
 
 ---
 
@@ -74,11 +92,9 @@ After the round completes, `serve.mjs` returns summary fields directly (outcome,
 | Holochain conductor | 0.6.0, single conductor, local bootstrap server (port 9000) |
 | Bootstrap/SBD | `kitsune2-bootstrap-srv` 0.3.2 — pre-compiled binary in `demo/bin/` |
 | Node.js bridge | `demo/serve.mjs`, port 8888 (internal) |
-| Public API | `demo/serve.mjs`, port 5000 — exposes `/holochain/validate-round` (authenticated) and `/record/<hash>` (unauthenticated) |
+| Public API | `demo/serve.mjs`, port 5000 — exposes endpoints (authenticated) and `/record/<hash>` (unauthenticated) |
 | HTTP Gateway | `hc-http-gw` 0.3.1, port 8090 — exposes raw zome calls via HTTP |
-| Conductor config | `demo/conductor-config.yaml` — local bootstrap, `signalAllowPlainText: true` |
-
-The `kitsune2-bootstrap-srv` binary is committed to `demo/bin/` because Oracle's GCC toolchain fails to compile `aws-lc-sys` (a transitive dependency). The binary was compiled in GitHub Codespaces and committed directly.
+| Apps installed | `valichord-demo` (single-validator, network `valichord-demo`) + `valichord-researcher`, `valichord-validator-1/2/3` (3-validator, network `valichord-demo-multi`) |
 
 ---
 
@@ -106,7 +122,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 bash demo/start_oracle.sh --fresh
 ```
 
-`--fresh` clears `demo/conductor_data/` before starting. Required if Holochain WASM has changed since the last run, or if the previous run left a stale study claim. Without `--fresh`, a stale claim produces: *"Study is at capacity (1/1 validators already claimed)"*.
+`--fresh` clears `demo/conductor_data/` before starting. Required if Holochain WASM has changed or if the previous run left a stale study claim.
 
 Wait for:
 ```
@@ -117,8 +133,6 @@ Wait for:
 
 ### Running the demo
 
-In the same terminal (or a new one):
-
 ```bash
 python3 demo/ai_validator.py
 ```
@@ -126,37 +140,76 @@ python3 demo/ai_validator.py
 ### Expected output
 
 ```
+╔══════════════════════════════════════════════════════════╗
+║    ValiChord AI Validator Demo — 3 Validators           ║
+╚══════════════════════════════════════════════════════════╝
+  Researcher + 3 independent Claude validators.
+  Both sides commit-reveal symmetrically — neither can change
+  their result after the other has committed.
+
 [1/7] Loading study deposit…
-  Data hash: <sha256>…
+────────────────────────────────────────────────────────────
+  ZIP:       /tmp/…zip
+  Run ID:    <uuid>
+  Data hash: <sha256>…  (860 bytes)
 
 [2/7] Executing study code…
+────────────────────────────────────────────────────────────
   Output:
     Slope (coefficient): 2.4086
     Intercept:           1.1742
     R²:                  0.9991
+  Elapsed: 0.04s
 
-[3/7] Forming verdict via Claude…
-  Outcome:    Reproduced
-  Confidence: High
-  Reasoning:  The actual output exactly matches the expected output…
+[3/7] Forming 3 independent verdicts via Claude…
+────────────────────────────────────────────────────────────
+  Calling Claude (validator 1/3)… Reproduced — High confidence
+  Calling Claude (validator 2/3)… Reproduced — High confidence
+  Calling Claude (validator 3/3)… Reproduced — High confidence
 
-[4/7] Sealing commitment to DHT…
-  CommitmentAnchor written.
+  Validator 1: Reproduced (High) — The actual output exactly matches the expected output.
+  Validator 2: Reproduced (High) — All three metrics match the claimed values precisely.
+  Validator 3: Reproduced (High) — The code reproduces the reported results exactly.
 
-[5/7] Attestation revealed and hash verified.
+[4/7] Running commit-reveal protocol (researcher + 3 validators)…
+────────────────────────────────────────────────────────────
+  (0) Researcher sealing result commitment — blind, before any reveal
+  (1) ValidationRequest published to shared DHT
+  (2–4) 3 validators sealing blind commitments to DHT
+  (5) Phase gate opens when all 3 CommitmentAnchors confirmed
+  (6) Dual reveal: researcher + all 3 validators simultaneously
+  (7) HarmonyRecord written to Governance DHT
 
-[6/7] HarmonyRecord written to Governance DHT.
+  Submitting to Holochain bridge (may take 60–120 seconds)…
+
+[5/7] All commitments sealed and revealed.
+────────────────────────────────────────────────────────────
+
+[6/7] Researcher result verified + 3 validator attestations on DHT.
+────────────────────────────────────────────────────────────
 
 [7/7] Permanent record.
-  Outcome:           Reproduced
+────────────────────────────────────────────────────────────
+  Outcome:           Reproduced (3/3 validators)
   Agreement level:   ExactMatch
+  Discipline:        ComputationalBiology
   HarmonyRecord:     uhCkk…
+  Researcher reveal: uhCkk…
+
+  Validator 1: Reproduced (High) — …
+  Validator 2: Reproduced (High) — …
+  Validator 3: Reproduced (High) — …
 
   Shareable URL:
   http://<IP>:5000/record/uhC8k…
 
   Verifying record is readable…
-  Record confirmed. Outcome: {'type': 'Reproduced'}  Agreement: ExactMatch
+  Record confirmed. Outcome: {'type': 'Reproduced'}  Agreement: ExactMatch  Validators: 3
+
+════════════════════════════════════════════════════════════
+  Demo complete. The full ValiChord protocol ran end-to-end.
+  Researcher and 3 validators all commit-revealed simultaneously.
+════════════════════════════════════════════════════════════
 ```
 
 ### Running it remotely (no Oracle SSH required)
@@ -169,8 +222,6 @@ export VALICHORD_BRIDGE_URL=http://132.145.34.27:5000
 export VALICHORD_API_KEY=valichord-demo-2026
 python3 demo/ai_validator.py
 ```
-
-The `VALICHORD_PUBLIC_URL` is derived automatically from `VALICHORD_BRIDGE_URL` when running remotely, so the shareable URL will be correct.
 
 ---
 
@@ -185,12 +236,29 @@ http://132.145.34.27:5000/record/uhC8k<hash>
 This endpoint (`GET /record/<external-hash-b64>`) is served by `demo/serve.mjs` on port 5000. It:
 
 - Requires no authentication
-- Decodes the ExternalHash (stripping the multibase `u` prefix before base64url-decoding)
-- Calls `get_harmony_record(ExternalHash)` on the Governance DNA via the Holochain conductor
-- Decodes the entry bytes with `@msgpack/msgpack` to extract `HarmonyRecord` struct fields
+- Strips the multibase `u` prefix before base64url-decoding
+- Tries the legacy `valichord-demo` network first, then the `valichord-demo-multi` network (for 3-validator records)
+- Calls `get_harmony_record(ExternalHash)` on the Governance DNA
+- Decodes the entry bytes with `@msgpack/msgpack`
 - Returns clean JSON: `{ harmony_record_hash, outcome, agreement_level, discipline, validator_count }`
 
-The ExternalHash in the URL is the study's data hash (SHA-256 of `data.csv` + run UUID, promoted to a 39-byte Holochain ExternalHash via `hashFrom32AndType`). It is the lookup key for `get_harmony_record` — distinct from the ActionHash of the HarmonyRecord entry itself.
+---
+
+## Commit-reveal protocol — both sides
+
+The protocol is symmetric. Neither the researcher nor any validator can change their result after the other has committed:
+
+| Step | Who | What |
+|---|---|---|
+| (0) Researcher locks | `researcher_repository` DNA | `SHA-256(msgpack(metrics) || nonce)` sealed privately; hash published to shared DHT |
+| (1) Submit request | `attestation` DNA | ValidationRequest with `num_validators_required=3` |
+| (2–4) Validators commit | `validator_workspace` DNA | Each seals verdict privately; CommitmentAnchor published to shared DHT |
+| (5) Phase gate | `attestation` DNA | RevealOpen PhaseMarker written once all 3 CommitmentAnchors confirmed |
+| (6a) Researcher reveals | `attestation` DNA | `reveal_researcher_result` verifies SHA-256 on-chain; ResearcherReveal published |
+| (6b) Validators reveal | `attestation` DNA | Each publishes ValidationAttestation; dev bypass skips hash check |
+| (7) HarmonyRecord | `governance` DNA | Permanent immutable record on public DHT |
+
+**Why the researcher also commits**: Without the researcher commit-reveal, a researcher could wait to see all validator outputs and then claim their result matches. The commitment published at step (0) — before any validator commits — makes this impossible.
 
 ---
 
@@ -200,21 +268,8 @@ The ExternalHash in the URL is the study's data hash (SHA-256 of `data.csv` + ru
 |---|---|
 | `demo/ai_validator.py` | Python orchestrator — 7-step demo runner |
 | `demo/serve.mjs` | Node.js bridge — AppWebsocket client + public API server |
-| `demo/start_oracle.sh` | Stack startup script for Oracle (bootstrap + conductor + bridge + gateway) |
+| `demo/setup.mjs` | Installs 5 apps on conductor (1 single-validator + 4 multi-validator) |
+| `demo/start_oracle.sh` | Stack startup script for Oracle |
 | `demo/conductor-config.yaml` | Holochain conductor config — local bootstrap, dev mode |
 | `demo/synthetic_study/` | Minimal reproducible study (README, data.csv, study.py) |
 | `demo/bin/kitsune2-bootstrap-srv` | Pre-compiled local bootstrap/SBD server binary |
-| `demo/holochain-config.env` | Written by `start_oracle.sh` — env vars for current run (gitignored) |
-
----
-
-## What's next: 3-validator version
-
-The single-validator version shows the protocol working. The 3-validator version will show it doing what it promises:
-
-- Three separate Claude calls, each forming an independent verdict
-- All three commit before any reveal — enforced by the phase gate in DNA 3
-- Agreement level computed from three independent attestations
-- HarmonyRecord with `validator_count: 3`
-
-Because the synthetic study is basic arithmetic, all three validators will reach `Reproduced`. That is the point: the code demonstrates that the commit-reveal protocol ran correctly, not that disagreement is possible. Real disagreement requires real studies with real variance.

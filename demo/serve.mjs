@@ -102,13 +102,30 @@ function _readBody(req) {
 // Open one authenticated session and run fn({ call, hashFrom32AndType, HoloHashType }).
 // `call(role, zome, fn, payload)` makes a zome call with auto serialize/deserialize.
 // Closes the AppWebsocket when fn resolves or rejects.
-async function _withSession(fn) {
+//
+// appKey — optional key into config.apps (multi-agent format).
+//   'researcher'  → valichord-researcher  (3-validator demo)
+//   'validator-1' → valichord-validator-1 (3-validator demo)
+//   'validator-2' → valichord-validator-2 (3-validator demo)
+//   'validator-3' → valichord-validator-3 (3-validator demo)
+//   null (default) → legacy valichord-demo (single-validator demo)
+async function _withSession(fn, appKey = null) {
   const configPath = join(__dirname, 'app-config.json');
   if (!existsSync(configPath)) {
     throw new Error('app-config.json not found — run node demo/setup.mjs first');
   }
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   const { AdminWebsocket, AppWebsocket, hashFrom32AndType, HoloHashType } = await _loadHcClient();
+
+  // Resolve which app to connect to.
+  let resolvedAppId, appToken;
+  if (appKey && config.apps && config.apps[appKey]) {
+    resolvedAppId = config.apps[appKey].appId;
+    appToken = new Uint8Array(config.apps[appKey].token);
+  } else {
+    resolvedAppId = config.appId;
+    appToken = new Uint8Array(config.token);
+  }
 
   // Authorize signing credentials (required by Holochain 0.6.x before callZome).
   const admin = await AdminWebsocket.connect({
@@ -117,8 +134,8 @@ async function _withSession(fn) {
     defaultTimeout: 60_000,
   });
   const apps = await admin.listApps({});
-  const appInfo = apps.find(a => a.installed_app_id === config.appId);
-  if (!appInfo) throw new Error(`App '${config.appId}' not installed in conductor`);
+  const appInfo = apps.find(a => a.installed_app_id === resolvedAppId);
+  if (!appInfo) throw new Error(`App '${resolvedAppId}' not installed in conductor`);
   for (const cells of Object.values(appInfo.cell_info)) {
     for (const cell of cells) {
       const cellId = cell.value?.cell_id;
@@ -129,7 +146,7 @@ async function _withSession(fn) {
 
   const appWs = await AppWebsocket.connect({
     url: new URL(`ws://localhost:${APP_PORT}`),
-    token: new Uint8Array(config.token),
+    token: appToken,
     wsClientOptions: { origin: 'valichord-bridge' },
     defaultTimeout: 120_000,
   });
@@ -332,6 +349,277 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
       validator_count: 1,
     };
   });
+}
+
+// Full 3-validator + researcher-reveal protocol round.
+//
+// Protocol sequence (both sides commit-reveal symmetrically):
+//   (0) Researcher locks result — private LockedResult in DNA 1,
+//       SHA-256(msgpack(metrics) || nonce) hash published to DNA 3.
+//   (1) Submit ValidationRequest with num_validators_required=3 to DNA 3.
+//   (2–4) Each validator: publish_profile → claim → receive_task → seal.
+//         post_commit fires notify_commitment_sealed → CommitmentAnchor on DNA 3.
+//   (5) Phase gate: poll get_current_phase until RevealOpen
+//       (fires only when all 3 CommitmentAnchors are on the shared DHT).
+//   (6a) Researcher reveals — reveal_researcher_result verifies SHA-256 on-chain.
+//   (6b) All 3 validators reveal their attestations.
+//   (7)  check_and_create_harmony_record → HarmonyRecord on DNA 4.
+//
+// Input:
+//   data_hash_hex  — SHA-256 hex of (data + run_id)
+//   metrics        — JS array of { metric_name, produced_value, expected_value, within_tolerance }
+//                    (SAME objects used for both lock and reveal — hash must match)
+//   verdicts       — array of exactly 3 { outcome, confidence, reasoning } from Claude
+//   discipline     — optional, default { type: 'ComputationalBiology' }
+async function _runFullProtocolRound({
+  data_hash_hex, metrics, verdicts, discipline,
+  deposit_access_type, data_access_url,
+}) {
+  const { hashFrom32AndType, HoloHashType, encodeHashToBase64 } = await _loadHcClient();
+  const externalHash = hashFrom32AndType(
+    Buffer.from(data_hash_hex, 'hex'),
+    HoloHashType.External,
+  );
+
+  const disc    = discipline ?? { type: 'ComputationalBiology' };
+  const nowSecs = Math.floor(Date.now() / 1000);
+
+  const VALIDATOR_KEYS = ['validator-1', 'validator-2', 'validator-3'];
+
+  // ── (0) Researcher locks result — private commitment sealed ─────────────────
+  // The researcher commits their metrics BEFORE validators reveal anything.
+  // lock_researcher_result internally calls publish_researcher_commitment
+  // (cross-DNA call to DNA 3) so the commitment hash is on the shared DHT
+  // before validators commit.
+  console.log('[multi-round] (0) Researcher locking result…');
+  let lockedNonce = null;
+  await _withSession(async ({ call }) => {
+    await call(
+      'researcher_repository', 'researcher_repository_coordinator', 'lock_researcher_result',
+      { request_ref: externalHash, metrics },
+    );
+
+    // Retrieve the stored entry to extract the nonce (needed for reveal).
+    // The nonce is a 32-byte random value generated by lock_researcher_result.
+    const record = await call(
+      'researcher_repository', 'researcher_repository_coordinator', 'get_locked_result',
+      externalHash,
+    );
+    if (!record) throw new Error('get_locked_result returned null after locking');
+    const { decode: msgpackDecode } = await import('@msgpack/msgpack');
+    const entryBase64 = record?.entry?.Present?.entry?.__bytes ?? null;
+    if (!entryBase64) throw new Error('LockedResult entry bytes not found in record');
+    const lockedResult = msgpackDecode(Buffer.from(entryBase64, 'base64'));
+    // lockedResult.nonce is a Uint8Array(32) — passes through _deserialize unchanged
+    lockedNonce = lockedResult.nonce;
+  }, 'researcher');
+
+  // ── (1) Submit ValidationRequest (num_validators_required = 3) ─────────────
+  // The integrity zome enforces vr.num_validators_required >= minimum_validators(3).
+  console.log('[multi-round] (1) Submitting ValidationRequest (3 validators required)…');
+  await _withSession(async ({ call }) => {
+    await call('attestation', 'attestation_coordinator', 'submit_validation_request', {
+      protocol_ref:            null,
+      data_hash:               externalHash,
+      data_access_url:         data_access_url    ?? '',
+      deposit_access_type:     deposit_access_type ?? 'PublicUrl',
+      deposit_token:           null,
+      protocol_access_url:     null,
+      num_validators_required: 3,
+      validation_tier:         'Basic',
+      discipline:              disc,
+      researcher_institution:  '',
+    });
+  }, 'researcher');
+
+  // ── (2–4) Each validator commits blind ──────────────────────────────────────
+  // All three validators seal before any reveal.  The phase gate enforces this:
+  // get_current_phase returns null until all 3 CommitmentAnchors are on the DHT.
+  const validationAttestations = [];
+  for (let i = 0; i < 3; i++) {
+    const verdict        = verdicts[i];
+    const outcome        = { type: verdict.outcome };
+    const conf           = verdict.confidence;
+    const agreementLevel = {
+      Reproduced:          'ExactMatch',
+      PartiallyReproduced: 'DirectionalMatch',
+      FailedToReproduce:   'Divergent',
+      UnableToAssess:      'UnableToAssess',
+    }[verdict.outcome] ?? 'ExactMatch';
+
+    // The public ValidationAttestation — identical object used for both seal and
+    // reveal so the commitment hash verifies correctly (dev bypass skips hash
+    // check when authorized_joining_certificate_issuer is empty).
+    const va = {
+      request_ref: externalHash,
+      outcome,
+      outcome_summary: {
+        key_metrics:                metrics,
+        effect_direction_matches:   null,
+        confidence_interval_overlap: null,
+        overall_agreement:          agreementLevel,
+      },
+      time_invested_secs: 0,
+      time_breakdown: {
+        environment_setup_secs: 0,
+        data_acquisition_secs:  0,
+        code_execution_secs:    0,
+        troubleshooting_secs:   0,
+      },
+      confidence:          conf,
+      deviation_flags:     [],
+      computational_resources: {
+        personal_hardware_sufficient: true,
+        hpc_required:                 false,
+        gpu_required:                 false,
+        cloud_compute_required:       false,
+        estimated_compute_cost_pence: null,
+      },
+      discipline:             disc,
+      commitment_anchor_hash: null,
+    };
+    validationAttestations.push(va);
+
+    console.log(`[multi-round] (${2 + i}) Validator ${i + 1} sealing blind commitment…`);
+    await _withSession(async ({ call }) => {
+      await call('attestation', 'attestation_coordinator', 'publish_validator_profile', {
+        institution:          'ValiChord Demo',
+        disciplines:          [disc],
+        certification_tier:   'Provisional',
+        available:            true,
+        max_concurrent_tasks: 4,
+        orcid:                null,
+        agent_type:           null,
+        person_key:           null,
+      });
+
+      await _retryOnTx5(
+        () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
+        `claim_study (validator-${i + 1})`,
+        10, 6000,
+      );
+
+      const taskHash = await call(
+        'validator_workspace', 'validator_workspace_coordinator', 'receive_task', {
+          request_ref:       externalHash,
+          assigned_at_secs:  nowSecs,
+          discipline:        disc,
+          deadline_secs:     nowSecs + 86400 * 14,
+          validation_focus:  'ComputationalReproducibility',
+          time_cap_secs:     3600,
+          compensation_tier: { Tier1: { amount_pence: 5000 } },
+        },
+      );
+
+      // post_commit fires notify_commitment_sealed → CommitmentAnchor on DNA 3.
+      await call(
+        'validator_workspace', 'validator_workspace_coordinator', 'seal_private_attestation',
+        { task_hash: taskHash, attestation: va },
+      );
+    }, VALIDATOR_KEYS[i]);
+  }
+
+  // ── (5) Phase gate — poll until RevealOpen ──────────────────────────────────
+  // PhaseMarker(RevealOpen) is written by notify_commitment_sealed once
+  // check_all_commitments_sealed_inner counts 3 CommitmentAnchors from DNA 3.
+  console.log('[multi-round] (5) Phase gate — polling until RevealOpen…');
+  await _withSession(async ({ call }) => {
+    for (let i = 0; i < 120; i++) {
+      const phase = await call(
+        'attestation', 'attestation_coordinator', 'get_current_phase', externalHash,
+      );
+      if (phase !== null) {
+        console.log(`[multi-round] RevealOpen after ${i + 1} poll(s).`);
+        break;
+      }
+      await _sleep(1000);
+    }
+  }, 'researcher');
+
+  // ── (6a) Researcher reveals — symmetric with validators ────────────────────
+  // reveal_researcher_result verifies SHA-256(msgpack(metrics) || nonce) against
+  // the commitment hash published in step 0.  Uses the SAME metrics JS objects
+  // as lock_researcher_result so the msgpack encoding round-trips correctly.
+  // This is the half of the protocol that prevents researchers from retroactively
+  // adjusting their claimed metrics to match a validator's output.
+  console.log('[multi-round] (6a) Researcher revealing metrics (hash verified on-chain)…');
+  let researcherRevealHash = null;
+  await _withSession(async ({ call }) => {
+    const revealHash = await call(
+      'attestation', 'attestation_coordinator', 'reveal_researcher_result', {
+        request_ref: externalHash,
+        metrics,          // SAME JS objects as passed to lock_researcher_result
+        nonce:       lockedNonce,   // Uint8Array(32) from get_locked_result
+      },
+    );
+    researcherRevealHash = revealHash;
+  }, 'researcher');
+
+  // ── (6b) Each validator reveals ─────────────────────────────────────────────
+  // Dev bypass: hash check skipped (authorized_joining_certificate_issuer='').
+  // Production: nonce comes from ValidatorPrivateAttestation.nonce (DNA 2).
+  console.log('[multi-round] (6b) All 3 validators revealing attestations…');
+  for (let i = 0; i < 3; i++) {
+    await _withSession(async ({ call }) => {
+      await call('attestation', 'attestation_coordinator', 'submit_attestation', {
+        attestation: validationAttestations[i],
+        nonce:       new Uint8Array(0),   // dev bypass
+      });
+    }, VALIDATOR_KEYS[i]);
+  }
+
+  // ── (7) Create HarmonyRecord on Governance DHT ───────────────────────────────
+  console.log('[multi-round] (7) Creating HarmonyRecord…');
+  const harmonyHashSerialized = await _withSession(async ({ call }) => {
+    return call(
+      'governance', 'governance_coordinator', 'check_and_create_harmony_record', externalHash,
+    );
+  }, 'researcher');
+
+  let harmonyRecordHash = null;
+  if (harmonyHashSerialized?.__bytes) {
+    harmonyRecordHash = encodeHashToBase64(
+      Buffer.from(harmonyHashSerialized.__bytes, 'base64'),
+    );
+  }
+
+  const externalHashB64 = encodeHashToBase64(externalHash);
+  const gatewayPayload = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
+
+  // Derive majority outcome + agreement level from the 3 verdicts.
+  const outcomes    = verdicts.map(v => v.outcome);
+  const nReproduced = outcomes.filter(o => o === 'Reproduced').length;
+  const nPartial    = outcomes.filter(o => o === 'PartiallyReproduced').length;
+  const rate        = (nReproduced + nPartial) / outcomes.length;
+  const agreementLevel =
+    rate >= 0.90 ? 'ExactMatch' :
+    rate >= 0.70 ? 'WithinTolerance' :
+    rate >= 0.50 ? 'DirectionalMatch' :
+    nReproduced + nPartial > 0 ? 'Divergent' : 'UnableToAssess';
+  const majorityOutcome =
+    nReproduced >= 2 ? 'Reproduced' :
+    nPartial    >= 2 ? 'PartiallyReproduced' :
+    outcomes.filter(o => o === 'FailedToReproduce').length >= 2 ? 'FailedToReproduce' :
+    'UnableToAssess';
+
+  return {
+    harmony_record_hash:    harmonyRecordHash,
+    external_hash_b64:      externalHashB64,
+    gateway_payload:        gatewayPayload,
+    outcome_type:           majorityOutcome,
+    agreement_level:        agreementLevel,
+    discipline_type:        disc?.type ?? 'Unknown',
+    validator_count:        3,
+    researcher_reveal_hash: researcherRevealHash?.__bytes
+      ? encodeHashToBase64(Buffer.from(researcherRevealHash.__bytes, 'base64'))
+      : null,
+    validator_verdicts: verdicts.map((v, i) => ({
+      validator:  i + 1,
+      outcome:    v.outcome,
+      confidence: v.confidence,
+      reasoning:  v.reasoning,
+    })),
+  };
 }
 
 // ── Static file handler ───────────────────────────────────────────────────────
@@ -551,9 +839,20 @@ const publicServer = createServer(async (req, res) => {
         // Strip it before decoding — including it corrupts the first byte.
         const b64 = hashB64.startsWith('u') ? hashB64.slice(1) : hashB64;
         const hashBytes = Buffer.from(b64, 'base64url');
-        const record = await _withSession(async ({ call }) => {
+        // Try the legacy single-validator network first, then the multi-validator network.
+        // They are separate DHTs (different network_seed) so a record created by one
+        // is not visible to the other — we must check both.
+        let record = await _withSession(async ({ call }) => {
           return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
         });
+        if (!record) {
+          // Fallback: check the multi-validator network (valichord-researcher app).
+          try {
+            record = await _withSession(async ({ call }) => {
+              return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
+            }, 'researcher');
+          } catch { /* app not installed yet — ignore */ }
+        }
         if (!record) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Record not found' }));
@@ -652,6 +951,53 @@ const publicServer = createServer(async (req, res) => {
     } catch (err) {
       const msg = err.message ?? String(err);
       console.error(`[public /validate-round]: ${msg}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  // ── POST /holochain/validate-round-multi — 3-validator + researcher reveal ──
+  const isValidateRoundMulti = req.method === 'POST' &&
+    (url === '/validate-round-multi' || url === '/holochain/validate-round-multi');
+
+  if (isValidateRoundMulti) {
+    let body;
+    try {
+      body = JSON.parse(await _readBody(req));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+    if (!body.data_hash_hex || !Array.isArray(body.metrics) ||
+        !Array.isArray(body.verdicts) || body.verdicts.length !== 3) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'Missing or invalid data_hash_hex, metrics, or verdicts (need exactly 3)',
+      }));
+      return;
+    }
+    try {
+      const result = await _runFullProtocolRound(body);
+
+      // Optionally attach a raw gateway URL if env vars are set.
+      const gatewayUrl = (process.env.HOLOCHAIN_GATEWAY_URL || '').replace(/\/$/, '');
+      const dnaHash    = process.env.HOLOCHAIN_GOVERNANCE_DNA_HASH || '';
+      const appId      = process.env.HOLOCHAIN_APP_ID || 'valichord-researcher';
+      if (gatewayUrl && dnaHash && result.gateway_payload) {
+        const encodedPayload = result.gateway_payload.replace(/=/g, '%3D');
+        result.harmony_record_url =
+          `${gatewayUrl}/${dnaHash}/${appId}` +
+          `/governance_coordinator/get_harmony_record` +
+          `?payload=${encodedPayload}`;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      const msg = err.message ?? String(err);
+      console.error(`[public /validate-round-multi]: ${msg}`);
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: msg }));
     }

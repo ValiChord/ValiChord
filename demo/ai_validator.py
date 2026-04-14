@@ -26,6 +26,7 @@ Usage
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -118,10 +119,42 @@ def execute_study():
     print(f'  Elapsed: {elapsed:.2f}s')
     return output
 
-# ── Step 3: Form verdict via Claude ───────────────────────────────────────────
+# ── Step 2b: Parse metrics from study output ──────────────────────────────────
 
-def form_verdict(readme: str, actual_output: str) -> dict:
-    banner(3, 7, 'Forming verdict via Claude…')
+# Expected values for the synthetic study — compared against actual output
+# to populate MetricResult.within_tolerance.
+_EXPECTED = {
+    'slope':     '2.4086',
+    'intercept': '1.1742',
+    'r2':        '0.9991',
+}
+
+def parse_metrics(output: str) -> list:
+    """Extract structured MetricResult objects from study.py stdout."""
+    values = {}
+    for line in output.splitlines():
+        if m := re.match(r'Slope \(coefficient\):\s*([\d.]+)', line):
+            values['slope'] = m.group(1)
+        elif m := re.match(r'Intercept:\s*([\d.]+)', line):
+            values['intercept'] = m.group(1)
+        elif m := re.match(r'R[²2]:\s*([\d.]+)', line):
+            values['r2'] = m.group(1)
+    return [
+        {
+            'metric_name':      name,
+            'produced_value':   values.get(name, 'N/A'),
+            'expected_value':   expected,
+            'within_tolerance': values.get(name, '') == expected,
+        }
+        for name, expected in _EXPECTED.items()
+    ]
+
+
+# ── Step 3: Form 3 independent verdicts via Claude ────────────────────────────
+
+def form_verdicts(readme: str, actual_output: str) -> list:
+    """Make 3 separate Claude calls — each is an independent validator."""
+    banner(3, 7, 'Forming 3 independent verdicts via Claude…')
 
     api_key = os.environ.get('ANTHROPIC_API_KEY')
     if not api_key:
@@ -150,46 +183,57 @@ Reply with ONLY a JSON object — no markdown, no explanation:
   "reasoning": "<one sentence>"
 }}"""
 
-    message = client.messages.create(
-        model='claude-opus-4-6',
-        max_tokens=256,
-        messages=[{'role': 'user', 'content': prompt}],
-    )
+    verdicts = []
+    for i in range(3):
+        print(f'  Calling Claude (validator {i + 1}/3)…', end=' ', flush=True)
+        message = client.messages.create(
+            model='claude-opus-4-6',
+            max_tokens=256,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        raw = message.content[0].text.strip()
+        try:
+            verdict = json.loads(raw)
+        except json.JSONDecodeError:
+            die(f'Claude (validator {i + 1}) returned non-JSON:\n{raw}')
+        print(f'{verdict["outcome"]} — {verdict["confidence"]} confidence')
+        verdicts.append(verdict)
 
-    raw = message.content[0].text.strip()
+    print()
+    for i, v in enumerate(verdicts, 1):
+        print(f'  Validator {i}: {v["outcome"]} ({v["confidence"]}) — {v["reasoning"]}')
+    return verdicts
+
+# ── Steps 4–6: Full commit-reveal round via bridge ────────────────────────────
+#
+# Protocol sequence sent to /holochain/validate-round-multi:
+#   (0) Researcher seals result commitment (DNA 1 → hash published to DNA 3)
+#   (1) ValidationRequest submitted to shared DHT (num_validators_required=3)
+#   (2–4) Each validator seals their verdict blind (CommitmentAnchors on DNA 3)
+#   (5) Phase gate opens when all 3 CommitmentAnchors are on the DHT
+#   (6a) Researcher reveal — SHA-256(msgpack(metrics) || nonce) verified on-chain
+#   (6b) All 3 validators reveal their attestations
+#   (7) HarmonyRecord written to Governance DHT (DNA 4)
+
+def run_full_protocol(data_hash: str, metrics: list, verdicts: list) -> dict:
+    banner(4, 7, 'Running commit-reveal protocol (researcher + 3 validators)…')
+    print('  (0) Researcher sealing result commitment — blind, before any reveal')
+    print('  (1) ValidationRequest published to shared DHT')
+    print('  (2–4) 3 validators sealing blind commitments to DHT')
+    print('  (5) Phase gate opens when all 3 CommitmentAnchors confirmed')
+    print('  (6) Dual reveal: researcher + all 3 validators simultaneously')
+    print('  (7) HarmonyRecord written to Governance DHT')
+    print()
+    print('  Submitting to Holochain bridge (may take 60–120 seconds)…')
+
     try:
-        verdict = json.loads(raw)
-    except json.JSONDecodeError:
-        die(f'Claude returned non-JSON verdict:\n{raw}')
-
-    print(f'  Outcome:    {verdict["outcome"]}')
-    print(f'  Confidence: {verdict["confidence"]}')
-    print(f'  Reasoning:  {verdict["reasoning"]}')
-    return verdict
-
-# ── Steps 4–6: Commit-reveal round via bridge ─────────────────────────────────
-
-OUTCOME_TO_AGREEMENT = {
-    'Reproduced':          'ExactMatch',
-    'PartiallyReproduced': 'DirectionalMatch',
-    'FailedToReproduce':   'Divergent',
-    'UnableToAssess':      'UnableToAssess',
-}
-
-def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
-    banner(4, 7, 'Sealing commitment to DHT…')
-    print('  Submitting validation round to Holochain bridge…')
-    print('  (This runs the full 7-step commit-reveal protocol internally)')
-
-    try:
-        import urllib.request
         payload = json.dumps({
-            'data_hash_hex':      data_hash,
-            'outcome':            {'type': verdict['outcome']},
-            'discipline':         {'type': 'ComputationalBiology'},
-            'confidence':         verdict['confidence'],
+            'data_hash_hex': data_hash,
+            'metrics':       metrics,
+            'verdicts':      verdicts,
+            'discipline':    {'type': 'ComputationalBiology'},
             'deposit_access_type': 'PublicUrl',
-            'data_access_url':    '',
+            'data_access_url':     '',
         }).encode()
 
         headers = {'Content-Type': 'application/json'}
@@ -197,12 +241,12 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
             headers['X-ValiChord-Key'] = VALICHORD_KEY
 
         req = urllib.request.Request(
-            f'{BRIDGE_URL}/holochain/validate-round',
+            f'{BRIDGE_URL}/holochain/validate-round-multi',
             data=payload,
             headers=headers,
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=600) as resp:
             result = json.loads(resp.read())
 
     except urllib.error.HTTPError as e:
@@ -211,16 +255,15 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
     except OSError as e:
         die(
             f'Cannot reach Holochain bridge at {BRIDGE_URL}.\n'
-            f'  Is the demo stack running?  bash demo/start.sh\n'
+            f'  Is the demo stack running?  bash demo/start_oracle.sh --fresh\n'
             f'  Error: {e}'
         )
 
     if 'error' in result:
         die(f'Bridge error: {result["error"]}')
 
-    print('  CommitmentAnchor written.')
-    banner(5, 7, 'Attestation revealed and hash verified.')
-    banner(6, 7, 'HarmonyRecord written to Governance DHT.')
+    banner(5, 7, 'All commitments sealed and revealed.')
+    banner(6, 7, 'Researcher result verified + 3 validator attestations on DHT.')
     return result
 
 # ── Step 7: Display permanent URL ─────────────────────────────────────────────
@@ -228,50 +271,54 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
 def display_result(result: dict):
     banner(7, 7, 'Permanent record.')
 
-    harmony_hash      = result.get('harmony_record_hash')  # ActionHash of the record entry
-    external_hash_b64 = result.get('external_hash_b64')    # ExternalHash — lookup key
-    gateway_payload   = result.get('gateway_payload')
+    harmony_hash       = result.get('harmony_record_hash')
+    external_hash_b64  = result.get('external_hash_b64')
+    gateway_payload    = result.get('gateway_payload')
+    outcome_type       = result.get('outcome_type',    'Unknown')
+    discipline_type    = result.get('discipline_type', 'Unknown')
+    agreement_level    = result.get('agreement_level', 'Unknown')
+    validator_count    = result.get('validator_count', 3)
+    researcher_reveal  = result.get('researcher_reveal_hash')
+    validator_verdicts = result.get('validator_verdicts', [])
 
-    # Summary fields returned directly by the bridge (no msgpack decoding needed).
-    outcome_type    = result.get('outcome_type',    'Unknown')
-    confidence      = result.get('confidence',      'Unknown')
-    discipline_type = result.get('discipline_type', 'Unknown')
-    agreement_level = result.get('agreement_level', 'Unknown')
-    validator_count = result.get('validator_count', 1)
-
-    print(f'  Outcome:           {outcome_type}')
+    print(f'  Outcome:           {outcome_type} ({validator_count}/3 validators)')
     print(f'  Agreement level:   {agreement_level}')
-    print(f'  Confidence:        {confidence}')
     print(f'  Discipline:        {discipline_type}')
-    print(f'  Validators:        {validator_count}')
     print(f'  HarmonyRecord:     {harmony_hash}')
 
-    # ── Shareable viewer URL (browser-friendly, no base64 in query string) ──────
-    # Uses the ExternalHash (data hash) — that is what get_harmony_record() looks up.
-    # The ActionHash (harmony_record_hash) is the DHT entry address, not the lookup key.
+    if researcher_reveal:
+        print(f'  Researcher reveal: {researcher_reveal}')
+
+    if validator_verdicts:
+        print()
+        for v in validator_verdicts:
+            print(f'  Validator {v["validator"]}: {v["outcome"]} ({v["confidence"]}) — {v["reasoning"]}')
+
+    # ── Shareable viewer URL ────────────────────────────────────────────────────
     lookup_hash = external_hash_b64 or harmony_hash
     if lookup_hash:
         viewer_url = f'{PUBLIC_URL}/record/{lookup_hash}'
         print(f'\n  Shareable URL:\n  {viewer_url}')
 
-        # Verify the record is readable.
         print('\n  Verifying record is readable…')
         try:
             req = urllib.request.Request(
                 viewer_url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = json.loads(resp.read())
-            print(f'  Record confirmed. Outcome: {body.get("outcome")}  Agreement: {body.get("agreement_level")}')
+            print(f'  Record confirmed. Outcome: {body.get("outcome")}  '
+                  f'Agreement: {body.get("agreement_level")}  '
+                  f'Validators: {body.get("validator_count")}')
         except urllib.error.HTTPError as e:
             body_txt = e.read().decode('utf-8', errors='replace')
             print(f'  WARNING: Viewer returned HTTP {e.code}: {body_txt}')
         except OSError as e:
             print(f'  WARNING: Could not reach viewer: {e}')
 
-    # ── Low-level gateway URL (raw bytes — for debugging only) ──────────────────
+    # ── Raw gateway URL (debugging only) ────────────────────────────────────────
     gateway_url = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
     dna_hash    = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
-    app_id      = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
+    app_id      = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-researcher')
 
     if gateway_url and dna_hash and gateway_payload:
         raw_url = (
@@ -282,20 +329,26 @@ def display_result(result: dict):
         print(f'\n  Raw gateway URL (curl-only):\n  {raw_url}')
 
     print('\n' + '═' * 60)
-    print('  Demo complete. The protocol ran end-to-end.')
+    print('  Demo complete. The full ValiChord protocol ran end-to-end.')
+    print('  Researcher and 3 validators all commit-revealed simultaneously.')
     print('═' * 60)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     print('╔══════════════════════════════════════════════════════════╗')
-    print('║         ValiChord AI Validator Demo                     ║')
+    print('║    ValiChord AI Validator Demo — 3 Validators           ║')
     print('╚══════════════════════════════════════════════════════════╝')
+    print('  Researcher + 3 independent Claude validators.')
+    print('  Both sides commit-reveal symmetrically — neither can change')
+    print('  their result after the other has committed.')
+    print()
 
     readme, data_hash, _zip = load_study()
     actual_output            = execute_study()
-    verdict                  = form_verdict(readme, actual_output)
-    result                   = run_commit_reveal(data_hash, verdict)
+    metrics                  = parse_metrics(actual_output)
+    verdicts                 = form_verdicts(readme, actual_output)
+    result                   = run_full_protocol(data_hash, metrics, verdicts)
     display_result(result)
 
 if __name__ == '__main__':

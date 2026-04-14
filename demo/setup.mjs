@@ -130,6 +130,76 @@ async function main() {
     single_use: false,   // reusable across page reloads
   });
 
+  // ── Install multi-validator apps (researcher + 3 validators) ──────────────
+  // These four apps share network_seed 'valichord-demo-multi' (separate from
+  // the single-validator 'valichord-demo' network) and run on their own shared
+  // DHT with minimum_validators = 3.
+  // They demonstrate the full protocol: researcher commit-reveal + 3-validator
+  // blind commit + simultaneous dual reveal + HarmonyRecord.
+  const MULTI_APP_DEFS = [
+    { key: 'researcher',  appId: 'valichord-researcher'  },
+    { key: 'validator-1', appId: 'valichord-validator-1' },
+    { key: 'validator-2', appId: 'valichord-validator-2' },
+    { key: 'validator-3', appId: 'valichord-validator-3' },
+  ];
+
+  const allAppsNow = await admin.listApps({});
+  const multiAppsConfig = {};
+
+  for (const { key, appId } of MULTI_APP_DEFS) {
+    const alreadyMulti = allAppsNow.some(a => a.installed_app_id === appId);
+    if (!alreadyMulti) {
+      console.log(`Installing ${appId} (multi-validator, min_validators=3)…`);
+      await admin.installApp({
+        installed_app_id: appId,
+        source: { type: 'path', value: HAPP_PATH },
+        network_seed: 'valichord-demo-multi',
+        roles_settings: {
+          attestation: {
+            type: 'provisioned',
+            value: {
+              // 64 bytes — passes the ≥64-byte format check in genesis_self_check.
+              membrane_proof: new Uint8Array(64).fill(0x42),
+              modifiers: {
+                properties: {
+                  minimum_validators: 3,
+                  discipline: 'genomics',
+                  authorized_joining_certificate_issuer: '',   // dev bypass
+                },
+              },
+            },
+          },
+          governance: {
+            type: 'provisioned',
+            value: {
+              modifiers: {
+                properties: {
+                  system_coordinator_key: '',
+                  harmony_record_creator_key: '',
+                },
+              },
+            },
+          },
+        },
+      });
+      await admin.enableApp({ installed_app_id: appId });
+      console.log(`${appId} installed and enabled.`);
+    } else {
+      console.log(`${appId} already installed — skipping.`);
+      const existing = allAppsNow.find(a => a.installed_app_id === appId);
+      if (existing?.status?.type !== 'enabled') {
+        await admin.enableApp({ installed_app_id: appId });
+      }
+    }
+
+    const { token: multiToken } = await admin.issueAppAuthenticationToken({
+      installed_app_id: appId,
+      expiry_seconds: 0,
+      single_use: false,
+    });
+    multiAppsConfig[key] = { appId, token: Array.from(multiToken) };
+  }
+
   // ── Get the agent key + governance DNA hash ───────────────────────────────
   const { encodeHashToBase64 } = await import(pathToFileURL(clientPath).href);
   const updatedApps = await admin.listApps({});
@@ -172,6 +242,10 @@ async function main() {
     agentPubKey: Array.from(agentPubKey),
     appId: APP_ID,
     governanceDnaHash,   // used by start_oracle.sh to build the public HarmonyRecord URL
+    // Multi-agent apps for the 3-validator + researcher-reveal demo.
+    // Keys: 'researcher', 'validator-1', 'validator-2', 'validator-3'.
+    // Each entry: { appId: string, token: number[] }.
+    apps: multiAppsConfig,
   };
   const out = resolve(__dirname, 'app-config.json');
   writeFileSync(out, JSON.stringify(config, null, 2));
