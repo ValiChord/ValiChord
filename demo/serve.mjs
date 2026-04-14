@@ -546,8 +546,11 @@ const publicServer = createServer(async (req, res) => {
     if (recordMatch) {
       const hashB64 = recordMatch[1];
       try {
-        const padded = hashB64 + '='.repeat((4 - hashB64.length % 4) % 4);
-        const hashBytes = Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+        // encodeHashToBase64 from @holochain/client returns 'u' + base64url(bytes)
+        // where 'u' is a multibase prefix meaning "base64url no-padding".
+        // Strip it before decoding — including it corrupts the first byte.
+        const b64 = hashB64.startsWith('u') ? hashB64.slice(1) : hashB64;
+        const hashBytes = Buffer.from(b64, 'base64url');
         const record = await _withSession(async ({ call }) => {
           return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
         });
