@@ -241,35 +241,39 @@ def display_result(result: dict):
     print(f'  Validators:        {validator_count}')
     print(f'  HarmonyRecord:     {harmony_hash}')
 
+    # ── Shareable viewer URL (browser-friendly, no base64 in query string) ──────
+    # The bridge's /record/<hash> endpoint returns decoded human-readable JSON.
+    bridge_base = BRIDGE_URL  # e.g. http://132.145.34.27:5000 when run remotely
+    if harmony_hash:
+        viewer_url = f'{bridge_base}/record/{harmony_hash}'
+        print(f'\n  Shareable URL:\n  {viewer_url}')
+
+        # Verify the record is readable.
+        print('\n  Verifying record is readable…')
+        try:
+            req = urllib.request.Request(
+                viewer_url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = json.loads(resp.read())
+            print(f'  Record confirmed. Outcome: {body.get("outcome")}')
+        except urllib.error.HTTPError as e:
+            body_txt = e.read().decode('utf-8', errors='replace')
+            print(f'  WARNING: Viewer returned HTTP {e.code}: {body_txt}')
+        except OSError as e:
+            print(f'  WARNING: Could not reach viewer: {e}')
+
+    # ── Low-level gateway URL (raw bytes — for debugging only) ──────────────────
     gateway_url = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
     dna_hash    = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
     app_id      = os.environ.get('HOLOCHAIN_APP_ID', 'valichord-demo')
 
     if gateway_url and dna_hash and gateway_payload:
-        url = (
+        raw_url = (
             f'{gateway_url}/{dna_hash}/{app_id}'
             f'/governance_coordinator/get_harmony_record'
             f'?payload={gateway_payload}'
         )
-        print(f'\n  Permanent URL:\n  {url}')
-
-        # Verify the URL is live — proves the record is on the DHT.
-        print('\n  Verifying record is readable via HTTP Gateway…')
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                resp.read()   # consume body; 200 is sufficient proof
-            print('  Record confirmed on DHT.')
-        except urllib.error.HTTPError as e:
-            body_txt = e.read().decode('utf-8', errors='replace')
-            print(f'  WARNING: Gateway returned HTTP {e.code}: {body_txt}')
-        except OSError as e:
-            print(f'  WARNING: Could not reach gateway: {e}')
-    else:
-        print(
-            '\n  (Set HOLOCHAIN_GATEWAY_URL + HOLOCHAIN_GOVERNANCE_DNA_HASH'
-            ' to generate the public URL)'
-        )
+        print(f'\n  Raw gateway URL (curl-only):\n  {raw_url}')
 
     print('\n' + '═' * 60)
     print('  Demo complete. The protocol ran end-to-end.')
