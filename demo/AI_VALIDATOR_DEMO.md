@@ -16,7 +16,7 @@ What happens when you run it:
 - **Three independent Claude AI agents** each read the study README and the actual execution output and form their own reproducibility verdict — without seeing each other's. Three separate API calls; three separate judgements.
 - All three validators **commit their verdicts blind** to the shared Holochain DHT. The content stays hidden; only the commitment hash is visible.
 - A **phase gate** on the Holochain network opens automatically when all three commitment anchors are confirmed — no manual trigger, no trusted coordinator.
-- **Both sides reveal simultaneously.** The researcher's reveal is verified on the Holochain network: `SHA-256(msgpack(metrics) || nonce)` is recomputed and checked against the hash committed at submission. This is cryptographic proof they did not adjust their claimed results after seeing what the validators found.
+- **Both sides reveal simultaneously.** The researcher's reveal is cryptographically verified on the Holochain network: `SHA-256(msgpack(metrics) || nonce)` is recomputed and checked against the hash committed at submission — proof they did not adjust their claimed results after seeing what the validators found. The validator reveal hash check is implemented in the Rust zome and covered by integration tests, but the demo bridge passes an empty nonce (dev bypass) rather than the real nonce from the seal step. This is the one remaining gap between the demo and a fully production protocol run.
 - A **HarmonyRecord** is written to the public Governance DHT. It is readable at a shareable URL within seconds.
 
 ---
@@ -24,10 +24,11 @@ What happens when you run it:
 ## What the demo proves
 
 - **The full protocol runs end-to-end.** 8 internal steps, no manual intervention, ~2 minutes wall time.
-- **Researcher and validators are fully symmetric.** Neither side can change their result after the other has committed. The envelopes are sealed before anyone opens theirs.
+- **The commit phase is fully blind and symmetric.** Neither side can change their result after the other has committed. All commitments are sealed on the DHT before any reveal is permitted.
 - **All 3 validators commit blind.** The phase gate in DNA 3 enforces that no reveal is accepted until all 3 CommitmentAnchors are on the DHT.
 - **The researcher reveal is cryptographically verified on the Holochain network.** `reveal_researcher_result` recomputes `SHA-256(msgpack(metrics) || nonce)` and compares it against the hash published at submission. There is no trust assumption — the check is in the zome code.
-- **AI validators are first-class citizens.** Same zome functions, same commit-reveal guarantees as human validators.
+- **The validator reveal hash check is implemented in Rust and integration-tested** — but the demo bridge uses a dev bypass (empty nonce) for the validator reveal step. This is the one production gap in the demo. See the protocol table below.
+- **AI validators are first-class citizens.** Same zome functions, same DHT entries, same phase gate as human validators.
 - **The HarmonyRecord is permanent and publicly verifiable.** Anyone can fetch it at the shareable URL and read the outcome, agreement level, discipline, and validator count in clean JSON — no Holochain node, no API key, no authentication.
 
 ---
@@ -331,7 +332,7 @@ The protocol is symmetric. Neither the researcher nor any validator can change t
 | (2–4) Validators commit | `validator_workspace` DNA | Each seals verdict privately; CommitmentAnchor published to shared DHT |
 | (5) Phase gate | `attestation` DNA | RevealOpen PhaseMarker written once all 3 CommitmentAnchors confirmed |
 | (6a) Researcher reveals | `attestation` DNA | `reveal_researcher_result` verifies SHA-256 on-chain; ResearcherReveal published |
-| (6b) Validators reveal | `attestation` DNA | Each publishes ValidationAttestation; dev bypass skips hash check |
+| (6b) Validators reveal | `attestation` DNA | Each publishes ValidationAttestation. **Dev bypass:** bridge passes `nonce: []` (empty), so the on-chain hash check is skipped. The Rust check — `SHA-256(msgpack(attestation) \|\| nonce) == CommitmentAnchor.commitment_hash` — is fully implemented and integration-tested; wiring the real nonce from the seal step through the bridge is the remaining production gap. |
 | (7) HarmonyRecord | `governance` DNA | Permanent immutable record on public DHT |
 
 **Why the researcher also commits**: The commitment is a two-way blind. First, it prevents the researcher from waiting to see all validator outputs and then claiming their result matches — the hash published at step (0) locks them in before any validator commits. Second, and equally important, it prevents validators from seeing the researcher's claimed values before forming their own verdict. Validators see only the commitment hash during the commit phase — not the actual metrics — so their assessment cannot be anchored or biased by what the researcher claimed. Both directions of information leakage are blocked by the same mechanism.
