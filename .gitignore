@@ -26,3 +26,4 @@ demo/holochain-config.env
 tweets_clean.csv
 backend/app.log
 demo/bootstrap.log
+demo/serve.log
