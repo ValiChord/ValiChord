@@ -534,10 +534,12 @@ const publicServer = createServer(async (req, res) => {
       const dnaHash    = process.env.HOLOCHAIN_GOVERNANCE_DNA_HASH || '';
       const appId      = process.env.HOLOCHAIN_APP_ID || 'valichord-demo';
       if (gatewayUrl && dnaHash && result.gateway_payload) {
+        // URL-encode = padding as %3D so the URL is safe to paste into any browser.
+        const encodedPayload = result.gateway_payload.replace(/=/g, '%3D');
         result.harmony_record_url =
           `${gatewayUrl}/${dnaHash}/${appId}` +
           `/governance_coordinator/get_harmony_record` +
-          `?payload=${result.gateway_payload}`;
+          `?payload=${encodedPayload}`;
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });

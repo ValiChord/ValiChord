@@ -33,6 +33,7 @@ import uuid
 import zipfile
 import tempfile
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 DEMO_DIR    = Path(__file__).parent
@@ -241,6 +242,20 @@ def display_result(result: dict):
             f'?payload={encoded_payload}'
         )
         print(f'\n  Permanent URL:\n  {url}')
+
+        # Immediately verify the URL by fetching it — proves the record is on the DHT.
+        print('\n  Verifying record is readable via HTTP Gateway…')
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = json.loads(resp.read())
+            print('  Gateway response:')
+            print('  ' + json.dumps(body, indent=2).replace('\n', '\n  '))
+        except urllib.error.HTTPError as e:
+            body_txt = e.read().decode('utf-8', errors='replace')
+            print(f'  WARNING: Gateway returned HTTP {e.code}: {body_txt}')
+        except OSError as e:
+            print(f'  WARNING: Could not reach gateway: {e}')
     else:
         print(
             '\n  (Set HOLOCHAIN_GATEWAY_URL + HOLOCHAIN_GOVERNANCE_DNA_HASH'
