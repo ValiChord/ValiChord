@@ -320,7 +320,8 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     const gatewayPayload = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
 
     return {
-      harmony_record_hash: harmonyRecordHash,
+      harmony_record_hash: harmonyRecordHash,   // ActionHash of the HarmonyRecord entry
+      external_hash_b64:   externalHashB64,      // ExternalHash — lookup key for /record/ URLs
       gateway_payload:     gatewayPayload,
       // Human-readable summary — avoids Python having to decode msgpack byte arrays
       // from the raw gateway response.

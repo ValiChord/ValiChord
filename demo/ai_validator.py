@@ -228,8 +228,9 @@ def run_commit_reveal(data_hash: str, verdict: dict) -> dict:
 def display_result(result: dict):
     banner(7, 7, 'Permanent record.')
 
-    harmony_hash    = result.get('harmony_record_hash')
-    gateway_payload = result.get('gateway_payload')
+    harmony_hash      = result.get('harmony_record_hash')  # ActionHash of the record entry
+    external_hash_b64 = result.get('external_hash_b64')    # ExternalHash — lookup key
+    gateway_payload   = result.get('gateway_payload')
 
     # Summary fields returned directly by the bridge (no msgpack decoding needed).
     outcome_type    = result.get('outcome_type',    'Unknown')
@@ -246,9 +247,11 @@ def display_result(result: dict):
     print(f'  HarmonyRecord:     {harmony_hash}')
 
     # ── Shareable viewer URL (browser-friendly, no base64 in query string) ──────
-    # /record/<hash> lives on the public server (port 5000), not the internal bridge.
-    if harmony_hash:
-        viewer_url = f'{PUBLIC_URL}/record/{harmony_hash}'
+    # Uses the ExternalHash (data hash) — that is what get_harmony_record() looks up.
+    # The ActionHash (harmony_record_hash) is the DHT entry address, not the lookup key.
+    lookup_hash = external_hash_b64 or harmony_hash
+    if lookup_hash:
+        viewer_url = f'{PUBLIC_URL}/record/{lookup_hash}'
         print(f'\n  Shareable URL:\n  {viewer_url}')
 
         # Verify the record is readable.
