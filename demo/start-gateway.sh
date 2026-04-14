@@ -34,21 +34,14 @@ export HC_GW_ZOME_CALL_TIMEOUT_MS=15000
 echo "Starting Holochain HTTP Gateway on port ${GATEWAY_PORT}..."
 echo ""
 echo "Governance DNA hash (needed for HOLOCHAIN_GOVERNANCE_DNA_HASH env var):"
-node -e "
-const { AdminWebsocket, encodeHashToBase64 } = require('$(pwd)/valichord/tests/node_modules/@holochain/client/lib/index.js');
-(async () => {
-  const admin = await AdminWebsocket.connect({ url: new URL('ws://localhost:${ADMIN_PORT}'), wsClientOptions: { origin: 'valichord-bridge' }, defaultTimeout: 10000 });
-  const apps = await admin.listApps({});
-  const app = apps.find(a => a.installed_app_id === '${APP_ID}');
-  for (const [role, cells] of Object.entries(app.cell_info)) {
-    if (role === 'governance') {
-      const cellId = cells[0]?.value?.cell_id;
-      if (cellId) console.log(encodeHashToBase64(cellId[0]));
-    }
-  }
-  await admin.client.close();
-})().catch(e => { console.error('Could not get DNA hash:', e.message); process.exit(1); });
-" 2>/dev/null
+python3 -c "
+import json, sys
+try:
+    c = json.load(open('$(dirname "$0")/app-config.json'))
+    print(c.get('governanceDnaHash', '(not found)'))
+except Exception as e:
+    print('Could not read app-config.json:', e, file=sys.stderr)
+" 2>/dev/null || true
 echo ""
 echo "Gateway URL base: http://localhost:${GATEWAY_PORT}"
 echo ""
