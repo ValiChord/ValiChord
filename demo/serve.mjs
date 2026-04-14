@@ -877,19 +877,29 @@ const publicServer = createServer(async (req, res) => {
         // Strip it before decoding — including it corrupts the first byte.
         const b64 = hashB64.startsWith('u') ? hashB64.slice(1) : hashB64;
         const hashBytes = Buffer.from(b64, 'base64url');
-        // Try the legacy single-validator network first, then the multi-validator network.
-        // They are separate DHTs (different network_seed) so a record created by one
-        // is not visible to the other — we must check both.
-        let record = await _withSession(async ({ call }) => {
-          return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
-        });
+        // Try both networks; swallow errors (stale token, app not installed, tx5)
+        // so neither path causes a 502.  Return 404 only if both return null.
+        //
+        // Check multi-validator network first — the 3-validator demo writes there.
+        // Fall back to the legacy single-validator network for backward compat.
+        let record = null;
+
+        try {
+          record = await _withSession(async ({ call }) => {
+            return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
+          }, 'researcher');
+        } catch (e) {
+          console.error(`[/record] researcher lookup error: ${e.message}`);
+        }
+
         if (!record) {
-          // Fallback: check the multi-validator network (valichord-researcher app).
           try {
             record = await _withSession(async ({ call }) => {
               return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
-            }, 'researcher');
-          } catch { /* app not installed yet — ignore */ }
+            });
+          } catch (e) {
+            console.error(`[/record] legacy lookup error: ${e.message}`);
+          }
         }
         if (!record) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
