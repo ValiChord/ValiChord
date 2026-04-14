@@ -315,7 +315,17 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     const b64 = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
     const gatewayPayload = b64 + '='.repeat((4 - b64.length % 4) % 4);
 
-    return { harmony_record_hash: harmonyRecordHash, gateway_payload: gatewayPayload };
+    return {
+      harmony_record_hash: harmonyRecordHash,
+      gateway_payload:     gatewayPayload,
+      // Human-readable summary — avoids Python having to decode msgpack byte arrays
+      // from the raw gateway response.
+      outcome_type:    outcome?.type    ?? 'Unknown',
+      confidence:      conf,
+      discipline_type: disc?.type       ?? 'Unknown',
+      agreement_level: agreementLevel,
+      validator_count: 1,
+    };
   });
 }
 

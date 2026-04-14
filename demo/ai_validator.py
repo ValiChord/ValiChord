@@ -227,7 +227,19 @@ def display_result(result: dict):
     harmony_hash    = result.get('harmony_record_hash')
     gateway_payload = result.get('gateway_payload')
 
-    print(f'  HarmonyRecord hash: {harmony_hash}')
+    # Summary fields returned directly by the bridge (no msgpack decoding needed).
+    outcome_type    = result.get('outcome_type',    'Unknown')
+    confidence      = result.get('confidence',      'Unknown')
+    discipline_type = result.get('discipline_type', 'Unknown')
+    agreement_level = result.get('agreement_level', 'Unknown')
+    validator_count = result.get('validator_count', 1)
+
+    print(f'  Outcome:           {outcome_type}')
+    print(f'  Agreement level:   {agreement_level}')
+    print(f'  Confidence:        {confidence}')
+    print(f'  Discipline:        {discipline_type}')
+    print(f'  Validators:        {validator_count}')
+    print(f'  HarmonyRecord:     {harmony_hash}')
 
     gateway_url = os.environ.get('HOLOCHAIN_GATEWAY_URL', '').rstrip('/')
     dna_hash    = os.environ.get('HOLOCHAIN_GOVERNANCE_DNA_HASH', '')
@@ -243,14 +255,13 @@ def display_result(result: dict):
         )
         print(f'\n  Permanent URL:\n  {url}')
 
-        # Immediately verify the URL by fetching it — proves the record is on the DHT.
+        # Verify the URL is live — proves the record is on the DHT.
         print('\n  Verifying record is readable via HTTP Gateway…')
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
             with urllib.request.urlopen(req, timeout=15) as resp:
-                body = json.loads(resp.read())
-            print('  Gateway response:')
-            print('  ' + json.dumps(body, indent=2).replace('\n', '\n  '))
+                resp.read()   # consume body; 200 is sufficient proof
+            print('  Record confirmed on DHT.')
         except urllib.error.HTTPError as e:
             body_txt = e.read().decode('utf-8', errors='replace')
             print(f'  WARNING: Gateway returned HTTP {e.code}: {body_txt}')
