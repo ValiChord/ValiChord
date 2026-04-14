@@ -561,14 +561,18 @@ const publicServer = createServer(async (req, res) => {
         }
 
         // get_harmony_record returns a raw Holochain Record (action + entry bytes).
-        // Decode the entry bytes with msgpack to get the HarmonyRecord struct fields.
-        // record.entry.Present is a Uint8Array → _serialize turned it into { __bytes: base64 }.
+        // @holochain/client RecordEntry structure (confirmed from tests/governance.test.ts):
+        //   record.entry = { Present: { entry_type: "App", entry: Uint8Array } }
+        // After _serialize:
+        //   record.entry = { Present: { entry_type: "App", entry: { __bytes: "base64..." } } }
         let hr = {};
         try {
           const { decode: msgpackDecode } = await import('@msgpack/msgpack');
-          const entryBase64 = record?.entry?.Present?.__bytes ?? null;
+          const entryBase64 = record?.entry?.Present?.entry?.__bytes ?? null;
           if (entryBase64) {
             hr = msgpackDecode(Buffer.from(entryBase64, 'base64')) ?? {};
+          } else {
+            console.error(`[/record] no entry bytes — structure: ${JSON.stringify(record?.entry)}`);
           }
         } catch (decErr) {
           console.error(`[/record] msgpack decode: ${decErr.message}`);
