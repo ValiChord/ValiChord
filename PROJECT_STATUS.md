@@ -1,13 +1,13 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-04-14 (end-to-end demo working; output cleaned up)
-**Phase:** Demo runs end-to-end on Oracle. Three cleanup items before sharing with Advait.
+**Last updated:** 2026-04-14
+**Phase:** Full protocol live on Oracle. 3-validator + researcher reveal + production-grade commit-reveal running end-to-end. v0.3.0 released.
 
 ---
 
 ## What ValiChord does (one paragraph)
 
-ValiChord is a scientific reproducibility verification system. Researchers submit a deposit (ZIP of code + data + docs). ValiChord runs 100+ automated checks plus Claude semantic analysis, maps the findings to a reproducibility verdict (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`), and writes that verdict as a tamper-evident **HarmonyRecord** to a Holochain DHT using a blind commit-reveal protocol. The record is cryptographically permanent — no central party can alter it after the fact.
+ValiChord is a scientific reproducibility verification system. Researchers submit a deposit (ZIP of code + data + docs). ValiChord runs 100+ automated checks plus Claude semantic analysis, maps the findings to a reproducibility verdict (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`), and writes that verdict as a tamper-evident **HarmonyRecord** to a Holochain DHT using a fully symmetric blind commit-reveal protocol. The record is cryptographically permanent — no central party can alter it after the fact.
 
 ---
 
@@ -22,60 +22,71 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Holochain conductor | **Live on Oracle** | Governance + Attestation + Workspace + Researcher DNAs — always-on at 132.145.34.27 |
-| Node.js bridge (`demo/serve.mjs`) | **Live on Oracle** | Runs 7-step commit-reveal round; exposes `POST /holochain/validate-round` |
-| HTTP Gateway (`hc-http-gw`) | **Live on Oracle** | Port 8090 — started by `start_oracle.sh` via `start-gateway.sh` |
-| AI validator demo (`demo/ai_validator.py`) | **Working end-to-end** | Load study → execute → Claude verdict → commit-reveal → HarmonyRecord written + URL verified |
-| Permanent HarmonyRecord URL | **Working** | `ai_validator.py` auto-loads `demo/holochain-config.env` (written by `start_oracle.sh`), constructs URL, verifies 200 from gateway |
-| Demo output | **Clean** | Step 7 shows outcome/agreement/confidence/discipline fields — no more raw byte arrays |
+| Holochain conductor | **Live on Oracle** | 5 apps: `valichord-demo` (single-validator) + `valichord-researcher/validator-1/2/3` (3-validator) |
+| Node.js bridge (`demo/serve.mjs`) | **Live on Oracle** | `POST /holochain/validate-round-multi` (3-validator) + `POST /holochain/validate-round` (single-validator) |
+| Public API (`demo/serve.mjs`, port 5000) | **Live on Oracle** | Authenticated endpoints + unauthenticated `GET /record/<hash>` |
+| HTTP Gateway (`hc-http-gw`) | **Live on Oracle** | Port 8090 — started by `start_oracle.sh` |
+| AI validator demo (`demo/ai_validator.py`) | **Working end-to-end** | 3 Claude validators + researcher reveal + fully verified commit-reveal → HarmonyRecord + shareable URL |
+| Permanent HarmonyRecord URL | **Working** | `GET /record/<hash>` — no auth, any browser, returns clean JSON |
 | Feynman skill (was PR #13) | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal; Feynman now at 0.2.16, ValiChord tracked as PR #23 |
-
-**Demo endpoint (Codespace, sleeps when inactive):**
-`https://improved-space-couscous-5gjwpp546jrg27p5q-5000.app.github.dev`
 
 ---
 
 ## How the demo runs end-to-end
 
 ```
-bash demo/start_oracle.sh
-  1. Starts Holochain conductor (admin port 4444)
-  2. Waits 30s for tx5/WebRTC relay registration to complete
-  3. Runs setup.mjs — installs app, creates app-config.json
-  4. Extracts governance DNA hash → writes demo/holochain-config.env
-  5. Starts Node.js bridge (port 8888) — serve.mjs
-  6. Starts hc-http-gw (port 8090) — start-gateway.sh
+bash demo/start_oracle.sh --fresh
+  1. Clears conductor_data/ (--fresh)
+  2. Starts Holochain conductor (admin port 4444)
+  3. Starts local kitsune2 bootstrap server (port 9000)
+  4. Runs setup.mjs — installs 5 apps, creates app-config.json
+  5. Extracts governance DNA hash → writes demo/holochain-config.env
+  6. Starts Node.js bridge (port 8888 internal, port 5000 public)
+  7. Starts hc-http-gw (port 8090)
 
 python3 demo/ai_validator.py
-  Step 1: Load synthetic study (ZIP + SHA-256 hash)
-  Step 2: Execute study.py → deterministic output
-  Step 3: Claude verdict (claude-opus-4-6) → {outcome, confidence, reasoning}
-  Step 4-6: Bridge runs full 7-step commit-reveal:
-    publish_validator_profile → submit_validation_request → claim_study
-    → receive_task → seal_private_attestation → poll phase → submit_attestation
-    → check_and_create_harmony_record
-  Step 7: Display permanent URL + verify 200 from gateway
+  [1/7] Load synthetic study (ZIP + per-run UUID salt → SHA-256 ExternalHash)
+  [2/7] Execute study.py → slope 2.4086 / intercept 1.1742 / R² 0.9991
+  [3/7] 3 independent Claude API calls (claude-opus-4-6) → verdicts
+  [4/7] POST /holochain/validate-round-multi → serve.mjs _runFullProtocolRound():
+    (0) lock_researcher_result       — SHA-256(msgpack(metrics) || nonce) sealed privately
+        publish_researcher_commitment — hash only on shared DHT
+    (1) submit_validation_request     — num_validators_required=3
+    (2-4) each validator: profile → claim → receive_task → seal_private_attestation
+          post_commit → CommitmentAnchor on shared DHT
+    (5) poll get_current_phase until RevealOpen
+    (6a) reveal_researcher_result     — SHA-256 verified on-chain
+    (6b) each validator: get_private_attestation_for_task → extract nonce
+         submit_attestation            — SHA-256(msgpack(attestation) || nonce) verified on-chain
+    (7) check_and_create_harmony_record → HarmonyRecord on public Governance DHT
+  [5/7] All commitments sealed and revealed.
+  [6/7] Researcher result verified + 3 validator attestations on DHT.
+  [7/7] Display outcome + shareable URL + verify record is readable in browser
 ```
 
 **Demo output (step 7):**
 ```
 [7/7] Permanent record.
 ────────────────────────────────────────────────────────────
-  Outcome:           Reproduced
+  Outcome:           Reproduced (3/3 validators)
   Agreement level:   ExactMatch
-  Confidence:        High
   Discipline:        ComputationalBiology
-  Validators:        1
-  HarmonyRecord:     uhCkk...
+  HarmonyRecord:     uhC8k…
+  Researcher reveal: uhCkk…
 
-  Permanent URL:
-  http://132.145.34.27:8090/uhC0k.../governance_coordinator/get_harmony_record?payload=...
+  Validator 1: Reproduced (High) — …
+  Validator 2: Reproduced (High) — …
+  Validator 3: Reproduced (High) — …
 
-  Verifying record is readable via HTTP Gateway…
-  Record confirmed on DHT.
+  Shareable URL:
+  http://132.145.34.27:5000/record/uhC8k…
+
+  Verifying record is readable…
+  Record confirmed. Outcome: {'type': 'Reproduced'}  Agreement: ExactMatch  Validators: 3
 
 ════════════════════════════════════════════════════════════
-  Demo complete. The protocol ran end-to-end.
+  Demo complete. The full ValiChord protocol ran end-to-end.
+  Researcher and 3 validators all commit-revealed simultaneously.
 ════════════════════════════════════════════════════════════
 ```
 
@@ -107,7 +118,7 @@ Feynman is an AI research agent CLI. It is an **API client**, not a Holochain pe
 
 ---
 
-## What is NOT done yet (next session priority order)
+## What is NOT done yet
 
 ### 1. `ANTHROPIC_API_KEY` persistent on Oracle — HIGH, 2 min fix
 Currently must be manually exported each SSH session. Blocks unattended demo runs.
@@ -116,82 +127,55 @@ Currently must be manually exported each SSH session. Blocks unattended demo run
 echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
 ```
 
-### 2. Port 5000 external access — MEDIUM, needs investigation
-`iptables` rule exists for port 5000. Oracle Security List has port 5000 open.
-But `curl http://132.145.34.27:5000/health` from external times out.
-Flask is bound to `0.0.0.0:5000` on the server.
-Hypothesis: Oracle Security List rule may have a different protocol/port entry, or
-Flask isn't actually running. Check:
-```bash
-ss -tlnp | grep 5000        # is Flask listening?
-sudo iptables -L INPUT -n   # is the iptables rule right?
-# Oracle Console → VCN → Security Lists → Ingress Rules → check TCP 5000 entry
-```
-This matters for the Feynman REST integration (remote call to `POST /validate`).
-The Holochain gateway (port 8090) IS accessible from external — only port 5000 fails.
-
-### 3. `hc-http-gw` PATH on Oracle — LOW, may already be working
-Previous check showed `which hc-http-gw` returned nothing (not in PATH).
-`start_oracle.sh` calls `bash demo/start-gateway.sh` — check whether that script
-handles the PATH correctly or hardcodes the binary location.
-```bash
-ls ~/.cargo/bin/hc-http-gw   # is it installed?
-# If yes, start-gateway.sh just needs: export PATH="$HOME/.cargo/bin:$PATH"
-```
-The gateway IS serving port 8090 correctly during demo runs (URL verifies 200),
-so this may be resolved already or `start-gateway.sh` sets PATH internally.
-
-### 4. Feynman PR #23 — MEDIUM, needs read before integration work
+### 2. Feynman PR #23 — MEDIUM, needs read before integration work
 ValiChord is PR #23 in the Feynman repo. Before doing any more Feynman integration
 work, read what PR #23 actually contains. PRs #14 and #15 may have been folded in
 or superseded.
 
-### 5. Rate limiting — LOW
+### 3. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
-
-### 6. Multi-agent rounds — LONG TERM
-Currently `minimum_validators=1` (dev bypass). Production needs multiple validators.
 
 ---
 
 ## Key technical facts for the next session
 
-### tx5 timing fix (why the 30s wait exists)
-Holochain 0.6.0 uses tx5/WebRTC transport via the external SBD relay at
-`dev-test-bootstrap2.holochain.org`. The relay registration takes ~30s after
-conductor startup. `get_links` in `claim_study` propagates any tx5 send error
-as a fatal WasmError — no local fallback. Two mitigations:
-1. `start_oracle.sh` waits 30s after admin port ready before running setup
-2. `serve.mjs` wraps `claim_study` in `_retryOnTx5()` (5 retries × 4s)
+### tx5 / kitsune2 bootstrap
+Holochain 0.6.0 uses tx5/WebRTC transport. Oracle uses a local `kitsune2-bootstrap-srv`
+(pre-compiled binary in `demo/bin/`) on port 9000 — avoids dependency on the external
+`dev-test-bootstrap2.holochain.org` relay which caused intermittent peer-discovery timeouts.
+`serve.mjs` wraps `claim_study` in `_retryOnTx5()` (10 retries × 6s).
+
+### Per-run UUID salt
+`ai_validator.py` salts the data hash: `SHA-256(data_bytes + run_id)` where `run_id` is
+16 random bytes. Ensures each run presents a fresh `ExternalHash` and avoids DHT
+"already claimed" capacity errors on repeated runs against the same conductor.
+Use `--fresh` with `start_oracle.sh` between runs to clear conductor state if needed.
 
 ### hc-http-gw URL format (verified from source)
 ```
 http://<host>:8090/<dna_hash>/<app_id>/<zome_name>/<fn_name>?payload=<base64url-padded>
 ```
 - Payload = BASE64_URL_SAFE **with** `=` padding of JSON-encoded input
-- `%3D` in URL query string is URL-decoded to `=` by axum before base64 decode
 - For `get_harmony_record`: payload = base64url(JSON.stringify(externalHashB64))
 - Response is msgpack-decoded — HoloHash fields are byte arrays, not strings
-  (the Python demo no longer dumps the raw response; just checks HTTP 200)
 
-### Bridge returns human-readable summary fields
-`POST /holochain/validate-round` response now includes:
-```json
-{
-  "harmony_record_hash": "uhCkk...",
-  "gateway_payload": "...",
-  "outcome_type": "Reproduced",
-  "confidence": "High",
-  "discipline_type": "ComputationalBiology",
-  "agreement_level": "ExactMatch",
-  "validator_count": 1
-}
-```
+### Multi-app conductor setup
+Five apps on one conductor:
 
-### NetworkConfig — test-utils only
-`mem_bootstrap`, `disable_bootstrap`, `disable_gossip` are `#[cfg(feature = "test-utils")]`
-and are NOT available in the production `holochain` binary.
-`conductor-config.yaml` must use `network.bootstrap_url` + `network.signal_url`.
+| App | Network seed | `minimum_validators` | Role |
+|---|---|---|---|
+| `valichord-demo` | `valichord-demo` | 1 | Legacy single-validator |
+| `valichord-researcher` | `valichord-demo-multi` | 3 | Researcher identity |
+| `valichord-validator-1/2/3` | `valichord-demo-multi` | 3 | Validators |
+
+Separate network seeds are required — multi-validator integrity zome rejects
+`num_validators_required=1` ValidationRequest entries.
+
+### Validator reveal — production-grade (as of 2026-04-14)
+After `seal_private_attestation`, `serve.mjs` calls `get_private_attestation_for_task`
+on DNA 2 to retrieve the real 32-byte nonce. This is passed to `submit_attestation`,
+which verifies `SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash`
+on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 
 ---
 
@@ -200,11 +184,12 @@ and are NOT available in the production `holochain` binary.
 | File | What it contains |
 |---|---|
 | `PROJECT_STATUS.md` | **This file** — current status, open work, technical facts |
-| `docs/Holochain_complete.md` | Complete Holochain build guide + section 25 (tx5 timing, hc-http-gw URL format, ExternalHash JS, NetworkConfig test-utils gating) |
+| `docs/Holochain_complete.md` | Complete Holochain build guide + tx5 timing, hc-http-gw URL format, ExternalHash JS, NetworkConfig |
+| `demo/AI_VALIDATOR_DEMO.md` | Full technical guide for the Oracle demo — architecture, expected output, commit-reveal table |
 | `demo/serve.mjs` | Node.js bridge — full commit-reveal round, `_retryOnTx5`, gateway payload encoding |
 | `demo/start_oracle.sh` | Oracle startup script — conductor, setup, DNS hash extraction, bridge + gateway |
 | `demo/ai_validator.py` | End-to-end AI validator demo |
-| `demo/conductor-config.yaml` | Conductor config (uses external bootstrap + signal URLs) |
+| `demo/conductor-config.yaml` | Conductor config (uses local bootstrap + signal URLs) |
 | `backend/app.py` | Flask REST API |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
 | `feynman_integration/INTEGRATION_VISION.md` | Feynman integration architecture |
@@ -219,8 +204,8 @@ and are NOT available in the production `holochain` binary.
 | IP | 132.145.34.27 |
 | SSH key | `ssh-key-2026-04-13.key` (in `IMPORTANT FILES HERE\oracle cloud key`) |
 | SSH user | `ubuntu` |
-| HTTP Gateway | `http://132.145.34.27:8090` (open — working) |
-| Flask API | `http://132.145.34.27:5000` (open in Security List, but external access times out — see issue #2 above) |
+| Public API | `http://132.145.34.27:5000` (authenticated endpoints + `/record/<hash>` unauthenticated) |
+| HTTP Gateway | `http://132.145.34.27:8090` |
 | Bridge | `http://localhost:8888` (internal only) |
 | Admin socket | `localhost:4444` |
 | Repo path | `~/valichord` |
@@ -232,8 +217,7 @@ and are NOT available in the production `holochain` binary.
 ssh -i ssh-key-2026-04-13.key ubuntu@132.145.34.27
 cd ~/valichord && git pull
 export ANTHROPIC_API_KEY=sk-ant-...
-bash demo/start_oracle.sh        # starts everything; wait for "Stack is up"
-# In a second terminal:
+bash demo/start_oracle.sh --fresh   # wait for "=== Stack is up ==="
 python3 demo/ai_validator.py
 ```
 
