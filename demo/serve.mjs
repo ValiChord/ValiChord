@@ -538,6 +538,44 @@ const publicServer = createServer(async (req, res) => {
     return;
   }
 
+  // ── GET /record/<hash> — unauthenticated public viewer ──────────────────
+  // Must be before the API key gate so anyone can fetch a shareable URL.
+  {
+    const recordMatch = req.method === 'GET' && url.match(/^\/record\/([A-Za-z0-9_-]{30,})$/);
+    if (recordMatch) {
+      const hashB64 = recordMatch[1];
+      try {
+        const padded = hashB64 + '='.repeat((4 - hashB64.length % 4) % 4);
+        const hashBytes = Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+        const record = await _withSession(async ({ call }) => {
+          return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
+        });
+        if (!record) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Record not found' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json',
+                             'Cache-Control': 'public, max-age=3600' });
+        res.end(JSON.stringify({
+          harmony_record_hash: hashB64,
+          outcome:         record.outcome         ?? null,
+          agreement_level: record.outcome_summary?.overall_agreement ?? null,
+          confidence:      record.confidence      ?? null,
+          discipline:      record.discipline      ?? null,
+          validator_count: Array.isArray(record.participating_validators)
+                             ? record.participating_validators.length : 1,
+        }, null, 2));
+      } catch (err) {
+        const msg = err.message ?? String(err);
+        console.error(`[/record]: ${msg}`);
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+  }
+
   // ── API key gate ────────────────────────────────────────────────────────
   const provided = req.headers['x-valichord-key'] ?? '';
   if (!PUBLIC_API_KEY || provided !== PUBLIC_API_KEY) {
@@ -585,52 +623,6 @@ const publicServer = createServer(async (req, res) => {
     } catch (err) {
       const msg = err.message ?? String(err);
       console.error(`[public /validate-round]: ${msg}`);
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: msg }));
-    }
-    return;
-  }
-
-  // ── GET /record/<external-hash-b64>  — unauthenticated, human-readable ───
-  // Returns the decoded HarmonyRecord for a given study hash.
-  // Shareable URL — works in any browser, no base64 encoding issues.
-  // ── GET /record/<external-hash-b64>  — unauthenticated, human-readable ───
-  // Returns the decoded HarmonyRecord for a given study hash.
-  // Shareable URL — works in any browser, no base64 encoding issues.
-  const recordMatch = req.method === 'GET' && url.match(/^\/record\/([A-Za-z0-9_-]{30,})$/);
-  if (recordMatch) {
-    const hashB64 = recordMatch[1];
-    try {
-      // Decode base64url → bytes (ExternalHash is 39 bytes).
-      const padded = hashB64 + '='.repeat((4 - hashB64.length % 4) % 4);
-      const hashBytes = Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-
-      const record = await _withSession(async ({ call }) => {
-        return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
-      });
-
-      if (!record) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Record not found' }));
-        return;
-      }
-
-      // record is _serialized: binary fields as {__bytes:...}, enums as plain objects.
-      res.writeHead(200, { 'Content-Type': 'application/json',
-                           'Access-Control-Allow-Origin': '*',
-                           'Cache-Control': 'public, max-age=3600' });
-      res.end(JSON.stringify({
-        harmony_record_hash: hashB64,
-        outcome:         record.outcome         ?? null,
-        agreement_level: record.outcome_summary?.overall_agreement ?? null,
-        confidence:      record.confidence      ?? null,
-        discipline:      record.discipline      ?? null,
-        validator_count: Array.isArray(record.participating_validators)
-                           ? record.participating_validators.length : 1,
-      }, null, 2));
-    } catch (err) {
-      const msg = err.message ?? String(err);
-      console.error(`[/record]: ${msg}`);
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: msg }));
     }
