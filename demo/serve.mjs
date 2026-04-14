@@ -81,7 +81,8 @@ async function _retryOnTx5(fn, label, maxRetries = 5, delayMs = 4000) {
       return await fn();
     } catch (err) {
       const msg = err?.message ?? String(err);
-      const isTx5 = msg.includes('tx5') || msg.includes('Peer connection');
+      const isTx5 = msg.includes('tx5') || msg.includes('Peer connection') ||
+                    msg.includes('response channel dropped') || msg.includes('response timeout');
       if (!isTx5 || attempt === maxRetries) throw err;
       console.error(`[${label}] tx5 peer error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
       await _sleep(delayMs);
@@ -248,6 +249,7 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     await _retryOnTx5(
       () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
       'claim_study',
+      10, 6000,
     );
 
     // 3. Store the task in the private Validator Workspace DNA.

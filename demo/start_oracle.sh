@@ -58,8 +58,8 @@ done
 # Give the tx5 transport time to fully register with the SBD relay server
 # before any zome calls are made.  get_links calls the tx5 layer and returns
 # a fatal error if the relay registration is not yet complete.
-echo -n "  Waiting 30s for tx5 network layer to initialise"
-for i in $(seq 1 30); do sleep 1; echo -n "."; done
+echo -n "  Waiting 60s for tx5 network layer to initialise"
+for i in $(seq 1 60); do sleep 1; echo -n "."; done
 echo " done."
 
 # ── Run setup ─────────────────────────────────────────────────────────────────
