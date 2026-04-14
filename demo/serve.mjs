@@ -71,6 +71,24 @@ function _deserialize(v) {
 
 const _sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Retry wrapper for zome calls that touch the shared DHT.
+// In Holochain 0.6.0 with tx5/WebRTC transport, get_links fails with a fatal
+// "tx5 send error / Peer connection failed" if the relay registration hasn't
+// completed yet.  Retrying after a short wait resolves this.
+async function _retryOnTx5(fn, label, maxRetries = 5, delayMs = 4000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err?.message ?? String(err);
+      const isTx5 = msg.includes('tx5') || msg.includes('Peer connection');
+      if (!isTx5 || attempt === maxRetries) throw err;
+      console.error(`[${label}] tx5 peer error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
+      await _sleep(delayMs);
+    }
+  }
+}
+
 function _readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -224,7 +242,13 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     });
 
     // 2. Claim the study (required by notify_commitment_sealed's claim guard).
-    await call('attestation', 'attestation_coordinator', 'claim_study', externalHash);
+    // Wrapped in retry: claim_study calls get_links on the shared DHT, which
+    // fails with a tx5 "Peer connection failed" error if the relay registration
+    // isn't complete yet.  Retrying after a few seconds resolves this.
+    await _retryOnTx5(
+      () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
+      'claim_study',
+    );
 
     // 3. Store the task in the private Validator Workspace DNA.
     const taskHash = await call(
