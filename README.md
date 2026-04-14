@@ -13,6 +13,11 @@
 
 ---
 
+## 🎬 **[See it running → Live Demo: 3 AI Validators + Researcher Reveal on Oracle Cloud](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)**
+**The full commit-reveal protocol running on a live Holochain network. Researcher and 3 independent Claude AI validators all commit blind, reveal simultaneously — both sides hash-verified on-chain. Permanent public record readable at a URL with no auth.**
+
+---
+
 ## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
 *The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
 
