@@ -306,7 +306,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **Cryptographic commitment verification — FULLY RESOLVED 2026-03-18/20.**
 
-**Researcher side (fully implemented, 2026-03-18):** The full symmetric researcher commit-reveal is complete:
+**Researcher side (fully implemented, 2026-03-18):** The full symmetric researcher commit-reveal is complete. The commitment is a two-way blind: it prevents the researcher from adjusting their claimed values after seeing validator outputs, and it prevents validators from seeing the researcher's actual metric values before they commit their own verdicts (only the hash is on the DHT during the commit phase).
 - DNA 1 `lock_researcher_result(LockResultInput { request_ref, metrics: Vec<MetricResult> })` — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores private `LockedResult { request_ref, metrics, nonce, commitment_hash }` (immutable, private, never leaves device), calls `publish_researcher_commitment` in DNA 3.
 - DNA 1 `get_locked_result(request_ref)` — retrieves the private entry at reveal time.
 - DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on `check_all_commitments_sealed`, verifies hash on-chain against `ResearcherResultCommitment`, writes immutable `ResearcherReveal { request_ref, metrics }` to DHT.

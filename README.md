@@ -101,8 +101,9 @@ Test coverage includes:
 
 > **This is the core anti-gaming guarantee that makes ValiChord different from every other reproducibility system.**
 >
-> For the first time, a computational reproducibility system provides cryptographic proof of three things simultaneously:
+> For the first time, a computational reproducibility system provides cryptographic proof of four things simultaneously:
 > - Validators could not see each other's findings before committing their own
+> - Validators could not see the researcher's claimed values before forming their own verdict — only the commitment hash is visible during the commit phase, preventing anchoring or bias
 > - The researcher could not change their claimed results after seeing any validator's findings
 > - The comparison of researcher-declared values against validator-reproduced values is cryptographically genuine — not self-reported or trust-based
 >
@@ -110,7 +111,7 @@ Test coverage includes:
 
 The protocol is implemented across all four DNAs and is fully tested:
 
-0. **Researcher seals result** *(at submission, months before validators begin)* — `lock_researcher_result` in DNA 1 generates a 32-byte random nonce, computes `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores the structured metrics and nonce as a private `LockedResult` entry that never leaves the researcher's device, and automatically publishes only the hash to DNA 3 as a `ResearcherResultCommitment`. Validators can verify this commitment exists before accepting a study — the researcher is bound to their result from day one.
+0. **Researcher seals result** *(at submission, months before validators begin)* — `lock_researcher_result` in DNA 1 generates a 32-byte random nonce, computes `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores the structured metrics and nonce as a private `LockedResult` entry that never leaves the researcher's device, and automatically publishes only the hash to DNA 3 as a `ResearcherResultCommitment`. Validators can verify this commitment exists before accepting a study — the researcher is bound to their result from day one. Critically, only the hash is published: validators cannot see the actual metric values until after they have committed their own verdicts, preventing anchoring bias.
 1. **Validators commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine.
 2. **Anchors published** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT containing the `commitment_hash`. Everyone can verify the commitment happened and that it is cryptographically bound to a specific assessment — but the assessment content remains hidden.
 3. **Phase opens** — when all expected `CommitmentAnchor` entries are present, DNA 3 writes a `PhaseMarker(RevealOpen)` to the DHT. Validators discover this by polling, not by signal — ensuring no validator is disadvantaged by network latency.
