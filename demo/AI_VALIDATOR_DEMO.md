@@ -237,10 +237,82 @@ This endpoint (`GET /record/<external-hash-b64>`) is served by `demo/serve.mjs` 
 
 - Requires no authentication
 - Strips the multibase `u` prefix before base64url-decoding
-- Tries the legacy `valichord-demo` network first, then the `valichord-demo-multi` network (for 3-validator records)
+- Tries the `valichord-demo-multi` network first (3-validator records), then the legacy `valichord-demo` network (single-validator records)
 - Calls `get_harmony_record(ExternalHash)` on the Governance DNA
 - Decodes the entry bytes with `@msgpack/msgpack`
 - Returns clean JSON: `{ harmony_record_hash, outcome, agreement_level, discipline, validator_count }`
+
+---
+
+## The synthetic study — what the maths actually is
+
+The "research" in the demo is real computation, not a mock. It is deliberately simple so that any developer can verify it by hand.
+
+### The dataset
+
+`demo/synthetic_study/data.csv` contains 20 rows of paired observations:
+
+| `x` | `y` |
+|-----|-----|
+| 1 | 4.2 |
+| 2 | 5.8 |
+| 3 | 9.1 |
+| … | … |
+| 20 | 49.6 |
+
+`x` is a temperature variability index (unitless, 1–20). `y` is a species richness index (number of species at that site). The values are synthetic but follow a strong linear trend by design.
+
+### What `study.py` computes
+
+`study.py` is pure Python stdlib — no numpy, no scipy, no external dependencies. It computes ordinary least-squares linear regression from first principles in ~15 lines:
+
+**1. Means**
+
+```
+x̄ = Σxᵢ / n        ȳ = Σyᵢ / n
+```
+
+**2. Slope** (the OLS estimator β₁)
+
+```
+β₁ = Σ(xᵢ − x̄)(yᵢ − ȳ)  /  Σ(xᵢ − x̄)²
+```
+
+This minimises the sum of squared vertical residuals. It is the exact same formula used by every statistics package; `study.py` just spells it out explicitly.
+
+**3. Intercept** (β₀)
+
+```
+β₀ = ȳ − β₁ · x̄
+```
+
+The fitted line passes through the point (x̄, ȳ) by construction.
+
+**4. R² (coefficient of determination)**
+
+```
+SS_res = Σ(yᵢ − ŷᵢ)²        (sum of squared residuals — how much the line misses)
+SS_tot = Σ(yᵢ − ȳ)²          (total variance in y)
+R²     = 1 − SS_res / SS_tot
+```
+
+R² = 1 means the line fits perfectly. R² = 0 means the line does no better than predicting ȳ for every point.
+
+### The claimed results
+
+```
+Slope (coefficient): 2.4086
+Intercept:           1.1742
+R²:                  0.9991
+```
+
+The high R² (0.9991) is expected: the data was generated close to a straight line, so temperature variability is an excellent linear predictor of species richness *in this dataset*. This is not a surprising scientific finding — it is a designed property of the synthetic data that makes reproduction unambiguous.
+
+### What reproduction means here
+
+Each validator runs `study.py` and checks whether its output matches those three claimed values to 4 decimal places. There is no floating-point ambiguity: Python's `float` arithmetic is IEEE 754 and deterministic on any platform, so every independent run of `study.py` on `data.csv` produces identical output.
+
+This is the cleanest possible case for a reproducibility check — and intentionally so. ValiChord is being demonstrated, not the science.
 
 ---
 
