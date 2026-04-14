@@ -261,7 +261,7 @@ def display_result(result: dict):
                 viewer_url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = json.loads(resp.read())
-            print(f'  Record confirmed. Outcome: {body.get("outcome")}')
+            print(f'  Record confirmed. Outcome: {body.get("outcome")}  Agreement: {body.get("agreement_level")}')
         except urllib.error.HTTPError as e:
             body_txt = e.read().decode('utf-8', errors='replace')
             print(f'  WARNING: Viewer returned HTTP {e.code}: {body_txt}')

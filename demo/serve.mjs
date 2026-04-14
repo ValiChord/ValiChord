@@ -559,16 +559,37 @@ const publicServer = createServer(async (req, res) => {
           res.end(JSON.stringify({ error: 'Record not found' }));
           return;
         }
+
+        // get_harmony_record returns a raw Holochain Record (action + entry bytes).
+        // Decode the entry bytes with msgpack to get the HarmonyRecord struct fields.
+        // record.entry.Present is a Uint8Array → _serialize turned it into { __bytes: base64 }.
+        let hr = {};
+        try {
+          const { decode: msgpackDecode } = await import('@msgpack/msgpack');
+          const entryBase64 = record?.entry?.Present?.__bytes ?? null;
+          if (entryBase64) {
+            hr = msgpackDecode(Buffer.from(entryBase64, 'base64')) ?? {};
+          }
+        } catch (decErr) {
+          console.error(`[/record] msgpack decode: ${decErr.message}`);
+        }
+
+        // HarmonyRecord fields (from governance_integrity):
+        //   outcome: AttestationOutcome  (#[serde(tag="type")] → { type: "Reproduced" })
+        //   agreement_level: AgreementLevel  (no tag → plain string "ExactMatch")
+        //   discipline: Discipline  (#[serde(tag="type")] → { type: "ComputationalBiology" })
+        //   participating_validators: Vec<AgentPubKey>
+        //   validation_duration_secs: u64
+        // Note: confidence is on ValidationAttestation, not HarmonyRecord.
         res.writeHead(200, { 'Content-Type': 'application/json',
                              'Cache-Control': 'public, max-age=3600' });
         res.end(JSON.stringify({
           harmony_record_hash: hashB64,
-          outcome:         record.outcome         ?? null,
-          agreement_level: record.outcome_summary?.overall_agreement ?? null,
-          confidence:      record.confidence      ?? null,
-          discipline:      record.discipline      ?? null,
-          validator_count: Array.isArray(record.participating_validators)
-                             ? record.participating_validators.length : 1,
+          outcome:         hr.outcome         ?? null,
+          agreement_level: hr.agreement_level ?? null,
+          discipline:      hr.discipline      ?? null,
+          validator_count: Array.isArray(hr.participating_validators)
+                             ? hr.participating_validators.length : 1,
         }, null, 2));
       } catch (err) {
         const msg = err.message ?? String(err);
