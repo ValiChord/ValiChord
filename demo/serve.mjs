@@ -178,7 +178,8 @@ async function _holochainCall(role_name, zome_name, fn_name, payload) {
 //   3. receive_task               (validator_workspace)
 //   4. seal_private_attestation   (validator_workspace) → post_commit → notify_commitment_sealed
 //   5. poll get_current_phase until RevealOpen
-//   6. submit_attestation         (attestation)  — empty nonce uses dev bypass
+//   6. get_private_attestation_for_task (validator_workspace) → extract nonce
+//      submit_attestation (attestation) — SHA-256(msgpack(attestation) || nonce) verified on-chain
 //   7. check_and_create_harmony_record (governance) — explicit call fixes DHT timing
 async function _runValidationRound({ data_hash_hex, outcome, discipline, confidence,
                                      deposit_access_type, deposit_token, data_access_url }) {
@@ -299,11 +300,21 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
       await _sleep(500);
     }
 
-    // 6. Reveal — empty nonce is accepted because authorized_joining_certificate_issuer
-    //    is empty in dev mode, which bypasses hash verification in submit_attestation.
+    // 6. Retrieve the nonce from the private attestation, then reveal.
+    //    submit_attestation recomputes SHA-256(msgpack(attestation) || nonce) and
+    //    verifies it against CommitmentAnchor.commitment_hash on DNA 3.
+    const singlePrivateRecord = await call(
+      'validator_workspace', 'validator_workspace_coordinator',
+      'get_private_attestation_for_task', taskHash,
+    );
+    if (!singlePrivateRecord) throw new Error('get_private_attestation_for_task returned null');
+    const { decode: msgpackDecode } = await import('@msgpack/msgpack');
+    const singleEntryBase64 = singlePrivateRecord?.entry?.Present?.entry?.__bytes ?? null;
+    if (!singleEntryBase64) throw new Error('ValidatorPrivateAttestation entry bytes not found');
+    const singlePrivateAttestation = msgpackDecode(Buffer.from(singleEntryBase64, 'base64'));
     await call('attestation', 'attestation_coordinator', 'submit_attestation', {
       attestation: validationAttestation,
-      nonce:       new Uint8Array(0),
+      nonce:       singlePrivateAttestation.nonce,
     });
 
     // 7. Trigger HarmonyRecord creation explicitly. submit_attestation fires this
@@ -436,6 +447,7 @@ async function _runFullProtocolRound({
   // All three validators seal before any reveal.  The phase gate enforces this:
   // get_current_phase returns null until all 3 CommitmentAnchors are on the DHT.
   const validationAttestations = [];
+  const validatorNonces        = [];  // Uint8Array(32) per validator, from ValidatorPrivateAttestation
   for (let i = 0; i < 3; i++) {
     const verdict        = verdicts[i];
     const outcome        = { type: verdict.outcome };
@@ -516,6 +528,19 @@ async function _runFullProtocolRound({
         'validator_workspace', 'validator_workspace_coordinator', 'seal_private_attestation',
         { task_hash: taskHash, attestation: va },
       );
+
+      // Retrieve the private attestation to extract the nonce for reveal.
+      // Same pattern as the researcher side (get_locked_result → msgpack decode).
+      const privateRecord = await call(
+        'validator_workspace', 'validator_workspace_coordinator',
+        'get_private_attestation_for_task', taskHash,
+      );
+      if (!privateRecord) throw new Error(`get_private_attestation_for_task returned null for validator ${i + 1}`);
+      const { decode: msgpackDecode } = await import('@msgpack/msgpack');
+      const privateEntryBase64 = privateRecord?.entry?.Present?.entry?.__bytes ?? null;
+      if (!privateEntryBase64) throw new Error(`ValidatorPrivateAttestation entry bytes not found for validator ${i + 1}`);
+      const privateAttestation = msgpackDecode(Buffer.from(privateEntryBase64, 'base64'));
+      validatorNonces.push(privateAttestation.nonce);
     }, VALIDATOR_KEYS[i]);
   }
 
@@ -556,14 +581,15 @@ async function _runFullProtocolRound({
   }, 'researcher');
 
   // ── (6b) Each validator reveals ─────────────────────────────────────────────
-  // Dev bypass: hash check skipped (authorized_joining_certificate_issuer='').
-  // Production: nonce comes from ValidatorPrivateAttestation.nonce (DNA 2).
-  console.log('[multi-round] (6b) All 3 validators revealing attestations…');
+  // Nonce retrieved from ValidatorPrivateAttestation.nonce (DNA 2) after sealing.
+  // submit_attestation recomputes SHA-256(msgpack(attestation) || nonce) and
+  // verifies it against CommitmentAnchor.commitment_hash on DNA 3.
+  console.log('[multi-round] (6b) All 3 validators revealing attestations (hash verified on-chain)…');
   for (let i = 0; i < 3; i++) {
     await _withSession(async ({ call }) => {
       await call('attestation', 'attestation_coordinator', 'submit_attestation', {
         attestation: validationAttestations[i],
-        nonce:       new Uint8Array(0),   // dev bypass
+        nonce:       validatorNonces[i],
       });
     }, VALIDATOR_KEYS[i]);
   }
