@@ -130,10 +130,19 @@ async function main() {
     single_use: false,   // reusable across page reloads
   });
 
-  // ── Get the agent key for display in the demo page ───────────────────────
+  // ── Get the agent key + governance DNA hash ───────────────────────────────
+  const { encodeHashToBase64 } = await import(pathToFileURL(clientPath).href);
   const updatedApps = await admin.listApps({});
   const appInfo = updatedApps.find(a => a.installed_app_id === APP_ID);
   const agentPubKey = appInfo.agent_pub_key;
+
+  let governanceDnaHash = '';
+  for (const [role, cells] of Object.entries(appInfo.cell_info)) {
+    if (role === 'governance') {
+      const cellId = cells[0]?.value?.cell_id;
+      if (cellId) { governanceDnaHash = encodeHashToBase64(cellId[0]); break; }
+    }
+  }
 
   // ── Resolve WebSocket URLs (localhost / GitHub Codespace / Render) ────────
   // Browsers block ws:// from https:// pages as mixed content; use wss://.
@@ -162,6 +171,7 @@ async function main() {
     token: Array.from(token),
     agentPubKey: Array.from(agentPubKey),
     appId: APP_ID,
+    governanceDnaHash,   // used by start_oracle.sh to build the public HarmonyRecord URL
   };
   const out = resolve(__dirname, 'app-config.json');
   writeFileSync(out, JSON.stringify(config, null, 2));

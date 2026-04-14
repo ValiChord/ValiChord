@@ -52,26 +52,15 @@ cd "$REPO_DIR"
 node "$SCRIPT_DIR/setup.mjs"
 
 # ── Extract governance DNA hash + write env config ─────────────────────────────
+# setup.mjs writes governanceDnaHash into app-config.json — read it with Python.
 echo "  Extracting governance DNA hash…"
-HC_CLIENT="$REPO_DIR/valichord/tests/node_modules/@holochain/client/lib/index.js"
-GOVERNANCE_DNA_HASH=$(node -e "
-const { AdminWebsocket, encodeHashToBase64 } = require('$HC_CLIENT');
-(async () => {
-  const admin = await AdminWebsocket.connect({
-    url: new URL('ws://localhost:4444'),
-    wsClientOptions: { origin: 'setup' },
-    defaultTimeout: 10000,
-  });
-  const apps = await admin.listApps({});
-  const app = apps.find(a => a.installed_app_id === 'valichord-demo');
-  for (const [role, cells] of Object.entries(app.cell_info)) {
-    if (role === 'governance') {
-      const cellId = cells[0]?.value?.cell_id;
-      if (cellId) { console.log(encodeHashToBase64(cellId[0])); break; }
-    }
-  }
-  await admin.client.close();
-})().catch(e => { process.stderr.write('Could not get DNA hash: ' + e.message + '\n'); });
+GOVERNANCE_DNA_HASH=$(python3 -c "
+import json, sys
+try:
+    c = json.load(open('$SCRIPT_DIR/app-config.json'))
+    print(c.get('governanceDnaHash', ''))
+except Exception as e:
+    sys.stderr.write('Could not read app-config.json: ' + str(e) + '\n')
 " 2>/dev/null || true)
 
 export HOLOCHAIN_GATEWAY_URL="http://${SERVER_IP}:8090"
