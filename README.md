@@ -264,7 +264,7 @@ npm test
 
 > For full build details, troubleshooting, and test architecture see the **[Developer Guide wiki](https://github.com/topeuph-ai/ValiChord/wiki/Developer-Guide)**.
 
-> **Running the demo:** `bash demo/start.sh` starts the full stack — Holochain conductor, Node.js bridge, and Flask REST API on port 5000. `bash demo/start-gateway.sh` starts the HTTP Gateway on port 8090, making Harmony Record links publicly verifiable. See [`demo/`](https://github.com/topeuph-ai/ValiChord/tree/main/demo) for full instructions.
+> **Running the demo:** See [`demo/AI_VALIDATOR_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md) — a live end-to-end run on Oracle Cloud in which a Claude AI agent executes a synthetic study, forms a blind verdict, runs the full commit-reveal protocol, and writes a permanent HarmonyRecord to the Governance DHT with a publicly verifiable URL.
 
 > **Note:** There is no end-user UI yet — that is Phase 1. The current interface is a developer demo and integration endpoint. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
