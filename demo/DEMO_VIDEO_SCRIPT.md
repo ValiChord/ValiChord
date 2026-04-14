@@ -1,37 +1,29 @@
 # ValiChord Demo Video Script
 
-**Runtime:** ~8 minutes
-**Format:** Screen recording — mix of terminal, browser, and API calls
-**Structure:** Three acts. The problem → what ValiChord does today → the cryptographic layer
+**Runtime:** ~7 minutes
+**Format:** Screen recording — terminal on Oracle Cloud + browser
+**Structure:** Three acts. The problem → the analysis tool → the full live protocol
 
 ---
 
 ## Pre-recording setup
 
-### Terminal 1 — Flask backend
-```bash
-cd /workspaces/ValiChord/backend
-pip install -r requirements.txt -q
-python app.py
-```
-Wait for: `Running on http://0.0.0.0:5000`
+Everything runs on the Oracle Cloud server. Do this before you hit record:
 
-### Terminal 2 — Holochain conductor + demo server
 ```bash
-cd /workspaces/ValiChord
-export PATH="/home/codespace/.cargo/bin:$PATH"
-bash demo/start.sh
-```
-Wait for: the demo page opens on `http://localhost:8888`
-If running in Codespace: make port 8888 **public** (Ports tab → right-click → Public)
-
-### Terminal 3 — ready for curl commands
-```bash
-cd /workspaces/ValiChord
+# SSH to Oracle, then:
+export ANTHROPIC_API_KEY=sk-ant-...
+bash demo/start_oracle.sh --fresh
 ```
 
-### Test deposit
-Have a research deposit ZIP ready — something with deliberate issues (hardcoded paths, missing requirements file, no README, etc.) works best for showing findings. The `autogenerate/tests/` directory is the right place to drop it.
+Wait for:
+```
+=== Stack is up ===
+  HTTP Gateway:  http://<IP>:8090
+  Public API:    http://<IP>:5000
+```
+
+Have a browser tab open and ready — you'll paste the shareable URL into it at the end.
 
 ---
 
@@ -47,122 +39,94 @@ Have a research deposit ZIP ready — something with deliberate issues (hardcode
 
 ---
 
-## [SECTION 2 — 0:45 to 3:00] The analysis pipeline
+## [SECTION 2 — 0:45 to 2:30] ValiChord at Home — deposit analysis
 
-*[Switch to: Terminal 3 or browser showing valichord-at-home.html / or use curl]*
+*[Switch to: browser at https://topeuph-ai.github.io/ValiChord/valichord-at-home.html]*
 
-> "The first thing ValiChord does is analyse a research deposit — a ZIP of code, data, and documentation. A researcher or validator uploads it to the API."
+> "The first tool is ValiChord at Home — a self-service deposit checker. A researcher uploads their repository ZIP before formal validation and gets an immediate report of everything that would block an independent validator."
 
-### 2a. Submit a deposit
+*[Upload a deposit ZIP — or show a pre-loaded result]*
+
+> "ValiChord at Home runs over a hundred pattern checks in the background — hardcoded paths, missing dependency files, undocumented data columns, human-subjects data left unredacted, absolute paths that only work on one machine. The findings are grouped by severity.
+>
+> CRITICAL findings are blockers. SIGNIFICANT would likely cause failures. LOW CONFIDENCE are worth checking.
+>
+> This is the preparation layer. A researcher fixes these before submitting for formal validation. Now let me show you what formal validation looks like."
+
+---
+
+## [SECTION 3 — 2:30 to 5:30] The live protocol — Oracle demo
+
+*[Switch to: terminal on Oracle Cloud]*
+
+> "This is a live Holochain network running on Oracle Cloud. Four separate peer-to-peer networks — the researcher's private network, each validator's private workspace, a shared coordination network, and a public governance network. Five independent agent identities on one conductor."
 
 ```bash
-curl -s -X POST http://localhost:5000/validate \
-  -F "file=@autogenerate/tests/YOUR_DEPOSIT.zip" | python3 -m json.tool
+python3 demo/ai_validator.py
 ```
 
-*[Screen: JSON response with job_id appears]*
+*[Let it run — narrate each step as it appears]*
 
-> "The API returns a job ID immediately. ValiChord is now running over a hundred pattern checks in the background — hardcoded paths, missing dependency files, undocumented data columns, human-subjects data left unredacted, absolute paths that only work on one machine — plus a Claude semantic analysis pass that reads the actual code for context the patterns can't catch."
+> "Step one: the study is loaded. This is a real piece of mathematics — ordinary least-squares linear regression on twenty data points. Temperature variability versus species richness. The script computes slope, intercept, and R² from first principles in pure Python. No external dependencies."
 
-### 2b. Poll for results
+*[Step 2 appears — execution output]*
 
-```bash
-# Wait ~20-30 seconds, then:
-curl -s http://localhost:5000/result/JOB_ID_HERE | python3 -m json.tool
+> "Step two: the study code runs. These are the actual results — slope 2.4086, intercept 1.1742, R² 0.9991. Deterministic on any platform. Any developer can verify this by running the script themselves."
+
+*[Step 3 appears — three Claude calls]*
+
+> "Step three: three independent Claude AI agents each read the study README and the actual execution output. Separate API calls. Each forms its own verdict — Reproduced, PartiallyReproduced, FailedToReproduce, or UnableToAssess — with a confidence level and one sentence of reasoning. They don't see each other's verdicts."
+
+*[Step 4 appears — protocol starting]*
+
+> "Step four: the commit-reveal protocol begins. Watch what happens.
+>
+> First — the researcher seals a cryptographic commitment to their result. SHA-256 of the metrics combined with a random nonce. Only the hash leaves their private network. They are bound to their claimed results from this point.
+>
+> Then the three validators each seal their verdicts blind. Their actual assessments stay private on each validator's own network. Only the commitment hashes go to the shared DHT.
+>
+> The phase gate — written into the Holochain DNA in Rust — waits until all three commitment hashes are confirmed on the network. When they are, it opens the reveal phase automatically. No trusted coordinator. No manual trigger.
+>
+> Now both sides reveal simultaneously. The researcher's reveal is verified on the network — SHA-256 of their metrics and nonce is recomputed and checked against what they committed earlier. Cryptographic proof they didn't adjust their claimed values after seeing what the validators found.
+>
+> And finally — a HarmonyRecord is written to the public governance network."
+
+*[Step 7 appears — output with shareable URL]*
+
+---
+
+## [SECTION 4 — 5:30 to 6:30] The shareable URL — open in browser
+
+*[Copy the URL from terminal output — paste into browser]*
+
+> "That URL. No Holochain installation. No API key. No authentication. Just a URL."
+
+*[Browser shows clean JSON]*
+
+```json
+{
+  "outcome":         { "type": "Reproduced" },
+  "agreement_level": "ExactMatch",
+  "discipline":      { "type": "ComputationalBiology" },
+  "validator_count": 3
+}
 ```
 
-*[Screen: full JSON result — findings array, harmony_record_draft, PRS score]*
-
-> "Here's the result. The findings are organised by severity — CRITICAL findings are blockers that would prevent an independent validator from even attempting to run the code. SIGNIFICANT findings would likely cause failures. LOW CONFIDENCE findings are worth checking.
+> "This is the HarmonyRecord. Outcome: Reproduced. Three validators, exact match. It's on the network. Anyone — a journal editor, a funder, another researcher — can read this. Nobody can edit it. The Rust validation rules physically reject any attempt to update or delete a HarmonyRecord after it's written.
 >
-> The Process Reproducibility Score at the top is a single number — a quick signal. High means it's likely reproducible as-is. Critical means a validator would be blocked before they even start.
->
-> And here at the bottom — `harmony_record_draft`. This is what gets written to the distributed network. It includes the outcome — in this case PartiallyReproduced — the SHA-256 hash of the deposit, and the summary of findings."
-
-*[Pause, let the JSON sit on screen for a moment]*
-
-> "The harmony_record_hash field — that `uhCkk...` string — is the cryptographic record on the Holochain network. It's already been written. We'll look at what that means in a minute."
+> The researcher committed their result before any validator started. The validators committed blind before the phase gate opened. Neither side could move the goalposts. The envelopes were sealed before anyone opened theirs."
 
 ---
 
-## [SECTION 3 — 3:00 to 5:00] Feynman runs /valichord
+## [SECTION 5 — 6:30 to 7:00] The proof
 
-*[Switch to: terminal or slide showing Feynman flow — or if Feynman is installed locally, run it]*
+*[Switch to: terminal or screenshot of test results]*
 
-> "ValiChord is designed to be called by any validator — human or AI. The first AI validator is Feynman — an open-source AI research agent that can replicate computational experiments end to end."
-
-*[Show the integration flow — either Feynman running in terminal, or narrate over a diagram/slides]*
-
-> "When a researcher publishes a study, Feynman runs its `/replicate` command — it downloads the code and data, sets up the environment, runs the analysis, and checks whether the outputs match what the paper claims.
+> "Everything I've just shown you is backed by ninety-four integration tests running on real Holochain conductors — not mocks, not simulations. Each test launches independent conductor processes with their own agent identities, source chains, and DHT participation.
 >
-> Then it calls `/valichord`. That zips up everything it found — the deposit, its execution log, the comparison — and sends it to ValiChord's API. The same pipeline we just saw runs, but now the findings are grounded in actual code execution, not just deposit analysis.
+> Membrane proof tests. Full commit-reveal across all four networks. Security tests — double-attestation rejected, conflict of interest blocked at the Rust level. Mixed-outcome HarmonyRecord assembly. Stuck round recovery.
 >
-> The result comes back with an outcome — Reproduced, PartiallyReproduced, or FailedToReproduce — and a HarmonyRecord hash. That hash is permanent."
-
-*[If able to run Feynman live:]*
-```bash
-feynman /valichord --deposit path/to/deposit.zip --api http://localhost:5000
-```
-
-*[Show the response JSON with harmony_record_draft and harmony_record_hash]*
-
-> "This is what the Feynman integration looks like today — a single API call that returns a structured verdict and a cryptographic anchor on the Holochain network. Feynman 0.2.15 ships with this skill built in."
-
----
-
-## [SECTION 4 — 5:00 to 7:00] The cryptographic layer — browser demo
-
-*[Switch to: browser at http://localhost:8888 — the demo/index.html page]*
-
-> "Let me show you what's happening under the hood when that HarmonyRecord is created.
->
-> This is a browser visualisation of the commit-reveal protocol — the cryptographic mechanism that makes it impossible to game the system."
-
-*[Click 'Run validation round']*
-
-> "Watch the steps.
->
-> First: the validator seals their assessment. They generate a random nonce, compute a hash of their findings combined with that nonce, and publish only the hash to the shared network. Their actual findings stay private. This is the commitment.
->
-> The researcher also committed their claimed results before any validator started. Neither side can see the other's sealed content — and neither can change it.
->
-> Now the network waits for all validators to commit. When both hashes are recorded, the network transitions to reveal phase — watch for that step.
->
-> Now both validators publish their full assessments. The network verifies each reveal matches its earlier hash. If anyone tried to change their findings after seeing the other side — hash mismatch — the reveal is rejected.
->
-> And at the end: a HarmonyRecord is written to the public Governance network. Immutable. The validation rules in the Rust code physically reject any attempt to update or delete it."
-
-*[Let the animation complete — HarmonyRecord step turns green]*
-
-> "That `uhCkk...` hash is the record. Anyone can query the Governance network with that hash — a journal, a funder, another researcher — and get the full outcome back. No central server, no one who can edit the record after the fact."
-
----
-
-## [SECTION 5 — 7:00 to 8:00] The proof — test suite summary
-
-*[Switch to: terminal with test results, or show a screenshot of 94 passing]*
-
-> "Everything I've just shown you is backed by a test suite running on real Holochain nodes — not mocks, not simulations.
->
-> Ninety-four tests passing across four separate peer-to-peer networks:
->
-> — Membrane proof tests: the validation network is credentialed. No certificate, or a forged one, gets rejected at the cryptographic level.
->
-> — Commit-reveal tests: two independent validators seal, the phase transitions, both reveal, the HarmonyRecord appears.
->
-> — Security tests: double-attestation rejected, conflict of interest blocked, claim-timeout floor enforced. Each is an attempted attack that the protocol defeats.
->
-> One test is skipped — it requires seven simultaneous Holochain conductors for the Gold badge threshold. Written, correct; this machine doesn't have the RAM to run seven conductors at once. Hardware constraint, not architectural.
->
-> The infrastructure is built and tested. What comes next is putting it in front of real researchers and real validators."
-
----
-
-## [OUTRO — 8:00]
-
-> "ValiChord today: a live analysis API, a Feynman integration that works, and a Holochain protocol with ninety-four passing tests.
->
-> What's not done yet: always-on hosting, multi-validator rounds in production, and API authentication. Those are the Phase 0 asks.
+> One test is skipped — it requires seven simultaneous conductors for the Gold badge threshold. Hardware constraint, not architectural.
 >
 > Everything is at github.com/topeuph-ai/ValiChord."
 
@@ -170,37 +134,29 @@ feynman /valichord --deposit path/to/deposit.zip --api http://localhost:5000
 
 ## Recording notes
 
-**Order of windows to have open:**
-1. Terminal 1 — Flask backend running (can be minimised after Section 2)
-2. Terminal 2 — demo server running (keep open)
-3. Terminal 3 — curl commands (active during Section 2)
-4. Browser — `http://localhost:8888` (active during Section 4)
-5. Browser (2nd tab) — test results screenshot or run `npm test` live for Section 5
+**Windows to have open:**
+1. Browser — `valichord-at-home.html` (Section 2)
+2. Terminal — Oracle SSH session (Sections 3–4)
+3. Browser (2nd tab) — ready for the shareable URL (Section 4)
 
 **Pacing:**
-- Section 2 is the heart for a non-technical audience — go slow, let the JSON sit
-- Section 4 (browser animation) is the visual peak — narrate each step as it appears
-- Don't rush the `uhCkk...` hash reveal — it's the punchline of sections 2, 3, and 4
+- Let the protocol output breathe — each step label appears naturally, don't rush past it
+- The shareable URL in the browser is the visual punchline — pause on the JSON
+- Section 2 (ValiChord at Home) can be shortened or cut entirely for a technical audience
 
-**If you can't run Feynman live:**
-- Section 3 works fine as narration over a slide or a copy of the API response JSON
-- The key point is: Feynman calls the same API, gets the same structured response
-
-**Optional cut for a 4-minute version:**
-- Skip Section 3 (Feynman) if demoing to a technical audience who just want the protocol
-- Skip Section 5 (tests) if demoing to a funder audience who want the application layer
-- The 4-minute version is: Problem → API demo → browser animation → one-sentence outro
+**Optional cuts:**
+- **5-minute version:** drop Section 2 (ValiChord at Home) — go straight from the problem to the Oracle terminal
+- **3-minute version:** drop Sections 2 and 5; problem → protocol run → URL in browser
 
 ---
 
 ## Start-up checklist
 
 ```
-[ ] Terminal 1: python backend/app.py  (port 5000)
-[ ] Terminal 2: bash demo/start.sh     (port 8888, conductor on 4444)
-[ ] Port 8888 set to Public in Codespace Ports tab
-[ ] Test deposit ZIP in autogenerate/tests/
-[ ] Font size ≥ 16pt in terminal
+[ ] Oracle stack running (bash demo/start_oracle.sh --fresh)
+[ ] ANTHROPIC_API_KEY exported in Oracle SSH session
+[ ] Terminal font size ≥ 16pt
 [ ] Notifications off
-[ ] curl command ready to paste (with correct deposit filename)
+[ ] Browser tab open and ready for shareable URL
+[ ] ValiChord at Home tab loaded (if including Section 2)
 ```
