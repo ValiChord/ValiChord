@@ -29,6 +29,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 import zipfile
 import tempfile
 import urllib.error
@@ -80,11 +81,15 @@ def load_study():
         for f in sorted(STUDY_DIR.iterdir()):
             zf.write(f, f.name)
 
-    # SHA-256 of the data file is the canonical "data hash" for this study.
+    # SHA-256 of the data file salted with a per-run UUID.
+    # In production every real deposit is a unique file — the salt makes each
+    # demo run behave the same way: a fresh study that has never been claimed.
     data_bytes = (STUDY_DIR / 'data.csv').read_bytes()
-    data_hash  = hashlib.sha256(data_bytes).hexdigest()
+    run_id     = uuid.uuid4().bytes          # 16 random bytes, unique per run
+    data_hash  = hashlib.sha256(data_bytes + run_id).hexdigest()
 
     print(f'  ZIP:       {tmp.name}')
+    print(f'  Run ID:    {uuid.UUID(bytes=run_id)}')
     print(f'  Data hash: {data_hash[:24]}…  ({len(data_bytes)} bytes)')
     return readme, data_hash, tmp.name
 
