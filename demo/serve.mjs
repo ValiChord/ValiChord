@@ -314,8 +314,10 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     // Node's .toString('base64url') omits padding — add it back so Rust's
     // BASE64_URL_SAFE.decode() accepts it.
     const externalHashB64 = encodeHashToBase64(externalHash);
-    const b64 = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
-    const gatewayPayload = b64 + '='.repeat((4 - b64.length % 4) % 4);
+    // base64url without padding — hc-http-gw accepts both padded and unpadded,
+    // and no-padding avoids %3D in URLs which Firefox normalises to literal =,
+    // breaking the gateway's base64 decode.
+    const gatewayPayload = Buffer.from(JSON.stringify(externalHashB64)).toString('base64url');
 
     return {
       harmony_record_hash: harmonyRecordHash,
