@@ -55,6 +55,10 @@ _load_config_env()
 
 BRIDGE_URL      = os.environ.get('VALICHORD_BRIDGE_URL', 'http://localhost:8888')
 VALICHORD_KEY   = os.environ.get('VALICHORD_API_KEY', '')
+# Public-facing server (port 5000) — used for shareable /record/ URLs.
+# Set automatically by start_oracle.sh; falls back to BRIDGE_URL for remote runs
+# where VALICHORD_BRIDGE_URL already points to the public server.
+PUBLIC_URL      = os.environ.get('VALICHORD_PUBLIC_URL', BRIDGE_URL)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -242,10 +246,9 @@ def display_result(result: dict):
     print(f'  HarmonyRecord:     {harmony_hash}')
 
     # ── Shareable viewer URL (browser-friendly, no base64 in query string) ──────
-    # The bridge's /record/<hash> endpoint returns decoded human-readable JSON.
-    bridge_base = BRIDGE_URL  # e.g. http://132.145.34.27:5000 when run remotely
+    # /record/<hash> lives on the public server (port 5000), not the internal bridge.
     if harmony_hash:
-        viewer_url = f'{bridge_base}/record/{harmony_hash}'
+        viewer_url = f'{PUBLIC_URL}/record/{harmony_hash}'
         print(f'\n  Shareable URL:\n  {viewer_url}')
 
         # Verify the record is readable.
