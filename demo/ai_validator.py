@@ -35,7 +35,24 @@ import urllib.error
 from pathlib import Path
 
 BRIDGE_URL  = os.environ.get('VALICHORD_BRIDGE_URL', 'http://localhost:8888')
-STUDY_DIR   = Path(__file__).parent / 'synthetic_study'
+DEMO_DIR    = Path(__file__).parent
+STUDY_DIR   = DEMO_DIR / 'synthetic_study'
+
+# Auto-load holochain-config.env (written by start_oracle.sh) so callers do not
+# need to manually export HOLOCHAIN_GATEWAY_URL / HOLOCHAIN_GOVERNANCE_DNA_HASH.
+def _load_config_env():
+    if os.environ.get('HOLOCHAIN_GATEWAY_URL'):
+        return  # already set — nothing to do
+    env_file = DEMO_DIR / 'holochain-config.env'
+    if not env_file.exists():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith('#') and '=' in line:
+            key, _, val = line.partition('=')
+            os.environ.setdefault(key.strip(), val.strip())
+
+_load_config_env()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

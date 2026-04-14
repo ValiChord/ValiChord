@@ -51,6 +51,40 @@ echo "[2/3] Running setup…"
 cd "$REPO_DIR"
 node "$SCRIPT_DIR/setup.mjs"
 
+# ── Extract governance DNA hash + write env config ─────────────────────────────
+echo "  Extracting governance DNA hash…"
+HC_CLIENT="$REPO_DIR/valichord/tests/node_modules/@holochain/client/lib/index.js"
+GOVERNANCE_DNA_HASH=$(node -e "
+const { AdminWebsocket, encodeHashToBase64 } = require('$HC_CLIENT');
+(async () => {
+  const admin = await AdminWebsocket.connect({
+    url: new URL('ws://localhost:4444'),
+    wsClientOptions: { origin: 'setup' },
+    defaultTimeout: 10000,
+  });
+  const apps = await admin.listApps({});
+  const app = apps.find(a => a.installed_app_id === 'valichord-demo');
+  for (const [role, cells] of Object.entries(app.cell_info)) {
+    if (role === 'governance') {
+      const cellId = cells[0]?.value?.cell_id;
+      if (cellId) { console.log(encodeHashToBase64(cellId[0])); break; }
+    }
+  }
+  await admin.client.close();
+})().catch(e => { process.stderr.write('Could not get DNA hash: ' + e.message + '\n'); });
+" 2>/dev/null || true)
+
+export HOLOCHAIN_GATEWAY_URL="http://${SERVER_IP}:8090"
+export HOLOCHAIN_GOVERNANCE_DNA_HASH="$GOVERNANCE_DNA_HASH"
+
+printf 'HOLOCHAIN_GATEWAY_URL=%s\nHOLOCHAIN_GOVERNANCE_DNA_HASH=%s\n' \
+  "$HOLOCHAIN_GATEWAY_URL" "$GOVERNANCE_DNA_HASH" \
+  > "$SCRIPT_DIR/holochain-config.env"
+
+echo "  Gateway URL:         $HOLOCHAIN_GATEWAY_URL"
+echo "  Governance DNA hash: $GOVERNANCE_DNA_HASH"
+echo "  Env written to:      demo/holochain-config.env"
+
 # ── Start bridge + gateway ─────────────────────────────────────────────────────
 echo "[3/3] Starting Holochain bridge (port 8888) and HTTP Gateway (port 8090)…"
 node "$SCRIPT_DIR/serve.mjs" &
@@ -65,7 +99,11 @@ echo "=== Stack is up ==="
 echo "  HTTP Gateway:  http://${SERVER_IP}:8090"
 echo ""
 echo "Run the AI validator demo:"
+echo "  export ANTHROPIC_API_KEY=sk-ant-..."
 echo "  python3 demo/ai_validator.py"
+echo ""
+echo "  (HOLOCHAIN_GATEWAY_URL and HOLOCHAIN_GOVERNANCE_DNA_HASH are auto-loaded"
+echo "   from demo/holochain-config.env — no need to set them manually)"
 echo ""
 echo "Press Ctrl+C to stop."
 

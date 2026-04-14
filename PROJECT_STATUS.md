@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-04-13 (Oracle server provisioned; AI validator demo running end-to-end)
-**Phase:** Always-on infrastructure live. AI validator demo complete. One task to finish: wire up the public HarmonyRecord URL.
+**Last updated:** 2026-04-14 (HarmonyRecord URL wiring complete)
+**Phase:** Always-on infrastructure live. AI validator demo end-to-end with public URL. Next: ANTHROPIC_API_KEY persistence on Oracle, Feynman PR #23 verification.
 
 ---
 
@@ -27,7 +27,7 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 | HTTP Gateway (`hc-http-gw`) | **Live on Oracle** | Port 8090 — always-on |
 | AI validator demo (`demo/ai_validator.py`) | **Working** | End-to-end: executes study, Claude verdict, full commit-reveal, HarmonyRecord written |
 | `harmony_record_hash` | **Working** | Returns `uhCkk...` canonical string |
-| `harmony_record_url` | **NOT YET wired** | Gateway running but `HOLOCHAIN_GATEWAY_URL` + `HOLOCHAIN_GOVERNANCE_DNA_HASH` not set in start_oracle.sh — see next steps |
+| `harmony_record_url` | **Wired** | `start_oracle.sh` extracts DNA hash after setup, writes `demo/holochain-config.env`; `ai_validator.py` auto-loads it |
 | Feynman skill (was PR #13) | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal; Feynman now at 0.2.16, ValiChord tracked as PR #23 |
 | Feynman prompt update (PR #14) | **Rejected** | Rejected by @advaitpaliwal; content superseded by PR #23 |
 | Feynman validator flow (PR #15) | **Never pushed** | Local draft only (`valichord_prompt_v2.md`); was never submitted to Feynman repo |
@@ -103,7 +103,7 @@ Anyone with this URL can independently verify the outcome on the DHT — no acco
 
 | Item | Priority | What's needed |
 |---|---|---|
-| **Wire up public HarmonyRecord URL** | **HIGH — next task** | HTTP Gateway is live on Oracle at port 8090. Need to: (1) read governance DNA hash from `~/valichord/demo/app-config.json` on Oracle, (2) add `export HOLOCHAIN_GATEWAY_URL=http://132.145.34.27:8090` and `export HOLOCHAIN_GOVERNANCE_DNA_HASH=<hash>` to `demo/start_oracle.sh` before the demo runs. Then the demo will print the full public URL. |
+| **Wire up public HarmonyRecord URL** | **DONE** | `start_oracle.sh` now extracts governance DNA hash after setup and writes `demo/holochain-config.env`; `ai_validator.py` auto-loads it. Deploy this commit to Oracle (`git pull` in `~/valichord`) and re-run `bash demo/start_oracle.sh`. |
 | **Make ANTHROPIC_API_KEY persistent on Oracle** | **High** | Currently must be manually exported each SSH session. Add to `~/.bashrc` on Oracle: `export ANTHROPIC_API_KEY=sk-ant-...` |
 | Rate limiting | **Medium** | API keys are in (auth done). No per-key rate limiting yet. |
 | Feynman PR #23 | **Medium** | ValiChord is now PR #23 in the Feynman repo. Verify what it contains and whether PRs #14/#15 were folded in before doing more integration work. |

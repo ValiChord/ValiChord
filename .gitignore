@@ -15,6 +15,7 @@ __pycache__/
 demo/conductor_data/
 demo/conductor.log
 demo/app-config.json
+demo/holochain-config.env
 
 # Stray Holochain conductor data in repo root
 /S5ryIoZIpRYtsedy_CgK2/
