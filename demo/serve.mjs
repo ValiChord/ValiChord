@@ -715,6 +715,42 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── 3-validator + researcher reveal round ──────────────────────────────────
+  // POST /holochain/validate-round-multi — localhost only.
+  if (req.method === 'POST' && url === '/holochain/validate-round-multi') {
+    const remote = req.socket.remoteAddress;
+    if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden — internal endpoint only' }));
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(await _readBody(req));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+    if (!body.data_hash_hex || !Array.isArray(body.metrics) ||
+        !Array.isArray(body.verdicts) || body.verdicts.length !== 3) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing data_hash_hex, metrics, or verdicts (need 3)' }));
+      return;
+    }
+    try {
+      const result = await _runFullProtocolRound(body);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      const msg = err.message ?? String(err);
+      console.error(`[holochain/validate-round-multi]: ${msg}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
   // ── API proxy → Flask backend (port 5000) ────────────────────────────────
   // Lets the browser call /api/* on port 8888 without knowing the backend port.
   if (url.startsWith('/api/')) {
