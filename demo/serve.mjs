@@ -569,12 +569,14 @@ async function _runFullProtocolRound({
   }
 
   // ── (7) Create HarmonyRecord on Governance DHT ───────────────────────────────
+  // Must be called by a participating validator — governance integrity requires
+  // the HarmonyRecord author to be listed in participating_validators.
   console.log('[multi-round] (7) Creating HarmonyRecord…');
   const harmonyHashSerialized = await _withSession(async ({ call }) => {
     return call(
       'governance', 'governance_coordinator', 'check_and_create_harmony_record', externalHash,
     );
-  }, 'researcher');
+  }, 'validator-1');
 
   let harmonyRecordHash = null;
   if (harmonyHashSerialized?.__bytes) {
