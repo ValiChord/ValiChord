@@ -46,7 +46,7 @@ returns a structured report of issues.
 **Endpoints:** `/validate`, `/upload-chunk`, `/result`, `/download`, `/status`, `/health`, `/attest`*
 
 **Deployment:** Render (`valichord.onrender.com`). The demo at
-[topeuph-ai.github.io/ValiChord/demo.html](https://topeuph-ai.github.io/ValiChord/demo.html)
+[topeuph-ai.github.io/ValiChord/valichord-at-home.html](https://topeuph-ai.github.io/ValiChord/valichord-at-home.html)
 calls this deployment.
 
 ```bash

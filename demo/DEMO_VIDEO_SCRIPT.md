@@ -49,7 +49,7 @@ Have a research deposit ZIP ready — something with deliberate issues (hardcode
 
 ## [SECTION 2 — 0:45 to 3:00] The analysis pipeline
 
-*[Switch to: Terminal 3 or browser showing demo.html / or use curl]*
+*[Switch to: Terminal 3 or browser showing valichord-at-home.html / or use curl]*
 
 > "The first thing ValiChord does is analyse a research deposit — a ZIP of code, data, and documentation. A researcher or validator uploads it to the API."
 
