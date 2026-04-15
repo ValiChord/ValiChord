@@ -295,6 +295,11 @@ pub enum EntryTypes {
     ValidationAttestation(ValidationAttestation),
     ValidatorProfile(ValidatorProfile),
     DifficultyAssessment(DifficultyAssessment),
+    // TODO: raise to required_validations = 7 once Oracle runs with a
+    // production-scale agent count.  Deferred because the current demo uses
+    // 5 apps on one conductor; with hundreds of AI validators this threshold
+    // is trivially met and CommitmentAnchor should carry the same redundancy
+    // guarantee as ValidationAttestation.
     CommitmentAnchor(CommitmentAnchor),
     PhaseMarker(PhaseMarker),
     StudyClaim(StudyClaim),
@@ -608,34 +613,39 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // --- ValidationAttestation create: verify it links to a CommitmentAnchor ---
         //
         // Inductive validation chain: ValidationAttestation → CommitmentAnchor.
-        // Checked only when commitment_anchor_hash is Some (always set by the
-        // coordinator on new entries; None only for entries predating this field).
+        // commitment_anchor_hash is required on all new entries — the coordinator
+        // always sets it.  The field is Option<ActionHash> in the struct for
+        // backwards-compatible deserialisation of any legacy entries, but network
+        // validation now rejects entries where it is absent.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidationAttestation(ref att),
             action,
         }) => {
-            if let Some(ref anchor_hash) = att.commitment_anchor_hash {
-                let anchor_record = must_get_valid_record(anchor_hash.clone())?;
-                let anchor: CommitmentAnchor = anchor_record
-                    .entry()
-                    .to_app_option()
-                    .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                    .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                        "ValidationAttestation.commitment_anchor_hash does not point \
-                         to a CommitmentAnchor".into(),
-                    )))?;
-                if anchor.validator != action.author {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "CommitmentAnchor.validator does not match the \
-                         attestation author".into(),
-                    ));
-                }
-                if anchor.request_ref != att.request_ref {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "CommitmentAnchor.request_ref does not match \
-                         ValidationAttestation.request_ref".into(),
-                    ));
-                }
+            let anchor_hash = att.commitment_anchor_hash.as_ref()
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "ValidationAttestation.commitment_anchor_hash is required — \
+                     every public attestation must reference its CommitmentAnchor".into(),
+                )))?;
+            let anchor_record = must_get_valid_record(anchor_hash.clone())?;
+            let anchor: CommitmentAnchor = anchor_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "ValidationAttestation.commitment_anchor_hash does not point \
+                     to a CommitmentAnchor".into(),
+                )))?;
+            if anchor.validator != action.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.validator does not match the \
+                     attestation author".into(),
+                ));
+            }
+            if anchor.request_ref != att.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.request_ref does not match \
+                     ValidationAttestation.request_ref".into(),
+                ));
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -683,6 +693,31 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         } => Ok(ValidateCallbackResult::Invalid(
             "RequestToCommitment links are immutable — \
              validator commitments cannot be retracted".into(),
+        )),
+
+        // --- Claim links are immutable — block deletions ---------------------
+        //
+        // The coordinator enforces capacity limits and duplicate prevention by
+        // counting RequestToClaim links.  A validator who deletes their own
+        // RequestToClaim link after claiming could free a capacity slot for a
+        // colluder or re-claim the same study.  ValidatorToClaim is the
+        // complementary index — deleting it would hide the claim from
+        // get_my_claimed_studies queries.  Both must be as permanent as the
+        // StudyClaim entry itself.
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToClaim,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToClaim links are immutable — \
+             study claims cannot be retracted via link deletion".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::ValidatorToClaim,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "ValidatorToClaim links are immutable — \
+             study claims cannot be retracted via link deletion".into(),
         )),
 
         // --- Membrane proof — format check (after network join) ---
