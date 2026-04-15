@@ -3,6 +3,14 @@
 
 ---
 
+## 🎬 Watch the demo
+
+**[▶ ValiChord Commit-Reveal Demo — YouTube](https://www.youtube.com/watch?v=DinSdR-U114&feature=youtu.be)**
+
+Full end-to-end run: researcher commits, 3 AI validators commit blind, both sides reveal simultaneously, HarmonyRecord written to the live Holochain network.
+
+---
+
 ## What this demo is
 
 A fully automated, end-to-end run of the ValiChord protocol on a live Holochain network — showing everything the system is built to do, in a single command.
