@@ -2130,7 +2130,8 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
 // Behaviour:
 //   - Returns false if the claim is too recent (elapsed < timeout_secs).
 //   - Returns false if the validator has already submitted an attestation.
-//   - Returns true and deletes both link indexes when eligible.
+//   - Returns true and writes a StudyClaimRelease marker when eligible.
+//     (RequestToClaim/ValidatorToClaim links are immutable; soft-delete frees the slot.)
 //
 // Tests use timeout_secs=0 so reclamation is immediately eligible (claim
 // age is always ≥ 0 seconds). In production, set timeout_secs=604800 (7 days).

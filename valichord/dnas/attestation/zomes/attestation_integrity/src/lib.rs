@@ -90,6 +90,23 @@ pub struct StudyClaim {
     pub validator_institution:   String,
 }
 
+/// Soft-delete marker for a StudyClaim.
+///
+/// Claims and their `RequestToClaim` / `ValidatorToClaim` links are immutable
+/// (prevents validators from self-retracting to game capacity or collude).
+/// `StudyClaimRelease` records that a claim was intentionally vacated —
+/// either by the validator themselves via `release_claim`, or by a third party
+/// via `reclaim_abandoned_claim` after the claim timeout has elapsed.
+///
+/// Query functions (`get_claims_for_request`, `get_my_claimed_studies`) and the
+/// `claim_study` capacity check filter out claims that have a `ClaimToRelease`
+/// link pointing to a `StudyClaimRelease` entry.
+#[hdk_entry_helper]
+#[derive(Clone, PartialEq)]
+pub struct StudyClaimRelease {
+    pub claim_hash: ActionHash,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValidationTier { Basic, Enhanced, Comprehensive }
 
@@ -303,6 +320,7 @@ pub enum EntryTypes {
     CommitmentAnchor(CommitmentAnchor),
     PhaseMarker(PhaseMarker),
     StudyClaim(StudyClaim),
+    StudyClaimRelease(StudyClaimRelease),
     ResearcherResultCommitment(ResearcherResultCommitment),
     ResearcherReveal(ResearcherReveal),
     AgentIdentityAttestation(AgentIdentityAttestation),
@@ -340,6 +358,9 @@ pub enum LinkTypes {
     /// Links AgentPubKey → AgentIdentityAttestation ActionHash.
     /// Written from BOTH agents' pubkeys for symmetric lookup.
     AgentToIdentityAttestation,
+    /// Links StudyClaim ActionHash → StudyClaimRelease ActionHash.
+    /// Presence of this link marks a claim as vacated (soft-delete).
+    ClaimToRelease,
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +426,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ValidationRequest is immutable — the study submission cannot be altered".into(),
         )),
 
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::StudyClaimRelease(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "StudyClaimRelease is immutable — the release record cannot be altered".into(),
+        )),
+
         // Generic update: only the original author may update other entry types.
         FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
@@ -467,6 +494,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         Some(EntryTypes::ValidationRequest(_)) => {
                             return Ok(ValidateCallbackResult::Invalid(
                                 "ValidationRequest is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::StudyClaimRelease(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "StudyClaimRelease is immutable — cannot be deleted".into(),
                             ));
                         }
                         // AgentIdentityAttestation: either named agent may revoke.

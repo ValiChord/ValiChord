@@ -4,7 +4,7 @@ use attestation_integrity::{
     AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
     DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
     ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
-    StudyClaim, ValidatorAgentType, ValidatorProfile, ValidationRequest,
+    StudyClaim, StudyClaimRelease, ValidatorAgentType, ValidatorProfile, ValidationRequest,
 };
 use valichord_shared_types::{
     Discipline, ValidationAttestation, ValidationPhase, ValiChordError, ValiChordResult,
@@ -612,19 +612,35 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
         (hash, vr)
     };
 
-    // Single get_links call serves both capacity and duplicate checks.
+    // Enumerate all claim links, filtering out released/abandoned claims.
     let claim_links = get_links(
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
-    if claim_links.len() >= vr.num_validators_required as usize {
+    let mut active_claim_count = 0usize;
+    let mut already_claimed = false;
+    for link in &claim_links {
+        if let Some(claim_hash) = link.target.clone().into_action_hash() {
+            let release_links = get_links(
+                LinkQuery::try_new(claim_hash, LinkTypes::ClaimToRelease)?,
+                GetStrategy::Network,
+            )?;
+            if release_links.is_empty() {
+                active_claim_count += 1;
+                if link.author == agent {
+                    already_claimed = true;
+                }
+            }
+        }
+    }
+    if active_claim_count >= vr.num_validators_required as usize {
         return Err(wasm_error!(WasmErrorInner::Guest(format!(
             "Study is at capacity ({}/{} validators already claimed)",
-            claim_links.len(),
+            active_claim_count,
             vr.num_validators_required,
         ))));
     }
-    if claim_links.iter().any(|l| l.author == agent) {
+    if already_claimed {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "Validator has already claimed this study".into(),
         )));
@@ -664,40 +680,33 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
 
 /// Release a previously claimed study.
 ///
-/// Deletes the RequestToClaim and ValidatorToClaim links so the slot becomes
-/// available again.  The StudyClaim entry itself remains on the DHT as an
-/// immutable audit record.
+/// Vacates the calling validator's claim on a study.
+///
+/// `RequestToClaim` / `ValidatorToClaim` links are immutable (prevents
+/// self-retraction for colluder benefit), so the slot is freed by writing a
+/// `StudyClaimRelease` marker and a `ClaimToRelease` link.  Query functions
+/// and the `claim_study` capacity check skip claims that have this marker.
+/// The `StudyClaim` entry itself remains on the DHT as a permanent audit record.
 #[hdk_extern]
 pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
 
-    // Delete the RequestToClaim link authored by this agent.
     let request_links = get_links(
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
     for link in request_links.iter().filter(|l| l.author == agent) {
-        delete_link(link.create_link_hash.clone(), GetOptions::network())?;
-    }
-
-    // Delete the corresponding ValidatorToClaim link.
-    let validator_links = get_links(
-        LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
-        GetStrategy::Network,
-    )?;
-    for link in validator_links {
-        if let Some(hash) = link.target.clone().into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::local())? {
-                if let Some(claim) = record
-                    .entry()
-                    .to_app_option::<StudyClaim>()
-                    .ok()
-                    .flatten()
-                {
-                    if claim.request_ref == request_ref {
-                        delete_link(link.create_link_hash, GetOptions::network())?;
-                    }
-                }
+        if let Some(claim_hash) = link.target.clone().into_action_hash() {
+            // Skip if already released.
+            let existing = get_links(
+                LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
+                GetStrategy::Network,
+            )?;
+            if existing.is_empty() {
+                let release_hash = create_entry(EntryTypes::StudyClaimRelease(
+                    StudyClaimRelease { claim_hash: claim_hash.clone() },
+                ))?;
+                create_link(claim_hash, release_hash, LinkTypes::ClaimToRelease, ())?;
             }
         }
     }
@@ -705,17 +714,31 @@ pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
     Ok(())
 }
 
-/// Return all live StudyClaim records for a given study (request_ref).
+/// Return all active (non-released) StudyClaim records for a given study.
 #[hdk_extern]
 pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Record>> {
     let links = get_links(
         LinkQuery::try_new(request_ref, LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
-    records_for_links(links)
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(claim_hash) = link.target.clone().into_action_hash() {
+            let release_links = get_links(
+                LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
+                GetStrategy::Network,
+            )?;
+            if release_links.is_empty() {
+                if let Some(record) = get(claim_hash, GetOptions::network())? {
+                    records.push(record);
+                }
+            }
+        }
+    }
+    Ok(records)
 }
 
-/// Return all studies this validator has claimed (live ValidatorToClaim links).
+/// Return all active (non-released) studies this validator has claimed.
 #[hdk_extern]
 pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
     let agent = agent_info()?.agent_initial_pubkey;
@@ -723,7 +746,21 @@ pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
         LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
         GetStrategy::Network,
     )?;
-    records_for_links(links)
+    let mut records = Vec::new();
+    for link in links {
+        if let Some(claim_hash) = link.target.clone().into_action_hash() {
+            let release_links = get_links(
+                LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
+                GetStrategy::Network,
+            )?;
+            if release_links.is_empty() {
+                if let Some(record) = get(claim_hash, GetOptions::network())? {
+                    records.push(record);
+                }
+            }
+        }
+    }
+    Ok(records)
 }
 
 /// Input for reclaim_abandoned_claim.
@@ -742,8 +779,10 @@ pub struct ReclaimInput {
 ///
 /// Any participant may call this once `timeout_secs` have elapsed since the
 /// claim was created AND the absent validator has not submitted an attestation
-/// for this study. Deletes both link indexes, freeing the slot for a replacement.
-/// The StudyClaim entry remains permanently as an audit record.
+/// for this study.  Writes a `StudyClaimRelease` marker so the slot is treated
+/// as free by `get_claims_for_request` and `claim_study`.
+/// `RequestToClaim` / `ValidatorToClaim` links are immutable and remain on the
+/// DHT as a permanent audit record alongside the original `StudyClaim` entry.
 ///
 /// Returns `true` if the slot was reclaimed, `false` if ineligible
 /// (claim too recent, or validator already attested).
@@ -796,26 +835,24 @@ pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
         }
     }
 
-    // 4. Delete the RequestToClaim link authored by the absent validator.
-    let request_links = get_links(
-        LinkQuery::try_new(input.request_ref.clone(), LinkTypes::RequestToClaim)?,
+    // 4. Write a StudyClaimRelease marker to vacate the abandoned slot.
+    //    RequestToClaim / ValidatorToClaim links are immutable, so the soft-delete
+    //    marker is the only way to free capacity.  Query functions and claim_study
+    //    skip claims that carry this marker.
+    let existing_release = get_links(
+        LinkQuery::try_new(input.claim_hash.clone(), LinkTypes::ClaimToRelease)?,
         GetStrategy::Network,
     )?;
-    for link in request_links.iter().filter(|l| l.author == absent_validator) {
-        if link.target.clone().into_action_hash().as_ref() == Some(&input.claim_hash) {
-            delete_link(link.create_link_hash.clone(), GetOptions::network())?;
-        }
-    }
-
-    // 5. Delete the ValidatorToClaim link from the absent validator's pubkey.
-    let validator_links = get_links(
-        LinkQuery::try_new(absent_validator.clone(), LinkTypes::ValidatorToClaim)?,
-        GetStrategy::Network,
-    )?;
-    for link in validator_links {
-        if link.target.clone().into_action_hash().as_ref() == Some(&input.claim_hash) {
-            delete_link(link.create_link_hash, GetOptions::network())?;
-        }
+    if existing_release.is_empty() {
+        let release_hash = create_entry(EntryTypes::StudyClaimRelease(
+            StudyClaimRelease { claim_hash: input.claim_hash.clone() },
+        ))?;
+        create_link(
+            input.claim_hash.clone(),
+            release_hash,
+            LinkTypes::ClaimToRelease,
+            (),
+        )?;
     }
 
     Ok(true)
