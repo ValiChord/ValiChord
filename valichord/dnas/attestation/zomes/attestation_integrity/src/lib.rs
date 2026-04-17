@@ -361,6 +361,15 @@ pub enum LinkTypes {
     /// Links StudyClaim ActionHash → StudyClaimRelease ActionHash.
     /// Presence of this link marks a claim as vacated (soft-delete).
     ClaimToRelease,
+    /// Links request_ref (ExternalHash) → StudyClaimRelease ActionHash.
+    /// Tag = claim_hash raw bytes (39 bytes).
+    /// Allows claim_study and get_claims_for_request to fetch all releases for a
+    /// study in a single network call instead of one call per claim (N→2 calls).
+    RequestToRelease,
+    /// Links AgentPubKey → StudyClaimRelease ActionHash.
+    /// Tag = claim_hash raw bytes (39 bytes).
+    /// Allows get_my_claimed_studies to fetch all releases for an agent in one call.
+    ValidatorToRelease,
 }
 
 // ---------------------------------------------------------------------------
@@ -750,6 +759,22 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         } => Ok(ValidateCallbackResult::Invalid(
             "ValidatorToClaim links are immutable — \
              study claims cannot be retracted via link deletion".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::RequestToRelease,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "RequestToRelease links are immutable — \
+             release records cannot be retracted".into(),
+        )),
+
+        FlatOp::RegisterDeleteLink {
+            link_type: LinkTypes::ValidatorToRelease,
+            ..
+        } => Ok(ValidateCallbackResult::Invalid(
+            "ValidatorToRelease links are immutable — \
+             release records cannot be retracted".into(),
         )),
 
         // --- Membrane proof — format check (after network join) ---

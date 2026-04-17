@@ -612,7 +612,17 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
         (hash, vr)
     };
 
-    // Enumerate all claim links, filtering out released/abandoned claims.
+    // Fetch all released claim hashes for this study in one call, then count
+    // active claims in memory — 2 network calls instead of N+1.
+    let release_links = get_links(
+        LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToRelease)?,
+        GetStrategy::Network,
+    )?;
+    let released: HashSet<ActionHash> = release_links
+        .iter()
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .collect();
+
     let claim_links = get_links(
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
@@ -621,11 +631,7 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
     let mut already_claimed = false;
     for link in &claim_links {
         if let Some(claim_hash) = link.target.clone().into_action_hash() {
-            let release_links = get_links(
-                LinkQuery::try_new(claim_hash, LinkTypes::ClaimToRelease)?,
-                GetStrategy::Network,
-            )?;
-            if release_links.is_empty() {
+            if !released.contains(&claim_hash) {
                 active_claim_count += 1;
                 if link.author == agent {
                     already_claimed = true;
@@ -706,7 +712,11 @@ pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
                 let release_hash = create_entry(EntryTypes::StudyClaimRelease(
                     StudyClaimRelease { claim_hash: claim_hash.clone() },
                 ))?;
-                create_link(claim_hash, release_hash, LinkTypes::ClaimToRelease, ())?;
+                let claim_tag = claim_hash.get_raw_39().to_vec();
+                create_link(claim_hash, release_hash.clone(), LinkTypes::ClaimToRelease, ())?;
+                // Batch-query indexes: one call per study/agent instead of per claim.
+                create_link(request_ref.clone(), release_hash.clone(), LinkTypes::RequestToRelease, claim_tag.clone())?;
+                create_link(agent.clone(), release_hash, LinkTypes::ValidatorToRelease, claim_tag)?;
             }
         }
     }
@@ -717,18 +727,24 @@ pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
 /// Return all active (non-released) StudyClaim records for a given study.
 #[hdk_extern]
 pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Record>> {
-    let links = get_links(
+    // One call for releases, one call for claims — filter in memory.
+    let release_links = get_links(
+        LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToRelease)?,
+        GetStrategy::Network,
+    )?;
+    let released: HashSet<ActionHash> = release_links
+        .iter()
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .collect();
+
+    let claim_links = get_links(
         LinkQuery::try_new(request_ref, LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
     let mut records = Vec::new();
-    for link in links {
-        if let Some(claim_hash) = link.target.clone().into_action_hash() {
-            let release_links = get_links(
-                LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
-                GetStrategy::Network,
-            )?;
-            if release_links.is_empty() {
+    for link in claim_links {
+        if let Some(claim_hash) = link.target.into_action_hash() {
+            if !released.contains(&claim_hash) {
                 if let Some(record) = get(claim_hash, GetOptions::network())? {
                     records.push(record);
                 }
@@ -742,18 +758,24 @@ pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Rec
 #[hdk_extern]
 pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
     let agent = agent_info()?.agent_initial_pubkey;
-    let links = get_links(
+    // One call for releases, one call for claims — filter in memory.
+    let release_links = get_links(
+        LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToRelease)?,
+        GetStrategy::Network,
+    )?;
+    let released: HashSet<ActionHash> = release_links
+        .iter()
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .collect();
+
+    let claim_links = get_links(
         LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
         GetStrategy::Network,
     )?;
     let mut records = Vec::new();
-    for link in links {
-        if let Some(claim_hash) = link.target.clone().into_action_hash() {
-            let release_links = get_links(
-                LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
-                GetStrategy::Network,
-            )?;
-            if release_links.is_empty() {
+    for link in claim_links {
+        if let Some(claim_hash) = link.target.into_action_hash() {
+            if !released.contains(&claim_hash) {
                 if let Some(record) = get(claim_hash, GetOptions::network())? {
                     records.push(record);
                 }
@@ -847,12 +869,11 @@ pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
         let release_hash = create_entry(EntryTypes::StudyClaimRelease(
             StudyClaimRelease { claim_hash: input.claim_hash.clone() },
         ))?;
-        create_link(
-            input.claim_hash.clone(),
-            release_hash,
-            LinkTypes::ClaimToRelease,
-            (),
-        )?;
+        let claim_tag = input.claim_hash.get_raw_39().to_vec();
+        create_link(input.claim_hash.clone(), release_hash.clone(), LinkTypes::ClaimToRelease, ())?;
+        // Batch-query indexes: one call per study/agent instead of per claim.
+        create_link(input.request_ref.clone(), release_hash.clone(), LinkTypes::RequestToRelease, claim_tag.clone())?;
+        create_link(absent_validator, release_hash, LinkTypes::ValidatorToRelease, claim_tag)?;
     }
 
     Ok(true)
