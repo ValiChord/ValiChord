@@ -77,7 +77,7 @@ enum RoleType {
 | `EconomicResource` | quantity, unit, custodian, current_location, **state** |
 | `GovernanceRule` | rule_type, rule_data, enforced_by |
 
-### ResourceState (the integration hook)
+### ResourceState (the integration hook — on EconomicResource)
 ```rust
 enum ResourceState {
     PendingValidation,  // ← resources start here
@@ -88,14 +88,68 @@ enum ResourceState {
 }
 ```
 
-**Note:** A large TODO comment in the integrity zome documents a planned future split into
-`LifecycleStage` (10 variants: Ideation → EndOfLife) and `OperationalState` (7 variants).
-This is not yet implemented. `ResourceState` with these 5 variants remains live.
+**Important (April 2026):** The previously-noted TODO to split `ResourceState` into `LifecycleStage`
++ `OperationalState` is now partially implemented — but as a separate entry type, not a replacement.
+`LifecycleStage` now lives on `NondominiumIdentity` (see below). `EconomicResource` still carries
+`ResourceState` with these 5 variants. The refactor to an `OperationalState` enum on `EconomicResource`
+is deferred (REQ-NDO-OS-06).
+
+### NondominiumIdentity (Layer 0 — new as of topeuph-ai fork)
+
+A permanent identity anchor for a resource, separate from the `EconomicResource` instance.
+Exists from conception through end-of-life. **Cannot be deleted** (validated by integrity zome).
+The original `ActionHash` from `create_ndo()` is the stable Layer 0 identity for all time.
+
+```rust
+struct NondominiumIdentity {
+    name: String,                              // immutable
+    initiator: AgentPubKey,                    // immutable
+    property_regime: PropertyRegime,           // immutable
+    resource_nature: ResourceNature,           // immutable
+    lifecycle_stage: LifecycleStage,           // only mutable field (via update_lifecycle_stage)
+    created_at: Timestamp,                     // immutable
+    description: Option<String>,               // immutable
+    successor_ndo_hash: Option<ActionHash>,    // set once, on → Deprecated
+    hibernation_origin: Option<LifecycleStage>, // auto-managed for Hibernating transitions
+}
+```
+
+`LifecycleStage` (10 variants, mostly monotonic):
+```
+Ideation → Specification → Development → Prototype → Stable → Distributed → Active
+                                                                            ↓
+                                                                      Hibernating (reversible)
+                                                                            ↓
+                                                                  Deprecated (→ EndOfLife only)
+                                                                  EndOfLife (terminal)
+```
+
+`PropertyRegime`: `Private`, `Commons`, `Collective`, `Pool`, `CommonPool`, `Nondominium`  
+`ResourceNature`: `Physical`, `Digital`, `Service`, `Hybrid`, `Information`
+
+**Integration implication:** ValiChord's `HarmonyRecord` can drive BOTH layers:
+1. `update_resource_state()` on `EconomicResource`: `PendingValidation` → `Active`
+2. `update_lifecycle_stage()` on `NondominiumIdentity`: e.g. `Prototype` → `Stable` (if the
+   validation round confirms the resource is production-ready)
+The `NdoToTransitionEvent` link type already anticipates this: a link from the NDO action hash
+to a triggering `EconomicEvent` (or, in the ValiChord case, the `HarmonyRecord` action hash).
+
+**Custodian constraint on `update_resource_state()`:** The coordinator currently enforces that
+only the resource's custodian can call `update_resource_state()`. ValiChord's governance DNA
+is not the custodian, so it cannot drive the transition directly. Resolution options:
+- Governance pathway: add a `validate_and_activate_resource()` function gated by a
+  `ValidationReceipt` rather than custodianship (design decision before integration code)
+- Application layer: after `HarmonyRecord` is produced, notify the researcher (custodian) to
+  call `update_resource_state()` themselves, passing the `HarmonyRecord` hash as evidence
 
 ### Key functions
-- `create_economic_resource()` — creates resource in `PendingValidation` state
+- `create_ndo(NdoInput)` — creates a `NondominiumIdentity` (Layer 0 anchor)
+- `get_ndo(ActionHash)` / `get_all_ndos()` / `get_my_ndos()`
+- `get_ndos_by_lifecycle_stage(LifecycleStage)` / `get_ndos_by_nature(ResourceNature)` / `get_ndos_by_property_regime(PropertyRegime)`
+- `update_lifecycle_stage(UpdateLifecycleStageInput)` — only the initiator may call (MVP simplification; full role-based auth deferred)
+- `create_economic_resource()` — creates `EconomicResource` in `PendingValidation` state
 - `update_economic_resource()` / `get_latest_economic_resource()` / `get_economic_resource_profile()`
-- `update_resource_state(UpdateResourceStateInput)` — drives state transitions
+- `update_resource_state(UpdateResourceStateInput)` — custodian-only; drives `ResourceState` transitions
 - `transfer_custody()` / `get_all_economic_resources()` / `get_my_economic_resources()`
 - `get_resources_by_specification()` / `get_resource_specification_with_rules()`
 - Full CRUD for `ResourceSpecification` and `GovernanceRule`
@@ -110,7 +164,7 @@ remains commented out, with the note:
 // TODO: Re-enable once cross-zome call issues are resolved
 ```
 
-This is the exact gap ValiChord fills. Still confirmed as of April 2026.
+This is the exact gap ValiChord fills. Still confirmed as of April 2026 in the topeuph-ai fork.
 
 ---
 
@@ -229,8 +283,13 @@ data as sovereign. No conflict; they cover different lifecycle moments.
 ## Build and test
 
 ```bash
-bun run package      # compiles zomes + packs nondominium.happ
-bun run test         # Tryorama + Vitest
+bun run package      # compiles zomes + packs nondominium.happ / .webhapp
+```
+
+**Primary test suite: Sweettest (Rust)** — Tryorama (TypeScript) tests are deprecated as of the fork.
+```bash
+bun run build:happ   # prerequisite before running tests
+CARGO_TARGET_DIR=target/native-tests cargo test --package nondominium_sweettest
 ```
 
 Output: `workdir/nondominium.happ` and `workdir/nondominium.webhapp`
@@ -250,4 +309,4 @@ Flowsta remains the cleanest path for cross-system attribution.
 
 ---
 
-*Last updated: April 2026. Re-read against the `dev` branch of https://github.com/Sensorica/nondominium.*
+*Last updated: April 2026. Re-read against the `dev` branch of https://github.com/topeuph-ai/nondominium (ValiChord fork) and https://github.com/Sensorica/nondominium (upstream).*

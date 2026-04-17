@@ -1,10 +1,10 @@
 # ValiChord × Nondominium — Integration Notes
 
-**Status:** Pre-implementation. Design decisions open. No code written yet.
+**Status:** Pre-implementation. Design decisions open. No integration code written yet.
 **Authors:** Ceri John (ValiChord), in dialogue with Tiberius Brastaviceanu and Sacha (Sensorica)
-**Last updated:** March 2026
+**Last updated:** April 2026
 
-> **Context:** ValiChord is now integration-ready. A live REST API is running, the Feynman AI research agent has integrated ValiChord as a validator skill (PR #13 merged into Feynman 0.2.15), and the full Harmony Record verification link is working end-to-end. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting. See `feynman_integration/INTEGRATION_VISION.md` for the parallel integration that is already live.
+> **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.3.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Feynman AI research agent integration is complete (ValiChord skill in Feynman 0.2.16, PR #23 closed). The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting. See `feynman_integration/INTEGRATION_VISION.md` for the Feynman integration that is already live.
 
 ---
 
@@ -121,6 +121,9 @@ Protocol verifies `SHA-256(attestation || nonce) == CommitmentAnchor.commitment_
 ValiChord governance DNA produces the consensus outcome **[VC]** `governance::finalize_harmony_record()`
 Result written into Nondominium **[NDO]** `zome_gouvernance::create_validation_receipt()` per validator
 Resource state transitioned **[NDO]** `zome_resource::update_resource_state()` → `Active`
+NDO `NondominiumIdentity` lifecycle advanced **[NDO]** `zome_resource::update_lifecycle_stage()` (e.g. `Prototype` → `Stable`), with `NdoToTransitionEvent` link pointing to the `HarmonyRecord` hash
+
+> **Constraint (April 2026):** `update_resource_state()` is custodian-gated — only the resource custodian can call it. ValiChord's governance DNA is not the custodian. See Decision 5 below.
 
 **Step 6 — Validator contributions logged**
 For each validator **[NDO]** `zome_gouvernance::log_economic_event(VfAction::Work)` → PPRs issued automatically
@@ -159,6 +162,25 @@ Who creates the `EconomicResource` in Nondominium?
 **Option B:** ValiChord's researcher workflow creates the NDO resource as part of study registration — a cross-app call from ValiChord's Researcher Repository DNA to `zome_resource::create_economic_resource()`.
 
 Option A requires less integration code and preserves NDO as the canonical resource registry. Option B gives researchers a unified workflow but tightly couples the two systems at creation time.
+
+### Decision 5 — Who is authorised to transition resource state?
+
+`update_resource_state()` in the fork is currently custodian-gated: only the agent holding custody of
+the `EconomicResource` can drive it from `PendingValidation` to `Active`. ValiChord's governance DNA
+is not the custodian, so it cannot call this directly.
+
+**Option A:** Add a governance-authorised pathway — a new `validate_and_activate_resource()` function
+that accepts a `HarmonyRecord` action hash instead of requiring custodianship. The integration layer
+calls this; the function verifies the referenced `HarmonyRecord` before transitioning state.
+
+**Option B:** Keep the custodian gate. After ValiChord produces the `HarmonyRecord`, the researcher
+(who is the custodian) is notified and calls `update_resource_state()` themselves, passing the
+`HarmonyRecord` hash as the triggering event reference. ValiChord triggers the notification;
+the transition remains a human (or Feynman) action.
+
+Option A is a tighter integration but requires a new Nondominium function and a governance-level
+trust decision: who is allowed to force-activate a resource? Option B is looser but keeps NDO's
+custodian model intact and avoids coupling the two DNAs at the Rust level.
 
 ---
 

@@ -1,7 +1,7 @@
 # ValiChord × Nondominium — Integrated System Vision
 
-**Status:** Pre-implementation design document
-**Written:** March 2026
+**Status:** Pre-implementation design document — ValiChord protocol is production-grade; integration layer not yet written
+**Written:** March 2026 | **Updated:** April 2026
 **Based on:** Full read-through of both codebases
 
 ---
@@ -72,6 +72,8 @@ Each validator independently runs the analysis. Then:
 4. Each validator calls `submit_attestation()`, passing their sealed findings and nonce. ValiChord verifies the hash matches the `CommitmentAnchor` they filed in step 1. If it matches, the `ValidationAttestation` is written to the shared DHT — immutably and permanently.
 
 **The guarantee:** the assessment that gets written is provably the same one that was sealed before unblinding. There is no mechanism to change your answer after seeing others'.
+
+**This protocol is now running end-to-end.** As of v0.3.0 (April 2026), 3 Claude AI validators plus a researcher all commit-reveal simultaneously on a live Holochain conductor on Oracle. The resulting `HarmonyRecord` is queryable at a permanent public URL (`GET /record/<hash>`) with no authentication required. A working demo is at `demo/ai_validator.py` — see `demo/AI_VALIDATOR_DEMO.md`.
 
 ### Act 3 — Consensus (ValiChord Governance DNA)
 
@@ -162,6 +164,8 @@ Without Flowsta, the integration must either assume same-device registration acr
 | 2 | Membrane proofs vs NDO roles | Valid ValiChord credential auto-triggers `promote_agent_to_accountable()` | Independent enrollment in each system | Trust architecture |
 | 3 | Who creates the NDO resource? | Researcher creates in NDO first, gives hash to ValiChord | ValiChord creates it via cross-app call | UX and coupling |
 | 4 | Flowsta as shared identity layer | Required for cross-system validators | Optional with manual key-mapping fallback | Identity and attribution |
+
+**Deployment note:** ValiChord's `round_timeout_secs` is a DNA property (default 604800 s / 7 days). Rounds that have not reached full quorum within this window can be force-finalised by `force_finalize_round()` on the governance DNA. Sensorica should decide at deployment time whether 7 days is appropriate for their validation workflows — it is set in `governance/dna.yaml` and baked into the DNA hash, so changing it requires a new DNA.
 
 ---
 
