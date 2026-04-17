@@ -1030,9 +1030,9 @@ pub fn get_difficulty_assessment(
         LinkQuery::try_new(request_ref, LinkTypes::DifficultyPath)?,
         GetStrategy::Network,
     )?;
-    // Return the most recently created assessment (links are append-only;
-    // last() gives the newest, consistent with get_current_phase behaviour).
-    match links.last() {
+    // Return the most recently created assessment (max by timestamp is
+    // deterministic under concurrent gossip; last() is DHT-order-dependent).
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let hash = link
                 .target
@@ -1142,28 +1142,36 @@ pub fn notify_commitment_sealed(
 
     // Step 3: check if all validators have now committed.
     if check_all_commitments_sealed_inner(request_ref.clone())? {
-        let marker = PhaseMarker {
-            request_ref: request_ref.clone(),
-            phase:       ValidationPhase::RevealOpen,
-        };
-        let marker_hash = create_entry(EntryTypes::PhaseMarker(marker))?;
-
         let phase_path = Path::from(format!("phase.{}", request_ref))
             .typed(LinkTypes::RequestToPhaseMarker)?;
         phase_path.ensure()?;
-        create_link(
-            phase_path.path_entry_hash()?,
-            marker_hash,
-            LinkTypes::RequestToPhaseMarker,
-            (),
-        )?;
 
-        // UI notification — NOT a protocol gate.
-        // emit_signal fires locally (this agent's subscriber only).
-        // send_remote_signal notifies every other validator who committed so
-        // they can react immediately without polling get_current_phase().
-        // Both are best-effort: agents may be offline. DHT state is always
-        // the authoritative source of truth for protocol decisions.
+        // Idempotency guard: two validators committing simultaneously both see
+        // quorum met and race to write the PhaseMarker.  Check first so only
+        // one link is ever written.  The entry itself is content-addressed so
+        // a concurrent write would collapse to the same hash; the link table
+        // is the only thing that could accumulate duplicates.
+        let existing_phase = get_links(
+            LinkQuery::try_new(phase_path.path_entry_hash()?, LinkTypes::RequestToPhaseMarker)?,
+            GetStrategy::Network,
+        )?;
+        if existing_phase.is_empty() {
+            let marker = PhaseMarker {
+                request_ref: request_ref.clone(),
+                phase:       ValidationPhase::RevealOpen,
+            };
+            let marker_hash = create_entry(EntryTypes::PhaseMarker(marker))?;
+            create_link(
+                phase_path.path_entry_hash()?,
+                marker_hash,
+                LinkTypes::RequestToPhaseMarker,
+                (),
+            )?;
+        }
+
+        // Signals fire regardless of who wrote the PhaseMarker — best-effort
+        // UI notifications, not protocol gates.  Validators may be offline;
+        // DHT state is always the authoritative source of truth.
         let reveal_signal = Signal::RevealOpen { request_ref: request_ref.clone() };
         emit_signal(&reveal_signal)?;
 
@@ -1199,7 +1207,7 @@ pub fn get_current_phase(
         )?,
         GetStrategy::Network,
     )?;
-    match links.last() {
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let target = link
                 .target
@@ -1290,7 +1298,7 @@ pub fn get_researcher_commitment(
         )?,
         GetStrategy::Network,
     )?;
-    match links.last() {
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let hash = link
                 .target
@@ -1342,6 +1350,42 @@ pub fn reveal_researcher_result(
             "A researcher reveal already exists for this study — \
              the reveal cannot be published more than once".into()
         )));
+    }
+
+    // Gate: only the researcher who submitted the study may reveal its result.
+    // Any credentialed agent can call this function, so we verify the caller
+    // matches the author of the original ValidationRequest.
+    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is
+    // empty (same pattern as the claim gate and hash-verification bypass).
+    {
+        let reveal_props = DnaProperties::try_from_dna_properties()?;
+        if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
+            let caller = agent_info()?.agent_initial_pubkey;
+            let study_path = Path::from(format!("study.{}", input.request_ref))
+                .typed(LinkTypes::StudyToValidation)?;
+            let vr_links = get_links(
+                LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+                GetStrategy::Network,
+            )?;
+            let researcher = vr_links
+                .first()
+                .and_then(|l| l.target.clone().into_action_hash())
+                .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+                .map(|r| r.action().author().clone());
+            match researcher {
+                Some(r) if r != caller => {
+                    return Err(wasm_error!(WasmErrorInner::Guest(
+                        "Only the researcher who submitted this study may reveal the result".into()
+                    )));
+                }
+                None => {
+                    return Err(wasm_error!(WasmErrorInner::Guest(
+                        "ValidationRequest not found — cannot verify researcher identity".into()
+                    )));
+                }
+                _ => {}
+            }
+        }
     }
 
     // Gate: all validators must have committed first.
@@ -1411,7 +1455,7 @@ pub fn get_researcher_reveal(
         )?,
         GetStrategy::Network,
     )?;
-    match links.last() {
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let hash = link
                 .target

@@ -144,6 +144,22 @@ pub fn check_and_create_harmony_record(
         return Ok(None);
     }
 
+    // Verify every attestation actually belongs to this study.
+    // get_attestations_for_request should already enforce this, but an
+    // extra check here prevents a forged or mismatched attestation set
+    // from being written into a permanent HarmonyRecord.
+    let all_match = attestation_records.iter().all(|r| {
+        r.entry()
+            .to_app_option::<ValidationAttestation>()
+            .ok()
+            .flatten()
+            .map(|a| a.request_ref == request_ref)
+            .unwrap_or(false)
+    });
+    if !all_match {
+        return Ok(None);
+    }
+
     // 4-7. Assemble and write.
     let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
     Ok(Some(hash))
@@ -197,6 +213,19 @@ pub fn force_finalize_round(
         props.min_attestations_for_finalization
     };
     if (attestation_records.len() as u32) < min_required {
+        return Ok(None);
+    }
+
+    // Verify every attestation belongs to this study (same guard as full-quorum path).
+    let all_match = attestation_records.iter().all(|r| {
+        r.entry()
+            .to_app_option::<ValidationAttestation>()
+            .ok()
+            .flatten()
+            .map(|a| a.request_ref == request_ref)
+            .unwrap_or(false)
+    });
+    if !all_match {
         return Ok(None);
     }
 
@@ -400,10 +429,9 @@ pub fn get_harmony_record(
         LinkQuery::try_new(anchor, LinkTypes::RequestToHarmonyRecord)?,
         GetStrategy::Network,
     )?;
-    // Use last() — idempotency guard means there should be at most one record,
-    // but defensive ordering ensures we surface the latest if a race ever
-    // produced duplicates (links are gossip-ordered by timestamp).
-    match links.last() {
+    // max_by_key(timestamp) is deterministic under concurrent gossip;
+    // last() is DHT-order-dependent and unreliable under concurrent writes.
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let target = link
                 .target

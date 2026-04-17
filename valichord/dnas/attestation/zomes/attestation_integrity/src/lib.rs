@@ -579,7 +579,8 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // Capacity and duplicate checks live in the coordinator — they require
         // link counting, which is not available in validate().
         FlatOp::StoreEntry(OpEntry::CreateEntry {
-            app_entry: EntryTypes::StudyClaim(ref claim), ..
+            app_entry: EntryTypes::StudyClaim(ref claim),
+            action:    ref create_action,
         }) => {
             let req_record =
                 must_get_valid_record(claim.validation_request_hash.clone())?;
@@ -598,6 +599,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "StudyClaim.request_ref does not match \
                      ValidationRequest.data_hash — the claim is for a different study".into(),
+                ));
+            }
+            // Self-claim prevention: the agent who submitted the ValidationRequest
+            // (the researcher) cannot also claim it as a validator.  Independent
+            // validation requires distinct agents on both sides of the protocol.
+            if &create_action.author == req_record.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Researcher cannot claim their own study — \
+                     the same agent may not both submit and validate a study".into(),
                 ));
             }
             if claim.validator_institution.trim().is_empty() {
