@@ -511,3 +511,92 @@ describe("S5. force_finalize_round conservative abort on missing VR", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// S7. Self-claim prevention (integrity layer)
+// ---------------------------------------------------------------------------
+//
+// Fix: StudyClaim validate() now checks that the claimant is not the same agent
+// who submitted the ValidationRequest. The researcher cannot be their own
+// validator — the integrity rule fires unconditionally (no dev/test bypass).
+
+describe("S7. Self-claim prevention (integrity layer)", () => {
+  test(
+    "researcher cannot call claim_study on their own ValidationRequest",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        const [alice] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
+        ]);
+
+        const requestRef = fakeExternalHash(0x57);
+
+        // Alice submits a ValidationRequest as the researcher (institution: MIT).
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({ data_hash: requestRef, researcher_institution: "MIT" }));
+
+        // Alice registers a validator profile at a DIFFERENT institution so the
+        // coordinator's institution-conflict check does not fire first — the
+        // integrity self-claim check must fire instead.
+        await att(alice, "publish_validator_profile", makeProfile("Oxford"));
+
+        // Alice tries to claim her own study — integrity validate() rejects it.
+        await expect(
+          att(alice, "claim_study", requestRef),
+        ).rejects.toThrow(/cannot claim their own study/);
+      }, true, { timeout: 300_000 });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// S8. Capacity-full rejection
+// ---------------------------------------------------------------------------
+//
+// Once num_validators_required claim slots are filled, any further claim_study
+// call for the same study is rejected. This prevents over-provisioning a round
+// and potential phantom-validator DoS.
+
+describe("S8. Capacity-full rejection", () => {
+  test(
+    "claim_study is rejected after num_validators_required slots are filled",
+    { timeout: 600_000 },
+    async () => {
+      await runScenario(async (scenario) => {
+        // num_validators_required = 1 so a single claim fills capacity.
+        const [alice, bob, carol] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof(), 1),
+          playerConfig(validMembraneProof(), 1),
+          playerConfig(validMembraneProof(), 1),
+        ]);
+        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+
+        const requestRef = fakeExternalHash(0x58);
+
+        // Alice is the researcher; exactly 1 validator slot available.
+        await att(alice, "submit_validation_request",
+          makeValidationRequest({
+            data_hash: requestRef,
+            num_validators_required: 1,
+            researcher_institution: "MIT",
+          }));
+
+        // Bob and Carol register profiles at a different institution.
+        await att(bob, "publish_validator_profile", makeProfile("Oxford"));
+        await att(carol, "publish_validator_profile", makeProfile("Oxford"));
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Bob claims the single available slot.
+        const claimHash = await att(bob, "claim_study", requestRef);
+        expect(claimHash).toBeTruthy();
+        await dhtSync([alice, bob, carol], dnaHash!);
+
+        // Carol tries to claim the same study — capacity is full.
+        await expect(
+          att(carol, "claim_study", requestRef),
+        ).rejects.toThrow();
+      }, true, { timeout: 300_000 });
+    },
+  );
+});

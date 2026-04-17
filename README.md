@@ -7,7 +7,7 @@
 [![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Integration_Ready-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
-[![Tests](https://img.shields.io/badge/Tests-94_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
+[![Tests](https://img.shields.io/badge/Tests-96_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
@@ -65,12 +65,12 @@ valichord/
 │   ├── attestation.test.ts          — 46 tests (1 skipped)
 │   ├── governance.test.ts           — 24 tests
 │   ├── researcher_repository.test.ts — 14 tests
-│   ├── security.test.ts             — 7 tests
+│   ├── security.test.ts             — 9 tests
 │   └── validator_workspace.test.ts   — 7 tests
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**94 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can POST a ZIP can integrate. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
+**96 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can POST a ZIP can integrate. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
 
 Test coverage includes:
 
@@ -98,7 +98,7 @@ Test coverage includes:
 - `DisciplinePath` attestation index — attestations indexed by discipline for cross-study analytics (`get_attestations_for_discipline`)
 - Validator self-assignment (`StudyClaim`) — validators claim studies from the queue via `claim_study(request_ref)`; coordinator enforces capacity and duplicate checks; integrity zome's `validate()` enforces conflict-of-interest (same institution as researcher → rejected); `release_claim` frees the slot while preserving the audit record
 - Dropout recovery — `reclaim_abandoned_claim` frees a slot held by a validator who has gone dark (any participant, after configurable timeout); `force_finalize_round` closes a stuck round after 7 days subject to `min_attestations_for_finalization` (governance DNA property — set equal to panel size for ≤4-validator panels, one lower for larger panels), producing a normal HarmonyRecord identifiable as reduced-quorum by validator count
-- Security protocol guards — duplicate attestation rejection, duplicate commitment rejection, researcher commitment idempotency, reclaim timeout floor enforcement, force_finalize_round conservative abort
+- Security protocol guards — duplicate attestation rejection, duplicate commitment rejection, researcher commitment idempotency, reclaim timeout floor enforcement, force_finalize_round conservative abort, self-claim prevention (researcher cannot validate own study — no dev bypass), researcher reveal authorisation, PhaseMarker write idempotency (TOCTOU-safe), deterministic link resolution (all `links.last()` → `max_by_key(timestamp)`), O(N) DHT round-trip elimination in claim functions
 - Conductor-free unit tests for pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`) in `shared_types` — run in < 1 s with `cargo test -p valichord_shared_types`
 - Native Rust sweettest suite (`valichord/sweettest_integration/`) in 5 parallel CI matrix jobs alongside Tryorama
 
