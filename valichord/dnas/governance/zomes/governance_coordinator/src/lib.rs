@@ -96,7 +96,22 @@ where
                 .map(Some)
                 .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
         }
-        _ => Ok(None), // Network error / unauthorized — abort conservatively.
+        ZomeCallResponse::Unauthorized(cell, zome, func, agent) => {
+            debug!("call_attestation_zome_opt: Unauthorized — cell={cell:?} zome={zome:?} fn={func:?} agent={agent:?}");
+            Ok(None)
+        }
+        ZomeCallResponse::AuthenticationFailed(_, _) => {
+            debug!("call_attestation_zome_opt: AuthenticationFailed calling {fn_name}");
+            Ok(None)
+        }
+        ZomeCallResponse::NetworkError(msg) => {
+            debug!("call_attestation_zome_opt: NetworkError calling {fn_name}: {msg}");
+            Ok(None)
+        }
+        ZomeCallResponse::CountersigningSession(msg) => {
+            debug!("call_attestation_zome_opt: CountersigningSession calling {fn_name}: {msg}");
+            Ok(None)
+        }
     }
 }
 
