@@ -399,38 +399,56 @@ async fn get_validator_profile_none_when_unpublished() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn claim_and_release_study() {
-    let (conductor, app) = setup_single().await;
-    let zome = app.attestation_zome();
-
+    let mut setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x50);
 
-    // ValidationRequest must exist before claim_study can resolve it.
-    conductor
-        .call::<_, ActionHash>(&zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+    // Alice (researcher) submits the ValidationRequest.
+    setup.conductors[0]
+        .call::<_, ActionHash>(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob (validator, different agent) publishes profile and claims the study.
+    setup.conductors[1]
+        .call::<_, ActionHash>(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
         .await;
 
-    // Claim the study — validator's profile institution is "Independent", which
-    // doesn't match the ValidationRequest's researcher_institution "Open Science Lab".
-    conductor
-        .call::<_, ActionHash>(&zome, "publish_validator_profile", make_validator_profile("Independent"))
-        .await;
-
-    let claim_hash: ActionHash = conductor
-        .call(&zome, "claim_study", request_ref.clone())
+    let claim_hash: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
         .await;
     assert_ne!(claim_hash.as_ref().len(), 0, "claim_study should return an ActionHash");
 
-    // Claims for this request should include the validator.
-    let claims: Vec<Record> = conductor
-        .call(&zome, "get_claims_for_request", request_ref.clone())
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Claims for this request should include Bob's claim.
+    let claims: Vec<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_claims_for_request", request_ref.clone())
         .await;
     assert_eq!(claims.len(), 1, "one claim should be registered for this request");
 
-    // Release the claim — slot freed.
-    let _: () = conductor.call(&zome, "release_claim", request_ref.clone()).await;
+    // Bob releases the claim — slot freed.
+    let _: () = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "release_claim", request_ref.clone())
+        .await;
 
-    let claims_after: Vec<Record> = conductor
-        .call(&zome, "get_claims_for_request", request_ref)
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let claims_after: Vec<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_claims_for_request", request_ref)
         .await;
     assert_eq!(claims_after.len(), 0, "claim list should be empty after release");
 }
@@ -476,31 +494,46 @@ async fn claim_study_coi_same_institution_rejected() {
 // min_claim_timeout_secs=0 in DNA properties → any timeout_secs is accepted.
 // With timeout_secs=0, any claim (even one just created) can be reclaimed.
 // The absent validator has not submitted an attestation → reclaim returns true.
+// Alice = researcher, Bob = validator who claims but never attests (abandoned).
 
 #[tokio::test(flavor = "multi_thread")]
 async fn reclaim_abandoned_claim_timeout_zero() {
-    let (conductor, app) = setup_single().await;
-    let zome = app.attestation_zome();
-
+    let mut setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x60);
 
-    conductor
-        .call::<_, ActionHash>(&zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+    // Alice (researcher) submits the ValidationRequest.
+    setup.conductors[0]
+        .call::<_, ActionHash>(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob (validator) claims but never attests — simulating abandonment.
+    setup.conductors[1]
+        .call::<_, ActionHash>(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    let claim_hash: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
         .await;
 
-    // Claim the study as the validator.
-    conductor
-        .call::<_, ActionHash>(&zome, "publish_validator_profile", make_validator_profile("Independent"))
-        .await;
-    let claim_hash: ActionHash = conductor
-        .call(&zome, "claim_study", request_ref.clone())
-        .await;
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
 
-    // Reclaim with timeout_secs=0 — should succeed immediately since the
-    // validator hasn't submitted an attestation and min_claim_timeout_secs=0.
-    let reclaimed: bool = conductor
+    // Alice reclaims with timeout_secs=0 — succeeds immediately since Bob has
+    // not attested and min_claim_timeout_secs=0 (dev bypass).
+    let reclaimed: bool = setup.conductors[0]
         .call(
-            &zome,
+            &setup.alice.attestation_zome(),
             "reclaim_abandoned_claim",
             ReclaimInput {
                 request_ref: request_ref.clone(),
@@ -511,9 +544,13 @@ async fn reclaim_abandoned_claim_timeout_zero() {
         .await;
     assert!(reclaimed, "reclaim_abandoned_claim should return true when conditions are met");
 
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
     // Slot is freed — claims list should be empty.
-    let claims: Vec<Record> = conductor
-        .call(&zome, "get_claims_for_request", request_ref)
+    let claims: Vec<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_claims_for_request", request_ref)
         .await;
     assert_eq!(claims.len(), 0, "claim slot should be freed after reclamation");
 }
