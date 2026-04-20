@@ -524,7 +524,9 @@ pub fn get_validation_request_for_data_hash(
         LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
         GetStrategy::Network,
     )?;
-    match links.first() {
+    // max_by_key(timestamp) is deterministic under concurrent gossip;
+    // first() is DHT-order-dependent and unreliable if two requests share the same path.
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let hash = link
                 .target
@@ -586,7 +588,9 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
             LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
             GetStrategy::Network,
         )?;
-        let link = links.first().ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+        // max_by_key(timestamp) is deterministic under concurrent gossip;
+        // first() is DHT-order-dependent if two requests share the same path.
+        let link = links.iter().max_by_key(|l| l.timestamp).ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
             "No ValidationRequest found for this data_hash — submit_validation_request first"
                 .into(),
         )))?;
@@ -944,7 +948,24 @@ pub fn get_validators_for_discipline(
         LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::ValidatorTierPath)?,
         GetStrategy::Network,
     )?;
-    records_for_links(links)
+    // Every update_validator_profile call creates a new discipline-path link without
+    // removing old ones, so the index accumulates historical versions. Group by
+    // authoring agent and keep only the latest (newest action timestamp) per agent.
+    let all_records = records_for_links(links)?;
+    let mut latest_by_agent: std::collections::HashMap<AgentPubKey, Record> =
+        std::collections::HashMap::new();
+    for record in all_records {
+        let author = record.action().author().clone();
+        let ts = record.action().timestamp();
+        let is_newer = latest_by_agent
+            .get(&author)
+            .map(|existing| ts > existing.action().timestamp())
+            .unwrap_or(true);
+        if is_newer {
+            latest_by_agent.insert(author, record);
+        }
+    }
+    Ok(latest_by_agent.into_values().collect())
 }
 
 /// Return all ValidatorProfile records for validators affiliated with an institution.

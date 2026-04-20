@@ -341,7 +341,7 @@ fn write_harmony_record(
         request_ref: request_ref.clone(),
         outcome,
         agreement_level,
-        participating_validators,   // moved — no clone
+        participating_validators: participating_validators.clone(),
         validator_types,
         validation_duration_secs,
         discipline,                 // moved — no clone
@@ -671,7 +671,13 @@ fn _update_reputation_internal(
         GetStrategy::Network,
     )?;
 
-    let (total_validations, agreement_rate, avg_time_secs, tier) =
+    let is_success = matches!(
+        &outcome,
+        AttestationOutcome::Reproduced | AttestationOutcome::PartiallyReproduced { .. }
+    );
+
+    // (total_validations, successful_validations, agreement_rate, avg_time_secs, tier)
+    let (total_validations, successful_validations, agreement_rate, avg_time_secs, tier) =
         if let Some(link) = links.iter().max_by_key(|l| reputation_link_count(l)) {
             let target = link
                 .target
@@ -688,34 +694,35 @@ fn _update_reputation_internal(
                     .flatten()
                 {
                     let new_total = existing.total_validations + 1;
-                    let prev_successes =
-                        (existing.agreement_rate * existing.total_validations as f64) as u32;
-                    let is_success = matches!(
-                        &outcome,
-                        AttestationOutcome::Reproduced
-                            | AttestationOutcome::PartiallyReproduced { .. }
-                    );
-                    let new_successes = prev_successes + if is_success { 1 } else { 0 };
+                    // Use the stored integer count directly — avoids floating-point
+                    // reconstruction drift: (rate * total) as u32 truncates incorrectly,
+                    // e.g. 2/3 → 0.666 * 3 = 1.999 → 1, losing a success permanently.
+                    let new_successes =
+                        existing.successful_validations + if is_success { 1 } else { 0 };
                     let new_rate = new_successes as f64 / new_total as f64;
                     let new_avg = (existing.avg_time_secs * existing.total_validations as u64
                         + time_invested_secs)
                         / new_total as u64;
                     let new_tier = cert_tier(new_total, new_rate);
-                    (new_total, new_rate, new_avg, new_tier)
+                    (new_total, new_successes, new_rate, new_avg, new_tier)
                 } else {
-                    (1, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
+                    let s = if is_success { 1 } else { 0 };
+                    (1, s, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
                 }
             } else {
-                (1, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
+                let s = if is_success { 1 } else { 0 };
+                (1, s, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
             }
         } else {
-            (1, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
+            let s = if is_success { 1 } else { 0 };
+            (1, s, initial_rate(&outcome), time_invested_secs, CertificationTier::Provisional)
         };
 
     let rep = ValidatorReputation {
         validator: validator.clone(),
         discipline,
         total_validations,
+        successful_validations,
         agreement_rate,
         avg_time_secs,
         tier,

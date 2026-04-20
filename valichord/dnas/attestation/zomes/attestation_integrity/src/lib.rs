@@ -551,6 +551,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidationRequest(ref vr), ..
         }) => {
+            // Hard floor: 0 validators would let check_all_commitments_sealed_inner
+            // fire immediately (0 >= 0), opening the reveal phase on the first
+            // commitment regardless of actual quorum — never valid.
+            if vr.num_validators_required == 0 {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "num_validators_required must be at least 1".into(),
+                ));
+            }
             let props = DnaProperties::try_from_dna_properties()?;
             if props.minimum_validators > 0
                 && (vr.num_validators_required as u32) < props.minimum_validators

@@ -337,28 +337,44 @@ pub fn derive_majority_outcome(attestations: &[ValidationAttestation]) -> Attest
 
 /// Derive AgreementLevel from the success rate across a set of attestations.
 ///
-/// Thresholds (fraction of Reproduced + PartiallyReproduced outcomes):
-///   ≥ 90% → ExactMatch | ≥ 70% → WithinTolerance | ≥ 50% → DirectionalMatch
-///   < 50% but > 0 successes → Divergent | 0 successes → UnableToAssess
+/// Two rates are computed separately:
+///   `full_rate`  = Reproduced / total
+///   `any_rate`   = (Reproduced + PartiallyReproduced) / total
+///
+/// Thresholds:
+///   full_rate ≥ 90%  → ExactMatch       (nearly all validators reproduced exactly)
+///   any_rate  ≥ 70%  → WithinTolerance  (majority reproduced, some only partially)
+///   any_rate  ≥ 50%  → DirectionalMatch
+///   any_rate  >  0%  → Divergent
+///   any_rate  == 0%  → UnableToAssess
+///
+/// PartiallyReproduced deliberately cannot reach ExactMatch — "all validators
+/// only partially reproduced" is WithinTolerance at best, not an exact match.
 pub fn derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel {
     if attestations.is_empty() {
         return AgreementLevel::UnableToAssess;
     }
-    let successes = attestations
+    let total = attestations.len() as f64;
+    let full = attestations
+        .iter()
+        .filter(|a| matches!(&a.outcome, AttestationOutcome::Reproduced))
+        .count();
+    let any_success = attestations
         .iter()
         .filter(|a| matches!(
             &a.outcome,
             AttestationOutcome::Reproduced | AttestationOutcome::PartiallyReproduced { .. }
         ))
         .count();
-    let rate = successes as f64 / attestations.len() as f64;
-    if rate >= 0.90 {
+    let full_rate = full as f64 / total;
+    let any_rate  = any_success as f64 / total;
+    if full_rate >= 0.90 {
         AgreementLevel::ExactMatch
-    } else if rate >= 0.70 {
+    } else if any_rate >= 0.70 {
         AgreementLevel::WithinTolerance
-    } else if rate >= 0.50 {
+    } else if any_rate >= 0.50 {
         AgreementLevel::DirectionalMatch
-    } else if successes > 0 {
+    } else if any_success > 0 {
         AgreementLevel::Divergent
     } else {
         AgreementLevel::UnableToAssess
@@ -464,10 +480,28 @@ mod tests {
 
     #[test]
     fn agreement_90_percent_is_exact_match() {
-        // 9 reproduced, 1 failed → 90 % → ExactMatch
+        // 9 reproduced, 1 failed → full_rate 90% → ExactMatch
         let mut atts = vec![att(AttestationOutcome::Reproduced); 9];
         atts.push(att(AttestationOutcome::FailedToReproduce { details: String::new() }));
         assert_eq!(derive_agreement_level(&atts), AgreementLevel::ExactMatch);
+    }
+
+    #[test]
+    fn agreement_all_partial_is_within_tolerance_not_exact_match() {
+        // All validators only partially reproduced — not ExactMatch, despite 100% any_rate.
+        let atts = vec![
+            att(AttestationOutcome::PartiallyReproduced { details: "close".into() });
+            4
+        ];
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::WithinTolerance);
+    }
+
+    #[test]
+    fn agreement_mixed_reproduced_and_partial_below_90_full_is_within_tolerance() {
+        // 8 Reproduced + 2 PartiallyReproduced → full_rate 80% < 90%, any_rate 100% ≥ 70%
+        let mut atts = vec![att(AttestationOutcome::Reproduced); 8];
+        atts.extend(vec![att(AttestationOutcome::PartiallyReproduced { details: String::new() }); 2]);
+        assert_eq!(derive_agreement_level(&atts), AgreementLevel::WithinTolerance);
     }
 
     #[test]

@@ -91,13 +91,22 @@ pub struct HarmonyRecord {
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct ValidatorReputation {
-    pub validator:         AgentPubKey,
-    pub discipline:        Discipline,
-    pub total_validations: u32,
+    pub validator:              AgentPubKey,
+    pub discipline:             Discipline,
+    pub total_validations:      u32,
+    /// Integer count of successful outcomes (Reproduced or PartiallyReproduced).
+    /// Stored explicitly so agreement_rate can be recomputed exactly without
+    /// floating-point reconstruction (which would drift via (rate * total) as u32).
+    ///
+    /// `#[serde(default)]` ensures records written before this field was added
+    /// deserialise as `0` without error (backwards-compatible).
+    #[serde(default)]
+    pub successful_validations: u32,
     /// 0.0–1.0 rate of outcomes agreeing with the majority.
-    pub agreement_rate:    f64,
-    pub avg_time_secs:     u64,
-    pub tier:              CertificationTier,
+    /// Derived: successful_validations / total_validations. Stored for read convenience.
+    pub agreement_rate:         f64,
+    pub avg_time_secs:          u64,
+    pub tier:                   CertificationTier,
     /// Stable person identity across devices — `None` until a cross-device
     /// identity system (e.g. Flowsta, Deepkey) links this device key to a
     /// canonical person key.  When set, reputation aggregation uses this key
