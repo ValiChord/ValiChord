@@ -10,4 +10,5 @@ crate-type = ["rlib"]
 hdi = { workspace = true }
 serde = { workspace = true }
 holochain_serialized_bytes = { workspace = true }
+rmp-serde = { workspace = true }
 thiserror = { workspace = true }

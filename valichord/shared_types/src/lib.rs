@@ -166,6 +166,11 @@ pub struct ComputationalResources {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValidationPhase {
     RevealOpen,
+    /// Reserved for a future UI indicator — never written by the protocol today.
+    /// The coordinator writes only `RevealOpen`; `PhaseMarker` is an append-only
+    /// audit log, not a gate.  Do not add protocol logic that depends on `Complete`
+    /// until a phase-transition write is implemented.
+    #[allow(dead_code)]
     Complete,
 }
 
@@ -271,6 +276,19 @@ impl ValidationAttestation {
             .map(|sb| sb.bytes().to_vec())
             .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
     }
+}
+
+/// Serialise a `MetricResult` slice to MessagePack bytes for commit/reveal hash
+/// computation on the researcher side.
+///
+/// Mirrors `ValidationAttestation::commitment_msgpack_bytes()` — both use
+/// `SerializedBytes` (Holochain's canonical msgpack encoding) so the two hash
+/// paths remain byte-for-byte consistent regardless of future serialiser changes.
+/// `reveal_researcher_result` must call this instead of `rmps::to_vec_named`
+/// directly so any future change to the encoding is made in one place.
+pub fn metric_results_msgpack_bytes(metrics: &[MetricResult]) -> ExternResult<Vec<u8>> {
+    rmp_serde::to_vec_named(metrics)
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
 }
 
 // ---------------------------------------------------------------------------

@@ -8,10 +8,9 @@ use attestation_integrity::{
 };
 use valichord_shared_types::{
     Discipline, ValidationAttestation, ValidationPhase, ValiChordError, ValiChordResult,
-    discipline_tag,
+    discipline_tag, metric_results_msgpack_bytes,
 };
 use sha2::{Digest, Sha256};
-use rmp_serde as rmps;
 use std::collections::HashSet;
 
 // ---------------------------------------------------------------------------
@@ -1407,6 +1406,8 @@ pub fn reveal_researcher_result(
     // matches the author of the original ValidationRequest.
     // Dev/test bypass: skipped when authorized_joining_certificate_issuer is
     // empty (same pattern as the claim gate and hash-verification bypass).
+    // PRODUCTION: authorized_joining_certificate_issuer MUST be set in the DNA
+    // properties — without it, any agent can publish a researcher reveal.
     {
         let reveal_props = DnaProperties::try_from_dna_properties()?;
         if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
@@ -1460,8 +1461,9 @@ pub fn reveal_researcher_result(
         )))?;
 
     // Verify: SHA-256(msgpack(metrics) || nonce) == result_commitment_hash
-    let msgpack_bytes: Vec<u8> = rmps::to_vec_named(&input.metrics)
-        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+    // Uses metric_results_msgpack_bytes() — same SerializedBytes encoding as
+    // commitment_msgpack_bytes() — so both hash paths stay byte-for-byte consistent.
+    let msgpack_bytes: Vec<u8> = metric_results_msgpack_bytes(&input.metrics)?;
     let mut hasher = Sha256::new();
     hasher.update(&msgpack_bytes);
     hasher.update(&input.nonce);
