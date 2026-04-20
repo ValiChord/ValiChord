@@ -3,6 +3,18 @@ use validator_workspace_integrity::{EntryTypes, LinkTypes, ValidationTask, Valid
 use valichord_shared_types::{CommitmentSealedInput, ValidationAttestation};
 use sha2::{Digest, Sha256};
 
+/// Signals emitted by this DNA to local UI subscribers.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "content")]
+pub enum Signal {
+    /// Emitted when the cross-DNA call to notify_commitment_sealed fails.
+    /// The validator's private attestation IS sealed locally (source chain),
+    /// but the CommitmentAnchor was NOT published to the shared DHT — the
+    /// validator's slot appears uncommitted and the round will stall.
+    /// The UI must surface this and prompt the validator to retry.
+    CommitmentNotifyFailed { request_ref: ExternalHash, error: String },
+}
+
 // ---------------------------------------------------------------------------
 // No init() needed.
 // Single-agent private DNA — author grant covers all calls automatically.
@@ -233,22 +245,42 @@ fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResul
                     // Pass both the request identifier AND the commitment_hash
                     // so the Attestation DNA can record a fully-formed
                     // CommitmentAnchor without knowing the private content.
+                    let request_ref = attestation.request_ref.clone();
                     let sealed_input = CommitmentSealedInput {
                         request_ref:     attestation.request_ref,
                         commitment_hash: attestation.commitment_hash,
                     };
-                    let _result: ExternResult<ZomeCallResponse> = call(
+                    let notify_failed = match call(
                         CallTargetCell::OtherRole("attestation".into()),
                         ZomeName::from("attestation_coordinator"),
                         FunctionName::from("notify_commitment_sealed"),
                         None,
                         sealed_input,
-                    );
-                    if let Err(e) = _result {
-                        debug!(
-                            "notify_commitment_sealed call failed (non-fatal): {:?}",
-                            e
-                        );
+                    ) {
+                        Ok(ZomeCallResponse::Ok(_)) => false,
+                        Ok(other) => {
+                            warn!(
+                                "notify_commitment_sealed non-Ok — CommitmentAnchor not on DHT, \
+                                 validator slot stuck uncommitted, retry required: {:?}",
+                                other
+                            );
+                            true
+                        }
+                        Err(e) => {
+                            warn!(
+                                "notify_commitment_sealed call failed — CommitmentAnchor not on DHT, \
+                                 validator slot stuck uncommitted, retry required: {:?}",
+                                e
+                            );
+                            true
+                        }
+                    };
+                    if notify_failed {
+                        let _ = emit_signal(&Signal::CommitmentNotifyFailed {
+                            request_ref,
+                            error: "notify_commitment_sealed failed — retry seal_private_attestation \
+                                    or call notify_commitment_sealed directly".into(),
+                        });
                     }
                 }
             }

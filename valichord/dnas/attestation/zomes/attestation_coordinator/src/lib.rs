@@ -1585,8 +1585,12 @@ pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
 
 /// Called for every Create action confirmed on this agent's source chain.
 ///
-/// post_commit MUST NOT write data (Holochain constraint). Currently a no-op;
-/// placeholder for future local signal emission on ValidationAttestation creates.
+/// post_commit MUST NOT write data (Holochain constraint). Currently a no-op.
+///
+/// WARNING for future developers: any side effects added here are fire-and-forget —
+/// failures are caught by the `post_commit` wrapper and logged at DEBUG only.
+/// If you add cross-DNA calls or signal emissions, emit a local Signal variant
+/// on failure so callers have a recovery path (see validator_workspace Signal::CommitmentNotifyFailed).
 fn post_commit_on_create(_action_hash: ActionHash) -> ExternResult<()> {
     Ok(())
 }
@@ -1660,13 +1664,25 @@ fn call_governance_fire_and_forget(
     fn_name: &str,
     input: impl serde::Serialize + std::fmt::Debug,
 ) {
-    let _ = call(
+    match call(
         CallTargetCell::OtherRole("governance".into()),
         ZomeName::from("governance_coordinator"),
         FunctionName::from(fn_name),
         None,
         input,
-    );
+    ) {
+        Ok(ZomeCallResponse::Ok(_)) => {}
+        Ok(other) => warn!(
+            "call_governance_fire_and_forget({fn_name}): non-Ok response — \
+             round finalisation may be stuck: {:?}",
+            other
+        ),
+        Err(e) => warn!(
+            "call_governance_fire_and_forget({fn_name}): call failed — \
+             round finalisation may be stuck: {:?}",
+            e
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------------

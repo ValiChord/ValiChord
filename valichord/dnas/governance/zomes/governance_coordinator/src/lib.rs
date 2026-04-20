@@ -97,19 +97,19 @@ where
                 .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
         }
         ZomeCallResponse::Unauthorized(cell, zome, func, agent) => {
-            debug!("call_attestation_zome_opt: Unauthorized — cell={cell:?} zome={zome:?} fn={func:?} agent={agent:?}");
+            warn!("call_attestation_zome_opt: Unauthorized — cell={cell:?} zome={zome:?} fn={func:?} agent={agent:?}");
             Ok(None)
         }
         ZomeCallResponse::AuthenticationFailed(_, _) => {
-            debug!("call_attestation_zome_opt: AuthenticationFailed calling {fn_name}");
+            warn!("call_attestation_zome_opt: AuthenticationFailed calling {fn_name}");
             Ok(None)
         }
         ZomeCallResponse::NetworkError(msg) => {
-            debug!("call_attestation_zome_opt: NetworkError calling {fn_name}: {msg}");
+            warn!("call_attestation_zome_opt: NetworkError calling {fn_name}: {msg}");
             Ok(None)
         }
         ZomeCallResponse::CountersigningSession(msg) => {
-            debug!("call_attestation_zome_opt: CountersigningSession calling {fn_name}: {msg}");
+            warn!("call_attestation_zome_opt: CountersigningSession calling {fn_name}: {msg}");
             Ok(None)
         }
     }
@@ -163,16 +163,23 @@ pub fn check_and_create_harmony_record(
     // get_attestations_for_request should already enforce this, but an
     // extra check here prevents a forged or mismatched attestation set
     // from being written into a permanent HarmonyRecord.
-    let all_match = attestation_records.iter().all(|r| {
-        r.entry()
+    //
+    // Deserialisation failure returns a hard Err — not Ok(None) — so it is
+    // distinguishable from "quorum not yet met".  A None from to_app_option()
+    // means the link points to a non-ValidationAttestation entry (DHT corruption),
+    // not a gossip delay (missing records are filtered out by records_for_links).
+    for r in &attestation_records {
+        let att = r.entry()
             .to_app_option::<ValidationAttestation>()
-            .ok()
-            .flatten()
-            .map(|a| a.request_ref == request_ref)
-            .unwrap_or(false)
-    });
-    if !all_match {
-        return Ok(None);
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(
+                format!("Attestation deserialisation failed — possible DHT corruption: {e}")
+            )))?
+            .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                "An attestation index link points to a non-ValidationAttestation entry".into()
+            )))?;
+        if att.request_ref != request_ref {
+            return Ok(None); // Forged or mismatched — abort conservatively.
+        }
     }
 
     // 4-7. Assemble and write.
@@ -320,17 +327,17 @@ fn write_harmony_record(
     let discipline = discipline_opt.unwrap_or_else(|| Discipline::Other("unknown".into()));
 
     // Look up each validator's declared agent type — parallel to participating_validators.
-    // On cross-DNA failure the slot is None; the record is still written.
+    // Wasm-level errors (host failure, decode error) propagate and fail the entire write —
+    // an incomplete HarmonyRecord is immutable and the missing data can never be recovered.
+    // Network timeouts within ZomeCallResponse are still mapped to Ok(None) by
+    // call_attestation_zome_opt (validator may genuinely have no agent_type set).
     let validator_types: Vec<Option<ValidatorAgentType>> = participating_validators
         .iter()
-        .map(|v| {
-            call_attestation_zome_opt::<AgentPubKey, ValidatorAgentType>(
-                "get_validator_agent_type",
-                v.clone(),
-            )
-            .unwrap_or(None)
-        })
-        .collect();
+        .map(|v| call_attestation_zome_opt::<AgentPubKey, ValidatorAgentType>(
+            "get_validator_agent_type",
+            v.clone(),
+        ))
+        .collect::<ExternResult<Vec<_>>>()?;
 
     // Pre-compute before discipline/validators are moved into the struct.
     let disc_anchor    = discipline_anchor(&discipline)?;
