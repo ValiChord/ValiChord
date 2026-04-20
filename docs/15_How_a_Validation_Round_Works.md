@@ -168,6 +168,30 @@ By the time a Harmony Record exists, the following are mathematically true:
 
 What the process does not guarantee: that the validators were right. That Sarah's methodology is sound. That the study is significant. Those are scientific questions, not verification questions. ValiChord answers the verification question precisely and leaves the scientific questions to scientists.
 
+### Cryptographic Guarantees
+
+The commit-reveal protocol rests on three specific cryptographic choices:
+
+**Hash function — SHA-256.** Every commitment hash is `SHA-256(serialised_data || nonce)`. SHA-256 is a one-way function: given only the commitment hash and nonce, it is computationally infeasible to recover or alter the underlying assessment. The 256-bit output is verified byte-for-byte at reveal time.
+
+**Nonce — 32 random bytes from Holochain's host function.** Each commit generates a fresh nonce via `random_bytes(32)` — Holochain's cryptographically secure host-level random source. The nonce is never published; it travels only inside the private `ValidatorPrivateAttestation` entry and is submitted by the validator at reveal time. Without the nonce, an observer who intercepts the commitment hash cannot brute-force the small set of possible verdicts (Reproduced / Diverged / UnableToAssess).
+
+**Serialisation — MessagePack named-field encoding (`rmp_serde::to_vec_named`).** The same function is used at commit time (to hash the attestation before sealing) and at reveal time (to verify the hash against the public attestation). Because the encoding is deterministic and field-order-stable, the byte string produced at reveal is identical to the byte string produced at commit — a property that does not hold for JSON serialisation with arbitrary key ordering. Both `seal_private_attestation` (DNA 2) and `submit_attestation` (DNA 3) call `ValidationAttestation::commitment_msgpack_bytes()`, the same shared function in `valichord_shared_types`, guaranteeing byte-for-byte consistency across DNA boundaries.
+
+The full commitment formula for a validator is:
+
+```
+commitment_hash = SHA-256( rmp_serde::to_vec_named(ValidationAttestation) || nonce_32_bytes )
+```
+
+The full commitment formula for the researcher is:
+
+```
+commitment_hash = SHA-256( rmp_serde::to_vec_named(Vec<MetricResult>) || nonce_32_bytes )
+```
+
+Both hashes are written to the shared DHT before any reveal begins. At reveal time, `submit_attestation` and `reveal_researcher_result` recompute the hash from the submitted data and reject the reveal if the hashes do not match exactly.
+
 ---
 
 ## The Timeline

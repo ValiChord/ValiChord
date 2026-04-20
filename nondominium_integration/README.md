@@ -169,17 +169,25 @@ Option A requires less integration code and preserves NDO as the canonical resou
 the `EconomicResource` can drive it from `PendingValidation` to `Active`. ValiChord's governance DNA
 is not the custodian, so it cannot call this directly.
 
+> **Architecture update (April 2026):** The earlier ValiChord design had a `harmony_record_creator_key`
+> DNA property that identified a single trusted agent as the HarmonyRecord author. That key has been
+> removed. `HarmonyRecord` creation is now **participatory** — any validator who participated in the
+> round may call `check_and_create_harmony_record` and trigger finalisation. This changes Option A
+> slightly: the integration layer can no longer rely on a single fixed agent to call
+> `validate_and_activate_resource()`; it must accept calls from any member of `participating_validators`.
+
 **Option A:** Add a governance-authorised pathway — a new `validate_and_activate_resource()` function
 that accepts a `HarmonyRecord` action hash instead of requiring custodianship. The integration layer
-calls this; the function verifies the referenced `HarmonyRecord` before transitioning state.
+calls this from any participating validator; the function verifies the referenced `HarmonyRecord`
+(and that the caller is in `participating_validators`) before transitioning state.
 
 **Option B:** Keep the custodian gate. After ValiChord produces the `HarmonyRecord`, the researcher
 (who is the custodian) is notified and calls `update_resource_state()` themselves, passing the
 `HarmonyRecord` hash as the triggering event reference. ValiChord triggers the notification;
 the transition remains a human (or Feynman) action.
 
-Option A is a tighter integration but requires a new Nondominium function and a governance-level
-trust decision: who is allowed to force-activate a resource? Option B is looser but keeps NDO's
+Option A is a tighter integration but requires a new Nondominium function and a multi-caller trust
+decision (any participating validator, not a single fixed key). Option B is looser but keeps NDO's
 custodian model intact and avoids coupling the two DNAs at the Rust level.
 
 ---

@@ -289,17 +289,19 @@ Read functions only are `Unrestricted` — accessible via HTTP Gateway without a
 ```rust
 #[dna_properties]
 pub struct DnaProperties {
-    pub system_coordinator_key:     String, // may write ValidatorReputation
-    pub harmony_record_creator_key: String, // may write HarmonyRecord / Badge / GovernanceDecision
+    pub system_coordinator_key: String, // may write ValidatorReputation
+    pub min_attestations_for_finalization: u32,
 }
 ```
 
-In test/dev mode, empty strings bypass the key check. In production, real `AgentPubKey` base58 strings are baked in at deployment.
+In test/dev mode, an empty string for `system_coordinator_key` bypasses the reputation-write key check. In production, a real `AgentPubKey` base58 string is baked in at deployment.
+
+> **Note:** An earlier design included a second key `harmony_record_creator_key` that restricted `HarmonyRecord` and `ReproducibilityBadge` writes to a single trusted agent. This was removed. `HarmonyRecord` creation is now **participatory** — any validator who appears in `participating_validators` of the round may trigger finalisation by calling `check_and_create_harmony_record`. The integrity zome enforces that `action.author ∈ participating_validators` rather than checking a fixed key. This removes a single-point-of-failure from round finalisation and is more consistent with Holochain's agent-centric model.
 
 ### Entry Types
 
 ```rust
-// IMMUTABLE — harmony_record_creator_key gated
+// IMMUTABLE — author must be in participating_validators (integrity zome enforced)
 HarmonyRecord {
     request_ref:              ExternalHash,
     outcome:                  AttestationOutcome,
@@ -307,7 +309,7 @@ HarmonyRecord {
     participating_validators: Vec<AgentPubKey>,
     validation_duration_secs: u64,
     discipline:               Discipline,
-    created_at_secs:          u64,
+    // Note: no created_at_secs — Holochain Action timestamps are authoritative
 }
 
 // Updateable — system_coordinator_key gated
@@ -323,7 +325,7 @@ ValidatorReputation {
                                              // #[serde(default)] — backwards-compatible.
 }
 
-// IMMUTABLE — harmony_record_creator_key gated
+// IMMUTABLE — author must be in participating_validators (same guard as HarmonyRecord)
 ReproducibilityBadge {
     study_ref:          ExternalHash,
     issued_to:          AgentPubKey,
@@ -332,7 +334,7 @@ ReproducibilityBadge {
     harmony_record_ref: ActionHash,
 }
 
-// IMMUTABLE — harmony_record_creator_key gated
+// IMMUTABLE
 GovernanceDecision {
     proposal:        String,
     decision:        String,
@@ -349,7 +351,9 @@ GovernanceDecision {
 | GoldReproducible | ≥ 7 | ExactMatch or WithinTolerance |
 | SilverReproducible | ≥ 5 | ExactMatch or WithinTolerance |
 | BronzeReproducible | ≥ 3 | ExactMatch or WithinTolerance |
-| FailedReproduction | Any | Majority Divergent or NotReproduced |
+| FailedReproduction | ≥ 3 | Majority Divergent or NotReproduced |
+
+> **Phase 0 caveat — badge tier reflects participant count and agreement level only.** In Phase 0, `_update_reputation_internal` is a no-op in production — the reputation write would fail the `system_coordinator_key` guard. As a result, every validator's `CertificationTier` is `Provisional` regardless of how many rounds they have completed. A Gold badge issued in Phase 0 means seven validators independently agreed; it does not yet mean seven validators with a verified track record agreed. Phase 1 wires in a trusted caller for reputation updates, at which point badge tier will reflect earned experience. All public descriptions of ValiChord badges must reflect this Phase 0 constraint.
 
 ### Link Types
 
@@ -359,16 +363,19 @@ RequestToHarmonyRecord
 DisciplinePath         // path anchor → HarmonyRecord
 BadgePath              // path anchor → ReproducibilityBadge
 StudyToBadge
+RequestToRelease       // base = study path anchor; tag = 39-byte ActionHash of released claim
+ValidatorToRelease     // base = validator pubkey; same tag scheme
+AgentToIdentityAttestation  // written from both pubkeys by link_agent_identity
 ```
 
 ### Validation Rules
 
-Author checks in `validate()` compare `action.author().to_string()` against DNA property keys:
+`HarmonyRecord` and `ReproducibilityBadge` writes are now participatory — no fixed creator key:
 
 ```rust
-// HarmonyRecord, GovernanceDecision, ReproducibilityBadge
-if action.author().to_string() != props.harmony_record_creator_key {
-    return Invalid("Only harmony_record_creator_key may write")
+// HarmonyRecord, ReproducibilityBadge
+if !record.participating_validators.contains(&action.author()) {
+    return Invalid("Author must be a participating validator")
 }
 
 // ValidatorReputation
@@ -377,7 +384,7 @@ if action.author().to_string() != props.system_coordinator_key {
 }
 ```
 
-All four protected entry types block deletes. `ValidatorReputation` allows updates (coordinator key enforced). The other three are fully immutable.
+All entry types block deletes. `ValidatorReputation` allows updates (coordinator key enforced). `HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are fully immutable.
 
 ### check_and_create_harmony_record
 
@@ -424,6 +431,18 @@ cd tests && npm test
 ```
 
 **87 integration tests passing, 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
+
+---
+
+## Known Limitations — Phase 0
+
+These are not bugs — they are deliberate Phase 0 boundaries that affect how external parties should interpret ValiChord outputs until Phase 1 resolves them.
+
+**1. Validator experience is not tracked in production.** `_update_reputation_internal` (DNA 4) is gated behind `system_coordinator_key.is_empty()` — it is a no-op when a real key is deployed. Every validator's `CertificationTier` stays `Provisional` in production regardless of completed rounds. Badge tiers reflect participant count and agreement level only, not validator track record. Phase 1 wires in a trusted `update_validator_reputation` caller. See the Phase 0 caveat in the Badge Thresholds section above.
+
+**2. Device key continuity is unresolved.** `ValidatorReputation` and `ValidatorProfile` are keyed by device `AgentPubKey`. A validator who rotates their key (new device, key compromise) starts with a clean reputation record. The `person_key: Option<AgentPubKey>` field exists in both structs to hold a future stable person-level identity from Flowsta or Deepkey, but population and aggregation logic are Phase 1 work — the field is `None` for all current records. Until Phase 1, a validator's reputation history does not survive a device change.
+
+**3. Validator assignment is a stub.** `select_validators()` in DNA 3 returns empty. Validators currently self-assign by claiming studies directly. Conflict-of-interest detection, institutional balance, and randomisation are Phase 1 work.
 
 ---
 
