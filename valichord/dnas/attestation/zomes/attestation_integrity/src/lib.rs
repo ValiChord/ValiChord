@@ -679,11 +679,16 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- ValidationAttestation create: verify it links to a CommitmentAnchor ---
         //
-        // Inductive validation chain: ValidationAttestation → CommitmentAnchor.
+        // Inductive validation chain: ValidationAttestation → CommitmentAnchor → ValidationRequest.
         // commitment_anchor_hash is required on all new entries — the coordinator
         // always sets it.  The field is Option<ActionHash> in the struct for
         // backwards-compatible deserialisation of any legacy entries, but network
         // validation now rejects entries where it is absent.
+        //
+        // Discipline consistency is now enforced here: the attestation's
+        // discipline must match the study's declared discipline from the
+        // ValidationRequest.  A mismatched discipline would cause the HarmonyRecord
+        // to be indexed under the wrong discipline and pollute the governance indexes.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidationAttestation(ref att),
             action,
@@ -712,6 +717,24 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "CommitmentAnchor.request_ref does not match \
                      ValidationAttestation.request_ref".into(),
+                ));
+            }
+            // Discipline consistency: walk the inductive chain one step further
+            // to the ValidationRequest and verify the study's declared discipline.
+            let req_record =
+                must_get_valid_record(anchor.validation_request_hash.clone())?;
+            let req: ValidationRequest = req_record
+                .entry()
+                .to_app_option()
+                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "CommitmentAnchor.validation_request_hash does not point \
+                     to a ValidationRequest".into(),
+                )))?;
+            if att.discipline != req.discipline {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.discipline does not match the study's \
+                     declared discipline in the ValidationRequest".into(),
                 ));
             }
             Ok(ValidateCallbackResult::Valid)

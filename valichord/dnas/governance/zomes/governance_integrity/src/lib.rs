@@ -207,12 +207,20 @@ pub enum LinkTypes {
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     match op.flattened::<EntryTypes, LinkTypes>()? {
 
-        // --- HarmonyRecord create: author must be a declared participant -----
+        // --- HarmonyRecord create: author + quorum integrity checks -----------
         //
         // Any validator who participated in the round may trigger finalisation,
         // but they must name themselves in participating_validators.  This prevents
-        // non-participants from anonymously forging a record and winning the first-
-        // write race that would permanently block legitimate finalisation.
+        // non-participants from anonymously forging a record.
+        //
+        // Two additional checks are now enforced at the network layer:
+        //
+        //   1. No duplicate validator pubkeys — a fabricated list cannot pad the
+        //      validator count past a badge threshold by repeating a single real key.
+        //
+        //   2. Minimum participant count from min_attestations_for_finalization DNA
+        //      property — a single validator cannot unilaterally write a HarmonyRecord
+        //      for a study that requires more participants.
         //
         // Full content verification against the Attestation DHT is a Phase 2 goal —
         // cross-DNA calls are not available in validate(), so the participating_validators
@@ -229,6 +237,32 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      only validators who participated in the round may write the record"
                         .into(),
                 ));
+            }
+            // Duplicate validator guard.
+            let unique_count = record.participating_validators
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len();
+            if unique_count < record.participating_validators.len() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "HarmonyRecord.participating_validators must not contain duplicate entries — \
+                     each validator pubkey may appear at most once".into(),
+                ));
+            }
+            // Minimum quorum from DNA properties.
+            let props = DnaProperties::try_from_dna_properties()?;
+            let min_required = if props.min_attestations_for_finalization == 0 {
+                1u32
+            } else {
+                props.min_attestations_for_finalization
+            };
+            if (record.participating_validators.len() as u32) < min_required {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "HarmonyRecord requires at least {} participating validator(s) \
+                     (min_attestations_for_finalization), got {}",
+                    min_required,
+                    record.participating_validators.len(),
+                )));
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -256,14 +290,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- ReproducibilityBadge create: verify harmony_record_ref and author --
         //
-        // Three network-verifiable constraints:
+        // Four network-verifiable constraints:
         //   1. harmony_record_ref must point to a live HarmonyRecord.
         //   2. badge.study_ref must match HarmonyRecord.request_ref.
         //   3. Badge author must be listed in participating_validators.
-        //
-        // Badge type vs. agreement_level consistency cannot be checked here
-        // (would require duplicating evaluate_badge logic) — that is a
-        // coordinator-layer concern.
+        //   4. badge_type must be consistent with agreement_level + validator count
+        //      (mirrors evaluate_badge in the coordinator so the integrity zome
+        //      enforces the badge-tier rules network-wide, not just per-coordinator).
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ReproducibilityBadge(ref badge),
             ref action,
@@ -287,6 +320,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only validators who participated in the round may issue a badge".into(),
                 ));
+            }
+            // Badge type must match what the agreement level + validator count warrant.
+            let validator_count = harmony_record.participating_validators.len();
+            match evaluate_badge_type(&harmony_record.agreement_level, validator_count) {
+                Some(ref expected)
+                    if std::mem::discriminant(expected)
+                        != std::mem::discriminant(&badge.badge_type) =>
+                {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "ReproducibilityBadge.badge_type does not match the \
+                         HarmonyRecord's agreement_level and validator count".into(),
+                    ));
+                }
+                None => {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "No badge may be issued for this HarmonyRecord — \
+                         quorum not met for any badge tier".into(),
+                    ));
+                }
+                _ => {}
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -427,6 +480,41 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Badge-type derivation — mirrored in governance_coordinator::evaluate_badge.
+// Kept here so the integrity zome can enforce badge-tier rules network-wide.
+// Any change to tier thresholds MUST be applied to both functions identically.
+// ---------------------------------------------------------------------------
+
+fn evaluate_badge_type(
+    agreement: &AgreementLevel,
+    validator_count: usize,
+) -> Option<BadgeType> {
+    match agreement {
+        AgreementLevel::ExactMatch if validator_count >= 7 => {
+            Some(BadgeType::GoldReproducible)
+        }
+        AgreementLevel::ExactMatch | AgreementLevel::WithinTolerance
+            if validator_count >= 5 =>
+        {
+            Some(BadgeType::SilverReproducible)
+        }
+        AgreementLevel::ExactMatch
+        | AgreementLevel::WithinTolerance
+        | AgreementLevel::DirectionalMatch
+            if validator_count >= 3 =>
+        {
+            Some(BadgeType::BronzeReproducible)
+        }
+        AgreementLevel::Divergent | AgreementLevel::UnableToAssess
+            if validator_count >= 3 =>
+        {
+            Some(BadgeType::FailedReproduction)
+        }
+        _ => None,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // genesis_self_check — no membrane proof required (public DHT, open join)

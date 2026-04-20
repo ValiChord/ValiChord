@@ -625,6 +625,14 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
 }
 
 /// Return a BadgeType if the validator count and agreement level meet thresholds.
+///
+/// IMPORTANT: thresholds here must stay identical to `evaluate_badge_type` in
+/// `governance_integrity` — that function enforces the same rules at the network
+/// validation layer.  Update both whenever a tier threshold changes.
+///
+/// `FailedReproduction` now requires the same minimum quorum (3) as
+/// `BronzeReproducible`.  A single validator submitting `UnableToAssess` and
+/// force-finalising cannot permanently brand a study as failed.
 fn evaluate_badge(
     agreement: &AgreementLevel,
     validator_count: usize,
@@ -645,7 +653,9 @@ fn evaluate_badge(
         {
             Some(BadgeType::BronzeReproducible)
         }
-        AgreementLevel::Divergent | AgreementLevel::UnableToAssess => {
+        AgreementLevel::Divergent | AgreementLevel::UnableToAssess
+            if validator_count >= 3 =>
+        {
             Some(BadgeType::FailedReproduction)
         }
         _ => None,

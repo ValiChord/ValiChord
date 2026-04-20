@@ -147,6 +147,31 @@ pub fn submit_validation_request(
 ) -> ExternResult<ActionHash> {
     let discipline = request.discipline.clone();
     let data_hash  = request.data_hash.clone();
+
+    // Idempotency guard: one ValidationRequest per data_hash.
+    // A second request for the same deposit would create an ambiguous study
+    // identity — get_validation_request_for_data_hash, COI cross-checks,
+    // and governance badge issuance all resolve the researcher by data_hash.
+    // Using max_by_key(timestamp) mitigates the non-determinism of first(),
+    // but two competing requests in a single DHT batch can still return
+    // different records depending on gossip order.  Blocking at write time
+    // is the cleaner fix.
+    {
+        let study_path = Path::from(format!("study.{}", data_hash))
+            .typed(LinkTypes::StudyToValidation)?;
+        study_path.ensure()?;
+        let existing = get_links(
+            LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+            GetStrategy::Network,
+        )?;
+        if !existing.is_empty() {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "A ValidationRequest already exists for this data_hash — \
+                 each study deposit may only be submitted once".into()
+            )));
+        }
+    }
+
     let request_hash = create_entry(EntryTypes::ValidationRequest(request))?;
 
     // Index by study data hash for discovery.
@@ -1126,7 +1151,23 @@ pub fn notify_commitment_sealed(
         }
     }
 
-    // Guard 2: one commitment per validator per study.
+    // Guard 2: researcher must have published their commitment before any
+    // validator commits.  Ensures result pre-registration precedes all
+    // validation work, preventing the retroactive oracle attack where a
+    // researcher reads all validator reveals and crafts matching metrics.
+    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is
+    // empty (same pattern as Guard 1 and the hash-verification bypass).
+    if !guard1_props.authorized_joining_certificate_issuer.is_empty() {
+        if get_researcher_commitment(request_ref.clone())?.is_none() {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Researcher must publish their result commitment (publish_researcher_commitment) \
+                 before validators may seal a commitment — this ensures the researcher's expected \
+                 result is pre-registered before validators begin work".into()
+            )));
+        }
+    }
+
+    // Guard 3: one commitment per validator per study.
     // Prevents a single validator from pushing multiple CommitmentAnchors
     // and skewing the quorum check that opens the reveal phase.
     let commit_path = Path::from(format!("commitments.{}", request_ref))
