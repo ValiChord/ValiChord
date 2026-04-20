@@ -718,6 +718,14 @@ pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
         GetStrategy::Network,
     )?;
+    // Each claim release is three create_link calls after a create_entry.
+    // Holochain has no transactions — if a link write fails mid-release, the
+    // StudyClaimRelease entry is on the DHT but the ClaimToRelease link may be
+    // absent, leaving the claim appearing live.  A retry of release_claim is
+    // safe: create_entry is content-addressed and idempotent; create_link
+    // retries will eventually succeed.  Guard 1 in notify_commitment_sealed
+    // uses ValidatorToRelease links (written last) as the authoritative release
+    // signal — a partial write therefore never permits a phantom commitment.
     for link in request_links.iter().filter(|l| l.author == agent) {
         if let Some(claim_hash) = link.target.clone().into_action_hash() {
             // Skip if already released.
@@ -1116,23 +1124,50 @@ pub fn notify_commitment_sealed(
         )));
     }
 
-    // Guard 1: agent must hold a live StudyClaim for this study.
+    // Guard 1: agent must hold a LIVE (unreleased) StudyClaim for this study.
     // Prevents non-claimants from inflating the commitment count and
     // potentially triggering RevealOpen with phantom commitments.
+    //
+    // IMPORTANT: StudyClaim entries are immutable — a released claim still
+    // exists on the DHT.  This check therefore also fetches ValidatorToRelease
+    // links and excludes any claim that has a matching release marker.
+    // Without this exclusion a validator who called release_claim() could still
+    // pass this guard and write a phantom CommitmentAnchor that would count
+    // toward the quorum and prematurely open the reveal window.
     //
     // Dev/test bypass: skipped when authorized_joining_certificate_issuer is
     // empty (same pattern as the membrane-proof bypass).  In production the
     // issuer key is always set, so the check is always enforced.
     let guard1_props = DnaProperties::try_from_dna_properties()?;
     if !guard1_props.authorized_joining_certificate_issuer.is_empty() {
+        // Build the released-claim set once — same pattern as get_my_claimed_studies.
+        // Link tags are the 39-byte raw ActionHash of the released claim.
+        let release_links = get_links(
+            LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToRelease)?,
+            GetStrategy::Network,
+        )?;
+        let released: HashSet<ActionHash> = release_links
+            .iter()
+            .filter_map(|l| {
+                (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone()))
+            })
+            .collect();
+
         let claim_links = get_links(
             LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToClaim)?,
             GetStrategy::Network,
         )?;
         let has_valid_claim = claim_links.into_iter().any(|link| {
-            link.target
-                .into_action_hash()
-                .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+            let claim_hash = match link.target.clone().into_action_hash() {
+                Some(h) => h,
+                None => return false,
+            };
+            if released.contains(&claim_hash) {
+                return false; // Released — does not count as a live claim.
+            }
+            get(claim_hash, GetOptions::network())
+                .ok()
+                .flatten()
                 .and_then(|r| r.entry().to_app_option::<StudyClaim>().ok().flatten())
                 .map(|c| c.request_ref == request_ref)
                 .unwrap_or(false)
@@ -1204,6 +1239,12 @@ pub fn notify_commitment_sealed(
             LinkQuery::try_new(phase_path.path_entry_hash()?, LinkTypes::RequestToPhaseMarker)?,
             GetStrategy::Network,
         )?;
+        // Non-atomic TOCTOU: two validators detecting quorum simultaneously can
+        // both reach this branch and each write a RequestToPhaseMarker link.
+        // Content-addressing ensures both links point to the same PhaseMarker
+        // entry hash (identical content → identical hash), so the protocol
+        // remains correct with two links.  Any future code that assumes exactly
+        // one PhaseMarker link per study must account for this.
         if existing_phase.is_empty() {
             let marker = PhaseMarker {
                 request_ref: request_ref.clone(),

@@ -122,6 +122,13 @@ where
 ///   2. Fetch attestations from DNA 3.
 ///   3. Require ≥ num_validators_required attestations (completeness gate).
 ///   4-7. Delegate to write_harmony_record.
+///
+/// TOCTOU note: two concurrent last-validator submissions can both pass the
+/// idempotency check and each write a HarmonyRecord.  If gossip order is
+/// identical, content-addressing collapses them to the same hash (benign).
+/// If one call saw N and the other N+1 attestations, two different entries are
+/// written — the earlier record's badge may be orphaned.  Proper fix (single
+/// finalisation trigger) is Phase 1 work.
 #[hdk_extern]
 pub fn check_and_create_harmony_record(
     request_ref: ExternalHash,
