@@ -486,6 +486,23 @@ pub fn assess_difficulty(
             "predicted_min_secs must not exceed predicted_max_secs".into()
         )));
     }
+
+    // Idempotency guard: one assessment per (assessor, study).
+    // Without this, any credentialed agent could continuously overwrite the
+    // difficulty estimate, affecting which validators choose to claim the study.
+    // link.author is set by the DHT host — no entry fetch needed.
+    let caller = agent_info()?.agent_initial_pubkey;
+    let existing = get_links(
+        LinkQuery::try_new(input.request_ref.clone(), LinkTypes::DifficultyPath)?,
+        GetStrategy::Network,
+    )?;
+    if existing.iter().any(|l| l.author == caller) {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A difficulty assessment already exists for this study from this assessor — \
+             one assessment per assessor is permitted".into()
+        )));
+    }
+
     let link_base = input.request_ref.clone();
     let assessment = DifficultyAssessment {
         request_ref:            input.request_ref,
@@ -831,8 +848,13 @@ pub struct ReclaimInput {
 /// `RequestToClaim` / `ValidatorToClaim` links are immutable and remain on the
 /// DHT as a permanent audit record alongside the original `StudyClaim` entry.
 ///
-/// Returns `true` if the slot was reclaimed, `false` if ineligible
-/// (claim too recent, or validator already attested).
+/// Returns `true` if the slot was reclaimed, `false` if ineligible.
+///
+/// NOTE: `false` conflates three distinct conditions — claim too recent,
+/// validator already attested, and claim already released.  A future API
+/// version should return a typed enum (Reclaimed / TooRecent / AlreadyResolved
+/// / NotFound) so callers can distinguish "retry later" from "no action needed".
+/// Changing the return type is a breaking API change and is deferred to Phase 1.
 #[hdk_extern]
 pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
     // 1. Fetch the claim record to determine the absent validator's pubkey.
@@ -1285,6 +1307,12 @@ pub fn notify_commitment_sealed(
 /// Returns None if no PhaseMarker exists yet (commit phase still in progress).
 /// Engineering constraint #1: phase transitions are DHT-poll-driven.
 #[hdk_extern]
+/// Returns `None` for two distinct conditions: (1) the study is still in the
+/// commit phase — no PhaseMarker has been written yet, and (2) the
+/// ValidationRequest hasn't fully propagated to this node yet.  UI code that
+/// polls this immediately after study submission should treat `None` as
+/// "commit phase or not yet visible" and not surface it as an error.  Always
+/// cross-check with `check_all_commitments_sealed()` for a protocol-level gate.
 pub fn get_current_phase(
     request_ref: ExternalHash,
 ) -> ExternResult<Option<ValidationPhase>> {
@@ -1355,6 +1383,44 @@ pub fn publish_researcher_commitment(
             "A researcher commitment already exists for this study — \
              the commitment cannot be replaced once published".into()
         )));
+    }
+
+    // Authorship check: only the researcher who submitted the study may publish
+    // its commitment.  Without this, any credentialed agent could pre-empt the
+    // researcher, write a fake hash, and permanently block the real commitment
+    // (the idempotency guard above then rejects the researcher's own call).
+    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is empty.
+    // PRODUCTION: this key MUST be set — without it any agent can hijack any study.
+    {
+        let props = DnaProperties::try_from_dna_properties()?;
+        if !props.authorized_joining_certificate_issuer.is_empty() {
+            let caller = agent_info()?.agent_initial_pubkey;
+            let study_path = Path::from(format!("study.{}", input.request_ref))
+                .typed(LinkTypes::StudyToValidation)?;
+            let vr_links = get_links(
+                LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+                GetStrategy::Network,
+            )?;
+            let researcher = vr_links
+                .iter()
+                .max_by_key(|l| l.timestamp)
+                .and_then(|l| l.target.clone().into_action_hash())
+                .and_then(|h| get(h, GetOptions::network()).ok().flatten())
+                .map(|r| r.action().author().clone());
+            match researcher {
+                Some(r) if r != caller => {
+                    return Err(wasm_error!(WasmErrorInner::Guest(
+                        "Only the researcher who submitted this study may publish its commitment".into()
+                    )));
+                }
+                None => {
+                    return Err(wasm_error!(WasmErrorInner::Guest(
+                        "ValidationRequest not found — cannot verify researcher identity".into()
+                    )));
+                }
+                _ => {}
+            }
+        }
     }
 
     let commitment = ResearcherResultCommitment {
