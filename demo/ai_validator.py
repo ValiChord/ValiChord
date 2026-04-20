@@ -36,6 +36,7 @@ import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import NoReturn
 
 DEMO_DIR    = Path(__file__).parent
 STUDY_DIR   = DEMO_DIR / 'synthetic_study'
@@ -67,7 +68,7 @@ def banner(n, total, msg):
     print(f'\n[{n}/{total}] {msg}')
     print('─' * 60)
 
-def die(msg):
+def die(msg: str) -> NoReturn:
     print(f'\nFATAL: {msg}', file=sys.stderr)
     sys.exit(1)
 
@@ -191,7 +192,10 @@ Reply with ONLY a JSON object — no markdown, no explanation:
             max_tokens=256,
             messages=[{'role': 'user', 'content': prompt}],
         )
-        raw = message.content[0].text.strip()
+        block = message.content[0]
+        if not isinstance(block, anthropic.types.TextBlock):
+            die(f'Claude (validator {i + 1}) returned unexpected content type: {type(block).__name__}')
+        raw = block.text.strip()
         try:
             verdict = json.loads(raw)
         except json.JSONDecodeError:
