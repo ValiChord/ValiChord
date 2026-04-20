@@ -1,0 +1,153 @@
+# ValiChord Decentralised Demo — Docker Compose
+#
+# Runs 5 fully isolated conductors (1 researcher + 3 validators + 1 bootstrap
+# server) that communicate ONLY through the shared DHT via WebRTC/tx5.  Each
+# conductor has its own keypair and its own keystore — this is the closest a
+# single-machine setup can get to a real multi-party deployment.
+#
+# Prerequisites
+# ─────────────
+# 1. demo/bin/holochain     — Holochain 0.6.x binary (linux/amd64 or linux/arm64).
+#                             Download from https://github.com/holochain/holochain/releases
+#                             or copy from your Oracle server:
+#                               scp oracle:~/.cargo/bin/holochain demo/bin/holochain
+#
+# 2. demo/bin/kitsune2-bootstrap-srv — already committed to the repo.
+#
+# 3. valichord/workdir/valichord.happ — built by `hc app pack valichord/workdir/`.
+#
+# Usage
+# ─────
+# Start the stack (first run installs the happ on each conductor):
+#   docker compose up --build
+#
+# Run the demo from another terminal:
+#   export ANTHROPIC_API_KEY=sk-ant-...
+#   python3 demo/ai_validator.py --mode decentralised
+#
+# Tear down and wipe all conductor state:
+#   docker compose down -v
+
+version: '3.9'
+
+# ── Shared bootstrap / SBD server ──────────────────────────────────────────────
+# kitsune2-bootstrap-srv handles both bootstrap peer discovery (HTTP) and
+# WebRTC SBD signalling (WebSocket) on the same port.
+# All 4 conductors point at this service; it never touches the DHT itself.
+
+services:
+  bootstrap:
+    image: alpine:3.19
+    volumes:
+      - ./bin/kitsune2-bootstrap-srv:/kitsune2-bootstrap-srv:ro
+    command:
+      - /kitsune2-bootstrap-srv
+      - --listen
+      - 0.0.0.0:9000
+      - --sbd-disable-rate-limiting
+    networks:
+      - valichord
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9000 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # ── Researcher conductor ──────────────────────────────────────────────────────
+  researcher:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.node
+    environment:
+      ROLE:         researcher
+      BOOTSTRAP_URL: http://bootstrap:9000
+      NETWORK_SEED:  valichord-demo-decentralised
+      ADMIN_PORT:    "4444"
+      APP_PORT:      "4500"
+      NODE_API_PORT: "3001"
+    volumes:
+      - researcher_data:/app/demo/conductor_data
+    networks:
+      - valichord
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+    ports:
+      - "3001:3001"   # researcher API — ai_validator.py calls this directly
+
+  # ── Validator conductors ──────────────────────────────────────────────────────
+  # All three run the same image with ROLE=validator; each has its own isolated
+  # conductor_data volume so they generate different keypairs.
+
+  validator-1:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.node
+    environment:
+      ROLE:         validator
+      BOOTSTRAP_URL: http://bootstrap:9000
+      NETWORK_SEED:  valichord-demo-decentralised
+      ADMIN_PORT:    "4444"
+      APP_PORT:      "4500"
+      NODE_API_PORT: "3001"
+    volumes:
+      - validator1_data:/app/demo/conductor_data
+    networks:
+      - valichord
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+    ports:
+      - "3002:3001"   # validator-1 API exposed on host port 3002
+
+  validator-2:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.node
+    environment:
+      ROLE:         validator
+      BOOTSTRAP_URL: http://bootstrap:9000
+      NETWORK_SEED:  valichord-demo-decentralised
+      ADMIN_PORT:    "4444"
+      APP_PORT:      "4500"
+      NODE_API_PORT: "3001"
+    volumes:
+      - validator2_data:/app/demo/conductor_data
+    networks:
+      - valichord
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+    ports:
+      - "3003:3001"   # validator-2 API exposed on host port 3003
+
+  validator-3:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.node
+    environment:
+      ROLE:         validator
+      BOOTSTRAP_URL: http://bootstrap:9000
+      NETWORK_SEED:  valichord-demo-decentralised
+      ADMIN_PORT:    "4444"
+      APP_PORT:      "4500"
+      NODE_API_PORT: "3001"
+    volumes:
+      - validator3_data:/app/demo/conductor_data
+    networks:
+      - valichord
+    depends_on:
+      bootstrap:
+        condition: service_healthy
+    ports:
+      - "3004:3001"   # validator-3 API exposed on host port 3004
+
+networks:
+  valichord:
+    driver: bridge   # isolated bridge; containers reach each other by service name
+
+volumes:
+  researcher_data:   # each volume is a separate conductor keystore + DHT cache
+  validator1_data:
+  validator2_data:
+  validator3_data:
