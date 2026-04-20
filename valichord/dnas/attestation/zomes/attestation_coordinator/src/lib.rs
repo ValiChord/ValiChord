@@ -149,35 +149,25 @@ pub fn submit_validation_request(
     let data_hash  = request.data_hash.clone();
 
     // Idempotency guard: one ValidationRequest per data_hash.
-    // A second request for the same deposit would create an ambiguous study
-    // identity — get_validation_request_for_data_hash, COI cross-checks,
-    // and governance badge issuance all resolve the researcher by data_hash.
-    // Using max_by_key(timestamp) mitigates the non-determinism of first(),
-    // but two competing requests in a single DHT batch can still return
-    // different records depending on gossip order.  Blocking at write time
-    // is the cleaner fix.
-    {
-        let study_path = Path::from(format!("study.{}", data_hash))
-            .typed(LinkTypes::StudyToValidation)?;
-        study_path.ensure()?;
-        let existing = get_links(
-            LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
-            GetStrategy::Network,
-        )?;
-        if !existing.is_empty() {
-            return Err(wasm_error!(WasmErrorInner::Guest(
-                "A ValidationRequest already exists for this data_hash — \
-                 each study deposit may only be submitted once".into()
-            )));
-        }
+    // ensure() is called once here and reused for link creation below —
+    // a second ensure() after create_entry would be a wasted DHT write.
+    let study_path = Path::from(format!("study.{}", data_hash))
+        .typed(LinkTypes::StudyToValidation)?;
+    study_path.ensure()?;
+    let existing = get_links(
+        LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
+        GetStrategy::Network,
+    )?;
+    if !existing.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A ValidationRequest already exists for this data_hash — \
+             each study deposit may only be submitted once".into()
+        )));
     }
 
     let request_hash = create_entry(EntryTypes::ValidationRequest(request))?;
 
-    // Index by study data hash for discovery.
-    let study_path = Path::from(format!("study.{}", data_hash))
-        .typed(LinkTypes::StudyToValidation)?;
-    study_path.ensure()?;
+    // study_path already ensure()'d above.
     create_link(
         study_path.path_entry_hash()?,
         request_hash.clone(),
@@ -922,30 +912,15 @@ pub fn get_attestations_for_request(
         GetStrategy::Network,
     )?;
 
-    // Tag prefix = request_ref bytes — returns at most one link per validator
-    // (the one attesting this specific study), so no entry deserialization is
-    // needed to filter by request_ref.
+    // Each RequestToCommitment link is authored by the validator themselves —
+    // link.author IS the validator pubkey. No per-anchor get() needed, saving
+    // N network round-trips (one per validator) compared to fetching each
+    // CommitmentAnchor entry to extract the validator field.
     let request_tag = LinkTag::new(request_ref.as_ref().to_vec());
     let mut attestations = Vec::new();
     for link in commit_links {
-        let anchor_hash = match link.target.into_action_hash() {
-            Some(h) => h,
-            None => continue,
-        };
-        let anchor_record = match get(anchor_hash, GetOptions::network())? {
-            Some(r) => r,
-            None => continue,
-        };
-        let anchor: CommitmentAnchor = match anchor_record
-            .entry()
-            .to_app_option()
-            .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-        {
-            Some(a) => a,
-            None => continue,
-        };
         let att_links = get_links(
-            LinkQuery::try_new(anchor.validator, LinkTypes::ValidatorToAttestation)?
+            LinkQuery::try_new(link.author, LinkTypes::ValidatorToAttestation)?
                 .tag_prefix(request_tag.clone()),
             GetStrategy::Network,
         )?;
@@ -1022,7 +997,10 @@ pub fn get_attestations_for_discipline(discipline: Discipline) -> ExternResult<V
         LinkQuery::try_new(disc_path.path_entry_hash()?, LinkTypes::DisciplinePath)?,
         GetStrategy::Network,
     )?;
-    records_for_links(links)
+    // Hard cap — prevents a single query from stalling a node on a popular
+    // discipline and closes a DoS surface. Pagination is Phase 1 work.
+    const MAX_RESULTS: usize = 500;
+    records_for_links(links.into_iter().take(MAX_RESULTS).collect())
 }
 
 /// Return all pending ValidationRequest records indexed under a discipline.
@@ -1121,6 +1099,24 @@ pub fn notify_commitment_sealed(
         )));
     }
 
+    // Guard 3 (moved first): one commitment per validator per study.
+    // Single path lookup — much cheaper than Guard 1's O(n) claim scan.
+    // Catches the common duplicate-retry case before any per-claim DHT reads.
+    let commit_path = Path::from(format!("commitments.{}", request_ref))
+        .typed(LinkTypes::RequestToCommitment)?;
+    commit_path.ensure()?;
+    let commit_anchor = commit_path.path_entry_hash()?;
+    let existing_links = get_links(
+        LinkQuery::try_new(commit_anchor.clone(), LinkTypes::RequestToCommitment)?,
+        GetStrategy::Network,
+    )?;
+    if existing_links.iter().any(|l| l.author == agent) {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Validator has already submitted a commitment for this study — \
+             duplicate commitments are not permitted".into()
+        )));
+    }
+
     // Guard 1: agent must hold a live StudyClaim for this study.
     // Prevents non-claimants from inflating the commitment count and
     // potentially triggering RevealOpen with phantom commitments.
@@ -1164,24 +1160,6 @@ pub fn notify_commitment_sealed(
                  result is pre-registered before validators begin work".into()
             )));
         }
-    }
-
-    // Guard 3: one commitment per validator per study.
-    // Prevents a single validator from pushing multiple CommitmentAnchors
-    // and skewing the quorum check that opens the reveal phase.
-    let commit_path = Path::from(format!("commitments.{}", request_ref))
-        .typed(LinkTypes::RequestToCommitment)?;
-    commit_path.ensure()?;
-    let commit_anchor = commit_path.path_entry_hash()?;
-    let existing_links = get_links(
-        LinkQuery::try_new(commit_anchor.clone(), LinkTypes::RequestToCommitment)?,
-        GetStrategy::Network,
-    )?;
-    if existing_links.iter().any(|l| l.author == agent) {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Validator has already submitted a commitment for this study — \
-             duplicate commitments are not permitted".into()
-        )));
     }
 
     // Step 1: resolve the ValidationRequest ActionHash for the inductive chain.
@@ -1766,25 +1744,16 @@ pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<Action
         )));
     }
 
-    // Duplicate check: one attestation per ordered pair is sufficient.
-    // A second call for the same pair would produce a duplicate entry and
-    // require two separate revocations.
-    let existing_links = get_links(
-        LinkQuery::try_new(caller.clone(), LinkTypes::AgentToIdentityAttestation)?,
+    // Duplicate check: tag-prefix query — O(1), no get() calls needed.
+    // Links are created with the other agent's raw bytes as the tag (see below),
+    // so a non-empty result means this pair is already attested.
+    let other_tag = LinkTag::new(input.other_agent.get_raw_39().to_vec());
+    let existing = get_links(
+        LinkQuery::try_new(caller.clone(), LinkTypes::AgentToIdentityAttestation)?
+            .tag_prefix(other_tag),
         GetStrategy::Network,
     )?;
-    let already_linked = existing_links.into_iter().any(|link| {
-        link.target
-            .into_action_hash()
-            .and_then(|h| get(h, GetOptions::network()).ok().flatten())
-            .and_then(|r| r.entry().to_app_option::<AgentIdentityAttestation>().ok().flatten())
-            .map(|att| {
-                (att.agent_a == caller && att.agent_b == input.other_agent)
-                    || (att.agent_b == caller && att.agent_a == input.other_agent)
-            })
-            .unwrap_or(false)
-    });
-    if already_linked {
+    if !existing.is_empty() {
         return Err(wasm_error!(WasmErrorInner::Guest(
             "An AgentIdentityAttestation for this pair already exists — \
              revoke the existing one before creating a new link".into()
@@ -1829,18 +1798,19 @@ pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<Action
     let att = AgentIdentityAttestation { agent_a, signature_a, agent_b, signature_b };
     let hash = create_entry(EntryTypes::AgentIdentityAttestation(att.clone()))?;
 
-    // Symmetric links so either agent can look up the attestation.
+    // Symmetric links tagged with the OTHER agent's raw bytes — enables the
+    // O(1) tag-prefix duplicate check in link_agent_identity.
     create_link(
         att.agent_a.clone(),
         hash.clone(),
         LinkTypes::AgentToIdentityAttestation,
-        (),
+        LinkTag::new(att.agent_b.get_raw_39().to_vec()),
     )?;
     create_link(
         att.agent_b.clone(),
         hash.clone(),
         LinkTypes::AgentToIdentityAttestation,
-        (),
+        LinkTag::new(att.agent_a.get_raw_39().to_vec()),
     )?;
 
     Ok(hash)
