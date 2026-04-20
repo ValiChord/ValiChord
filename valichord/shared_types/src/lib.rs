@@ -257,14 +257,17 @@ impl ValidationAttestation {
         discipline_tag(&self.discipline)
     }
 
-    /// Serialise `self` to MessagePack bytes — the same encoding used by the
-    /// Holochain DHT.  Both `seal_private_attestation` (DNA 2) and
-    /// `submit_attestation` (DNA 3) call this when computing the SHA-256
-    /// commitment hash, guaranteeing byte-for-byte consistency.
+    /// Serialise to MessagePack bytes for commit/reveal hash computation.
+    /// Both `seal_private_attestation` (DNA 2) and `submit_attestation` (DNA 3)
+    /// call this — guaranteeing byte-for-byte consistency.
     ///
-    /// Inspired by ad4m's `PerspectiveDiff::get_sb()` pattern.
-    pub fn msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
-        SerializedBytes::try_from(self)
+    /// `commitment_anchor_hash` is always normalised to `None` before
+    /// serialisation so the output is independent of injection order.
+    /// Callers do not need to ensure the field is unset before calling.
+    pub fn commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
+        let mut canonical = self.clone();
+        canonical.commitment_anchor_hash = None;
+        SerializedBytes::try_from(&canonical)
             .map(|sb| sb.bytes().to_vec())
             .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
     }

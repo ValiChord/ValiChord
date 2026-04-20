@@ -71,9 +71,9 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
     let nonce: Vec<u8> = random_bytes(32)?.to_vec();
 
     // 2. Serialise the public attestation to MessagePack.
-    //    Uses ValidationAttestation::msgpack_bytes() — shared with DNA 3's
+    //    Uses ValidationAttestation::commitment_msgpack_bytes() — shared with DNA 3's
     //    submit_attestation — guaranteeing byte-for-byte consistency.
-    let msgpack_bytes = input.attestation.msgpack_bytes()?;
+    let msgpack_bytes = input.attestation.commitment_msgpack_bytes()?;
 
     // 3. commitment_hash = SHA-256(msgpack_bytes || nonce)
     let mut hasher = Sha256::new();

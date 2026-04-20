@@ -266,13 +266,13 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         )))?;
 
     // Production: verify SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
-    // Hash is computed over the attestation as submitted (commitment_anchor_hash = None at this
-    // point), matching exactly what seal_private_attestation hashed in the Validator Workspace.
+    // commitment_msgpack_bytes() normalises commitment_anchor_hash to None before serialising,
+    // matching exactly what seal_private_attestation hashed in the Validator Workspace.
     //
     // Dev/test bypass: skipped when authorized_joining_certificate_issuer is empty.
     let reveal_props = DnaProperties::try_from_dna_properties()?;
     if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
-        let msgpack_bytes = attestation.msgpack_bytes()?;
+        let msgpack_bytes = attestation.commitment_msgpack_bytes()?;
         let mut hasher = Sha256::new();
         hasher.update(&msgpack_bytes);
         hasher.update(&input.nonce);
@@ -287,7 +287,6 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     }
 
     // Inject CommitmentAnchor ActionHash for inductive validation chain.
-    // Set after hash verification so the hash check uses the original struct.
     attestation.commitment_anchor_hash = Some(anchor_action_hash);
 
     // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
