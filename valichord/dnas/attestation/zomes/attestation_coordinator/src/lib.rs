@@ -1065,6 +1065,17 @@ pub fn notify_commitment_sealed(
     let agent = agent_info()?.agent_initial_pubkey;
     let request_ref = input.request_ref.clone();
 
+    // Phase gate: reject commitments after RevealOpen is already written.
+    // Prevents a validator who claims a freed slot post-RevealOpen from writing
+    // a CommitmentAnchor and potentially including their attestation in the
+    // HarmonyRecord before it is finalised.
+    if let Some(ValidationPhase::RevealOpen) = get_current_phase(request_ref.clone())? {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Cannot commit after the reveal phase has opened — \
+             the commitment window is closed for this study".into()
+        )));
+    }
+
     // Guard 1: agent must hold a live StudyClaim for this study.
     // Prevents non-claimants from inflating the commitment count and
     // potentially triggering RevealOpen with phantom commitments.

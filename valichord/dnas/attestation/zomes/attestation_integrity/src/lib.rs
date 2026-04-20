@@ -637,6 +637,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::CommitmentAnchor(ref anchor),
             action,
         }) => {
+            // commitment_hash must be exactly 32 bytes (SHA-256).
+            // A malformed hash counts toward the quorum but can never match
+            // at reveal time, silently consuming a validator slot.
+            if anchor.commitment_hash.len() != 32 {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.commitment_hash must be exactly 32 bytes (SHA-256)".into(),
+                ));
+            }
             let req_record = must_get_valid_record(anchor.validation_request_hash.clone())?;
             let req: ValidationRequest = req_record
                 .entry()

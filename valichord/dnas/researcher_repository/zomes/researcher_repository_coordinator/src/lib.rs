@@ -213,6 +213,21 @@ pub fn get_deviations_for_study(study_hash: ActionHash) -> ExternResult<Vec<Reco
 /// before accepting a study claim.
 #[hdk_extern]
 pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash> {
+    // Idempotency guard: a second call with a different nonce would create a new
+    // LockedResult, but the commitment on the Attestation DHT is already fixed to
+    // the first nonce. get_locked_result would return the newer entry, causing a
+    // permanent hash mismatch at reveal time and leaving the round stuck.
+    let existing = get_links(
+        LinkQuery::try_new(input.request_ref.clone(), LinkTypes::RequestToLockedResult)?,
+        GetStrategy::Local,
+    )?;
+    if !existing.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A result lock already exists for this study — \
+             lock_researcher_result cannot be called twice for the same request_ref".into()
+        )));
+    }
+
     // 1. Random nonce.
     let nonce: Vec<u8> = random_bytes(32)?.to_vec();
 
@@ -270,7 +285,7 @@ pub fn get_locked_result(request_ref: ExternalHash) -> ExternResult<Option<Recor
         LinkQuery::try_new(request_ref, LinkTypes::RequestToLockedResult)?,
         GetStrategy::Local,
     )?;
-    match links.last() {
+    match links.iter().max_by_key(|l| l.timestamp) {
         Some(link) => {
             let hash = link
                 .target

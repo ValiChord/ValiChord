@@ -50,6 +50,23 @@ pub fn receive_task(task: ValidationTask) -> ExternResult<ActionHash> {
 ///    records that this validator has committed (without revealing any content).
 #[hdk_extern]
 pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<ActionHash> {
+    // Duplicate seal guard — closes the adaptive-reveal attack surface.
+    // Without this, a validator could let their post_commit cross-DNA call fail
+    // (leaving no CommitmentAnchor on the shared DHT), observe other validators'
+    // public reveals, then re-seal with a favourable verdict and a fresh nonce.
+    // Once a TaskToPrivateAttestation link exists, the commitment is considered
+    // filed regardless of whether the post_commit notify succeeded.
+    let existing = get_links(
+        LinkQuery::try_new(input.task_hash.clone(), LinkTypes::TaskToPrivateAttestation)?,
+        GetStrategy::Local,
+    )?;
+    if !existing.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A private attestation already exists for this task — \
+             re-sealing is not permitted after the initial commit".into()
+        )));
+    }
+
     // 1. Random 32-byte nonce — HDK host function, never available in validate().
     let nonce: Vec<u8> = random_bytes(32)?.to_vec();
 

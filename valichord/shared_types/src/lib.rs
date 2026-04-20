@@ -75,7 +75,7 @@ pub fn discipline_tag(d: &Discipline) -> Cow<'static, str> {
         Discipline::Psychology           => "psychology".into(),
         Discipline::Neuroscience         => "neuroscience".into(),
         Discipline::MachineLearning      => "machine_learning".into(),
-        Discipline::Other(s)             => format!("other_{}", s.to_lowercase()).into(),
+        Discipline::Other(s)             => format!("other_{}", s.to_lowercase().replace('.', "_")).into(),
     }
 }
 

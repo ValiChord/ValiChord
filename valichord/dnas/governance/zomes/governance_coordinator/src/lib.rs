@@ -385,9 +385,12 @@ fn write_harmony_record(
     // Explicit reputation updates go through update_validator_reputation().
     let coord_props = DnaProperties::try_from_dna_properties()?;
     if coord_props.system_coordinator_key.is_empty() {
-        for (record, attestation) in attestation_records.iter().zip(attestations.iter()) {
+        // Use participating_validators + attestations (both sorted from pairs) so the
+        // validator key and their assessment data are always aligned after the sort.
+        // attestation_records is in original gossip order and would mismatch after sort.
+        for (validator, attestation) in participating_validators.iter().zip(attestations.iter()) {
             let _ = _update_reputation_internal(
-                record.action().author().clone(),
+                validator.clone(),
                 attestation.discipline.clone(),
                 attestation.outcome.clone(),
                 attestation.time_invested_secs,
