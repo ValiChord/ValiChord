@@ -234,6 +234,40 @@ Private entries retrieved by the owning agent must be looked up via `query()`, n
 ### 13. Fire-and-forget cross-DNA calls use a named helper, not inline `call()`
 `submit_attestation` in DNA 3 fires a same-agent call to `check_and_create_harmony_record` in DNA 4 after writing each attestation. This pattern is wrapped in `call_governance_fire_and_forget(fn_name, input)` — a private helper that swallows errors with `let _ = call(...)`. Failures are intentionally ignored (the caller still continues); if every validator's reveal silently drops the governance call, the HarmonyRecord simply doesn't appear yet — any participant can re-trigger `check_and_create_harmony_record` later. Do not unwrap the result; do not panic. The one-liner suppresses the `unused Result` warning and makes the intent explicit.
 
+### 15. get() after get_links() can return None — return Ok(None), not Err
+
+DHT gossip propagation is not atomic. When conductor A writes a record and conductor B follows a link to it immediately after, `get(target, GetOptions::network())` can return `None` even though the link itself is visible — the link gossips faster than the record body.
+
+**Rule:** any coordinator function that resolves a link to a record written by another conductor must treat `None` as a retryable miss, not a hard error. Return `Ok(None)` (or the `Option<T>` variant) so the JavaScript caller can retry.
+
+`get_current_phase` follows this pattern: if the `PhaseMarker` link exists but `get(target, GetOptions::network())` returns `None`, the function returns `Ok(None)`. The JavaScript poll loop retries. If it returned `Err`, every gossip-lag window would surface a 502 to the user.
+
+This pattern generalises: any `get()` call that follows a link written by a different agent on a different conductor must be inside a retry loop on the caller side, OR must return `Option<T>` with `None` meaning "not yet propagated".
+
+### 16. Idempotency functions must return the existing value, not None
+
+A function that short-circuits on "already exists" must return the existing entry hash to the caller so the caller can proceed.
+
+`check_and_create_harmony_record` previously returned `Ok(None)` when a `HarmonyRecord` already existed — treating "already done" the same as "couldn't do it". The JavaScript caller saw `null` and reported failure. Fixed: it now returns `Ok(Some(existing_hash))`.
+
+**Rule:** idempotency guards that find an existing entry must return `Ok(Some(existing_hash))`, not `Ok(None)`.
+
+### 17. Trust PhaseMarker for phase gates — do not re-query links
+
+`reveal_researcher_result` previously called `check_all_commitments_sealed_inner` as a safety check, re-querying `RequestToCommitment` links to count how many validators had committed. This races with DHT gossip: even after `PhaseMarker(RevealOpen)` exists, not all `CommitmentAnchor` links may have propagated to the researcher's conductor — the count is falsely low and the function rejects the call.
+
+Fixed: `reveal_researcher_result` now checks `get_current_phase`. If it returns `Some(ValidationPhase::RevealOpen)`, the function proceeds. The `PhaseMarker` is the authoritative quorum record — it was written by a validator only after all required `CommitmentAnchor` entries were visible to that validator. Re-querying links after the fact introduces a race.
+
+**Rule:** once a `PhaseMarker` says `RevealOpen`, trust it. Do not re-verify preconditions by re-querying the links that caused the phase transition. The phase marker IS the proof of completion.
+
+### 18. Cross-DNA decode failures under gossip lag should be soft errors
+
+`call_attestation_zome_opt` in the governance coordinator wraps cross-DNA calls to the Attestation DNA. Under DHT gossip lag, the attestation entries may not yet be deserializable on the governance conductor. A hard decode error propagated as `Err` surfaces a 502 to the caller and aborts the round.
+
+Fixed: `call_attestation_zome_opt` catches `ZomeCallResponse::Ok(io)` where `io.decode::<O>()` fails, logs at `warn!`, and returns `Ok(None)`. The caller (`check_and_create_harmony_record`) retries.
+
+**Rule:** cross-DNA calls that retrieve data published by another conductor should treat decode failures during the gossip propagation window as `Ok(None)` — not hard errors. Always log at `warn!` so the condition is visible in logs, but allow the caller to retry.
+
 ### 14. reveal_researcher_result — idempotency guard required before hash check
 `reveal_researcher_result` checks for an existing `RequestToResearcherReveal` link **before** the SHA-256 hash verification step. Without this guard, a researcher could call the function multiple times, creating multiple `ResearcherReveal` entries linked from the same deterministic path. `get_researcher_reveal` uses `links.last()`, which is non-deterministic under concurrent DHT propagation, so duplicate entries introduce result ambiguity even though content is forced to match the commitment. Pattern mirrors `publish_researcher_commitment`: query the path's existing links at the top of the function and return an error immediately if any exist. Commitment hash for `metrics=[], nonce=[]` is `SHA256(0x90) = 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd` — used in S6 test fixture.
 
@@ -263,8 +297,10 @@ hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 
-# 7. Pack the hApp bundle
-hc app pack . -o workdir/valichord.happ
+# 7. Pack the hApp bundles
+hc app pack .            -o workdir/valichord.happ    # full 4-DNA bundle (tests)
+hc app pack researcher   -o workdir/researcher.happ   # DNAs 1+3+4 (decentralised demo)
+hc app pack validator    -o workdir/validator.happ     # DNAs 2+3+4 (decentralised demo)
 
 # 8. Run targeted tests (preferred)
 cd tests && npm test -- -t "Membrane proof"
@@ -273,6 +309,12 @@ cd tests && npm test -- -t "governance"
 # 9. Full suite (takes ~90 minutes in Codespaces — only when needed)
 cd tests && npm test
 ```
+
+**Role-filtered happs** (`researcher.happ`, `validator.happ`) are committed to `valichord/workdir/` as demo artefacts. They are used by the Docker Compose decentralised demo — each container loads only the DNAs it needs for that run. `valichord.happ` (all four DNAs) is used by the Tryorama integration tests and is the correct bundle for production deployment.
+
+**Production model:** every participant runs the full four-DNA bundle. The same person may submit a study one day and validate a different study another day — DNA 1 holds their research deposits and DNA 2 holds their validation work. The conflict-of-interest check is per-study (`StudyClaim validate()` rejects the same agent as both submitter and claimant of the same `ValidationRequest`), not per-person. Do not use the role-filtered happs as a template for production; they exist purely to save memory and clarify roles in the single-machine demo.
+
+The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Rebuild them whenever you change any Rust zome code.
 
 ---
 

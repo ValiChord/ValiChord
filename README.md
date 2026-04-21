@@ -20,6 +20,22 @@
 
 ---
 
+## 🐳 **New: Decentralised Demo — 5 Isolated Conductors (April 2026)**
+
+> **The full protocol now runs across genuinely isolated nodes with no shared state.**
+
+Five Docker containers — one researcher, three validators, one kitsune2 bootstrap server — each run their own Holochain conductor with their own keypair and their own SQLite database. The only communication channel is the DHT. This is the closest a single-machine setup can get to a real multi-party deployment.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+docker compose -f demo/docker-compose.yml up --build -d
+python3 demo/ai_validator.py --mode decentralised
+```
+
+**[Decentralised demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
+
+---
+
 ## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
 *The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
 
@@ -129,7 +145,9 @@ The protocol is implemented across all four DNAs and is fully tested:
 
 ## 🤖 Live Demo — AI Validators Running the Full Protocol
 
-> **This is not a simulation.** Every step involves real zome calls to real Holochain DNA cells running on a live conductor. The HarmonyRecord is stored on a live distributed network and readable at a public URL — no Holochain node, no API key, no authentication required.
+> **This is not a simulation.** Every step involves real zome calls to real Holochain DNA cells. The HarmonyRecord is stored on a live distributed network and readable at a public URL — no Holochain node, no API key, no authentication required.
+>
+> **Two demo modes:** the Oracle demo runs all conductors in a single process; the Docker decentralised demo runs five completely isolated conductors communicating only through the DHT. Both run the identical protocol code.
 
 The demo runs the complete ValiChord protocol end-to-end, with Claude AI agents as the validators:
 
@@ -155,7 +173,7 @@ The result of a recent run:
 
 The whole run takes about 2 minutes. The URL stays live as long as the Oracle server is running.
 
-📄 **[Full demo guide and instructions →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)**
+📄 **[Oracle demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)** | **[Decentralised Docker demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
 
 ---
 
@@ -239,7 +257,7 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [4-DNA Architecture — Technical](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) | Full technical architecture document for engineers |
 | [4-DNA Architecture — Plain English](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7a_ValiChord_4-DNA_architecture_nontechnical.md) | Non-technical explanation of the four-membrane design |
 | [Eight-Layer Infrastructure](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_8_Layer_Infrastructure_and_Harmony_Records.md) | The full eight-layer conceptual architecture |
-| [Technical Reference v26](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
+| [Technical Reference v27](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v13 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
 
 ### Integrations
@@ -273,7 +291,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
-| Technical Reference v26 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
+| Technical Reference v27 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Deployment Checklist | [`docs/DEPLOYMENT_CHECKLIST.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) |
 | Engineer Handover | [`docs/13_Valichord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_Valichord_Engineer_Handover.md) |
 
