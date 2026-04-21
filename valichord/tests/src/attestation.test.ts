@@ -268,12 +268,13 @@ function makeAttestation(requestRef: Uint8Array) {
 }
 
 /**
- * Wrap a request_ref into CommitmentSealedInput with an empty commitment_hash.
- * The empty hash triggers the dev/test bypass in notify_commitment_sealed
- * (authorized_joining_certificate_issuer is "" in test configs).
+ * Wrap a request_ref into CommitmentSealedInput with a 32-byte zero hash.
+ * Integrity validation requires exactly 32 bytes (SHA-256 size). The actual
+ * hash value is not checked in dev/test mode (authorized_joining_certificate_issuer
+ * is "" in test configs), so zeroes are sufficient.
  */
 function commitInput(requestRef: Uint8Array) {
-  return { request_ref: requestRef, commitment_hash: new Uint8Array(0) };
+  return { request_ref: requestRef, commitment_hash: new Uint8Array(32) };
 }
 
 /**
