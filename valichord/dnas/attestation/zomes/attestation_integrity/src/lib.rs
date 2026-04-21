@@ -307,6 +307,10 @@ pub struct AgentIdentityAttestation {
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
+    // cache_at_agent_activity=true: stores the entry alongside RegisterAgentActivity ops
+    // at the author's DHT neighbourhood, halving hop count in must_get_agent_activity
+    // calls during validation. Safe because ValidationRequest is immutable after creation.
+    #[entry_type(cache_at_agent_activity = true)]
     ValidationRequest(ValidationRequest),
     #[entry_type(required_validations = 7)]
     ValidationAttestation(ValidationAttestation),
@@ -317,6 +321,9 @@ pub enum EntryTypes {
     // 5 apps on one conductor; with hundreds of AI validators this threshold
     // is trivially met and CommitmentAnchor should carry the same redundancy
     // guarantee as ValidationAttestation.
+    // cache_at_agent_activity=true: commitment anchors are fetched by every validator
+    // who participates in the same round; caching reduces gossip pressure on busy rounds.
+    #[entry_type(cache_at_agent_activity = true)]
     CommitmentAnchor(CommitmentAnchor),
     PhaseMarker(PhaseMarker),
     StudyClaim(StudyClaim),

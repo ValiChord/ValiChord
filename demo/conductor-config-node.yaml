@@ -22,3 +22,4 @@ network:
       signalAllowPlainText: true
       timeoutS: 20
 db_sync_strategy: Fast
+db_max_readers: 4

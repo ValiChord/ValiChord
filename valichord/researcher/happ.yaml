@@ -2,6 +2,7 @@
 manifest_version: "0"
 name: valichord-researcher
 description: "ValiChord researcher bundle — researcher_repository + attestation + governance"
+allow_deferred_memproofs: true
 
 roles:
   - name: attestation

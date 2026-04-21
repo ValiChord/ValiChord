@@ -2,6 +2,7 @@
 manifest_version: "0"
 name: valichord-validator
 description: "ValiChord validator bundle — validator_workspace + attestation + governance"
+allow_deferred_memproofs: true
 
 roles:
   - name: attestation

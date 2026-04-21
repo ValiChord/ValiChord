@@ -41,6 +41,12 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         access: CapAccess::Unrestricted,
         functions: GrantedFunctions::Listed(public_fns),
     })?;
+
+    // Register the hourly sweep that finalises timed-out rounds without requiring
+    // a live client.  schedule() is idempotent — safe to call on every init.
+    // NOTE: init is lazy; the schedule fires only after the cell's first zome call.
+    schedule("sweep_timed_out_rounds")?;
+
     Ok(InitCallbackResult::Pass)
 }
 
@@ -805,4 +811,85 @@ fn cert_tier(total: u32, rate: f64) -> CertificationTier {
     } else {
         CertificationTier::Provisional
     }
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled sweep — closes stuck rounds without a live client
+// ---------------------------------------------------------------------------
+
+/// Hourly background sweep that finalises validation rounds whose timeout has
+/// elapsed but whose last validator went offline before triggering finalization.
+///
+/// Algorithm:
+///   1. Read all completed HarmonyRecords to discover which disciplines are
+///      active on this DHT instance.
+///   2. For each discipline, fetch all ValidationAttestation records from the
+///      attestation DNA and collect unique request_refs.
+///   3. Call force_finalize_round for each — it is idempotent (returns None if
+///      already finalised) and enforces the timeout gate internally, so no study
+///      is closed prematurely.
+///
+/// Limitation: studies in a discipline where NO round has EVER completed will
+/// not appear in step 1 and therefore will not be swept.  This is acceptable
+/// for the current phase; a global "active studies" index is Phase 1 work.
+///
+/// The function is infallible: any error causes a silent no-op and the schedule
+/// continues running on the next tick.  If the function call itself panics,
+/// Holochain drops the schedule automatically — the conductor log will show the
+/// reason.
+#[hdk_extern(infallible)]
+fn sweep_timed_out_rounds(_: Option<Schedule>) -> Option<Schedule> {
+    let hourly = Some(Schedule::Persisted("0 0 * * * * *".into()));
+
+    // Step 1: collect all distinct Discipline values from completed HarmonyRecords.
+    let all_decisions = match get_all_governance_decisions(()) {
+        Ok(records) => records,
+        Err(_) => return hourly,
+    };
+
+    let mut known_disciplines: HashSet<String> = HashSet::new();
+    let mut disciplines: Vec<Discipline> = Vec::new();
+    for record in &all_decisions {
+        if let Ok(Some(hr)) = record.entry().to_app_option::<HarmonyRecord>() {
+            let tag = discipline_tag(&hr.discipline).into_owned();
+            if known_disciplines.insert(tag) {
+                disciplines.push(hr.discipline.clone());
+            }
+        }
+    }
+
+    if disciplines.is_empty() {
+        return hourly; // No completed rounds yet — nothing to sweep.
+    }
+
+    // Step 2: for each discipline, get all attestation records and collect
+    // unique request_refs.
+    let mut seen_refs: HashSet<Vec<u8>> = HashSet::new();
+    let mut request_refs: Vec<ExternalHash> = Vec::new();
+    for discipline in disciplines {
+        let records: Vec<Record> = match call_attestation_zome_opt(
+            "get_attestations_for_discipline",
+            discipline,
+        ) {
+            Ok(Some(r)) => r,
+            _ => continue,
+        };
+        for record in records {
+            if let Ok(Some(att)) = record.entry().to_app_option::<ValidationAttestation>() {
+                let key = att.request_ref.get_raw_32().to_vec();
+                if seen_refs.insert(key) {
+                    request_refs.push(att.request_ref);
+                }
+            }
+        }
+    }
+
+    // Step 3: attempt finalization for each candidate study.
+    // force_finalize_round is idempotent (returns Ok(None) for already-done or
+    // not-yet-timed-out studies) and handles all precondition checks internally.
+    for request_ref in request_refs {
+        let _ = force_finalize_round(request_ref);
+    }
+
+    hourly
 }

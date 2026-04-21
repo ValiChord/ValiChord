@@ -2,6 +2,7 @@
 manifest_version: "0"
 name: valichord
 description: "ValiChord — credentialed peer validation for scientific reproducibility"
+allow_deferred_memproofs: true
 
 roles:
   - name: attestation

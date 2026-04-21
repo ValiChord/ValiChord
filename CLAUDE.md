@@ -69,3 +69,15 @@ Rules:
 - Never use `pack_dna.py` to build DNAs — it is broken (embeds the same DNA bytes for all four roles)
 - Always use `hc dna pack` + `hc app pack` (see `.claude/skills/integration-testing.md`)
 - Before running tests: `pkill -f holochain; pkill -f lair-keystore; sleep 2`
+
+## Upgrading ValiChord coordinator code (zero DNA hash change)
+Changes to coordinator zomes only (no integrity zome changes) can be deployed without changing the DNA hash via the Holochain admin API `UpdateCoordinators` call:
+```
+AdminRequest::UpdateCoordinators { dna_hash, coordinator_bundle }
+```
+- Pack only the coordinator: `hc dna pack --coordinator-only` (outputs a `.dna` without integrity)
+- Send `AdminRequest::UpdateCoordinators` with the new coordinator bundle
+- All running cells on that DNA immediately use the new coordinator; no reinstall required
+- **DNA hash stays identical** — existing source chains and DHT data are unaffected
+- Use this for: bug fixes, new read functions, schedule() additions, warrant-gate changes
+- **Do NOT use** for: integrity zome changes, new entry/link types, `cache_at_agent_activity` toggles — those require a new DNA hash and network migration
