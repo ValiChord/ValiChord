@@ -2,30 +2,25 @@
 #
 # Builds an image containing:
 #   - Node.js 20 + @holochain/client
-#   - The Holochain conductor binary (from demo/bin/holochain)
+#   - The Holochain conductor binary (auto-downloaded if not present in demo/bin/)
 #   - The kitsune2 bootstrap server binary (from demo/bin/kitsune2-bootstrap-srv)
-#   - The compiled valichord.happ
+#   - The compiled researcher.happ / validator.happ
 #   - The demo/ Node.js scripts
 #
-# Prerequisites (binaries must exist before docker build):
-#   demo/bin/holochain            — Holochain 0.6.x linux binary
-#   demo/bin/kitsune2-bootstrap-srv — already committed
-#   valichord/workdir/valichord.happ — built by: hc app pack valichord/workdir/
-#
-# Getting the holochain binary:
-#   Option A — copy from an existing installation:
-#     scp oracle:~/.cargo/bin/holochain demo/bin/holochain
-#
-#   Option B — download from GitHub releases (replace VERSION as needed):
-#     curl -L https://github.com/holochain/holochain/releases/download/\
-#          holochain-0.6.0/holochain-x86_64-unknown-linux-gnu \
-#          -o demo/bin/holochain && chmod +x demo/bin/holochain
+# No manual setup required — docker compose up --build handles everything.
+# Requires: Docker, Docker Compose, and ANTHROPIC_API_KEY in the environment.
+
+ARG HOLOCHAIN_VERSION=0.6.0
+ARG HOLOCHAIN_URL=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}/holochain-x86_64-unknown-linux-gnu
 
 FROM node:20-bookworm-slim
 
+ARG HOLOCHAIN_VERSION
+ARG HOLOCHAIN_URL
+
 # Runtime dependencies for the Holochain binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates bash netcat-openbsd \
+    libssl3 ca-certificates bash netcat-openbsd curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -34,13 +29,21 @@ WORKDIR /app
 COPY demo/package.json demo/package-lock.json* /app/demo/
 RUN cd /app/demo && npm install --omit=dev
 
-# Copy binaries and make them executable.
+# Copy pre-built binaries.
 COPY demo/bin/ /app/demo/bin/
-RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv && \
-    if [ -f /app/demo/bin/holochain ]; then chmod +x /app/demo/bin/holochain; \
-    else echo "WARNING: demo/bin/holochain not found — add it before building"; fi
+RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv
 
-# Copy the compiled happ.
+# Use the pre-built holochain binary if present; otherwise download from GitHub releases.
+RUN if [ -f /app/demo/bin/holochain ]; then \
+        echo "Using bundled holochain binary."; \
+        chmod +x /app/demo/bin/holochain; \
+    else \
+        echo "Downloading holochain ${HOLOCHAIN_VERSION} from GitHub releases..."; \
+        curl -fsSL "${HOLOCHAIN_URL}" -o /app/demo/bin/holochain \
+            && chmod +x /app/demo/bin/holochain; \
+    fi
+
+# Copy the compiled role-filtered happs.
 COPY valichord/workdir/ /app/valichord/workdir/
 
 # Copy demo scripts.
