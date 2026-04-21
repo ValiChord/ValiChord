@@ -252,9 +252,15 @@ const server = createServer(async (req, res) => {
 
     try {
       const hashBytes = externalHashFromB64(hashB64);
-      const record    = await withSession(async ({ call }) => {
-        return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
-      });
+
+      // Retry until the HarmonyRecord has gossiped to this node (up to 30s).
+      let record = null;
+      for (let attempt = 0; attempt < 6 && !record; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
+        record = await withSession(async ({ call }) => {
+          return call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes);
+        });
+      }
 
       if (!record) {
         res.writeHead(404);

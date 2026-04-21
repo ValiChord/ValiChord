@@ -18,7 +18,7 @@ ADMIN_PORT="${ADMIN_PORT:-4444}"
 APP_PORT="${APP_PORT:-4500}"
 NODE_API_PORT="${NODE_API_PORT:-3001}"
 NETWORK_SEED="${NETWORK_SEED:-valichord-demo-decentralised}"
-HAPP_PATH="${HAPP_PATH:-/app/valichord/workdir/valichord.happ}"
+HAPP_PATH="${HAPP_PATH:-/app/valichord/workdir/${ROLE}.happ}"
 PASSPHRASE="${HOLOCHAIN_PASSPHRASE:-demo-passphrase}"
 
 # Derive WebSocket signal URL from bootstrap HTTP URL (same port, different scheme).
@@ -37,9 +37,13 @@ sed -e "s|__BOOTSTRAP_URL__|$BOOTSTRAP_URL|g" \
 
 # ── Start Holochain conductor ──────────────────────────────────────────────────
 cd "$SCRIPT_DIR"
-echo "$PASSPHRASE" | holochain --config-path "$CONFIG_OUT" --piped \
+echo "$PASSPHRASE" | RUST_LOG="warn,holochain_conductor=info,holochain_p2p=warn,kitsune_p2p=warn" \
+    holochain --config-path "$CONFIG_OUT" --piped \
     > /tmp/conductor.log 2>&1 &
 CONDUCTOR_PID=$!
+
+# Write exit code to file when conductor dies (for post-mortem debugging).
+( wait $CONDUCTOR_PID; echo "conductor exited: code=$? pid=$CONDUCTOR_PID" >> /tmp/conductor.log ) &
 echo "  Conductor PID $CONDUCTOR_PID — logs: /tmp/conductor.log"
 
 # ── Wait for admin port ────────────────────────────────────────────────────────

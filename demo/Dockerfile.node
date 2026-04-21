@@ -50,7 +50,8 @@ RUN chmod +x /app/demo/node-entrypoint.sh
 
 # Put demo/bin/ on PATH so `holochain` and `kitsune2-bootstrap-srv` are found.
 ENV PATH="/app/demo/bin:$PATH"
-ENV HAPP_PATH="/app/valichord/workdir/valichord.happ"
+# HAPP_PATH is resolved by node-entrypoint.sh based on ROLE
+# (researcher.happ or validator.happ) so it is NOT set here.
 
 # node-entrypoint.sh starts the conductor, runs node-setup.mjs, then starts
 # the role-specific node API (researcher-node.mjs or validator-node.mjs).

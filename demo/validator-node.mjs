@@ -230,18 +230,23 @@ const server = createServer(async (req, res) => {
       const hashBytes = externalHashFromB64(body.external_hash_b64);
       const { encodeHashToBase64 } = await loadHcClient();
 
-      const harmonyHashSerialized = await withSession(async ({ call }) => {
-        return call(
-          'governance', 'governance_coordinator',
-          'check_and_create_harmony_record', hashBytes,
-        );
-      });
+      // Retry until attestations have gossiped to this node (up to 60s).
+      let harmonyRecordHash = null;
+      for (let attempt = 0; attempt < 12 && harmonyRecordHash === null; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
+        const result = await withSession(async ({ call }) => {
+          return call(
+            'governance', 'governance_coordinator',
+            'check_and_create_harmony_record', hashBytes,
+          );
+        });
+        harmonyRecordHash = result?.__bytes
+          ? encodeHashToBase64(Buffer.from(result.__bytes, 'base64'))
+          : null;
+        console.log(`[/create-harmony-record] attempt ${attempt + 1}: ${harmonyRecordHash?.slice(0, 20) ?? 'null'}`);
+      }
 
-      const harmonyRecordHash = harmonyHashSerialized?.__bytes
-        ? encodeHashToBase64(Buffer.from(harmonyHashSerialized.__bytes, 'base64'))
-        : null;
-
-      console.log(`[/create-harmony-record] hash: ${harmonyRecordHash?.slice(0, 20)}…`);
+      console.log(`[/create-harmony-record] final hash: ${harmonyRecordHash?.slice(0, 20) ?? 'null'}…`);
       res.writeHead(200);
       res.end(JSON.stringify({ harmony_record_hash: harmonyRecordHash }));
     } catch (err) {

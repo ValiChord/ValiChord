@@ -63,10 +63,6 @@ VALICHORD_KEY   = os.environ.get('VALICHORD_API_KEY', '')
 PUBLIC_URL      = os.environ.get('VALICHORD_PUBLIC_URL', BRIDGE_URL)
 
 # ── Decentralised mode node URLs ──────────────────────────────────────────────
-# When all four VALICHORD_*_URL variables are set, --mode decentralised is
-# implied automatically.  Set by docker-compose or by the user when running the
-# multi-process local stack.
-#
 # Defaults align with docker-compose.yml port mappings (host-side).
 RESEARCHER_URL   = os.environ.get('VALICHORD_RESEARCHER_URL',  'http://localhost:3001')
 VALIDATOR_1_URL  = os.environ.get('VALICHORD_VALIDATOR_1_URL', 'http://localhost:3002')
@@ -325,7 +321,13 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
         'num_validators_required': 3,
     })
 
-    # (2–4) Validators commit blind
+    # Let ValidationRequest gossip to all validator conductors before any
+    # validator commits — avoids Guard 1 (Local lookup) missing the VR entry.
+    print('  (1b) Waiting 20s for ValidationRequest to propagate via DHT…', flush=True)
+    time.sleep(20)
+
+    # (2–4) Validators commit blind — staggered to avoid simultaneous DHT
+    # gossip spikes on single-machine deployments.
     for i, (vurl, verdict) in enumerate(zip(validator_urls, verdicts)):
         print(f'  ({2 + i}) Validator {i + 1} committing blind…')
         _node_post(f'{vurl}/commit', {
@@ -334,6 +336,8 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
             'metrics':           metrics,
             'discipline':        disc,
         })
+        if i < len(validator_urls) - 1:
+            time.sleep(30)  # let DHT gossip settle before next commit
 
     # (5) Phase gate — poll until RevealOpen
     print('  (5) Polling phase gate…', end=' ', flush=True)
@@ -356,10 +360,12 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
     })
     researcher_reveal_hash = reveal_resp.get('researcher_reveal_hash')
 
-    # (6b) Validators reveal
+    # (6b) Validators reveal — staggered to avoid concurrent DHT write spikes.
     for i, vurl in enumerate(validator_urls):
         print(f'  (6b) Validator {i + 1} revealing attestation…')
         _node_post(f'{vurl}/reveal', {'external_hash_b64': external_hash_b64})
+        if i < len(validator_urls) - 1:
+            time.sleep(15)
 
     # (7) Create HarmonyRecord (via validator-1 — must be a participating validator)
     print('  (7)  Creating HarmonyRecord on Governance DHT…')

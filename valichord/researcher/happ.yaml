@@ -1,0 +1,38 @@
+---
+manifest_version: "0"
+name: valichord-researcher
+description: "ValiChord researcher bundle — researcher_repository + attestation + governance"
+
+roles:
+  - name: attestation
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "../workdir/attestation.dna"
+      modifiers:
+        properties:
+          authorized_joining_certificate_issuer: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+          discipline: "genomics"
+          minimum_validators: 2
+        network_seed: "valichord-test"
+
+  - name: researcher_repository
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "../workdir/researcher_repository.dna"
+      modifiers:
+        network_seed: "valichord-test"
+
+  - name: governance
+    provisioning:
+      strategy: create
+      deferred: false
+    dna:
+      path: "../workdir/governance.dna"
+      modifiers:
+        properties:
+          system_coordinator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+        network_seed: "valichord-test"

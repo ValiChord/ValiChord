@@ -91,10 +91,13 @@ where
     )?;
     match response {
         ZomeCallResponse::Ok(extern_io) => {
-            extern_io
-                .decode::<O>()
-                .map(Some)
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
+            match extern_io.decode::<O>() {
+                Ok(v) => Ok(Some(v)),
+                Err(e) => {
+                    warn!("call_attestation_zome_opt: decode failed calling {fn_name}: {e}");
+                    Ok(None)
+                }
+            }
         }
         ZomeCallResponse::Unauthorized(cell, zome, func, agent) => {
             warn!("call_attestation_zome_opt: Unauthorized — cell={cell:?} zome={zome:?} fn={func:?} agent={agent:?}");
@@ -140,7 +143,12 @@ pub fn check_and_create_harmony_record(
         GetStrategy::Network,
     )?;
     if !existing.is_empty() {
-        return Ok(None);
+        // Already exists — return the existing hash rather than None.
+        let existing_hash = existing
+            .into_iter()
+            .max_by_key(|l| l.timestamp)
+            .and_then(|l| l.target.into_action_hash());
+        return Ok(existing_hash);
     }
 
     // 2. Fetch attestations from attestation DNA.

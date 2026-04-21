@@ -20,4 +20,5 @@ network:
   advanced:
     tx5Transport:
       signalAllowPlainText: true
-db_sync_strategy: Resilient
+      timeoutS: 20
+db_sync_strategy: Fast
