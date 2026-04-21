@@ -610,7 +610,7 @@ pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> 
 /// Enforced by validate() (network layer):
 ///   - COI: validator and researcher must not share institution.
 #[hdk_extern]
-pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
+pub fn claim_study(request_ref: ExternalHash) -> ExternResult<Option<ActionHash>> {
     let agent = agent_info()?.agent_initial_pubkey;
 
     // Resolve the ValidationRequest ActionHash from the study path.
@@ -632,11 +632,10 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
                 "StudyToValidation link target is not an ActionHash".into(),
             ))
         })?;
-        let record = get(hash.clone(), GetOptions::network())?.ok_or_else(|| {
-            wasm_error!(WasmErrorInner::Guest(
-                "ValidationRequest record not found on DHT".into(),
-            ))
-        })?;
+        let record = match get(hash.clone(), GetOptions::network())? {
+            Some(r) => r,
+            None => return Ok(None), // record not yet propagated — caller should retry
+        };
         let vr = record
             .entry()
             .to_app_option::<ValidationRequest>()
@@ -718,7 +717,7 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
         (),
     )?;
 
-    Ok(claim_hash)
+    Ok(Some(claim_hash))
 }
 
 /// Release a previously claimed study.
@@ -1561,11 +1560,22 @@ pub fn reveal_researcher_result(
         }
     }
 
-    // Gate: all validators must have committed first.
-    if !check_all_commitments_sealed_inner(input.request_ref.clone())? {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Cannot reveal — not all validators have committed yet".into()
-        )));
+    // Gate: phase must be RevealOpen (set by the last committing validator's
+    // post_commit, which verified all commitments were sealed before writing it).
+    // Trusting the PhaseMarker avoids a redundant link-count query that races
+    // with gossip propagation and would give a false "not all committed" error.
+    match get_current_phase(input.request_ref.clone())? {
+        Some(ValidationPhase::RevealOpen) => {}
+        Some(other) => {
+            return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                "Cannot reveal — protocol is in phase {other:?}, expected RevealOpen"
+            ))));
+        }
+        None => {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Cannot reveal — phase not yet set (validators may not have committed yet)".into()
+            )));
+        }
     }
 
     // Fetch the previously published commitment.

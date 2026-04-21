@@ -125,12 +125,17 @@ const server = createServer(async (req, res) => {
           person_key:           null,
         });
 
-        // claim_study reads from the shared DHT — retry on tx5 peer errors.
-        await retryOnTx5(
-          () => call('attestation', 'attestation_coordinator', 'claim_study', hashBytes),
-          'claim_study',
-          10, 6000,
-        );
+        // claim_study returns null if the ValidationRequest hasn't gossiped yet — retry.
+        // Inner retryOnTx5 handles WebRTC relay errors; outer loop handles gossip lag.
+        let claimed = null;
+        for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
+          if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
+          claimed = await retryOnTx5(
+            () => call('attestation', 'attestation_coordinator', 'claim_study', hashBytes),
+            'claim_study', 3, 3000,
+          );
+        }
+        if (!claimed) throw new Error('claim_study: ValidationRequest not yet gossiped after 60s');
 
         taskHashSerialized = await call(
           'validator_workspace', 'validator_workspace_coordinator', 'receive_task', {
