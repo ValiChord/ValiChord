@@ -458,6 +458,20 @@ Each action produces multiple DHT ops sent to different authorities:
 
 **Warrants** — created by validators when they detect invalid ops. Collected at agent's pubkey address. Application layer must use warrants to gate interactions with bad actors (the network doesn't block them automatically — on roadmap but not current behaviour).
 
+**`WarrantOp` struct** — the DHT op type that carries a warrant. Implements `Deref<Target = SignedWarrant>` (i.e. `Signed<Warrant>`), so all `SignedWarrant` accessors are available directly on a `WarrantOp`.
+
+Key methods:
+- `op.get_type() -> WarrantOpType` — discriminates the warrant kind
+- `op.timestamp() -> Timestamp` — when the warrant was issued
+- `op.warrant() -> &Warrant` — the underlying `Warrant` value
+- `op.action() -> &Action` — the action the warrant is about (via `Deref`)
+- `op.signature() -> &Signature` — validator's signature (via `Deref`)
+- `WarrantOp::sign(keystore, warrant).await -> LairResult<WarrantOp>` — sign a raw `Warrant` into a publishable op (system/conductor use; app zomes don't call this directly)
+
+`WarrantOp` is `From<Signed<Warrant>>` and converts `Into<DhtOp>` / `Into<DhtOpLite>`. It is fully serialisable (`Serialize`/`Deserialize`, `TryFrom<SerializedBytes>`).
+
+Application zomes receive warrants via `get_agent_activity` (as `Vec<Warrant>` in `AgentActivity.warrants`) — `WarrantOp` is the conductor/DHT layer representation; the zome-facing type is `Warrant`.
+
 ---
 
 ## 20. TESTING WITH TRYORAMA
