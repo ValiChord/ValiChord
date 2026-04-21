@@ -331,9 +331,9 @@ describe("S4. reclaim_abandoned_claim min_claim_timeout_secs floor", () => {
         await att(bob, "publish_validator_profile", makeProfile("Oxford"));
         await dhtSync([alice, bob], dnaHash!);
 
-        // Bob claims the study.
+        // Bob claims the study. claim_study returns Option<ActionHash> — None on gossip miss.
         const claimHash = await att(bob, "claim_study", requestRef);
-        expect(claimHash).toBeTruthy();
+        expect(claimHash).not.toBeNull();
         await dhtSync([alice, bob], dnaHash!);
 
         // Alice tries to reclaim with timeout_secs=0 — should be blocked by
@@ -368,6 +368,7 @@ describe("S4. reclaim_abandoned_claim min_claim_timeout_secs floor", () => {
         await dhtSync([alice, bob], dnaHash!);
 
         const claimHash = await att(bob, "claim_study", requestRef);
+        expect(claimHash).not.toBeNull();
         await dhtSync([alice, bob], dnaHash!);
 
         // No DNA floor: timeout_secs=0 → elapsed (0 s) >= 0 → eligible.

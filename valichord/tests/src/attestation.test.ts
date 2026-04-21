@@ -1976,7 +1976,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await dhtSync([alice, bob], dnaHash!);
 
         // Bob claims the study.
-        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        const claimHash = await zomeCall<ActionHash | null>(bob, "claim_study", REQUEST_REF);
         expect(claimHash).toBeTruthy();
 
         await dhtSync([alice, bob], dnaHash!);
@@ -2011,7 +2011,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
         await dhtSync([alice, bob], dnaHash!);
 
         // First claim succeeds.
-        await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        await zomeCall<ActionHash | null>(bob, "claim_study", REQUEST_REF);
         await dhtSync([alice, bob], dnaHash!);
 
         // Second claim from the same agent must fail.
@@ -2161,13 +2161,14 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
         await dhtSync([alice, bob], dnaHash!);
 
-        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        const claimHash = await zomeCall<ActionHash | null>(bob, "claim_study", REQUEST_REF);
+        expect(claimHash).not.toBeNull();
         await dhtSync([alice, bob], dnaHash!);
 
         // timeout_secs = 999999 (far future) — claim is too recent.
         const result = await zomeCall<boolean>(alice, "reclaim_abandoned_claim", {
           request_ref: REQUEST_REF,
-          claim_hash:  claimHash,
+          claim_hash:  claimHash!,
           timeout_secs: 999999,
         });
         expect(result).toBe(false);
@@ -2200,13 +2201,14 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Bob claims, then goes dark (never attests).
-        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        const claimHash = await zomeCall<ActionHash | null>(bob, "claim_study", REQUEST_REF);
+        expect(claimHash).not.toBeNull();
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Carol reclaims Bob's slot with timeout_secs=0 (immediately eligible).
         const reclaimed = await zomeCall<boolean>(carol, "reclaim_abandoned_claim", {
           request_ref:  REQUEST_REF,
-          claim_hash:   claimHash,
+          claim_hash:   claimHash!,
           timeout_secs: 0,
         });
         expect(reclaimed).toBe(true);
@@ -2218,7 +2220,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         expect(claims).toHaveLength(0);
 
         // Carol can now claim the freed slot.
-        const carolClaim = await zomeCall<ActionHash>(carol, "claim_study", REQUEST_REF);
+        const carolClaim = await zomeCall<ActionHash | null>(carol, "claim_study", REQUEST_REF);
         expect(carolClaim).toBeTruthy();
       }, true, { timeout: 300_000 });
     },
@@ -2243,7 +2245,8 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         await zomeCall(bob, "publish_validator_profile", makeProfile("Oxford"));
         await dhtSync([alice, bob, carol], dnaHash!);
 
-        const claimHash = await zomeCall<ActionHash>(bob, "claim_study", REQUEST_REF);
+        const claimHash = await zomeCall<ActionHash | null>(bob, "claim_study", REQUEST_REF);
+        expect(claimHash).not.toBeNull();
         await dhtSync([alice, bob, carol], dnaHash!);
 
         // Bob commits before attesting (inductive chain requires CommitmentAnchor).
@@ -2257,7 +2260,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
         // Reclaim attempt must fail — Bob has attested.
         const result = await zomeCall<boolean>(carol, "reclaim_abandoned_claim", {
           request_ref:  REQUEST_REF,
-          claim_hash:   claimHash,
+          claim_hash:   claimHash!,
           timeout_secs: 0,
         });
         expect(result).toBe(false);
