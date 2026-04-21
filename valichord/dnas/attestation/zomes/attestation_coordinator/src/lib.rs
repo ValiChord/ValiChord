@@ -593,6 +593,29 @@ pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> 
 }
 
 // ---------------------------------------------------------------------------
+// Warrant gating
+// ---------------------------------------------------------------------------
+
+/// Reject the calling agent if they have any outstanding warrants.
+///
+/// Called at coordinator entry points only — never inside validate(), which
+/// must not make network calls.  Warranted agents can still write ops to the
+/// DHT; this gate controls whether ValiChord accepts them into protocol flow.
+fn reject_if_warranted(agent: &AgentPubKey) -> ExternResult<()> {
+    let activity = get_agent_activity(
+        agent.clone(),
+        ChainQueryFilter::new(),
+        ActivityRequest::Full,
+    )?;
+    if !activity.warrants.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "Agent has outstanding warrants — protocol participation refused".into()
+        )));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Validator self-assignment
 // ---------------------------------------------------------------------------
 
@@ -612,6 +635,7 @@ pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> 
 #[hdk_extern]
 pub fn claim_study(request_ref: ExternalHash) -> ExternResult<Option<ActionHash>> {
     let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
 
     // Resolve the ValidationRequest ActionHash from the study path.
     let (vr_action_hash, vr) = {
@@ -1117,6 +1141,7 @@ pub fn notify_commitment_sealed(
     input: CommitmentSealedInput,
 ) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     let request_ref = input.request_ref.clone();
 
     // Phase gate: reject commitments after RevealOpen is already written.

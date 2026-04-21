@@ -174,6 +174,22 @@ pub fn check_and_create_harmony_record(
         return Ok(None);
     }
 
+    // Filter out attestations from warranted agents — a validator who received
+    // warrants after claiming should not contribute to a permanent HarmonyRecord.
+    // If the activity check fails for an author, include them conservatively.
+    let attestation_records: Vec<Record> = attestation_records
+        .into_iter()
+        .filter(|r| {
+            let author = r.action().author().clone();
+            get_agent_activity(author, ChainQueryFilter::new(), ActivityRequest::Full)
+                .map(|a| a.warrants.is_empty())
+                .unwrap_or(true)
+        })
+        .collect();
+    if (attestation_records.len() as u8) < min_validators {
+        return Ok(None); // Not enough unwarranted attestations to meet quorum.
+    }
+
     // Verify every attestation actually belongs to this study.
     // get_attestations_for_request should already enforce this, but an
     // extra check here prevents a forged or mismatched attestation set

@@ -282,14 +282,13 @@ impl ValidationAttestation {
 /// computation on the researcher side.
 ///
 /// Mirrors `ValidationAttestation::commitment_msgpack_bytes()` — both use
-/// `SerializedBytes::try_from` (Holochain's canonical msgpack encoding) so the
-/// two hash paths remain byte-for-byte consistent regardless of future
-/// serialiser changes. `reveal_researcher_result` must call this instead of
-/// `rmps::to_vec_named` directly so any future change to the encoding is made
-/// in one place.
+/// named-field msgpack encoding (`rmp_serde::to_vec_named`), which is
+/// byte-for-byte equivalent to `SerializedBytes::try_from` since that is its
+/// underlying serialiser. `reveal_researcher_result` must call this instead of
+/// `rmp_serde::to_vec_named` directly so any future encoding change is made in
+/// one place.
 pub fn metric_results_msgpack_bytes(metrics: &[MetricResult]) -> ExternResult<Vec<u8>> {
-    SerializedBytes::try_from(metrics)
-        .map(|sb| sb.bytes().to_vec())
+    rmp_serde::to_vec_named(metrics)
         .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))
 }
 
