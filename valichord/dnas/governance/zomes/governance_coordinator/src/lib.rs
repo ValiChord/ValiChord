@@ -841,29 +841,30 @@ fn cert_tier(total: u32, rate: f64) -> CertificationTier {
 fn sweep_timed_out_rounds(_: Option<Schedule>) -> Option<Schedule> {
     let hourly = Some(Schedule::Persisted("0 0 * * * * *".into()));
 
-    // Step 1: collect all distinct Discipline values from completed HarmonyRecords.
-    let all_decisions = match get_all_governance_decisions(()) {
-        Ok(records) => records,
-        Err(_) => return hourly,
-    };
+    // Step 1: query attestation for each known named discipline.
+    //
+    // WHY not derive disciplines from get_all_governance_decisions():
+    //   get_all_governance_decisions returns GovernanceDecision entries (governance
+    //   votes), not HarmonyRecord entries — decoding them as HarmonyRecord always
+    //   returns Ok(None) and disciplines would be permanently empty.  Using a static
+    //   list of the known named variants is simpler, requires no new link type, and
+    //   produces correct results: for disciplines with no attestations yet,
+    //   get_attestations_for_discipline returns [] and no work is done.
+    //
+    // Limitation: studies submitted under Discipline::Other(String) are not covered
+    // by this sweep.  Adding a global HarmonyRecord index (Phase 1) would close
+    // this gap without enumerating disciplines at all.
+    let disciplines = vec![
+        Discipline::ComputationalBiology,
+        Discipline::ClimateScience,
+        Discipline::SocialScience,
+        Discipline::Economics,
+        Discipline::Psychology,
+        Discipline::Neuroscience,
+        Discipline::MachineLearning,
+    ];
 
-    let mut known_disciplines: HashSet<String> = HashSet::new();
-    let mut disciplines: Vec<Discipline> = Vec::new();
-    for record in &all_decisions {
-        if let Ok(Some(hr)) = record.entry().to_app_option::<HarmonyRecord>() {
-            let tag = discipline_tag(&hr.discipline).into_owned();
-            if known_disciplines.insert(tag) {
-                disciplines.push(hr.discipline.clone());
-            }
-        }
-    }
-
-    if disciplines.is_empty() {
-        return hourly; // No completed rounds yet — nothing to sweep.
-    }
-
-    // Step 2: for each discipline, get all attestation records and collect
-    // unique request_refs.
+    // Step 2: for each discipline, collect unique request_refs from attestation records.
     let mut seen_refs: HashSet<Vec<u8>> = HashSet::new();
     let mut request_refs: Vec<ExternalHash> = Vec::new();
     for discipline in disciplines {

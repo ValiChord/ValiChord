@@ -1278,11 +1278,12 @@ pub fn notify_commitment_sealed(
     create_link(commit_anchor, anchor_hash, LinkTypes::RequestToCommitment, ())?;
 
     // Step 3: check if all validators have now committed.
-    // existing_links was fetched by Guard 3 (Network) before writing the current
-    // anchor; total after write = existing_links.len() + 1.  Avoids a second
-    // GetStrategy::Network get_links call.
-    let quorum_props = DnaProperties::try_from_dna_properties()?;
-    if existing_links.len() + 1 >= quorum_props.minimum_validators as usize {
+    // Use check_all_commitments_sealed_inner which reads the per-study
+    // num_validators_required from the ValidationRequest.  The DNA-level
+    // minimum_validators is a floor constraint, not the quorum target —
+    // using it here would open reveal prematurely when a researcher requests
+    // more validators than the DNA minimum.
+    if check_all_commitments_sealed_inner(request_ref.clone()).unwrap_or(false) {
         let phase_path = Path::from(format!("phase.{}", request_ref))
             .typed(LinkTypes::RequestToPhaseMarker)?;
         phase_path.ensure()?;
