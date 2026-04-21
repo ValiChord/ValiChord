@@ -472,6 +472,31 @@ Key methods:
 
 Application zomes receive warrants via `get_agent_activity` (as `Vec<Warrant>` in `AgentActivity.warrants`) — `WarrantOp` is the conductor/DHT layer representation; the zome-facing type is `Warrant`.
 
+**ValiChord warrant-gating pattern** — check `activity.warrants` before accepting an agent into protocol flow:
+
+```rust
+let activity = get_agent_activity(
+    suspect_agent.clone(),
+    ChainQueryFilter::new(),
+    ActivityRequest::Full,
+)?;
+
+if !activity.warrants.is_empty() {
+    return Err(wasm_error!(WasmErrorInner::Guest(
+        "Agent has outstanding warrants — protocol participation refused".into()
+    )));
+}
+```
+
+Three meaningful locations in ValiChord (Phase 1 backlog, alongside reputation system):
+1. **`claim_study`** — before accepting a validator into the quorum
+2. **`notify_commitment_sealed`** — before writing their CommitmentAnchor to the shared DHT
+3. **`check_and_create_harmony_record`** — before including a validator's attestation in a HarmonyRecord
+
+For case 3, `WarrantOp.timestamp()` lets you filter to warrants issued *after* the study was submitted, treating pre-existing warrants differently from warrants received mid-round.
+
+**Critical caveat:** the network does NOT block warranted agents from writing ops — a warranted agent can still submit data. The warrant check gates whether ValiChord *accepts* them into protocol flow. Place checks in coordinator zome logic only, not in `validate()` (validation runs on all peers and must not use network calls).
+
 ---
 
 ## 20. TESTING WITH TRYORAMA
