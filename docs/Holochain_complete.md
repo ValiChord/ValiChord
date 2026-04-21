@@ -6,7 +6,7 @@
 
 ## COVERAGE STATUS
 
-All pages of the Holochain Build Guide have been read and synthesised. Previous sessions covered: validate-callback, getting-an-agents-status, cryptography-functions, cloning, identifiers, validation-overview, calling-zome-functions, dnas, genesis-self-check-callback, signals, capabilities. This session adds: zomes, callbacks-and-lifecycle-hooks, happs, working-with-data, entries, links-paths-and-anchors, querying-source-chains, validation-receipts, cell-introspection, miscellaneous-host-functions, must-get-host-functions, dht-operations, testing-with-tryorama, operating-a-happ.
+All pages of the Holochain Build Guide have been read and synthesised. Sections 1–25 are from the Build Guide. Sections 26–43 were added from direct crate source analysis (`hdk`, `hdi`, `holochain_integrity_types`, `holochain_zome_types`, `holochain_conductor_api`) and cover API surface NOT in the Build Guide: clone cells, scheduled functions, countersigning, source chain migration, deferred membrane proofs, app status model, app websocket auth tokens, full admin API, FlatOp validation pattern, LinkQuery full filter surface, ChainFilter/LimitConditions, entry/link size limits, GetStrategy, ChainTopOrdering, updated NetworkConfig, signal subscription filtering, warrant types detail, and rate limiting types.
 
 ---
 
@@ -751,6 +751,370 @@ To build a gateway payload from an ExternalHash:
 const b64 = Buffer.from(JSON.stringify(hashB64)).toString('base64url');  // no-pad
 const gatewayPayload = b64 + '='.repeat((4 - b64.length % 4) % 4);      // add padding
 ```
+
+---
+
+## 26. CLONE CELLS (runtime DNA cloning)
+
+Clone cells let a coordinator zome spawn new cells from the same base DNA at runtime with a different `network_seed` or `properties`, creating a distinct DHT space. Used for multi-instance or per-group spaces.
+
+**HDK functions (callable from zome code):**
+- `create_clone_cell(CreateCloneCellInput) -> ExternResult<ClonedCell>` — spawn a new cell; at least one of `network_seed` or `properties` in `modifiers` must differ from the original DNA
+- `disable_clone_cell(DisableCloneCellInput) -> ExternResult<()>` — disable without deleting
+- `enable_clone_cell(EnableCloneCellInput) -> ExternResult<ClonedCell>` — re-enable a disabled clone
+- `delete_clone_cell(DeleteCloneCellInput) -> ExternResult<()>` — permanently delete a disabled clone
+
+**Key types:**
+- `CreateCloneCellInput { cell_id, modifiers: DnaModifiersOpt, membrane_proof, name }`
+- `ClonedCell { cell_id, clone_id, original_dna_hash, dna_modifiers, name, enabled }` — returned on create/enable
+- `CloneCellId` enum — identify by `CloneId` (e.g. `"my_role.0"`) or `DnaHash`
+
+**happ.yaml:** `clone_limit: u32` per role (default `0` = no clones allowed). `CellProvisioning::CloneOnly` installs the DNA but creates no base cell — only clones are ever instantiated.
+
+**App interface equivalents:** `AppRequest::CreateCloneCell`, `DisableCloneCell`, `EnableCloneCell` — mirror the HDK calls but are invoked from the front end.
+
+---
+
+## 27. SCHEDULED FUNCTIONS (cron / ephemeral timers)
+
+The only mechanism for background/autonomous zome behaviour without an external client call. Functions can be scheduled to run once after a delay or on a recurring crontab.
+
+**Register a schedule (from any coordinator function or `init`):**
+```rust
+schedule("my_scheduled_fn")?;  // idempotent — no-op if already scheduled
+```
+
+**Schedulable function signature** — must use `infallible`:
+```rust
+#[hdk_extern(infallible)]
+fn my_scheduled_fn(_: Option<Schedule>) -> Option<Schedule> {
+    // input: Schedule returned last time (None on first invocation)
+    // return None to unschedule, or a new Schedule to reschedule
+    Some(Schedule::Persisted("0 * * * * * *".into()))  // every minute
+}
+```
+
+**`Schedule` enum:**
+- `Schedule::Persisted(String)` — crontab string; survives conductor reboot; must return same crontab each time to maintain
+- `Schedule::Ephemeral(Duration)` — fires once after duration; does NOT survive reboot; `Duration::ZERO` = next scheduler tick (~100ms)
+
+**Caveats:**
+- `init` is lazy — `schedule()` called in `init` may not fire for a long time if the cell is never called
+- Scheduled functions always run as the cell's chain author; calling capability grants do NOT carry forward
+- If the function call fails, it is unscheduled automatically
+- An invalid crontab string causes the schedule to be dropped silently
+
+---
+
+## 28. COUNTERSIGNING (multi-agent atomic entry commit)
+
+Allows 2–8 agents to atomically commit a shared entry that appears on all their source chains simultaneously, locked by a time-bounded session. Feature-gated `unstable-countersigning`.
+
+**Flow:**
+1. Coordinator picks a session window: `session_times_from_millis(ms)` → `CounterSigningSessionTimes`
+2. Build a `PreflightRequest` with all signers, entry hash, and session times — the SAME struct goes to every participant
+3. Each participant: `accept_countersigning_preflight_request(preflight)` — locks their local chain for the session duration
+4. All signers create their countersigned entry (`Entry::CounterSign(session_data, app_bytes)`) within the session window
+5. Conductor coordinates publication and emits `SystemSignal::SuccessfulCountersigning`
+
+**Key types:**
+- `PreflightRequest { app_entry_hash, signing_agents: CounterSigningAgents, optional_signing_agents, minimum_optional_signing_agents, enzymatic: bool, session_times, action_base, preflight_bytes }`
+- `CounterSigningAgents = Vec<(AgentPubKey, Vec<Role>)>` — `Role(u8)` is opaque to the conductor
+- `MIN_COUNTERSIGNING_AGENTS = 2`, `MAX_COUNTERSIGNING_AGENTS = 8`
+- `SESSION_ACTION_TIME_OFFSET = 1000ms` — actions are timestamped 1 second after session start
+- `SESSION_TIME_FUTURE_MAX = 6000ms` — max amount session start can be in the future from any agent's perspective
+
+**Enzymatic mode:** `enzymatic: true` designates the first signing agent (index 0) as coordinator; they must appear first in both signing and optional lists.
+
+**M-of-N optional signers:** `optional_signing_agents` + `minimum_optional_signing_agents` allow sessions where only M of N optional participants must respond.
+
+**App interface (feature-gated):**
+- `AppRequest::GetCountersigningSessionState(CellId)` → `Option<CountersigningSessionState>`
+- `AppRequest::AbandonCountersigningSession(CellId)` — force-abandon an unresolved session
+- `AppRequest::PublishCountersigningSession(CellId)` — force-publish; emits `SystemSignal::SuccessfulCountersigning`
+
+---
+
+## 29. SOURCE CHAIN MIGRATION (`close_chain` / `open_chain`)
+
+When a hApp DNA is upgraded to a new DNA hash (not just a coordinator hot-swap), agents can formally migrate their source chain across the hash boundary.
+
+**HDK functions:**
+- `close_chain(new_target: Option<MigrationTarget>) -> ExternResult<ActionHash>` — must be the LAST action on the old chain. System validation rejects any further actions after this.
+- `open_chain(prev_target: MigrationTarget, close_hash: ActionHash) -> ExternResult<ActionHash>` — records on the new chain that it continues from the old one. Holochain does not enforce calling this, but app validation can require it to verify imported data provenance.
+
+**`MigrationTarget`** — identifies the DNA + agent the chain migrated to/from.
+
+**`GetCompatibleCells` admin call** (feature-gated `unstable-migration`) — searches installed cells whose DNA manifest `lineage` field lists a given DNA hash; enables migration-aware installs without knowing the exact new DNA hash in advance.
+
+**`UseExisting` provisioning strategy is deprecated since 0.6.0-dev.17.** Use `UpdateCoordinators` (admin hot-swap) or `call()` with `CallTargetCell` for cross-app calls instead.
+
+---
+
+## 30. DEFERRED MEMBRANE PROOFS
+
+Membrane proofs can be omitted at install time and provided later before the app is enabled. Useful when the proof is obtained asynchronously (e.g. from a third-party credentialing service).
+
+**happ.yaml:** `allow_deferred_memproofs: true` at top level of `AppManifestV0` (default `false`).
+
+**Flow:**
+1. `AdminRequest::InstallApp` with no membrane proofs → app sits in `AppStatus::AwaitingMemproofs`
+2. Client calls `AppRequest::ProvideMemproofs(MemproofMap)` → `AppResponse::Ok`
+3. Client calls `AppRequest::EnableApp` → app moves to `Running`
+
+`AppRequest::EnableApp` ONLY works in the `Disabled(DisabledAppReason::NotStartedAfterProvidingMemproofs)` state. Any other enable attempt goes through `AdminRequest::EnableApp`.
+
+---
+
+## 31. APP STATUS MODEL
+
+**`AppStatus`** (serialized as `{"type": "...", "value": ...}`):
+- `Running` — cells active, zome calls accepted
+- `Disabled(DisabledAppReason)` — zome calls rejected; not started on conductor reboot
+- `AwaitingMemproofs` — installed with `allow_deferred_memproofs: true`; not yet enabled
+
+**`DisabledAppReason`:**
+- `User` — disabled by user via `AdminRequest::DisableApp`
+- `Error(String)` — conductor disabled due to internal error
+- `NotStartedAfterProvidingMemproofs` — memproofs provided but `AppRequest::EnableApp` not yet called
+
+**`AppStatusFilter`** used in `AdminRequest::ListApps { status_filter: Option<AppStatusFilter> }` — filter by `Running`, `Disabled`, or `AwaitingMemproofs`.
+
+**`AppInfo` structure:**
+```rust
+pub struct AppInfo {
+    pub installed_app_id: InstalledAppId,
+    pub cell_info: IndexMap<RoleName, Vec<CellInfo>>,  // ordered: provisioned, enabled clones, disabled clones
+    pub status: AppStatus,
+    pub agent_pub_key: AgentPubKey,
+    pub manifest: AppManifest,      // original manifest with installed DNA hashes filled in
+    pub installed_at: Timestamp,
+}
+```
+
+**`CellInfo` variants:**
+- `CellInfo::Provisioned(ProvisionedCell { cell_id, dna_modifiers, name })` — base cell
+- `CellInfo::Cloned(ClonedCell { cell_id, clone_id, original_dna_hash, dna_modifiers, name, enabled })` — runtime clone; `enabled` distinguishes active vs. disabled
+- `CellInfo::Stem(StemCell { ... })` — deferred cell not yet instantiated (not fully implemented)
+
+---
+
+## 32. APP WEBSOCKET AUTHENTICATION TOKEN (0.6.x)
+
+Connecting a client to the app interface now requires a one-time token.
+
+**Flow:**
+1. Admin side: `AdminRequest::IssueAppAuthenticationToken(IssueAppAuthenticationTokenPayload)` → `AdminResponse::AppAuthenticationTokenIssued { token, expires_at }`
+2. Client: first message on the app WebSocket must be `AppAuthenticationRequest { token }`
+3. Token is consumed on use. Revoke unused tokens with `AdminRequest::RevokeAppAuthenticationToken(token)`.
+
+---
+
+## 33. ADMIN API — ADDITIONAL CALLS
+
+Undocumented `AdminRequest` variants beyond what the Build Guide covers:
+
+- **`UpdateCoordinators(UpdateCoordinatorsPayload)`** — hot-swap coordinator zomes for a live DNA without restarting. Replaces zomes with matching names, appends new ones. Key for zero-downtime coordinator upgrades (integrity zomes cannot be hot-swapped).
+- **`RevokeZomeCallCapability { action_hash, cell_id }`** — revoke a previously-granted cap grant by its `ActionHash`
+- **`StorageInfo`** → `AdminResponse::StorageInfo(StorageInfo)` — disk usage across all installed apps
+- **`DumpNetworkMetrics { dna_hash, include_dht_summary }`** / **`DumpNetworkStats`** — Kitsune2 peer-level diagnostics
+- **`DumpConductorState`** — full in-memory + SQLite state as JSON (introspection only)
+- **`DeleteCloneCell(DeleteCloneCellPayload)`** — permanently delete a disabled clone cell (admin-level counterpart to `AppRequest::DisableCloneCell`)
+- **`UninstallApp { installed_app_id, force: bool }`** — `force: true` overrides dependency guards
+- **`ListCapabilityGrants { installed_app_id, include_revoked }`** → `AppCapGrantInfo` — inspect all cap grants
+
+**`AppRequest::ListWasmHostFunctions`** — returns all host function names supported by this conductor version; useful for conditional feature detection.
+
+---
+
+## 34. `FlatOp` / `OpHelper` PATTERN FOR VALIDATION
+
+The raw `Op` enum requires deep matching to access entry/link data. HDI provides a higher-level `FlatOp<ET, LT>` that pre-deserialises your app's entry and link types.
+
+**Usage:**
+```rust
+pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
+    match op.flattened::<EntryTypes, LinkTypes>()? {
+        FlatOp::StoreEntry(OpEntry::CreateEntry { app_entry, .. }) => {
+            match app_entry {
+                EntryTypes::ValidationAttestation(att) => validate_attestation(&att),
+                EntryTypes::HarmonyRecord(rec) => validate_harmony_record(&rec),
+            }
+        }
+        FlatOp::RegisterCreateLink { link_type, base, target, tag, .. } => {
+            match link_type {
+                LinkTypes::StudyToValidation => validate_study_link(&base, &target),
+            }
+        }
+        _ => Ok(ValidateCallbackResult::Valid),
+    }
+}
+```
+
+**`FlatOp<ET, LT>` variants:** `StoreRecord(OpRecord<ET,LT>)`, `StoreEntry(OpEntry<ET>)`, `RegisterAgentActivity(OpActivity<ET::Unit, LT>)`, `RegisterCreateLink`, `RegisterDeleteLink`, `RegisterUpdate`, `RegisterDelete`.
+
+**`Op` helper methods** (available without matching): `op.author()`, `op.timestamp()`, `op.action_seq()`, `op.prev_action()`, `op.action_type()` — common metadata accessible directly.
+
+**`OpHelper::flattened<ET, LT>(&self)`** — the method on `Op` that returns `Result<FlatOp<ET,LT>, WasmError>`.
+
+---
+
+## 35. `LinkQuery` — FULL FILTER SURFACE
+
+`GetLinksInput` (the wire type underlying `get_links` in HDK 0.6.x) supports richer filters than `tag_prefix` alone:
+
+```rust
+pub struct GetLinksInput {
+    pub base_address: AnyLinkableHash,
+    pub link_type: LinkTypeFilter,
+    pub get_options: GetOptions,          // Network vs Local
+    pub tag_prefix: Option<LinkTag>,      // raw byte prefix filter
+    pub after: Option<Timestamp>,         // only links created AFTER this time
+    pub before: Option<Timestamp>,        // only links created BEFORE this time
+    pub author: Option<AgentPubKey>,      // only links created BY this agent
+}
+```
+
+The `after`/`before` and `author` filters are not mentioned in the Build Guide.
+
+**`LinkTypeFilter` variants:**
+- `Types(Vec<(ZomeIndex, Vec<LinkType>)>)` — specific types from named integrity zomes
+- `Dependencies(Vec<ZomeIndex>)` — all types from a zome's dependency graph; useful when one integrity zome is shared across multiple coordinators
+
+**Tag prefix note:** operates on raw bytes, not a string prefix. Cast your prefix to bytes explicitly: `LinkTag::from("year:2025".as_bytes())`.
+
+---
+
+## 36. `ChainFilter` / `LimitConditions` for `must_get_agent_activity`
+
+`ChainFilter` controls how far back `must_get_agent_activity` walks the source chain:
+
+```rust
+pub struct ChainFilter {
+    pub chain_top: ActionHash,
+    pub limit_conditions: LimitConditions,
+    pub include_cached_entries: bool,
+}
+```
+
+**`LimitConditions` variants:**
+- `ToGenesis` (default) — walk all the way back to genesis
+- `Take(u32)` — return exactly N actions backwards from `chain_top` (error if 0)
+- `UntilTimestamp(Timestamp)` — stop at first action older than timestamp (must reach an action older than threshold OR genesis for a deterministic success)
+- `UntilHash(ActionHash)` — stop at a specific action hash; returns `UntilHashAfterChainHead` error if that hash is newer than `chain_top`
+
+**`include_cached_entries: bool`** — when `true`, returns full entry content for entries with `cache_at_agent_activity: true` on their `EntryDef`, saving a separate DHT fetch per entry.
+
+**`cache_at_agent_activity` on `EntryDef`** — opt-in per entry type to cache entries alongside `RegisterAgentActivity` ops at the agent activity authority. Reduces `must_get_agent_activity` hop count at the cost of more DHT storage in the agent's neighbourhood. Set in the integrity zome:
+```rust
+#[entry_type(cache_at_agent_activity = true)]
+MyImportantEntry(MyImportantEntry),
+```
+
+---
+
+## 37. ENTRY AND LINK SIZE LIMITS
+
+Hard limits enforced by the conductor — serialised msgpack payload must fit within these:
+
+- **`ENTRY_SIZE_LIMIT = 4_000_000` bytes (4 MB)** — entries larger than this are rejected. The 4 MB is on the *serialized* entry content, not the Rust struct size.
+- **Link tag hard limit: 1 KB (1024 bytes)** — exceeding this causes a validation failure. The tag is serialized as-is; do not embed large blobs in link tags.
+
+---
+
+## 38. `GetStrategy` AND `GetOptions`
+
+All DHT reads accept a strategy controlling whether a network fetch is attempted:
+
+**`GetStrategy` enum:**
+- `GetStrategy::Network` (default) — fetch latest metadata from network, fall back to local cache. If the calling agent IS the authority, no network call is made.
+- `GetStrategy::Local` — return only locally cached data. No network call. Use in validation callbacks (where network access is restricted) and for known-local reads (e.g. data you just wrote in the same call).
+
+**`GetOptions`** wraps `GetStrategy`. Accepted by `get_links`, `get_agent_activity`, `delete_link`.
+
+`must_get_*` functions always use deterministic local/authority access — `GetStrategy` does not apply to them.
+
+---
+
+## 39. `ChainTopOrdering` AND `HeadMoved` ERRORS
+
+By default every source chain write requires the chain to be at a known tip (`ChainTopOrdering::Strict`). If two concurrent zome calls attempt to write, one will fail with `HeadMoved`.
+
+**`ChainTopOrdering::Relaxed`** — the write succeeds even if the chain head moved since the call started; the conductor rebases the new action onto the actual current tip.
+
+Used in `CreateInput`, `CreateLinkInput`, `DeleteInput`, `DeleteLinkInput`. Pass it as:
+```rust
+create(CreateInput {
+    entry_location: ...,
+    entry_visibility: ...,
+    chain_top_ordering: ChainTopOrdering::Relaxed,
+})?;
+```
+
+**When to use:** fire-and-forget link creation, gossip-based writes, any scenario where exact chain position doesn't matter and `HeadMoved` retries from the client are undesirable.
+
+---
+
+## 40. UPDATED `NetworkConfig` (Kitsune2 / iroh era)
+
+Additions and changes to `NetworkConfig` not in the 0.6.0 section above:
+
+```yaml
+network:
+  bootstrap_url: https://...       # peer discovery
+  signal_url: wss://...            # SBD signal server (tx5/WebRTC)
+  relay_url: https://...           # iroh relay for QUIC transport (new)
+  base64_auth_material_bootstrap: ... # URL-safe base64 auth token for bootstrap
+  base64_auth_material_relay: ...     # URL-safe base64 auth token for relay
+  target_arc_factor: 1.0           # 0.0 = leacher (no DHT gossip contribution)
+  webrtc_config: ...               # Optional STUN config (still present for tx5)
+```
+
+**`ConductorConfig` new fields:**
+- `db_max_readers: u16` — SQLite read connection pool size (default: max(cpu_count×2, 8))
+- `incoming_request_concurrency_limit: u16` — max parallel authority responses (default: `db_max_readers - 3`)
+- `tuning_params: ConductorTuningParams` — retry/timeout overrides including `sys_validation_retry_delay`, `countersigning_resolution_retry_delay`, `countersigning_resolution_retry_limit`
+
+**Per-app network overrides** in `AppManifestV0`: `bootstrap_url` and `signal_url` can be specified per-app, overriding the conductor-level config for all cells of that app.
+
+---
+
+## 41. SIGNAL SUBSCRIPTION FILTERING
+
+App WebSocket clients can filter which signals they receive per-cell:
+
+**`SignalSubscription { installed_app_id, filters: SignalFilterSet }`** — sent from client to conductor.
+
+**`SignalFilterSet` variants:**
+- `SignalFilterSet::Include(HashMap<CellId, SignalFilter>)` — allowlist: only signals from listed cells pass through
+- `SignalFilterSet::Exclude(HashMap<CellId, SignalFilter>)` — denylist: block listed cells (empty `Exclude` = allow all, which is the default)
+- `SignalFilterSet::allow_all()` / `SignalFilterSet::block_all()` — convenience constructors
+
+`SignalFilter` is currently a passthrough (no per-signal content filtering yet); reserved for future sub-signal filtering.
+
+---
+
+## 42. WARRANT TYPES (detail)
+
+**`Warrant { proof: WarrantProof, author, timestamp, warrantee }`** — a signed attestation of wrongdoing authored by a network validator.
+
+**`WarrantProof::ChainIntegrity(ChainIntegrityWarrant)`** — the only current variant. Two sub-variants:
+- `ChainIntegrityWarrant::InvalidChainOp { action_author, action, chain_op_type }` — someone authored an invalid action
+- `ChainIntegrityWarrant::ChainFork { chain_author, action_pair, seq }` — two actions with the same sequence number, proving a source-chain fork
+
+**Conductor-level blocks** (not accessible from zomes, for reference): `BlockTarget` system flags a `CellId` or IP address. `CellBlockReason::InvalidOp(DhtOpHash)` or `CellBlockReason::BadCrypto`. This is internal to the conductor; app zomes can only observe warrants via `get_agent_activity`.
+
+---
+
+## 43. RATE LIMITING TYPES
+
+Present in the types but conductor enforcement is still maturing:
+
+- **`RateWeight { bucket_id: u8, units: u8 }`** — attached to non-entry actions (links, deletes)
+- **`EntryRateWeight { bucket_id: u8, units: u8, rate_bytes: u8 }`** — attached to entry-creating actions
+- `RateBucketId`, `RateUnits`, `RateBytes`, `RateBucketCapacity` — type aliases used in action structs and validation contexts
+
+The rate limiting system is present in integrity types but the full validator logic and conductor enforcement details are still evolving. Treat as a known-incomplete area.
 
 ---
 
