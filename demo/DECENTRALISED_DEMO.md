@@ -1,11 +1,11 @@
-# ValiChord Decentralised Demo — 5 Isolated Conductors
+# ValiChord Decentralised Demo — 4 Isolated Conductors
 ### Technical guide for developers
 
 ---
 
 ## What this demo is
 
-A fully automated, end-to-end run of the ValiChord commit-reveal protocol across **five completely isolated Holochain conductors** — one researcher, three validators, and one kitsune2 bootstrap/DHT server — running in separate Docker containers with no shared memory and no shared filesystem.
+A fully automated, end-to-end run of the ValiChord commit-reveal protocol across **four completely isolated Holochain conductors** — one researcher and three validators — plus a separate kitsune2 bootstrap/DHT server, all running in separate Docker containers with no shared memory and no shared filesystem.
 
 **This is the closest a single-machine setup can get to a real multi-party deployment.** Each container generates its own keypair at startup, writes to its own SQLite conductor database, and communicates with the others exclusively through the DHT — exactly as researcher and validators would on separate machines in production.
 
