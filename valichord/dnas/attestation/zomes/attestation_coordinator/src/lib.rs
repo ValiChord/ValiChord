@@ -1233,7 +1233,7 @@ pub fn notify_commitment_sealed(
             LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
             GetStrategy::Local,
         )?;
-        links.first()
+        links.iter().max_by_key(|l| l.timestamp)
             .and_then(|l| l.target.clone().into_action_hash())
             .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
                 "No ValidationRequest found for this study — \
@@ -1540,7 +1540,7 @@ pub fn reveal_researcher_result(
                 GetStrategy::Local,
             )?;
             let researcher = vr_links
-                .first()
+                .iter().max_by_key(|l| l.timestamp)
                 .and_then(|l| l.target.clone().into_action_hash())
                 .and_then(|h| get(h, GetOptions::network()).ok().flatten())
                 .map(|r| r.action().author().clone());
