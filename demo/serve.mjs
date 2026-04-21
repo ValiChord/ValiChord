@@ -261,14 +261,19 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
     });
 
     // 2. Claim the study (required by notify_commitment_sealed's claim guard).
-    // Wrapped in retry: claim_study calls get_links on the shared DHT, which
-    // fails with a tx5 "Peer connection failed" error if the relay registration
-    // isn't complete yet.  Retrying after a few seconds resolves this.
-    await _retryOnTx5(
-      () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
-      'claim_study',
-      10, 6000,
-    );
+    // claim_study returns null if the ValidationRequest hasn't gossiped yet.
+    // Inner _retryOnTx5 handles WebRTC relay errors; outer loop handles gossip lag.
+    {
+      let claimed = null;
+      for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
+        claimed = await _retryOnTx5(
+          () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
+          'claim_study', 3, 3000,
+        );
+      }
+      if (!claimed) throw new Error('claim_study: ValidationRequest not yet gossiped after 60s');
+    }
 
     // 3. Store the task in the private Validator Workspace DNA.
     const taskHash = await call(
@@ -505,11 +510,17 @@ async function _runFullProtocolRound({
         person_key:           null,
       });
 
-      await _retryOnTx5(
-        () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
-        `claim_study (validator-${i + 1})`,
-        10, 6000,
-      );
+      {
+        let claimed = null;
+        for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
+          if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
+          claimed = await _retryOnTx5(
+            () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
+            `claim_study (validator-${i + 1})`, 3, 3000,
+          );
+        }
+        if (!claimed) throw new Error(`claim_study validator-${i + 1}: ValidationRequest not yet gossiped after 60s`);
+      }
 
       const taskHash = await call(
         'validator_workspace', 'validator_workspace_coordinator', 'receive_task', {

@@ -34,6 +34,7 @@ import uuid
 import zipfile
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import NoReturn
@@ -61,6 +62,13 @@ VALICHORD_KEY   = os.environ.get('VALICHORD_API_KEY', '')
 # Set automatically by start_oracle.sh; falls back to BRIDGE_URL for remote runs
 # where VALICHORD_BRIDGE_URL already points to the public server.
 PUBLIC_URL      = os.environ.get('VALICHORD_PUBLIC_URL', BRIDGE_URL)
+
+# ── Decentralised mode node URLs ──────────────────────────────────────────────
+# Defaults align with docker-compose.yml port mappings (host-side).
+RESEARCHER_URL   = os.environ.get('VALICHORD_RESEARCHER_URL',  'http://localhost:3001')
+VALIDATOR_1_URL  = os.environ.get('VALICHORD_VALIDATOR_1_URL', 'http://localhost:3002')
+VALIDATOR_2_URL  = os.environ.get('VALICHORD_VALIDATOR_2_URL', 'http://localhost:3003')
+VALIDATOR_3_URL  = os.environ.get('VALICHORD_VALIDATOR_3_URL', 'http://localhost:3004')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -208,6 +216,204 @@ Reply with ONLY a JSON object — no markdown, no explanation:
         print(f'  Validator {i}: {v["outcome"]} ({v["confidence"]}) — {v["reasoning"]}')
     return verdicts
 
+# ── Decentralised protocol helpers ───────────────────────────────────────────
+
+def _node_post(url, payload, timeout=600):
+    """POST JSON to a node API endpoint; raise on HTTP error."""
+    data = json.dumps(payload).encode()
+    req  = urllib.request.Request(
+        url, data=data, headers={'Content-Type': 'application/json'}, method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        die(f'Node API {url} returned {e.code}: {body}')
+    except OSError as e:
+        die(f'Cannot reach {url}: {e}')
+    if 'error' in result:
+        die(f'Node API error from {url}: {result["error"]}')
+    return result
+
+
+def _node_get(url, timeout=30):
+    """GET a node API endpoint; raise on HTTP error."""
+    req = urllib.request.Request(url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        die(f'Node API {url} returned {e.code}: {body}')
+    except OSError as e:
+        die(f'Cannot reach {url}: {e}')
+
+
+def _wait_for_nodes():
+    """Poll /health on all four node APIs until they respond."""
+    urls = [
+        (RESEARCHER_URL, 'researcher'),
+        (VALIDATOR_1_URL, 'validator-1'),
+        (VALIDATOR_2_URL, 'validator-2'),
+        (VALIDATOR_3_URL, 'validator-3'),
+    ]
+    print('  Waiting for node APIs to be ready…')
+    for base_url, label in urls:
+        health_url = f'{base_url}/health'
+        for attempt in range(120):
+            try:
+                result = _node_get(health_url, timeout=5)
+                if result.get('status') == 'ok':
+                    break
+            except SystemExit:
+                pass
+            if attempt == 119:
+                die(f'{label} node API not ready after 120 attempts: {health_url}')
+            time.sleep(2)
+            if attempt == 0:
+                print(f'    Waiting for {label}…', end=' ', flush=True)
+            else:
+                print('.', end='', flush=True)
+        print(f' {label} ready.')
+
+
+def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) -> dict:
+    """
+    Run the commit-reveal protocol across four separate node APIs.
+
+    Each node API talks only to its local Holochain conductor; the conductors
+    communicate through the shared DHT.  This mirrors a real multi-party
+    deployment where researcher and validators run on separate machines.
+
+    Protocol steps:
+      (0) Researcher locks result (DNA 1 → commitment hash on DNA 3)
+      (1) Researcher submits ValidationRequest (DNA 3)
+      (2–4) Each validator commits blind (DNA 2 post_commit → CommitmentAnchor DNA 3)
+      (5) Poll phase gate until RevealOpen
+      (6a) Researcher reveals (SHA-256 verified on-chain, DNA 3)
+      (6b) Validators reveal (SHA-256 verified on-chain, DNA 3)
+      (7) Validator-1 creates HarmonyRecord (DNA 4)
+    """
+    banner(4, 7, 'Running decentralised commit-reveal protocol…')
+    print('  Mode: DECENTRALISED — 5 separate conductors communicating via DHT')
+    print(f'  Researcher : {RESEARCHER_URL}')
+    print(f'  Validator 1: {VALIDATOR_1_URL}')
+    print(f'  Validator 2: {VALIDATOR_2_URL}')
+    print(f'  Validator 3: {VALIDATOR_3_URL}')
+    print()
+
+    _wait_for_nodes()
+
+    disc = {'type': 'ComputationalBiology'}
+    validator_urls = [VALIDATOR_1_URL, VALIDATOR_2_URL, VALIDATOR_3_URL]
+
+    # (0) Researcher locks result
+    print('  (0) Researcher locking result…')
+    lock_resp = _node_post(f'{RESEARCHER_URL}/lock-result', {
+        'data_hash_hex': data_hash,
+        'metrics':       metrics,
+    })
+    external_hash_b64 = lock_resp['external_hash_b64']
+    print(f'      Commitment sealed: {external_hash_b64[:24]}…')
+
+    # (1) Submit ValidationRequest
+    print('  (1) Submitting ValidationRequest (num_validators_required=3)…')
+    _node_post(f'{RESEARCHER_URL}/submit-request', {
+        'external_hash_b64':      external_hash_b64,
+        'discipline':             disc,
+        'num_validators_required': 3,
+    })
+
+    # Let ValidationRequest gossip to all validator conductors before any
+    # validator commits — avoids Guard 1 (Local lookup) missing the VR entry.
+    print('  (1b) Waiting 20s for ValidationRequest to propagate via DHT…', flush=True)
+    time.sleep(20)
+
+    # (2–4) Validators commit blind — staggered to avoid simultaneous DHT
+    # gossip spikes on single-machine deployments.
+    for i, (vurl, verdict) in enumerate(zip(validator_urls, verdicts)):
+        print(f'  ({2 + i}) Validator {i + 1} committing blind…')
+        _node_post(f'{vurl}/commit', {
+            'external_hash_b64': external_hash_b64,
+            'verdict':           verdict,
+            'metrics':           metrics,
+            'discipline':        disc,
+        })
+        if i < len(validator_urls) - 1:
+            time.sleep(30)  # let DHT gossip settle before next commit
+
+    # (5) Phase gate — poll until RevealOpen
+    print('  (5) Polling phase gate…', end=' ', flush=True)
+    phase_url = f'{RESEARCHER_URL}/phase?hash={urllib.parse.quote(external_hash_b64)}'
+    for attempt in range(120):
+        phase_resp = _node_get(phase_url)
+        if phase_resp.get('phase') is not None:
+            print(f'RevealOpen (after {attempt + 1} poll{"s" if attempt else ""}).')
+            break
+        time.sleep(2)
+        print('.', end='', flush=True)
+    else:
+        die('Phase gate did not open after 240 seconds.')
+
+    # (6a) Researcher reveals
+    print('  (6a) Researcher revealing metrics (SHA-256 verified on-chain)…')
+    reveal_resp = _node_post(f'{RESEARCHER_URL}/reveal', {
+        'external_hash_b64': external_hash_b64,
+        'metrics':           metrics,
+    })
+    researcher_reveal_hash = reveal_resp.get('researcher_reveal_hash')
+
+    # (6b) Validators reveal — staggered to avoid concurrent DHT write spikes.
+    for i, vurl in enumerate(validator_urls):
+        print(f'  (6b) Validator {i + 1} revealing attestation…')
+        _node_post(f'{vurl}/reveal', {'external_hash_b64': external_hash_b64})
+        if i < len(validator_urls) - 1:
+            time.sleep(15)
+
+    # (7) Create HarmonyRecord (via validator-1 — must be a participating validator)
+    print('  (7)  Creating HarmonyRecord on Governance DHT…')
+    harmony_resp = _node_post(f'{VALIDATOR_1_URL}/create-harmony-record', {
+        'external_hash_b64': external_hash_b64,
+    })
+    harmony_record_hash = harmony_resp.get('harmony_record_hash')
+
+    # Derive majority outcome + agreement level from the 3 verdicts.
+    outcomes    = [v['outcome'] for v in verdicts]
+    n_reproduced = outcomes.count('Reproduced')
+    n_partial    = outcomes.count('PartiallyReproduced')
+    rate         = (n_reproduced + n_partial) / len(outcomes)
+    agreement_level = (
+        'ExactMatch'       if rate >= 0.90 else
+        'WithinTolerance'  if rate >= 0.70 else
+        'DirectionalMatch' if rate >= 0.50 else
+        'Divergent'        if n_reproduced + n_partial > 0 else
+        'UnableToAssess'
+    )
+    majority_outcome = (
+        'Reproduced'          if n_reproduced >= 2 else
+        'PartiallyReproduced' if n_partial    >= 2 else
+        'FailedToReproduce'   if outcomes.count('FailedToReproduce') >= 2 else
+        'UnableToAssess'
+    )
+
+    return {
+        'harmony_record_hash':    harmony_record_hash,
+        'external_hash_b64':      external_hash_b64,
+        'outcome_type':           majority_outcome,
+        'agreement_level':        agreement_level,
+        'discipline_type':        disc['type'],
+        'validator_count':        3,
+        'researcher_reveal_hash': researcher_reveal_hash,
+        'validator_verdicts': [
+            {'validator': i + 1, 'outcome': v['outcome'],
+             'confidence': v['confidence'], 'reasoning': v['reasoning']}
+            for i, v in enumerate(verdicts)
+        ],
+        '_decentralised': True,
+    }
+
+
 # ── Steps 4–6: Full commit-reveal round via bridge ────────────────────────────
 #
 # Protocol sequence sent to /holochain/validate-round-multi:
@@ -299,9 +505,16 @@ def display_result(result: dict):
             print(f'  Validator {v["validator"]}: {v["outcome"]} ({v["confidence"]}) — {v["reasoning"]}')
 
     # ── Shareable viewer URL ────────────────────────────────────────────────────
+    # In decentralised mode the public API is the researcher node.
+    is_decentralised = result.get('_decentralised', False)
+    public_base = RESEARCHER_URL if is_decentralised else PUBLIC_URL
+
     lookup_hash = external_hash_b64 or harmony_hash
     if lookup_hash:
-        viewer_url = f'{PUBLIC_URL}/record/{lookup_hash}'
+        if is_decentralised:
+            viewer_url = f'{public_base}/record?hash={urllib.parse.quote(lookup_hash)}'
+        else:
+            viewer_url = f'{public_base}/record/{lookup_hash}'
         print(f'\n  Shareable URL:\n  {viewer_url}')
 
         print('\n  Verifying record is readable…')
@@ -309,10 +522,10 @@ def display_result(result: dict):
             req = urllib.request.Request(
                 viewer_url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
             with urllib.request.urlopen(req, timeout=15) as resp:
-                body = json.loads(resp.read())
-            print(f'  Record confirmed. Outcome: {body.get("outcome")}  '
-                  f'Agreement: {body.get("agreement_level")}  '
-                  f'Validators: {body.get("validator_count")}')
+                record_body = json.loads(resp.read())
+            print(f'  Record confirmed. Outcome: {record_body.get("outcome")}  '
+                  f'Agreement: {record_body.get("agreement_level")}  '
+                  f'Validators: {record_body.get("validator_count")}')
         except urllib.error.HTTPError as e:
             body_txt = e.read().decode('utf-8', errors='replace')
             print(f'  WARNING: Viewer returned HTTP {e.code}: {body_txt}')
@@ -340,19 +553,42 @@ def display_result(result: dict):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    # ── Mode selection ────────────────────────────────────────────────────────
+    # --mode decentralised  : call four separate node APIs (docker-compose stack)
+    # --mode centralised    : call single serve.mjs bridge (Oracle / legacy)
+    # default               : decentralised if VALICHORD_RESEARCHER_URL is set,
+    #                         otherwise centralised.
+    args = sys.argv[1:]
+    if '--mode' in args:
+        idx  = args.index('--mode')
+        mode = args[idx + 1] if idx + 1 < len(args) else 'centralised'
+    elif os.environ.get('VALICHORD_RESEARCHER_URL'):
+        mode = 'decentralised'
+    else:
+        mode = 'centralised'
+
+    if mode not in ('centralised', 'decentralised'):
+        die(f'Unknown mode: {mode!r}.  Use --mode centralised or --mode decentralised')
+
     print('╔══════════════════════════════════════════════════════════╗')
     print('║    ValiChord AI Validator Demo — 3 Validators           ║')
     print('╚══════════════════════════════════════════════════════════╝')
     print('  Researcher + 3 independent Claude validators.')
     print('  Both sides commit-reveal symmetrically — neither can change')
     print('  their result after the other has committed.')
+    print(f'  Mode: {mode.upper()}')
     print()
 
     readme, data_hash, _zip = load_study()
     actual_output            = execute_study()
     metrics                  = parse_metrics(actual_output)
     verdicts                 = form_verdicts(readme, actual_output)
-    result                   = run_full_protocol(data_hash, metrics, verdicts)
+
+    if mode == 'decentralised':
+        result = run_decentralised_protocol(data_hash, metrics, verdicts)
+    else:
+        result = run_full_protocol(data_hash, metrics, verdicts)
+
     display_result(result)
 
 if __name__ == '__main__':

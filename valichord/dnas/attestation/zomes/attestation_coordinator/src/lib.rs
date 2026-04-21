@@ -231,17 +231,19 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     // Find the CommitmentAnchor written for this agent during the commit phase.
     // Always required — both for hash verification (production) and for embedding
     // commitment_anchor_hash in the stored entry (inductive validation chain).
+    // CommitmentAnchors were written during the commit phase (minutes ago) and
+    // are in the local DHT cache — Local avoids redundant WebRTC round-trips.
     let commit_path = Path::from(format!("commitments.{}", request_ref))
         .typed(LinkTypes::RequestToCommitment)?;
     let commit_links = get_links(
         LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     let (anchor_action_hash, prior_commitment_hash) = commit_links
         .into_iter()
         .find_map(|link| {
             let hash = link.target.clone().into_action_hash()?;
-            let record = get(hash.clone(), GetOptions::network()).ok()??;
+            let record = get(hash.clone(), GetOptions::local()).ok()??;
             let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
             if anchor.validator == agent {
                 Some((hash, anchor.commitment_hash))
@@ -281,10 +283,11 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
     // iff this agent has already attested for this study.  The 39-byte
     // request_ref is stored as the link tag so no entry fetch is needed.
+    // Local is safe: if we attested before, the link is in our own source chain.
     let dup_links = get_links(
         LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToAttestation)?
             .tag_prefix(LinkTag::new(request_ref.as_ref().to_vec())),
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     if !dup_links.is_empty() {
         return Err(wasm_error!(WasmErrorInner::Guest(
@@ -607,7 +610,7 @@ pub fn get_num_validators_required(data_hash: ExternalHash) -> ExternResult<u8> 
 /// Enforced by validate() (network layer):
 ///   - COI: validator and researcher must not share institution.
 #[hdk_extern]
-pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
+pub fn claim_study(request_ref: ExternalHash) -> ExternResult<Option<ActionHash>> {
     let agent = agent_info()?.agent_initial_pubkey;
 
     // Resolve the ValidationRequest ActionHash from the study path.
@@ -629,11 +632,10 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
                 "StudyToValidation link target is not an ActionHash".into(),
             ))
         })?;
-        let record = get(hash.clone(), GetOptions::network())?.ok_or_else(|| {
-            wasm_error!(WasmErrorInner::Guest(
-                "ValidationRequest record not found on DHT".into(),
-            ))
-        })?;
+        let record = match get(hash.clone(), GetOptions::network())? {
+            Some(r) => r,
+            None => return Ok(None), // record not yet propagated — caller should retry
+        };
         let vr = record
             .entry()
             .to_app_option::<ValidationRequest>()
@@ -715,7 +717,7 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<ActionHash> {
         (),
     )?;
 
-    Ok(claim_hash)
+    Ok(Some(claim_hash))
 }
 
 /// Release a previously claimed study.
@@ -1219,13 +1221,17 @@ pub fn notify_commitment_sealed(
     }
 
     // Step 1: resolve the ValidationRequest ActionHash for the inductive chain.
-    // study.{request_ref} is written by submit_validation_request — always present.
+    // study.{request_ref} is written by submit_validation_request and should
+    // be in the local DHT store by the time any validator commits (the
+    // researcher always submits the request before validators can claim).
+    // Using Local avoids a network round-trip; falls back gracefully to an
+    // error if the entry hasn't gossiped yet (caller can retry).
     let vr_action_hash: ActionHash = {
         let study_path = Path::from(format!("study.{}", request_ref))
             .typed(LinkTypes::StudyToValidation)?;
         let links = get_links(
             LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
-            GetStrategy::Network,
+            GetStrategy::Local,
         )?;
         links.first()
             .and_then(|l| l.target.clone().into_action_hash())
@@ -1247,7 +1253,11 @@ pub fn notify_commitment_sealed(
     create_link(commit_anchor, anchor_hash, LinkTypes::RequestToCommitment, ())?;
 
     // Step 3: check if all validators have now committed.
-    if check_all_commitments_sealed_inner(request_ref.clone())? {
+    // existing_links was fetched by Guard 3 (Network) before writing the current
+    // anchor; total after write = existing_links.len() + 1.  Avoids a second
+    // GetStrategy::Network get_links call.
+    let quorum_props = DnaProperties::try_from_dna_properties()?;
+    if existing_links.len() + 1 >= quorum_props.minimum_validators as usize {
         let phase_path = Path::from(format!("phase.{}", request_ref))
             .typed(LinkTypes::RequestToPhaseMarker)?;
         phase_path.ensure()?;
@@ -1294,7 +1304,9 @@ pub fn notify_commitment_sealed(
             .map(|l| l.author.clone())
             .collect();
         if !others.is_empty() {
-            if let Ok(bytes) = ExternIO::encode(&reveal_signal) {
+            // Send a flat struct — not the Signal enum — to avoid rmp-serde
+            // adjacently-tagged enum round-trip failure in recv_remote_signal.
+            if let Ok(bytes) = ExternIO::encode(&RevealOpenWire { request_ref: request_ref.clone() }) {
                 let _ = send_remote_signal(bytes, others);
             }
         }
@@ -1334,10 +1346,10 @@ pub fn get_current_phase(
                 .ok_or(wasm_error!(WasmErrorInner::Guest(
                     "Invalid phase link target".into()
                 )))?;
-            let record = get(target, GetOptions::network())?
-                .ok_or(wasm_error!(WasmErrorInner::Guest(
-                    "PhaseMarker record not found".into()
-                )))?;
+            let record = match get(target, GetOptions::network())? {
+                Some(r) => r,
+                None => return Ok(None), // not yet propagated — caller should retry
+            };
             let marker: PhaseMarker = record
                 .entry()
                 .to_app_option()
@@ -1497,9 +1509,10 @@ pub fn reveal_researcher_result(
         .typed(LinkTypes::RequestToResearcherReveal)?;
     reveal_path.ensure()?;
     let reveal_anchor = reveal_path.path_entry_hash()?;
+    // Local is safe: if we already revealed, the link is in our local DHT store.
     let existing_reveal_links = get_links(
         LinkQuery::try_new(reveal_anchor.clone(), LinkTypes::RequestToResearcherReveal)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     if !existing_reveal_links.is_empty() {
         return Err(wasm_error!(WasmErrorInner::Guest(
@@ -1521,9 +1534,10 @@ pub fn reveal_researcher_result(
             let caller = agent_info()?.agent_initial_pubkey;
             let study_path = Path::from(format!("study.{}", input.request_ref))
                 .typed(LinkTypes::StudyToValidation)?;
+            // VR was written at study submission (minutes ago) — Local is safe.
             let vr_links = get_links(
                 LinkQuery::try_new(study_path.path_entry_hash()?, LinkTypes::StudyToValidation)?,
-                GetStrategy::Network,
+                GetStrategy::Local,
             )?;
             let researcher = vr_links
                 .first()
@@ -1546,11 +1560,22 @@ pub fn reveal_researcher_result(
         }
     }
 
-    // Gate: all validators must have committed first.
-    if !check_all_commitments_sealed_inner(input.request_ref.clone())? {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Cannot reveal — not all validators have committed yet".into()
-        )));
+    // Gate: phase must be RevealOpen (set by the last committing validator's
+    // post_commit, which verified all commitments were sealed before writing it).
+    // Trusting the PhaseMarker avoids a redundant link-count query that races
+    // with gossip propagation and would give a false "not all committed" error.
+    match get_current_phase(input.request_ref.clone())? {
+        Some(ValidationPhase::RevealOpen) => {}
+        Some(other) => {
+            return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                "Cannot reveal — protocol is in phase {other:?}, expected RevealOpen"
+            ))));
+        }
+        None => {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Cannot reveal — phase not yet set (validators may not have committed yet)".into()
+            )));
+        }
     }
 
     // Fetch the previously published commitment.
@@ -1664,8 +1689,18 @@ fn check_all_commitments_sealed_inner(
 // ---------------------------------------------------------------------------
 
 #[hdk_extern]
-pub fn recv_remote_signal(signal: Signal) -> ExternResult<()> {
-    emit_signal(signal)?;
+pub fn recv_remote_signal(signal: ExternIO) -> ExternResult<()> {
+    // Remote signals arrive double-encoded: ExternIO.0 = bin8(payload_msgpack).
+    // Step 1: strip the outer bin8 to get the flat-struct bytes.
+    let inner_bytes: Vec<u8> = signal.decode().map_err(|e| {
+        wasm_error!(WasmErrorInner::Deserialize(e.to_string().into_bytes()))
+    })?;
+    // Step 2: decode as RevealOpenWire (plain struct) — avoids rmp-serde
+    // adjacently-tagged enum round-trip failure — then re-emit as Signal.
+    let wire: RevealOpenWire = rmp_serde::from_slice(&inner_bytes).map_err(|e| {
+        wasm_error!(WasmErrorInner::Deserialize(e.to_string().into_bytes()))
+    })?;
+    emit_signal(Signal::RevealOpen { request_ref: wire.request_ref })?;
     Ok(())
 }
 
@@ -1815,6 +1850,18 @@ pub enum Signal {
     /// UI note: NOT a protocol gate — always verify via get_current_phase()
     /// or check_all_commitments_sealed().  Signals can be lost.
     RevealOpen { request_ref: ExternalHash },
+}
+
+/// Flat struct used as the over-the-wire payload for remote signals.
+///
+/// rmp-serde's deserializer does not reliably round-trip adjacently-tagged
+/// enums (Signal) — it fails with "invalid type: map, expected a sequence"
+/// because the generated Deserialize impl calls deserialize_seq for struct
+/// variant content even when the bytes are in named (map) format.  A plain
+/// struct round-trips correctly.  recv_remote_signal converts back to Signal.
+#[derive(Debug, Serialize, Deserialize)]
+struct RevealOpenWire {
+    request_ref: ExternalHash,
 }
 
 // ---------------------------------------------------------------------------

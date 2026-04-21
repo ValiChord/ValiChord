@@ -1,0 +1,24 @@
+# Conductor config template for per-container decentralised demo nodes.
+# node-entrypoint.sh uses sed to substitute __BOOTSTRAP_URL__ and __SIGNAL_URL__
+# before passing this to holochain.
+#
+# Admin WebSocket : ws://localhost:__ADMIN_PORT__
+# App   WebSocket : ws://localhost:4500  (attached by node-setup.mjs)
+
+data_root_path: ./conductor_data
+keystore:
+  type: lair_server_in_proc
+  lair_root: ./conductor_data/ks
+admin_interfaces:
+  - driver:
+      type: websocket
+      port: __ADMIN_PORT__
+      allowed_origins: '*'
+network:
+  bootstrap_url: __BOOTSTRAP_URL__
+  signal_url: __SIGNAL_URL__
+  advanced:
+    tx5Transport:
+      signalAllowPlainText: true
+      timeoutS: 20
+db_sync_strategy: Fast

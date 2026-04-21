@@ -1,0 +1,61 @@
+# Dockerfile.node — ValiChord decentralised demo node
+#
+# Builds an image containing:
+#   - Node.js 20 + @holochain/client
+#   - The Holochain conductor binary (auto-downloaded if not present in demo/bin/)
+#   - The kitsune2 bootstrap server binary (from demo/bin/kitsune2-bootstrap-srv)
+#   - The compiled researcher.happ / validator.happ
+#   - The demo/ Node.js scripts
+#
+# No manual setup required — docker compose up --build handles everything.
+# Requires: Docker, Docker Compose, and ANTHROPIC_API_KEY in the environment.
+
+ARG HOLOCHAIN_VERSION=0.6.0
+ARG HOLOCHAIN_URL=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}/holochain-x86_64-unknown-linux-gnu
+
+FROM node:20-bookworm-slim
+
+ARG HOLOCHAIN_VERSION
+ARG HOLOCHAIN_URL
+
+# Runtime dependencies for the Holochain binary.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 ca-certificates bash netcat-openbsd curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Node.js dependencies (cache layer — only re-runs when package.json changes).
+COPY demo/package.json demo/package-lock.json* /app/demo/
+RUN cd /app/demo && npm install --omit=dev
+
+# Copy pre-built binaries.
+COPY demo/bin/ /app/demo/bin/
+RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv
+
+# Use the pre-built holochain binary if present; otherwise download from GitHub releases.
+RUN if [ -f /app/demo/bin/holochain ]; then \
+        echo "Using bundled holochain binary."; \
+        chmod +x /app/demo/bin/holochain; \
+    else \
+        echo "Downloading holochain ${HOLOCHAIN_VERSION} from GitHub releases..."; \
+        curl -fsSL "${HOLOCHAIN_URL}" -o /app/demo/bin/holochain \
+            && chmod +x /app/demo/bin/holochain; \
+    fi
+
+# Copy the compiled role-filtered happs.
+COPY valichord/workdir/ /app/valichord/workdir/
+
+# Copy demo scripts.
+COPY demo/*.mjs demo/*.yaml demo/*.sh /app/demo/
+
+RUN chmod +x /app/demo/node-entrypoint.sh
+
+# Put demo/bin/ on PATH so `holochain` and `kitsune2-bootstrap-srv` are found.
+ENV PATH="/app/demo/bin:$PATH"
+# HAPP_PATH is resolved by node-entrypoint.sh based on ROLE
+# (researcher.happ or validator.happ) so it is NOT set here.
+
+# node-entrypoint.sh starts the conductor, runs node-setup.mjs, then starts
+# the role-specific node API (researcher-node.mjs or validator-node.mjs).
+CMD ["/bin/bash", "/app/demo/node-entrypoint.sh"]
