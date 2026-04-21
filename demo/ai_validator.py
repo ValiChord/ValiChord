@@ -69,6 +69,7 @@ RESEARCHER_URL   = os.environ.get('VALICHORD_RESEARCHER_URL',  'http://localhost
 VALIDATOR_1_URL  = os.environ.get('VALICHORD_VALIDATOR_1_URL', 'http://localhost:3002')
 VALIDATOR_2_URL  = os.environ.get('VALICHORD_VALIDATOR_2_URL', 'http://localhost:3003')
 VALIDATOR_3_URL  = os.environ.get('VALICHORD_VALIDATOR_3_URL', 'http://localhost:3004')
+VALIDATOR_URLS   = [VALIDATOR_1_URL, VALIDATOR_2_URL, VALIDATOR_3_URL]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -162,8 +163,9 @@ def parse_metrics(output: str) -> list:
 # ── Step 3: Form 3 independent verdicts via Claude ────────────────────────────
 
 def form_verdicts(readme: str, actual_output: str) -> list:
-    """Make 3 separate Claude calls — each is an independent validator."""
-    banner(3, 7, 'Forming 3 independent verdicts via Claude…')
+    """Make one Claude call per validator — each is an independent validator."""
+    n = len(VALIDATOR_URLS)
+    banner(3, 7, f'Forming {n} independent verdicts via Claude…')
 
     api_key = os.environ.get('ANTHROPIC_API_KEY')
     if not api_key:
@@ -193,8 +195,8 @@ Reply with ONLY a JSON object — no markdown, no explanation:
 }}"""
 
     verdicts = []
-    for i in range(3):
-        print(f'  Calling Claude (validator {i + 1}/3)…', end=' ', flush=True)
+    for i in range(n):
+        print(f'  Calling Claude (validator {i + 1}/{n})…', end=' ', flush=True)
         message = client.messages.create(
             model='claude-opus-4-6',
             max_tokens=256,
@@ -251,12 +253,9 @@ def _node_get(url, timeout=30):
 
 
 def _wait_for_nodes():
-    """Poll /health on all four node APIs until they respond."""
-    urls = [
-        (RESEARCHER_URL, 'researcher'),
-        (VALIDATOR_1_URL, 'validator-1'),
-        (VALIDATOR_2_URL, 'validator-2'),
-        (VALIDATOR_3_URL, 'validator-3'),
+    """Poll /health on all node APIs until they respond."""
+    urls = [(RESEARCHER_URL, 'researcher')] + [
+        (url, f'validator-{i + 1}') for i, url in enumerate(VALIDATOR_URLS)
     ]
     print('  Waiting for node APIs to be ready…')
     for base_url, label in urls:
@@ -295,18 +294,18 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
       (6b) Validators reveal (SHA-256 verified on-chain, DNA 3)
       (7) Validator-1 creates HarmonyRecord (DNA 4)
     """
-    banner(4, 7, 'Running decentralised commit-reveal protocol…')
-    print('  Mode: DECENTRALISED — 5 separate conductors communicating via DHT')
+    n_validators = len(VALIDATOR_URLS)
+    banner(4, 7, f'Running decentralised commit-reveal protocol…')
+    print(f'  Mode: DECENTRALISED — {1 + n_validators} separate conductors communicating via DHT')
     print(f'  Researcher : {RESEARCHER_URL}')
-    print(f'  Validator 1: {VALIDATOR_1_URL}')
-    print(f'  Validator 2: {VALIDATOR_2_URL}')
-    print(f'  Validator 3: {VALIDATOR_3_URL}')
+    for i, url in enumerate(VALIDATOR_URLS):
+        print(f'  Validator {i + 1}: {url}')
     print()
 
     _wait_for_nodes()
 
     disc = {'type': 'ComputationalBiology'}
-    validator_urls = [VALIDATOR_1_URL, VALIDATOR_2_URL, VALIDATOR_3_URL]
+    validator_urls = VALIDATOR_URLS
 
     # (0) Researcher locks result
     print('  (0) Researcher locking result…')
@@ -318,11 +317,11 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
     print(f'      Commitment sealed: {external_hash_b64[:24]}…')
 
     # (1) Submit ValidationRequest
-    print('  (1) Submitting ValidationRequest (num_validators_required=3)…')
+    print(f'  (1) Submitting ValidationRequest (num_validators_required={n_validators})…')
     _node_post(f'{RESEARCHER_URL}/submit-request', {
         'external_hash_b64':      external_hash_b64,
         'discipline':             disc,
-        'num_validators_required': 3,
+        'num_validators_required': n_validators,
     })
 
     # Let ValidationRequest gossip to all validator conductors before any
@@ -403,7 +402,7 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
         'outcome_type':           majority_outcome,
         'agreement_level':        agreement_level,
         'discipline_type':        disc['type'],
-        'validator_count':        3,
+        'validator_count':        len(VALIDATOR_URLS),
         'researcher_reveal_hash': researcher_reveal_hash,
         'validator_verdicts': [
             {'validator': i + 1, 'outcome': v['outcome'],
@@ -418,20 +417,20 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
 #
 # Protocol sequence sent to /holochain/validate-round-multi:
 #   (0) Researcher seals result commitment (DNA 1 → hash published to DNA 3)
-#   (1) ValidationRequest submitted to shared DHT (num_validators_required=3)
-#   (2–4) Each validator seals their verdict blind (CommitmentAnchors on DNA 3)
-#   (5) Phase gate opens when all 3 CommitmentAnchors are on the DHT
+#   (1) ValidationRequest submitted to shared DHT (num_validators_required=N)
+#   (2–N+1) Each validator seals their verdict blind (CommitmentAnchors on DNA 3)
+#   (N+2) Phase gate opens when all N CommitmentAnchors are on the DHT
 #   (6a) Researcher reveal — SHA-256(msgpack(metrics) || nonce) verified on-chain
-#   (6b) All 3 validators reveal their attestations
+#   (6b) All N validators reveal their attestations
 #   (7) HarmonyRecord written to Governance DHT (DNA 4)
 
 def run_full_protocol(data_hash: str, metrics: list, verdicts: list) -> dict:
-    banner(4, 7, 'Running commit-reveal protocol (researcher + 3 validators)…')
+    banner(4, 7, f'Running commit-reveal protocol (researcher + {len(VALIDATOR_URLS)} validators)…')
     print('  (0) Researcher sealing result commitment — blind, before any reveal')
     print('  (1) ValidationRequest published to shared DHT')
-    print('  (2–4) 3 validators sealing blind commitments to DHT')
-    print('  (5) Phase gate opens when all 3 CommitmentAnchors confirmed')
-    print('  (6) Dual reveal: researcher + all 3 validators simultaneously')
+    print(f'  (2–4) {len(VALIDATOR_URLS)} validators sealing blind commitments to DHT')
+    print(f'  (5) Phase gate opens when all {len(VALIDATOR_URLS)} CommitmentAnchors confirmed')
+    print(f'  (6) Dual reveal: researcher + all {len(VALIDATOR_URLS)} validators simultaneously')
     print('  (7) HarmonyRecord written to Governance DHT')
     print()
     print('  Submitting to Holochain bridge (may take 60–120 seconds)…')
@@ -473,7 +472,7 @@ def run_full_protocol(data_hash: str, metrics: list, verdicts: list) -> dict:
         die(f'Bridge error: {result["error"]}')
 
     banner(5, 7, 'All commitments sealed and revealed.')
-    banner(6, 7, 'Researcher result verified + 3 validator attestations on DHT.')
+    banner(6, 7, f'Researcher result verified + {len(VALIDATOR_URLS)} validator attestations on DHT.')
     return result
 
 # ── Step 7: Display permanent URL ─────────────────────────────────────────────
@@ -487,11 +486,11 @@ def display_result(result: dict):
     outcome_type       = result.get('outcome_type',    'Unknown')
     discipline_type    = result.get('discipline_type', 'Unknown')
     agreement_level    = result.get('agreement_level', 'Unknown')
-    validator_count    = result.get('validator_count', 3)
+    validator_count    = result.get('validator_count', len(VALIDATOR_URLS))
     researcher_reveal  = result.get('researcher_reveal_hash')
     validator_verdicts = result.get('validator_verdicts', [])
 
-    print(f'  Outcome:           {outcome_type} ({validator_count}/3 validators)')
+    print(f'  Outcome:           {outcome_type} ({validator_count}/{validator_count} validators)')
     print(f'  Agreement level:   {agreement_level}')
     print(f'  Discipline:        {discipline_type}')
     print(f'  HarmonyRecord:     {harmony_hash}')
@@ -547,7 +546,7 @@ def display_result(result: dict):
 
     print('\n' + '═' * 60)
     print('  Demo complete. The full ValiChord protocol ran end-to-end.')
-    print('  Researcher and 3 validators all commit-revealed simultaneously.')
+    print(f'  Researcher and {len(VALIDATOR_URLS)} validators all commit-revealed simultaneously.')
     print('═' * 60)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -570,10 +569,11 @@ def main():
     if mode not in ('centralised', 'decentralised'):
         die(f'Unknown mode: {mode!r}.  Use --mode centralised or --mode decentralised')
 
+    n_v = len(VALIDATOR_URLS)
     print('╔══════════════════════════════════════════════════════════╗')
-    print('║    ValiChord AI Validator Demo — 3 Validators           ║')
+    print(f'║    ValiChord AI Validator Demo — {n_v} Validators           ║')
     print('╚══════════════════════════════════════════════════════════╝')
-    print('  Researcher + 3 independent Claude validators.')
+    print(f'  Researcher + {n_v} independent Claude validators.')
     print('  Both sides commit-reveal symmetrically — neither can change')
     print('  their result after the other has committed.')
     print(f'  Mode: {mode.upper()}')
