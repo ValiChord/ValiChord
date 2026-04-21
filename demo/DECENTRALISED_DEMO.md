@@ -183,7 +183,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 [4/7] Running decentralised commit-reveal protocol…
 ────────────────────────────────────────────────────────────
-  Mode: DECENTRALISED — 5 separate conductors communicating via DHT
+  Mode: DECENTRALISED — 4 separate conductors communicating via DHT
   Researcher : http://localhost:3001
   Validator 1: http://localhost:3002
   Validator 2: http://localhost:3003
@@ -229,7 +229,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 ════════════════════════════════════════════════════════════
   Demo complete. The full ValiChord protocol ran end-to-end.
-  Researcher and 3 validators all commit-revealed across 5 isolated conductors.
+  Researcher and 3 validators all commit-revealed simultaneously.
 ════════════════════════════════════════════════════════════
 ```
 
