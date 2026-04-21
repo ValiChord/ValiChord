@@ -37,9 +37,9 @@ function fakeExternalHash(coreByte: number): Uint8Array {
   return hashFrom32AndType(core, HoloHashType.External);
 }
 
-/** Wrap request_ref into CommitmentSealedInput (empty hash = dev bypass). */
+/** Wrap request_ref into CommitmentSealedInput (32-byte zero hash passes integrity validation). */
 function commitInput(requestRef: Uint8Array) {
-  return { request_ref: requestRef, commitment_hash: new Uint8Array(0) };
+  return { request_ref: requestRef, commitment_hash: new Uint8Array(32) };
 }
 
 /** Wrap attestation into AttestationRevealInput (empty nonce = dev bypass). */

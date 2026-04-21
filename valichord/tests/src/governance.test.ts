@@ -226,11 +226,11 @@ function dnaHashForRole(player: any, roleName: string): Uint8Array {
 }
 
 /**
- * Wrap a request_ref into CommitmentSealedInput with an empty commitment_hash.
- * Empty hash triggers the dev/test bypass (authorized_joining_certificate_issuer="").
+ * Wrap a request_ref into CommitmentSealedInput with a 32-byte zero hash.
+ * The integrity zome validates commitment_hash is exactly 32 bytes.
  */
 function commitInput(requestRef: Uint8Array) {
-  return { request_ref: requestRef, commitment_hash: new Uint8Array(0) };
+  return { request_ref: requestRef, commitment_hash: new Uint8Array(32) };
 }
 
 /**

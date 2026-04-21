@@ -1514,11 +1514,12 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
 
 describe("13. FailedReproduction badge", () => {
   test(
-    "2 validators both FailedToReproduce → FailedReproduction badge issued",
+    "3 validators all FailedToReproduce → FailedReproduction badge issued",
     { timeout: 300_000 },
     async () => {
       await runScenario(async (scenario) => {
-        const [alice, bob] = await scenario.addPlayersWithApps([
+        const [alice, bob, carol] = await scenario.addPlayersWithApps([
+          playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
@@ -1526,21 +1527,25 @@ describe("13. FailedReproduction badge", () => {
         const REQUEST_REF = fakeExternalHash(0xb3);
         const attDnaHash = alice.namedCells.get("attestation")?.cell_id[0];
 
-        // Submit a ValidationRequest so check_and_create_harmony_record can
-        // resolve num_validators_required via cross-DNA call.
-        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF }));
-        await dhtSync([alice, bob], attDnaHash);
+        // Submit a ValidationRequest (num_validators_required=3) so
+        // check_and_create_harmony_record can resolve the quorum via cross-DNA call.
+        // evaluate_badge requires validator_count >= 3 for FailedReproduction.
+        await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF, num_validators_required: 3 }));
+        await dhtSync([alice, bob, carol], attDnaHash);
 
-        // Both validators post CommitmentAnchors.
+        // All three validators post CommitmentAnchors.
         await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], attDnaHash);
+        await dhtSync([alice, bob, carol], attDnaHash);
         await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], attDnaHash);
+        await dhtSync([alice, bob, carol], attDnaHash);
+        await zomeCall(carol, "notify_commitment_sealed", commitInput(REQUEST_REF));
+        await dhtSync([alice, bob, carol], attDnaHash);
 
-        // Both submit FailedToReproduce public attestations.
+        // All three submit FailedToReproduce public attestations.
         await zomeCall(alice, "submit_attestation", revealInput(makeFailedAttestation(REQUEST_REF)));
         await zomeCall(bob,   "submit_attestation", revealInput(makeFailedAttestation(REQUEST_REF)));
-        await dhtSync([alice, bob], attDnaHash);
+        await zomeCall(carol, "submit_attestation", revealInput(makeFailedAttestation(REQUEST_REF)));
+        await dhtSync([alice, bob, carol], attDnaHash);
 
         // Derives 0 successes → UnableToAssess → FailedReproduction badge.
         const harmonyHash = await govCall<Uint8Array | null>(
