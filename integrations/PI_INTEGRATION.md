@@ -133,7 +133,6 @@ gh pr create \
 | File | Why |
 |---|---|
 | `backend/app_protocol.py` | `/attest` endpoint — the only ValiChord endpoint PI calls |
-| `backend/holochain_bridge.py` | `run_validation_round` — wraps the Node bridge |
 | `demo/serve.mjs` | `_runValidationRound` — 7-step Holochain protocol |
 | `packages/coding-agent/examples/extensions/valichord/index.ts` | PI extension |
 | `packages/coding-agent/examples/skills/valichord/SKILL.md` | PI workflow prompt |
