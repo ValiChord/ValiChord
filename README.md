@@ -192,6 +192,18 @@ The governance framework explicitly addresses what happens when ValiChord itself
 
 ---
 
+## 🔑 Configurable Trust
+
+ValiChord's trust model is set by the deployment, not by the protocol. The membrane proof system is a dial: operators configure the credential threshold appropriate to their context, and the protocol runs identically regardless of where that dial is set.
+
+Some contexts demand high bars. Scientific reproducibility validation requires credentialed evaluators — you cannot allow unverified agents to attest whether a genomics workflow reproduces correctly, or whether an AI system's capability claim holds. The integrity of the record depends on the institutional standing of those who sign it.
+
+Other contexts call for openness. Community fact-checking, citizen science, and decentralised forecasting may configure minimal credential requirements or none at all — broad participation is a feature, not a liability.
+
+As ValiChord is adopted across domains, each deployment will calibrate this dial to its own trust requirements. The protocol — blind commit, DHT-anchored reveal, immutable Harmony Record — is the same in every case. Only the membrane configuration changes.
+
+---
+
 ## 🗺️ Landscape: Where ValiChord Fits
 
 ValiChord is not a replacement for existing reproducibility tools — it is the coordination, governance, and certification layer that those tools operate within.
