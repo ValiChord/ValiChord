@@ -1,5 +1,7 @@
 # ValiChord × Feynman — Integration Notes
 
+> **Note:** Feynman is no longer operational (April 2026). This directory is retained for historical reference only. AI validator functionality has been rebuilt directly against the Claude API.
+
 **Status:** Phase 1 complete. Feynman at **0.2.16**, ValiChord now tracked as **PR #23** in Feynman repo.
 **Authors:** Ceri John (ValiChord), in dialogue with Advait Paliwal (Feynman)
 **Last updated:** 2026-03-31

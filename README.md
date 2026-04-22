@@ -16,7 +16,7 @@
 ## 🎬 **[▶ Watch the demo on YouTube](https://www.youtube.com/watch?v=DinSdR-U114&feature=youtu.be)**
 **3 AI validators + researcher commit blind, reveal simultaneously — both sides hash-verified on the live Holochain network. Permanent public record. No auth required.**
 
-**[Full technical walkthrough →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)**
+**[Full technical walkthrough →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
 
 ---
 
@@ -86,8 +86,7 @@ valichord/
 └── happ.yaml               — all four DNA roles bundled
 ```
 
-**96 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can POST a ZIP can integrate. The first external integration — [Feynman](https://github.com/getcompanion-ai/feynman), an AI research agent — is live. See [Integration Docs](#-integrations) below.
-
+**96 integration tests passing (1 skipped — infrastructure limitation only).** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
 Test coverage includes:
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
@@ -147,8 +146,6 @@ The protocol is implemented across all four DNAs and is fully tested:
 
 > **This is not a simulation.** Every step involves real zome calls to real Holochain DNA cells. The HarmonyRecord is stored on a live distributed network and readable at a public URL — no Holochain node, no API key, no authentication required.
 >
-> **Two demo modes:** the Oracle demo runs all conductors in a single process; the Docker decentralised demo runs five completely isolated conductors communicating only through the DHT. Both run the identical protocol code.
-
 The demo runs the complete ValiChord protocol end-to-end, with Claude AI agents as the validators:
 
 1. A **synthetic study** is loaded — a real linear regression on 20 data points (temperature variability vs species richness index). The mathematics are genuine: `study.py` computes the OLS slope, intercept, and R² from first principles in pure Python with no external dependencies. The numbers it produces — slope 2.4086, intercept 1.1742, R² 0.9991 — are deterministic and independently verifiable.
@@ -171,9 +168,9 @@ The result of a recent run:
 }
 ```
 
-The whole run takes about 2 minutes. The URL stays live as long as the Oracle server is running.
+The whole run takes about 4–5 minutes.
 
-📄 **[Oracle demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md)** | **[Decentralised Docker demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
+📄 **[Full demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
 
 ---
 
@@ -267,8 +264,6 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [Deployment Checklist](https://github.com/topeuph-ai/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) | All DNA properties, dev/test bypass values, production requirements, and misconfiguration failure modes |
 | [Integration Guide](https://github.com/topeuph-ai/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide for any tool — curl, Python, TypeScript examples, webhooks |
 | [OpenAPI 3.0 Spec](https://github.com/topeuph-ai/ValiChord/blob/main/backend/openapi.yaml) | Machine-readable API spec; served live at `GET /openapi.yaml` |
-| [Feynman Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/INTEGRATION_VISION.md) | Full design: how Feynman AI agent uses ValiChord, what's live, open work and decisions |
-| [Feynman Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/feynman_integration/README.md) | One-page status table |
 | [Nondominium Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
 | [Nondominium Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/README.md) | Status and open design decisions |
 
@@ -324,7 +319,7 @@ npm test
 
 > For full build details, troubleshooting, and test architecture see the **[Developer Guide wiki](https://github.com/topeuph-ai/ValiChord/wiki/Developer-Guide)**.
 
-> **Running the demo:** See [`demo/AI_VALIDATOR_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/AI_VALIDATOR_DEMO.md) for full instructions.
+> **Running the demo:** See [`demo/DECENTRALISED_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md) for full instructions.
 
 > **Note:** There is no end-user UI yet — that is Phase 1. The current interface is a developer demo and integration endpoint. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
@@ -336,7 +331,7 @@ npm test
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure and integration layer complete — awaiting Phase 0 funding** |
-| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Feynman integration live (demo). REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
+| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
 ---
 

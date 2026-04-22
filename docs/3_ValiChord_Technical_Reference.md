@@ -18,7 +18,7 @@
 
 ## Important Note on Status
 
-**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 94 integration tests pass against live Holochain conductors (Tryorama).
+**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 96 integration tests pass against live Holochain conductors (Tryorama), 1 skipped.
 
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They were illustrative sketches developed during twelve months of architectural design. The system is now built. For the authoritative implementation, see:
 - Source files under `valichord/dnas/`
@@ -1666,7 +1666,7 @@ GET  /health                { "status": "ok", "version": "1.0",
 ```json
 {
   "outcome": { "type": "PartiallyReproduced", "content": { "details": "..." } },
-  "data_hash": "<sha256 hex of deposit ZIP>",
+  "data_hash": "<sha256 hex of deposit>",
   "findings_summary": {
     "critical": 0, "significant": 2, "low_confidence": 3, "total": 5
   },
@@ -2017,7 +2017,7 @@ properties:
 
 ### Phase 0 Pragmatism
 
-*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 94 tests pass (1 skipped for hardware reasons). The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
+*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 96 tests pass (1 skipped for hardware reasons). The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
 
 ---
 
@@ -2343,9 +2343,9 @@ pub fn submit_verdict(input: AttestationRevealInput) -> ExternResult<ActionHash>
 
 **It does claim:**
 - The architectural approach is sound and confirmed feasible by Holochain Foundation engineers
-- The four-DNA hApp is fully implemented and tested — 94 integration tests pass against live conductors
+- The four-DNA hApp is fully implemented and tested — 96 integration tests pass against live conductors, 1 skipped
 - The REST API layer is live, with API keys, webhooks, OpenAPI spec, and Swagger UI
-- The first external integration (Feynman) is working
+- The REST API is integration-ready — any tool that can make an HTTP request can integrate
 
 **It does not claim:**
 - That these specific struct definitions are final (see Important Note on Status for actual divergences)

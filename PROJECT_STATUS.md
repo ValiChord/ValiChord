@@ -7,7 +7,7 @@
 
 ## What ValiChord does (one paragraph)
 
-ValiChord is a scientific reproducibility verification system. Researchers submit a deposit (ZIP of code + data + docs). ValiChord runs 100+ automated checks plus Claude semantic analysis, maps the findings to a reproducibility verdict (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`), and writes that verdict as a tamper-evident **HarmonyRecord** to a Holochain DHT using a fully symmetric blind commit-reveal protocol. The record is cryptographically permanent — no central party can alter it after the fact.
+ValiChord is a scientific reproducibility verification system. Researchers submit a research deposit. ValiChord runs 100+ automated checks plus Claude semantic analysis, maps the findings to a reproducibility verdict (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`), and writes that verdict as a tamper-evident **HarmonyRecord** to a Holochain DHT using a fully symmetric blind commit-reveal protocol. The record is cryptographically permanent — no central party can alter it after the fact.
 
 ---
 
@@ -22,46 +22,22 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Holochain conductor | **Live on Oracle** | 5 apps: `valichord-demo` (single-validator) + `valichord-researcher/validator-1/2/3` (3-validator) |
-| Node.js bridge (`demo/serve.mjs`) | **Live on Oracle** | `POST /holochain/validate-round-multi` (3-validator) + `POST /holochain/validate-round` (single-validator) |
-| Public API (`demo/serve.mjs`, port 5000) | **Live on Oracle** | Authenticated endpoints + unauthenticated `GET /record/<hash>` |
-| HTTP Gateway (`hc-http-gw`) | **Live on Oracle** | Port 8090 — started by `start_oracle.sh` |
-| AI validator demo (`demo/ai_validator.py`) | **Working end-to-end** | 3 Claude validators + researcher reveal + fully verified commit-reveal → HarmonyRecord + shareable URL |
-| Permanent HarmonyRecord URL | **Working** | `GET /record/<hash>` — no auth, any browser, returns clean JSON |
-| Feynman skill (was PR #13) | **Merged** | Cherry-picked into Feynman 0.2.15 by @advaitpaliwal; Feynman now at 0.2.16, ValiChord tracked as PR #23 |
+| Decentralised demo | **Working end-to-end** | 4 isolated Docker conductors (researcher + 3 validators) communicating only via DHT — `docker compose up` + `python3 demo/ai_validator.py --mode decentralised` |
+| Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
+| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON |
+| Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
 
 ---
 
 ## How the demo runs end-to-end
 
-```
-bash demo/start_oracle.sh --fresh
-  1. Clears conductor_data/ (--fresh)
-  2. Starts Holochain conductor (admin port 4444)
-  3. Starts local kitsune2 bootstrap server (port 9000)
-  4. Runs setup.mjs — installs 5 apps, creates app-config.json
-  5. Extracts governance DNA hash → writes demo/holochain-config.env
-  6. Starts Node.js bridge (port 8888 internal, port 5000 public)
-  7. Starts hc-http-gw (port 8090)
+Five Docker containers — researcher + 3 validators + kitsune2 bootstrap server — each with their own Holochain conductor, keystore, and SQLite database. The only communication between containers is the DHT.
 
-python3 demo/ai_validator.py
-  [1/7] Load synthetic study (ZIP + per-run UUID salt → SHA-256 ExternalHash)
-  [2/7] Execute study.py → slope 2.4086 / intercept 1.1742 / R² 0.9991
-  [3/7] 3 independent Claude API calls (claude-opus-4-6) → verdicts
-  [4/7] POST /holochain/validate-round-multi → serve.mjs _runFullProtocolRound():
-    (0) lock_researcher_result       — SHA-256(msgpack(metrics) || nonce) sealed privately
-        publish_researcher_commitment — hash only on shared DHT
-    (1) submit_validation_request     — num_validators_required=3
-    (2-4) each validator: profile → claim → receive_task → seal_private_attestation
-          post_commit → CommitmentAnchor on shared DHT
-    (5) poll get_current_phase until RevealOpen
-    (6a) reveal_researcher_result     — SHA-256 verified on-chain
-    (6b) each validator: get_private_attestation_for_task → extract nonce
-         submit_attestation            — SHA-256(msgpack(attestation) || nonce) verified on-chain
-    (7) check_and_create_harmony_record → HarmonyRecord on public Governance DHT
-  [5/7] All commitments sealed and revealed.
-  [6/7] Researcher result verified + 3 validator attestations on DHT.
-  [7/7] Display outcome + shareable URL + verify record is readable in browser
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+docker compose -f demo/docker-compose.yml up --build -d
+until [ "$(docker compose -f demo/docker-compose.yml logs 2>/dev/null | grep -c 'node API →')" -ge 4 ]; do sleep 3; done && echo "Ready"
+python3 demo/ai_validator.py --mode decentralised
 ```
 
 **Demo output (step 7):**
@@ -79,10 +55,10 @@ python3 demo/ai_validator.py
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://132.145.34.27:5000/record/uhC8k…
+  http://localhost:3001/record?hash=uhC8k…
 
   Verifying record is readable…
-  Record confirmed. Outcome: {'type': 'Reproduced'}  Agreement: ExactMatch  Validators: 3
+  Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
 
 ════════════════════════════════════════════════════════════
   Demo complete. The full ValiChord protocol ran end-to-end.
@@ -90,31 +66,9 @@ python3 demo/ai_validator.py
 ════════════════════════════════════════════════════════════
 ```
 
+Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_DEMO.md`**
+
 ---
-
-## How Feynman uses ValiChord
-
-Feynman is an AI research agent CLI. It is an **API client**, not a Holochain peer. The integration is entirely via the REST API. Two flows:
-
-**Validator flow (Feynman actually runs the code):**
-```
-1. User runs /valichord in Feynman — selects "validator" role
-2. Feynman runs /replicate — executes the research code, forms a verdict
-3. Feynman ZIPs the research deposit
-4. POST /validate  (multipart: file + validator_outcome + validator_notes)
-   → 202 { "job_id": "uuid" }
-5. Poll GET /result/<job_id> until status == "done"
-6. Response includes harmony_record_draft.validator_attested = true
-```
-
-**Researcher flow (submitting own deposit):**
-```
-1. User runs /valichord in Feynman — selects "researcher" role
-2. Feynman ZIPs the research deposit
-3. POST /validate  (multipart: file only)
-4. Poll GET /result/<job_id> until status == "done"
-5. Response includes harmony_record_draft.validator_attested = false
-```
 
 ---
 
@@ -127,10 +81,9 @@ Currently must be manually exported each SSH session. Blocks unattended demo run
 echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
 ```
 
-### 2. Feynman PR #23 — MEDIUM, needs read before integration work
-ValiChord is PR #23 in the Feynman repo. Before doing any more Feynman integration
-work, read what PR #23 actually contains. PRs #14 and #15 may have been folded in
-or superseded.
+### 2. ~~Feynman PR #23~~ — CLOSED
+Feynman is no longer operational (April 2026). AI validator functionality has been rebuilt
+directly against the Claude API (`demo/ai_validator.py`). No further Feynman integration work.
 
 ### 3. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
@@ -149,7 +102,7 @@ Holochain 0.6.0 uses tx5/WebRTC transport. Oracle uses a local `kitsune2-bootstr
 `ai_validator.py` salts the data hash: `SHA-256(data_bytes + run_id)` where `run_id` is
 16 random bytes. Ensures each run presents a fresh `ExternalHash` and avoids DHT
 "already claimed" capacity errors on repeated runs against the same conductor.
-Use `--fresh` with `start_oracle.sh` between runs to clear conductor state if needed.
+Use `docker compose -f demo/docker-compose.yml down -v` between runs to clear conductor state if needed.
 
 ### hc-http-gw URL format (verified from source)
 ```
@@ -185,41 +138,15 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 |---|---|
 | `PROJECT_STATUS.md` | **This file** — current status, open work, technical facts |
 | `docs/Holochain_complete.md` | Complete Holochain build guide + tx5 timing, hc-http-gw URL format, ExternalHash JS, NetworkConfig |
-| `demo/AI_VALIDATOR_DEMO.md` | Full technical guide for the Oracle demo — architecture, expected output, commit-reveal table |
-| `demo/serve.mjs` | Node.js bridge — full commit-reveal round, `_retryOnTx5`, gateway payload encoding |
-| `demo/start_oracle.sh` | Oracle startup script — conductor, setup, DNS hash extraction, bridge + gateway |
-| `demo/ai_validator.py` | End-to-end AI validator demo |
-| `demo/conductor-config.yaml` | Conductor config (uses local bootstrap + signal URLs) |
+| `demo/DECENTRALISED_DEMO.md` | Full technical guide for the decentralised demo — architecture, retry design, commit-reveal table |
+| `demo/ai_validator.py` | Python orchestrator — `--mode decentralised` calls the five node APIs |
+| `demo/docker-compose.yml` | 5-container stack definition |
+| `demo/researcher-node.mjs` | Node.js HTTP API for researcher conductor |
+| `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
+| `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnTx5`, `loadHcClient`, `externalHashFromB64` |
 | `backend/app.py` | Flask REST API |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
-| `feynman_integration/INTEGRATION_VISION.md` | Feynman integration architecture |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Four-DNA architecture |
-
----
-
-## Oracle server reference
-
-| Detail | Value |
-|---|---|
-| IP | 132.145.34.27 |
-| SSH key | `ssh-key-2026-04-13.key` (in `IMPORTANT FILES HERE\oracle cloud key`) |
-| SSH user | `ubuntu` |
-| Public API | `http://132.145.34.27:5000` (authenticated endpoints + `/record/<hash>` unauthenticated) |
-| HTTP Gateway | `http://132.145.34.27:8090` |
-| Bridge | `http://localhost:8888` (internal only) |
-| Admin socket | `localhost:4444` |
-| Repo path | `~/valichord` |
-| Logs | `~/valichord/demo/conductor.log`, `demo/serve.log` |
-| Startup script | `demo/start_oracle.sh` |
-
-**To run demo on Oracle:**
-```bash
-ssh -i ssh-key-2026-04-13.key ubuntu@132.145.34.27
-cd ~/valichord && git pull
-export ANTHROPIC_API_KEY=sk-ant-...
-bash demo/start_oracle.sh --fresh   # wait for "=== Stack is up ==="
-python3 demo/ai_validator.py
-```
 
 ---
 
