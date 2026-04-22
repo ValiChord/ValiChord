@@ -188,17 +188,17 @@ This is not a technology choice made for novelty. It's the specific architecture
 
 **Configurable trust.** The credential threshold enforced by each deployment's membrane proof is a dial operators set to match their context — it is not a fixed property of the protocol. Scientific reproducibility validation and AI capability evaluation call for a high bar: the integrity of a Harmony Record depends on the institutional standing of those who sign it, and an unverified agent cannot credibly attest to whether a genomics workflow reproduces correctly or whether a model's claimed capability holds. Other applications call for openness: community fact-checking, citizen science, and decentralised forecasting may configure minimal credential requirements or none at all, where broad participation is the feature rather than the risk. As ValiChord is adopted across domains, each deployment calibrates this dial to its own trust requirements. The protocol — blind commit, DHT-anchored reveal, immutable Harmony Record — is identical in every case; only the membrane configuration changes.
 
-Different deployments do not simply adjust a configuration dial — they operate under distinct threat models that may require specialised validation and governance logic:
+Different deployments operate under distinct threat models that may require specialised validation and governance logic — they are not simply adjusting a configuration dial:
 
-| Deployment context | Primary threat | Trust mechanism | Openness |
-| :--- | :--- | :--- | :--- |
-| Scientific reproducibility | Result fabrication, p-hacking, collusion | Institutional credentials + commit-reveal | Permissioned |
-| AI capability evaluation | Evaluator capture, coordinated disclosure | Certified evaluator credentials + commit-reveal | Permissioned |
-| Regulatory / compliance audit | Capture by regulated entity | Independent auditor credentials | Permissioned |
-| Community fact-checking | Low-quality or malicious attestations | Reputation weighting + aggregation | Semi-open |
-| Open forecasting | Sybil inflation | Stake weighting or identity attestation | Open |
+| Deployment context | Primary threat | Trust mechanism | Openness | Failure mode |
+| :--- | :--- | :--- | :--- | :--- |
+| Scientific reproducibility | Result fabrication, collusion | Institutional credentials + commit-reveal | Permissioned | Institutional capture of issuer |
+| AI capability evaluation | Evaluator capture, coordinated disclosure | Certified evaluator credentials + commit-reveal | Permissioned | Capture of certifying body |
+| Regulatory / compliance audit | Capture by regulated entity | Independent auditor credentials | Permissioned | Regulatory arbitrage |
+| Community fact-checking | Low-quality or malicious attestations | Reputation weighting + aggregation | Semi-open | Reputation manipulation |
+| Open forecasting | Sybil inflation, herding | Stake weighting or identity attestation | Open | Coordinated manipulation |
 
-While the core commit-reveal protocol is consistent across all contexts, deployments operating under higher openness assumptions will extend validation and governance logic to reflect their distinct attack surfaces — for example, replacing institutional membrane proofs with reputation-weighted quorum or stake-based participation. The architecture supports this extension without modification to the base protocol.
+While the core commit-reveal protocol is consistent across all contexts, deployments operating under higher openness assumptions will extend validation and governance logic to reflect their distinct attack surfaces. The architecture supports this extension without modification to the base protocol.
 
 A further property follows from the source chain structure: researchers can share a chain of **headers** — timestamps, sequence numbers, and entry hashes — to prove that a dataset existed at a particular time and has not been modified, without ever sharing the underlying data. For GDPR-sensitive studies, this means the Attestation layer can carry full chronological accountability while the data itself remains under the researcher's control.
 

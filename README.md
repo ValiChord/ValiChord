@@ -67,16 +67,16 @@ ValiChord is built as four distinct Holochain DNAs — four separate peer-to-pee
 
 ## 🔐 Trust & Identity Model
 
-ValiChord's security model is **institutional, not algorithmic**. Sybil resistance is not achieved through staking, proof-of-work, or token economics. It is achieved through **membrane proofs**: every validator must present a cryptographically signed joining certificate issued by a trusted credentialing authority before their attestations are accepted by the network.
+ValiChord separates identity assurance from consensus. Sybil resistance is not achieved through staking, proof-of-work, or token economics — it is achieved through **membrane proofs**: every validator must present a cryptographically signed joining certificate issued by a trusted credentialing authority before their attestations are accepted by the network.
 
 This means:
 
 - The validator set is **permissioned** — open participation is deliberately excluded
 - Real-world identity is bound to on-chain agent keys at the membrane boundary
-- A validator cannot meaningfully multiply their influence by creating additional identities, because each identity requires a new institutional credential
+- A validator cannot trivially multiply their influence by creating additional identities, as each identity requires a separate institutional credential
 - All commit-reveal commitments and attestations are therefore attributable to a verified real-world entity
 
-ValiChord does not attempt to solve Sybil resistance in an open network. It delegates identity assurance to institutional credentialing — the appropriate mechanism for high-integrity scientific and regulatory validation contexts.
+ValiChord does not attempt to solve Sybil resistance in an open network. It delegates identity assurance to institutional credentialing — the appropriate mechanism for high-integrity scientific and regulatory validation contexts. Trust in the issuer is externalised: it derives from institutional legitimacy (journals, funders, accrediting bodies) rather than on-chain consensus. ValiChord intentionally bridges real-world authority into the protocol rather than attempting to replace it.
 
 ### Credential Issuance & Governance
 
@@ -84,7 +84,9 @@ The credentialing authority is set via the `authorized_joining_certificate_issue
 
 **Phase 0 (current):** Certificate issuance is operated by ValiChord as a single trusted authority. This is a deliberate bootstrap choice — establishing a known, accountable issuer before governance infrastructure matures — rather than an architectural limitation.
 
-**Phase 1 roadmap:** Credential issuance will be extended to support multiple issuers (e.g. journals, funders, professional bodies) and governance-controlled issuer rotation, allowing institutional participants to federate trust without depending on a single point of authority. Issuer compromise in Phase 0 is mitigated by the fact that issued certificates are agent-key-bound and cannot be transferred; a compromised issuer can mint new certificates but cannot retroactively alter existing attestation records on the DHT.
+**Phase 1 roadmap:** Credential issuance will be extended to support multiple issuers (journals, funders, professional bodies) and governance-controlled issuer rotation, allowing institutional participants to federate trust without depending on a single point of authority.
+
+A compromised issuer cannot retroactively alter existing attestation records on the DHT — issued certificates are agent-key-bound and non-transferable. However, issuer compromise can affect the integrity of future attestations by allowing unauthorised validators to enter the network, which is why issuer rotation and governance controls are part of the Phase 1 roadmap.
 
 ---
 
