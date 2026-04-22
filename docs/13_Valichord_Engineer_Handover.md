@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 96 integration tests pass against live Holochain conductors via Tryorama. One test is skipped for hardware reasons (see below). As of 2026-04-17, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest native), 1 skipped. As of 2026-04-17, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -320,7 +320,7 @@ The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Reb
 
 ## Test Inventory Summary
 
-96 tests across 5 files, 1 skipped.
+94 Tryorama tests across 5 files, 1 skipped.
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -334,7 +334,7 @@ Full test inventory: `valichord/tests/README.md`
 
 ### Sweettest (native Rust integration tests)
 
-A separate Rust-native test suite lives in `valichord/sweettest_integration/`. These tests use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead. They are the preferred home for new security and protocol tests because they compile alongside the WASM and are checked by `cargo test`.
+A separate Rust-native test suite lives in `valichord/sweettest_integration/`. **64 tests across 5 files** covering all four DNAs. These tests use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead. They are the preferred home for new security and protocol tests because they compile alongside the WASM and are checked by `cargo test`.
 
 CI splits the sweettest suite into 5 parallel matrix jobs (`attestation`, `governance`, `researcher_repository`, `validator_workspace`, `security`) to stay under GitHub Actions job time limits. The Tryorama suite (`valichord/tests/`) runs as a single additional job.
 

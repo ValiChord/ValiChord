@@ -18,7 +18,7 @@
 
 ## Important Note on Status
 
-**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 96 integration tests pass against live Holochain conductors (Tryorama), 1 skipped.
+**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped.
 
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They were illustrative sketches developed during twelve months of architectural design. The system is now built. For the authoritative implementation, see:
 - Source files under `valichord/dnas/`
@@ -2017,7 +2017,7 @@ properties:
 
 ### Phase 0 Pragmatism
 
-*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 96 tests pass (1 skipped for hardware reasons). The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
+*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 158 tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped. The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
 
 ---
 
@@ -2343,7 +2343,7 @@ pub fn submit_verdict(input: AttestationRevealInput) -> ExternResult<ActionHash>
 
 **It does claim:**
 - The architectural approach is sound and confirmed feasible by Holochain Foundation engineers
-- The four-DNA hApp is fully implemented and tested — 96 integration tests pass against live conductors, 1 skipped
+- The four-DNA hApp is fully implemented and tested — 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped
 - The REST API layer is live, with API keys, webhooks, OpenAPI spec, and Swagger UI
 - The REST API is integration-ready — any tool that can make an HTTP request can integrate
 
