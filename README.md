@@ -65,6 +65,29 @@ ValiChord is built as four distinct Holochain DNAs — four separate peer-to-pee
 
 ---
 
+## 🔐 Trust & Identity Model
+
+ValiChord's security model is **institutional, not algorithmic**. Sybil resistance is not achieved through staking, proof-of-work, or token economics. It is achieved through **membrane proofs**: every validator must present a cryptographically signed joining certificate issued by a trusted credentialing authority before their attestations are accepted by the network.
+
+This means:
+
+- The validator set is **permissioned** — open participation is deliberately excluded
+- Real-world identity is bound to on-chain agent keys at the membrane boundary
+- A validator cannot meaningfully multiply their influence by creating additional identities, because each identity requires a new institutional credential
+- All commit-reveal commitments and attestations are therefore attributable to a verified real-world entity
+
+ValiChord does not attempt to solve Sybil resistance in an open network. It delegates identity assurance to institutional credentialing — the appropriate mechanism for high-integrity scientific and regulatory validation contexts.
+
+### Credential Issuance & Governance
+
+The credentialing authority is set via the `authorized_joining_certificate_issuer` DNA property at network instantiation.
+
+**Phase 0 (current):** Certificate issuance is operated by ValiChord as a single trusted authority. This is a deliberate bootstrap choice — establishing a known, accountable issuer before governance infrastructure matures — rather than an architectural limitation.
+
+**Phase 1 roadmap:** Credential issuance will be extended to support multiple issuers (e.g. journals, funders, professional bodies) and governance-controlled issuer rotation, allowing institutional participants to federate trust without depending on a single point of authority. Issuer compromise in Phase 0 is mitigated by the fact that issued certificates are agent-key-bound and cannot be transferred; a compromised issuer can mint new certificates but cannot retroactively alter existing attestation records on the DHT.
+
+---
+
 ## ✅ Implementation Status
 
 The four-DNA infrastructure is **built and tested**. This is not a whitepaper or a design document — it is working Rust/Holochain code with a passing integration test suite.
