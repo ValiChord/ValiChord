@@ -1304,6 +1304,10 @@ describe("11. force_finalize_round", () => {
 
         await att(alice, "submit_validation_request",
           makeValidationRequest({ data_hash: dataHash }));
+        // Let Bob see the ValidationRequest before he commits — the coordinator
+        // uses GetStrategy::Local for the study path lookup, so it must be in
+        // Bob's local DHT store before notify_commitment_sealed is called.
+        await dhtSync([alice, bob], attDnaHash);
 
         const requestRef = dataHash;
 
@@ -1311,6 +1315,8 @@ describe("11. force_finalize_round", () => {
         // Bob then goes dark — only alice reveals.  force_finalize_round closes the stuck
         // round with one attestation (partial quorum), bypassing num_validators_required.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
+        // Sync so Bob sees Alice's CommitmentAnchor before his quorum check runs.
+        await dhtSync([alice, bob], attDnaHash);
         await att(bob,   "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([alice, bob], attDnaHash);
         // Only alice reveals — bob is absent (simulates a dropout scenario).
