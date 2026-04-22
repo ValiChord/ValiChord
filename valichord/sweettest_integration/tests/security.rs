@@ -29,7 +29,7 @@ async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: Ext
             "notify_commitment_sealed",
             CommitmentSealedInput {
                 request_ref,
-                commitment_hash: vec![],
+                commitment_hash: vec![0u8; 32],
             },
         )
         .await;
@@ -199,7 +199,7 @@ async fn s2_duplicate_commitment_rejected() {
             "notify_commitment_sealed",
             CommitmentSealedInput {
                 request_ref,
-                commitment_hash: vec![],
+                commitment_hash: vec![0u8; 32],
             },
         )
         .await;
@@ -461,7 +461,7 @@ async fn s6_reveal_researcher_result_idempotency() {
             "notify_commitment_sealed",
             CommitmentSealedInput {
                 request_ref:     request_ref.clone(),
-                commitment_hash: vec![],
+                commitment_hash: vec![0u8; 32],
             },
         )
         .await;

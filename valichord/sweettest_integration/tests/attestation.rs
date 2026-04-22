@@ -40,7 +40,7 @@ async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: Ext
             "notify_commitment_sealed",
             CommitmentSealedInput {
                 request_ref,
-                commitment_hash: vec![], // empty = dev bypass
+                commitment_hash: vec![0u8; 32],
             },
         )
         .await;
