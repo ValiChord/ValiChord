@@ -41,7 +41,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md)** ]
+[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home)** ]
 
 </div>
 
@@ -214,21 +214,13 @@ Every existing tool facilitates reproducibility — making it easier to run code
 
 ---
 
-## 🛠️ Researcher Ecosystem: "ValiChord at Home"
+## 🛠️ Researcher Ecosystem: ValiChord at Home
 
-We provide a full feedback pipeline to move research from "messy" to "validatable".
+Before submitting for formal validation, researchers use **[ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home)** to scan their deposit privately — 100+ automated checks for documentation gaps, hardcoded paths, missing dependencies, absent data dictionaries, and more. It generates proposed corrections (drafted READMEs, pinned requirements) for researcher review.
 
-### 🏠 **ValiChord at Home (Self-Service)**
-**Private, local pre-vetting for researchers.**
-Before submitting for formal validation, researchers use this tool to scan their repositories privately.
-- **Static Analysis:** Identifies documentation gaps and environment friction without code execution.
-- **Difficulty Prediction:** Stage B (post-Phase 0) will use an empirically calibrated rubric to estimate validation labour. Stage A (current prototype) provides best-practice gap analysis without scoring.
+ValiChord at Home is a standalone tool in its own repository. It does not run the commit-reveal protocol — it is a pre-flight check that helps researchers make their deposits validatable.
 
-👉 **[Launch ValiChord at Home](https://topeuph-ai.github.io/ValiChord/demo)**
-
-### 🔍 **Assisted Correction**
-**Automated reproducibility hygiene.**
-ValiChord generates proposed corrections — drafted READMEs, pinned dependencies — for researcher review and approval.
+👉 **[ValiChord at Home →](https://github.com/topeuph-ai/valichord_at_home)**
 
 ---
 
@@ -245,7 +237,7 @@ ValiChord generates proposed corrections — drafted READMEs, pinned dependencie
 | [Validator Guide](https://github.com/topeuph-ai/ValiChord/blob/main/docs/16_ValiChord_Validator_Guide.md) | What it means to be a ValiChord validator |
 | [Why Holochain?](https://github.com/topeuph-ai/ValiChord/blob/main/docs/11_Why_Holochain?.md) | Non-technical explanation of the architectural choice |
 | [Other Potential Use Cases](https://github.com/topeuph-ai/ValiChord/blob/main/docs/12_Other_potential_use_cases.md) | Where else the ValiChord pattern applies |
-| [ValiChord at Home](https://github.com/topeuph-ai/ValiChord/blob/main/docs/9_Valichord_at_Home.md) | Self-service reproducibility tool for researchers |
+| [ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home) | Self-service deposit quality checker — 100+ automated checks, draft generation |
 
 ### Architecture
 
