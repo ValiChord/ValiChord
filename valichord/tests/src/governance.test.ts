@@ -319,9 +319,12 @@ describe("1. check_and_create_harmony_record idempotency", () => {
         const first = await gov(admin, "check_and_create_harmony_record", requestRef);
         expect(first).not.toBeNull();
 
-        // Second call: RequestToHarmonyRecord link already on admin's DHT → null.
+        // Second call: RequestToHarmonyRecord link already exists — returns the existing hash
+        // rather than null (idempotent but informative — callers need not do a follow-up
+        // get_harmony_record to retrieve the hash).
         const second = await gov(admin, "check_and_create_harmony_record", requestRef);
-        expect(second).toBeNull();
+        expect(second).not.toBeNull();
+        expect(second).toStrictEqual(first);
 
         // Exactly one record visible.
         const record = await gov(admin, "get_harmony_record", requestRef);
@@ -1304,9 +1307,13 @@ describe("11. force_finalize_round", () => {
 
         const requestRef = dataHash;
 
-        // One attestation — partial quorum, but force_finalize bypasses num_validators_required.
+        // Both validators commit so RevealOpen phase opens (num_validators_required = 2).
+        // Bob then goes dark — only alice reveals.  force_finalize_round closes the stuck
+        // round with one attestation (partial quorum), bypassing num_validators_required.
         await att(alice, "notify_commitment_sealed", commitInput(requestRef));
+        await att(bob,   "notify_commitment_sealed", commitInput(requestRef));
         await dhtSync([alice, bob], attDnaHash);
+        // Only alice reveals — bob is absent (simulates a dropout scenario).
         await att(alice, "submit_attestation", revealInput(makeAttestation(requestRef)));
         await dhtSync([alice, bob], attDnaHash);
 
