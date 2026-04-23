@@ -162,6 +162,8 @@ pub struct GovernanceDecision {
 // Entry Types Enum
 // ---------------------------------------------------------------------------
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
@@ -202,6 +204,15 @@ pub enum LinkTypes {
 //   3. All entries validated by validate() are PUBLIC — deletes are checked
 //      by deserializing the original entry via must_get_valid_record().
 //   4. No membrane proof: public DHT, open read.
+
+macro_rules! handle_error {
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(e) => return Ok(ValidateCallbackResult::Invalid(e.to_string())),
+        }
+    };
+}
 
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
@@ -303,13 +314,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             ..
         }) => {
             let hr_record = must_get_valid_record(badge.harmony_record_ref.clone())?;
-            let harmony_record: HarmonyRecord = hr_record
-                .entry()
-                .to_app_option()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            let maybe_hr: Option<HarmonyRecord> = handle_error!(hr_record.entry().to_app_option());
+            let harmony_record = match maybe_hr {
+                Some(hr) => hr,
+                None => return Ok(ValidateCallbackResult::Invalid(
                     "badge.harmony_record_ref does not point to a HarmonyRecord".into()
-                )))?;
+                )),
+            };
             if badge.study_ref != harmony_record.request_ref {
                 return Ok(ValidateCallbackResult::Invalid(
                     "ReproducibilityBadge.study_ref does not match the \

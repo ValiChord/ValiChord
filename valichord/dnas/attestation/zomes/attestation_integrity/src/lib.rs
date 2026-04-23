@@ -304,6 +304,8 @@ pub struct AgentIdentityAttestation {
 //
 // required_validations=7 goes on the ENUM VARIANT here, not on the struct.
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
@@ -391,6 +393,15 @@ pub enum LinkTypes {
 // - OpDelete is a STRUCT: OpDelete { action: Delete }
 //   Use must_get_action(action.deletes_address) to check original type.
 // - Membrane proof is in OpActivity::AgentValidationPkg { membrane_proof, .. }
+
+macro_rules! handle_error {
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(e) => return Ok(ValidateCallbackResult::Invalid(e.to_string())),
+        }
+    };
+}
 
 #[hdk_extern]
 pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
@@ -599,14 +610,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }) => {
             let req_record =
                 must_get_valid_record(claim.validation_request_hash.clone())?;
-            let req: ValidationRequest = req_record
-                .entry()
-                .to_app_option()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    "StudyClaim.validation_request_hash does not point to a ValidationRequest"
-                        .into(),
-                )))?;
+            let maybe_req: Option<ValidationRequest> = handle_error!(req_record.entry().to_app_option());
+            let req = match maybe_req {
+                Some(r) => r,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "StudyClaim.validation_request_hash does not point to a ValidationRequest".into()
+                )),
+            };
             // Cross-check: claim.request_ref must equal the ValidationRequest's
             // data_hash.  Prevents a claim referencing a benign ValidationRequest
             // for COI-check purposes while actually targeting a different study.
@@ -661,14 +671,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 ));
             }
             let req_record = must_get_valid_record(anchor.validation_request_hash.clone())?;
-            let req: ValidationRequest = req_record
-                .entry()
-                .to_app_option()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    "CommitmentAnchor.validation_request_hash does not point to \
-                     a ValidationRequest".into(),
-                )))?;
+            let maybe_req: Option<ValidationRequest> = handle_error!(req_record.entry().to_app_option());
+            let req = match maybe_req {
+                Some(r) => r,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.validation_request_hash does not point to a ValidationRequest".into()
+                )),
+            };
             if req.data_hash != anchor.request_ref {
                 return Ok(ValidateCallbackResult::Invalid(
                     "CommitmentAnchor.request_ref does not match \
@@ -700,20 +709,21 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ValidationAttestation(ref att),
             action,
         }) => {
-            let anchor_hash = att.commitment_anchor_hash.as_ref()
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            let anchor_hash = match att.commitment_anchor_hash.as_ref() {
+                Some(h) => h,
+                None => return Ok(ValidateCallbackResult::Invalid(
                     "ValidationAttestation.commitment_anchor_hash is required — \
-                     every public attestation must reference its CommitmentAnchor".into(),
-                )))?;
+                     every public attestation must reference its CommitmentAnchor".into()
+                )),
+            };
             let anchor_record = must_get_valid_record(anchor_hash.clone())?;
-            let anchor: CommitmentAnchor = anchor_record
-                .entry()
-                .to_app_option()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    "ValidationAttestation.commitment_anchor_hash does not point \
-                     to a CommitmentAnchor".into(),
-                )))?;
+            let maybe_anchor: Option<CommitmentAnchor> = handle_error!(anchor_record.entry().to_app_option());
+            let anchor = match maybe_anchor {
+                Some(a) => a,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.commitment_anchor_hash does not point to a CommitmentAnchor".into()
+                )),
+            };
             if anchor.validator != action.author {
                 return Ok(ValidateCallbackResult::Invalid(
                     "CommitmentAnchor.validator does not match the \
@@ -730,14 +740,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             // to the ValidationRequest and verify the study's declared discipline.
             let req_record =
                 must_get_valid_record(anchor.validation_request_hash.clone())?;
-            let req: ValidationRequest = req_record
-                .entry()
-                .to_app_option()
-                .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?
-                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
-                    "CommitmentAnchor.validation_request_hash does not point \
-                     to a ValidationRequest".into(),
-                )))?;
+            let maybe_req: Option<ValidationRequest> = handle_error!(req_record.entry().to_app_option());
+            let req = match maybe_req {
+                Some(r) => r,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.validation_request_hash does not point to a ValidationRequest".into()
+                )),
+            };
             if att.discipline != req.discipline {
                 return Ok(ValidateCallbackResult::Invalid(
                     "ValidationAttestation.discipline does not match the study's \

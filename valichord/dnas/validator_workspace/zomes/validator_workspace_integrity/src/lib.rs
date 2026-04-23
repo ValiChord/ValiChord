@@ -91,6 +91,8 @@ pub struct ValidatorPrivateAttestation {
 // Entry Types Enum
 // ---------------------------------------------------------------------------
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 #[hdk_entry_types]
 #[unit_enum(UnitEntryTypes)]
 pub enum EntryTypes {
