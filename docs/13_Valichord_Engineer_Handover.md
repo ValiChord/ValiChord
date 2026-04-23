@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 2.2 — April 2026
+**Version:** 2.3 — April 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest native), 1 skipped. As of 2026-04-17, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest native), 1 skipped. As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -270,6 +270,34 @@ Fixed: `call_attestation_zome_opt` catches `ZomeCallResponse::Ok(io)` where `io.
 
 ### 14. reveal_researcher_result — idempotency guard required before hash check
 `reveal_researcher_result` checks for an existing `RequestToResearcherReveal` link **before** the SHA-256 hash verification step. Without this guard, a researcher could call the function multiple times, creating multiple `ResearcherReveal` entries linked from the same deterministic path. `get_researcher_reveal` uses `links.last()`, which is non-deterministic under concurrent DHT propagation, so duplicate entries introduce result ambiguity even though content is forced to match the commitment. Pattern mirrors `publish_researcher_commitment`: query the path's existing links at the top of the function and return an error immediately if any exist. Commitment hash for `metrics=[], nonce=[]` is `SHA256(0x90) = 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd` — used in S6 test fixture.
+
+### 19. validate() deserialization failures must be soft — return Invalid, not wasm_error
+
+Inside a validate() callback, `to_app_option::<T>()` returns a `Result<Option<T>, SerializedBytesError>`. If deserialization fails, the entry under validation is malformed — a protocol-level bad entry, not a system failure. Using `.map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?` on that error propagates it as a hard WASM host error — the same error class as an out-of-memory fault. The validation callback crashes non-recoverably. Peers that hold that entry cannot validate it; the entry becomes permanently stuck.
+
+The correct pattern is to return `ValidateCallbackResult::Invalid(...)`, which cleanly rejects the entry and lets the network continue. Use the `handle_error!` macro:
+
+```rust
+macro_rules! handle_error {
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(e) => return Ok(ValidateCallbackResult::Invalid(e.to_string())),
+        }
+    };
+}
+
+// Usage:
+let maybe_req: Option<ValidationRequest> = handle_error!(record.entry().to_app_option());
+let req = match maybe_req {
+    Some(r) => r,
+    None => return Ok(ValidateCallbackResult::Invalid("entry is not a ValidationRequest".into())),
+};
+```
+
+Do not use `.ok_or_else(|| wasm_error!(...))` for the `None` arm either — use an explicit match returning `Invalid`. Same rule applies to missing required fields (`Option<ActionHash>` that must be `Some`): use a match, not `ok_or_else(|| wasm_error!(...))`.
+
+Applied to five sites in `governance_integrity` and `attestation_integrity` in commit `985ff20`.
 
 ---
 
