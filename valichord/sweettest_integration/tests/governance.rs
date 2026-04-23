@@ -191,7 +191,8 @@ async fn check_and_create_harmony_record_idempotent() {
         .await;
     assert!(first.is_some(), "first call should create the HarmonyRecord");
 
-    // Second call — must short-circuit and return None (record already exists).
+    // Second call — must short-circuit and return the existing hash (record already exists).
+    // The coordinator returns Ok(Some(existing_hash)) on the idempotency path, not Ok(None).
     let second: Option<ActionHash> = setup.conductors[0]
         .call(
             &setup.alice.governance_zome(),
@@ -199,7 +200,7 @@ async fn check_and_create_harmony_record_idempotent() {
             request_ref,
         )
         .await;
-    assert!(second.is_none(), "second call should return None — record already exists");
+    assert!(second.is_some(), "second call should return the existing HarmonyRecord hash — idempotent, no new record created");
 }
 
 // ---------------------------------------------------------------------------
@@ -485,12 +486,24 @@ async fn get_harmony_records_by_discipline_returns_record_after_round() {
         .await
         .unwrap();
 
+    // Interleaved sync between reveals: ensures only Bob's auto-call (the last reveal) sees
+    // both attestations and creates the HarmonyRecord, preventing the TOCTOU race where
+    // Alice's explicit call below would otherwise miss Bob's governance write and create a
+    // second HarmonyRecord.
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
     await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
+    // Sync governance DHT so Alice sees the HarmonyRecord created by Bob's auto-call.
+    await_consistency_20_s([&setup.alice.governance, &setup.bob.governance])
+        .await
+        .unwrap();
 
+    // Explicit call — idempotent: Bob's auto-call already created the record.
     let _: Option<ActionHash> = setup.conductors[0]
         .call(
             &setup.alice.governance_zome(),
@@ -617,11 +630,23 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         .await
         .unwrap();
 
-    // All three reveal.
+    // All three reveal with interleaved sync: guarantees only Carol's auto-call sees all 3
+    // attestations (quorum=3), creating exactly one HarmonyRecord + badge.  Without
+    // interleaving, Bob or Carol might concurrently see enough attestations and race.
     reveal(&conductors[0], &alice, request_ref.clone()).await;
-    reveal(&conductors[1], &bob,   request_ref.clone()).await;
+    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+        .await
+        .unwrap();
+    reveal(&conductors[1], &bob, request_ref.clone()).await;
+    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+        .await
+        .unwrap();
     reveal(&conductors[2], &carol, request_ref.clone()).await;
     await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+        .await
+        .unwrap();
+    // Sync governance DHT so Alice sees Carol's auto-created HarmonyRecord + badge.
+    await_consistency_20_s([&alice.governance, &bob.governance, &carol.governance])
         .await
         .unwrap();
 
