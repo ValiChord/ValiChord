@@ -7032,6 +7032,7 @@ version = "0.1.0"
 dependencies = [
  "hdi",
  "holochain_serialized_bytes",
+ "rmp-serde",
  "serde",
  "thiserror 1.0.69",
 ]
