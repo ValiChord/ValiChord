@@ -48,7 +48,7 @@ python3 demo/ai_validator.py --mode decentralised
 ## 🧬 The Mission
 Across every scientific discipline — computational, experimental, clinical, hardware — **70% of researchers** have failed to reproduce another scientist's work. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
 
-**ValiChord** is a distributed, agent-centric infrastructure designed to make scientific reproducibility verifiable, tamper-evident, and structurally resistant to corruption. The protocol is domain-agnostic: methodology and data go in, independent validators reproduce the work, and the result is a **Harmony Record** — a permanent, publicly queryable record that preserves the full texture of scientific agreement and disagreement. Computation is the first and most tractable instance. It is not the only one.
+**ValiChord** is a distributed, agent-centric infrastructure designed to make scientific reproducibility verifiable, tamper-evident, and structurally resistant to corruption. The protocol is domain-agnostic: methodology and data go in, independent validators reproduce the work, and the result is a **Harmony Record** — a permanent, publicly queryable record that preserves the full texture of scientific agreement and disagreement. Computation is the first and most tractable instance. It is not the only one. The same protocol applies wherever independent verification must be structurally tamper-proof: AI capability evaluation, regulatory auditing, clinical trial attestation, structured intelligence assessment, and any high-stakes domain where the integrity of independent judgment cannot be left to procedural norms alone.
 
 ---
 
