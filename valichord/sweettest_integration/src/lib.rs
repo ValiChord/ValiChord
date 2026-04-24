@@ -373,7 +373,7 @@ pub fn make_validator_profile(institution: &str) -> ValidatorProfile {
     ValidatorProfile {
         institution: institution.into(),
         disciplines: vec![Discipline::ComputationalBiology],
-        certification_tier: CertificationTier::Certified,
+        certification_tier: CertificationTier::Standard,
         available: true,
         max_concurrent_tasks: 3,
         orcid: None,

@@ -378,7 +378,9 @@ fn write_harmony_record(
 
     // Pre-compute before discipline/validators are moved into the struct.
     let disc_anchor    = discipline_anchor(&discipline)?;
-    let validator_count = participating_validators.len();
+    // Compute tier-filtered counts BEFORE this round's reputation updates are written,
+    // so badge attribution reflects validators' standing coming into the round.
+    let qualified = compute_qualified_counts(&participating_validators)?;
 
     // Write HarmonyRecord entry and indexes.
     let record = HarmonyRecord {
@@ -398,7 +400,7 @@ fn write_harmony_record(
     // Issue badge — skip if the researcher's identity cannot be resolved.
     // Falling back to a validator pubkey would issue a badge to the wrong
     // recipient; it is safer to skip issuance than to mis-attribute.
-    if let Some(badge_type) = evaluate_badge(&agreement_level, validator_count) {
+    if let Some(badge_type) = evaluate_badge(&agreement_level, &qualified) {
         let maybe_researcher: Option<AgentPubKey> = call_attestation_zome_opt::<_, Option<Record>>(
             "get_validation_request_for_data_hash",
             request_ref.clone(),
@@ -668,37 +670,101 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
     path.path_entry_hash()
 }
 
-/// Return a BadgeType if the validator count and agreement level meet thresholds.
+/// Tier-filtered validator counts used by `evaluate_badge`.
 ///
-/// IMPORTANT: thresholds here must stay identical to `evaluate_badge_type` in
-/// `governance_integrity` — that function enforces the same rules at the network
-/// validation layer.  Update both whenever a tier threshold changes.
+/// Splitting by tier lets higher badge tiers require more experienced validators
+/// while Bronze and FailedReproduction remain accessible to any quorum size.
+struct QualifiedCounts {
+    /// All participating validators regardless of tier (Provisional+).
+    any:           usize,
+    /// Validators at Standard, Advanced, or Certified tier.
+    standard_plus: usize,
+    /// Validators at Advanced or Certified tier only.
+    advanced_plus: usize,
+}
+
+/// Fetch reputation tier for a single validator (defaults to Provisional if unknown).
+fn get_reputation_tier(validator: &AgentPubKey) -> ExternResult<CertificationTier> {
+    let links = get_links(
+        LinkQuery::try_new(validator.clone(), LinkTypes::ValidatorToReputation)?,
+        GetStrategy::Network,
+    )?;
+    let best = links.iter().max_by_key(|l| reputation_link_count(l));
+    match best {
+        Some(link) => {
+            let target = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid ValidatorToReputation link target".into()
+                )))?;
+            Ok(get(target, GetOptions::network())?
+                .and_then(|r| r.entry().to_app_option::<ValidatorReputation>().ok().flatten())
+                .map(|rep| rep.tier)
+                .unwrap_or(CertificationTier::Provisional))
+        }
+        None => Ok(CertificationTier::Provisional),
+    }
+}
+
+/// Compute qualified counts for the participating validators.
 ///
-/// `FailedReproduction` now requires the same minimum quorum (3) as
-/// `BronzeReproducible`.  A single validator submitting `UnableToAssess` and
-/// force-finalising cannot permanently brand a study as failed.
-fn evaluate_badge(
-    agreement: &AgreementLevel,
-    validator_count: usize,
-) -> Option<BadgeType> {
+/// Called in `write_harmony_record` BEFORE reputation is updated for this round,
+/// so the counts reflect validators' standing coming INTO the round — semantically
+/// correct for badge attribution.
+fn compute_qualified_counts(validators: &[AgentPubKey]) -> ExternResult<QualifiedCounts> {
+    let mut standard_plus = 0usize;
+    let mut advanced_plus = 0usize;
+    for v in validators {
+        match get_reputation_tier(v)? {
+            CertificationTier::Advanced | CertificationTier::Certified => {
+                standard_plus += 1;
+                advanced_plus += 1;
+            }
+            CertificationTier::Standard => {
+                standard_plus += 1;
+            }
+            CertificationTier::Provisional => {}
+        }
+    }
+    Ok(QualifiedCounts { any: validators.len(), standard_plus, advanced_plus })
+}
+
+/// Return a BadgeType if the agreement level and tier-qualified validator counts
+/// meet the badge thresholds.
+///
+/// Gold and Silver use tier-filtered counts to ensure higher-tier badges reflect
+/// genuinely experienced validators. Bronze and FailedReproduction count all
+/// participating validators regardless of tier, keeping the entry-level accessible.
+///
+/// NOTE: `evaluate_badge_type` in `governance_integrity` cannot perform DHT
+/// reputation lookups so it validates against raw participant count only. This
+/// means the integrity layer is more permissive than the coordinator for Gold/Silver;
+/// the stricter rule is enforced coordinator-side only (acknowledged Phase 1 limitation).
+///
+/// `FailedReproduction` requires the same minimum quorum (3) as `BronzeReproducible`.
+/// A single validator submitting `UnableToAssess` and force-finalising cannot
+/// permanently brand a study as failed.
+fn evaluate_badge(agreement: &AgreementLevel, q: &QualifiedCounts) -> Option<BadgeType> {
     match agreement {
-        AgreementLevel::ExactMatch if validator_count >= 7 => {
+        AgreementLevel::ExactMatch if q.advanced_plus >= 7 => {
             Some(BadgeType::GoldReproducible)
         }
         AgreementLevel::ExactMatch | AgreementLevel::WithinTolerance
-            if validator_count >= 5 =>
+            if q.standard_plus >= 5 =>
         {
             Some(BadgeType::SilverReproducible)
         }
         AgreementLevel::ExactMatch
         | AgreementLevel::WithinTolerance
         | AgreementLevel::DirectionalMatch
-            if validator_count >= 3 =>
+            if q.any >= 3 =>
         {
             Some(BadgeType::BronzeReproducible)
         }
         AgreementLevel::Divergent | AgreementLevel::UnableToAssess
-            if validator_count >= 3 =>
+            if q.any >= 3 =>
         {
             Some(BadgeType::FailedReproduction)
         }
@@ -804,10 +870,12 @@ fn initial_rate(outcome: &AttestationOutcome) -> f64 {
 }
 
 fn cert_tier(total: u32, rate: f64) -> CertificationTier {
-    if total >= 20 && rate >= 0.80 {
-        CertificationTier::Senior
-    } else if total >= 5 && rate >= 0.60 {
+    if total >= 50 && rate >= 0.80 {
         CertificationTier::Certified
+    } else if total >= 20 && rate >= 0.60 {
+        CertificationTier::Advanced
+    } else if total >= 5 {
+        CertificationTier::Standard
     } else {
         CertificationTier::Provisional
     }

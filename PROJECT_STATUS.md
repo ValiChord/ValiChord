@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-04-14
+**Last updated:** 2026-04-24
 **Phase:** Full protocol live on Oracle. 3-validator + researcher reveal + production-grade commit-reveal running end-to-end. v0.3.0 released.
 
 ---
@@ -74,6 +74,13 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## What is NOT done yet
 
+### 0. Reputation/certification system — implemented 2026-04-24 ✓
+**4-tier `CertificationTier`**: `Provisional` → `Standard` (≥5 rounds) → `Advanced` (≥20 + rate ≥60%) → `Certified` (≥50 + rate ≥80%).
+**Tier-weighted badge thresholds** (coordinator layer): Gold requires 7+ `Advanced`/`Certified` validators; Silver requires 5+ `Standard`+; Bronze/FailedReproduction count all validators.
+**Production implication**: all validators stay `Provisional` until Phase 1 oracle is wired — Gold and Silver cannot be issued in production yet (more conservative than before). Bronze remains fully functional.
+**DNA hash changed**: `CertificationTier` is embedded in `ValidatorReputation` (governance integrity) and `ValidatorProfile` (attestation integrity). Both DNA hashes changed. Dev-only — no live network impact.
+**Tests**: sweettest tests 12 + 13 in `governance.rs` verify Provisional→Standard promotion boundary.
+
 ### 1. `ANTHROPIC_API_KEY` persistent on Oracle — HIGH, 2 min fix
 Currently must be manually exported each SSH session. Blocks unattended demo runs.
 ```bash
@@ -87,6 +94,38 @@ directly against the Claude API (`demo/ai_validator.py`). No further Feynman int
 
 ### 3. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
+
+---
+
+## Installed tools and skills (2026-04-24)
+
+### holochain/ai-tools — `holochain-dev` Claude Code skill
+Installed at `~/.claude/skills/holochain-dev/` (12 files). Activates automatically on any Holochain task.
+- DNA-hash tripwire: refuses/warns on integrity changes that break the DNA hash
+- Verifies every HDK/HDI API call against docs.rs at the project-pinned version (never training data)
+- Serialization-boundary inversion: check stale WASM before msgpack version pins
+- Sweettest-only test generation; lazy-load reference files in `references/`
+
+Source: https://github.com/holochain/ai-tools (branch: main)
+
+### holochain/kangaroo-electron — future desktop packaging path
+Template for packaging ValiChord as a cross-platform Electron app. **Not started yet.**
+Pre-requisites before we can use it: (1) browser UI for ValiChord, (2) Holochain 0.6.1 upgrade, (3) dedicated bootstrap/signal/relay servers (`holochain/network-services` Pulumi repo).
+Branch to use: `main-0.6` (Holochain 0.6.x). Enables: validators install desktop app and run their own conductor.
+
+Source: https://github.com/holochain/kangaroo-electron (branch: main-0.6)
+
+### Other tools noted but not installed
+- **hc-spin** (https://github.com/holochain/hc-spin) — run `.happ` files locally with multiple agents, single CLI. Potential replacement for Docker demo once 0.6.1 lands.
+- **chisel** (https://github.com/holochain/chisel) — demux interleaved multi-conductor logs: `cat logs.txt | chisel tryorama demux`
+- **network-services** (https://github.com/holochain/network-services) — Pulumi IaC for self-hosted Holochain bootstrap + relay servers on DigitalOcean. Needed before production kangaroo packaging.
+- **hc-cooperative-content** (https://github.com/holochain/hc-cooperative-content) — multi-agent governance zomes, applicable to DNA 4.
+
+### Unyt ecosystem tools — evaluated 2026-04-24
+Three tools from https://github.com/orgs/unytco/repositories worth knowing for ValiChord's operational roadmap:
+- **joining-service** — REST API for issuing membrane proofs + hApp bundles on join (`GET /.well-known/holo-joining` → `POST /v1/join`). Reference impl of ValiChord's `authorized_joining_certificate_issuer` pattern, done properly as a service. **Use when designing institutional validator onboarding for a live network.**
+- **heart** — DigitalOcean + Pulumi conductor provisioning with Telegraf/InfluxDB monitoring. Goes further than network-services (bootstrap/relay only) — provisions the conductor itself. **Use when setting up production conductor nodes.**
+- **tauri-plugin-holochain** — Lighter/faster Electron alternative for the desktop validator installer (Rust-based, not Chromium). Not fully open source yet (Open Collective fundraise in progress). **Revisit before building the installer; for now, kangaroo-electron remains safer.** See `memory/reference_unyt_tools.md` for full detail on each + not-relevant tools.
 
 ---
 

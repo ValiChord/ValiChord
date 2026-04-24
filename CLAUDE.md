@@ -1,9 +1,17 @@
 # ValiChord — Claude Code Instructions
 
 ## Always read at session start
-- `PROJECT_STATUS.md` — current project phase, what's live, how Feynman uses ValiChord, open work
+- `PROJECT_STATUS.md` — current project phase, what's live, open work, **and installed tools/skills**
 - `docs/Holochain_complete.md` — complete Holochain Build Guide knowledge base
 - `docs/7_ValiChord_4-DNA_architecture_technical.md` — four-DNA architecture
+
+## Installed Claude Code skills
+- `~/.claude/skills/holochain-dev/` — official Holochain skill (installed 2026-04-24 from https://github.com/holochain/ai-tools). Activates on any Holochain task. Provides: DNA-hash tripwire, docs.rs API verification, serialization-boundary inversion, sweettest-only tests. Lazy-load topic files from `references/` inside the skill. See `PROJECT_STATUS.md` → "Installed tools and skills" for full tool inventory.
+
+## Ecosystem tool notes (evaluated 2026-04-24)
+- **Unyt joining-service** — REST membrane-proof onboarding service; reference impl for institutional validator onboarding. Use when ValiChord moves to a live network. See `memory/reference_unyt_tools.md`.
+- **Unyt heart** — Pulumi conductor provisioning on DigitalOcean. Complements holochain/network-services. See memory file.
+- **Unyt tauri-plugin-holochain** — lighter desktop installer alt to kangaroo-electron (not yet open-source). Revisit before building validator desktop app.
 
 ## Pending upgrade checks (run at every session start)
 

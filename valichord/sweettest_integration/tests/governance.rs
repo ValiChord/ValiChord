@@ -28,10 +28,13 @@
 //!   9.  get_harmony_records_by_discipline — empty + after round (new)
 //!  10.  get_badges_for_study — 2 validators, count < 3, no badge (new)
 //!  11.  get_badges_by_type — 3 validators, BronzeReproducible issued (new)
+//!  12.  tier promotion — Provisional → Standard after 5 Reproduced rounds
+//!  13.  tier stays Provisional before 5 rounds
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
-use governance_integrity::BadgeType;
+use governance_integrity::{BadgeType, ValidatorReputation};
+use valichord_shared_types::{AttestationOutcome, CertificationTier, Discipline};
 
 // ---------------------------------------------------------------------------
 // Internal helpers — shared attestation round setup
@@ -683,4 +686,92 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         )
         .await;
     assert!(!by_type.is_empty(), "get_badges_by_type(BronzeReproducible) should return at least one badge");
+}
+
+// ---------------------------------------------------------------------------
+// 12. Tier promotion — Provisional → Standard after 5 Reproduced rounds
+// ---------------------------------------------------------------------------
+//
+// update_validator_reputation accumulates totals across calls (each call reads
+// the previous reputation and increments). After 5 Reproduced outcomes the
+// cert_tier() function must return Standard.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn validator_tier_promotes_to_standard_after_five_rounds() {
+    let (conductor, app) = setup_single().await;
+    let gov_zome = app.governance_zome();
+    let validator = app.governance.agent_pubkey().clone();
+
+    for _ in 0..5 {
+        let _: ActionHash = conductor
+            .call(
+                &gov_zome,
+                "update_validator_reputation",
+                ReputationUpdateInput {
+                    validator:          validator.clone(),
+                    discipline:         Discipline::ComputationalBiology,
+                    outcome:            AttestationOutcome::Reproduced,
+                    time_invested_secs: 3_600,
+                },
+            )
+            .await;
+    }
+
+    let record: Option<Record> = conductor
+        .call(&gov_zome, "get_validator_reputation", validator)
+        .await;
+    let rep: ValidatorReputation = record
+        .expect("reputation should exist after 5 updates")
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+    assert_eq!(rep.total_validations, 5);
+    assert_eq!(
+        rep.tier,
+        CertificationTier::Standard,
+        "5 completed rounds should promote from Provisional to Standard"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 13. Tier stays Provisional before 5 rounds
+// ---------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn validator_tier_stays_provisional_before_five_rounds() {
+    let (conductor, app) = setup_single().await;
+    let gov_zome = app.governance_zome();
+    let validator = app.governance.agent_pubkey().clone();
+
+    for _ in 0..4 {
+        let _: ActionHash = conductor
+            .call(
+                &gov_zome,
+                "update_validator_reputation",
+                ReputationUpdateInput {
+                    validator:          validator.clone(),
+                    discipline:         Discipline::ComputationalBiology,
+                    outcome:            AttestationOutcome::Reproduced,
+                    time_invested_secs: 3_600,
+                },
+            )
+            .await;
+    }
+
+    let record: Option<Record> = conductor
+        .call(&gov_zome, "get_validator_reputation", validator)
+        .await;
+    let rep: ValidatorReputation = record
+        .expect("reputation should exist after 4 updates")
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+    assert_eq!(rep.total_validations, 4);
+    assert_eq!(
+        rep.tier,
+        CertificationTier::Provisional,
+        "4 rounds is not enough to leave Provisional — threshold is 5"
+    );
 }

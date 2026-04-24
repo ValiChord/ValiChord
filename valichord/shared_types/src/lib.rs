@@ -194,11 +194,17 @@ pub enum AgreementLevel {
 }
 
 /// Per-validator certification tier used in ValidatorProfile and ValidatorReputation.
+///
+/// Promotion thresholds (placeholder — to be calibrated with real data):
+///   Provisional → Standard:  5 completed rounds (any agreement rate)
+///   Standard    → Advanced: 20 completed rounds + agreement rate ≥ 0.60
+///   Advanced    → Certified: 50 completed rounds + agreement rate ≥ 0.80
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CertificationTier {
     Provisional,
+    Standard,
+    Advanced,
     Certified,
-    Senior,
 }
 
 /// Discriminates between human validators, institutional accounts, and
