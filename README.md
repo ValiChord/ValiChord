@@ -2,7 +2,7 @@
 
 <img src="Images/Valichord logo-standard v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 
-**An Immune System for Science: Distributed Integrity Infrastructure for Scientific Research**
+**An Immune System for Trust: Distributed Integrity Infrastructure for Independent Verification**
 
 [![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Integration_Ready-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
