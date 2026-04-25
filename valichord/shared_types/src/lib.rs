@@ -196,9 +196,9 @@ pub enum AgreementLevel {
 /// Per-validator certification tier used in ValidatorProfile and ValidatorReputation.
 ///
 /// Promotion thresholds (placeholder — to be calibrated with real data):
-///   Provisional → Standard:  5 completed rounds (any agreement rate)
-///   Standard    → Advanced: 20 completed rounds + agreement rate ≥ 0.60
-///   Advanced    → Certified: 50 completed rounds + agreement rate ≥ 0.80
+///   Provisional → Standard:  3 completed rounds (any agreement rate)
+///   Standard    → Advanced: 10 completed rounds + agreement rate ≥ 0.60
+///   Advanced    → Certified: 25 completed rounds + agreement rate ≥ 0.80
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CertificationTier {
     Provisional,
@@ -221,6 +221,85 @@ pub enum ValidatorAgentType {
     Institution,
     /// An automated tool or pipeline (e.g. a CI-based reproducer or AI system).
     AutomatedTool,
+}
+
+/// Binary discriminant for the reputation-progression model.
+///
+/// `Human` validators advance tier through completed rounds (round-based progression).
+/// `AI` validators use the tier granted by the certificate issuer only — their tier is
+/// set at join time and frozen; rounds never change it.
+///
+/// This is intentionally simpler than `ValidatorAgentType` (which has three variants).
+/// Governance logic uses this two-variant form so it stays decoupled from the finer-
+/// grained identity taxonomy in the attestation DNA.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ValidatorType {
+    Human,
+    AI,
+}
+
+impl Default for ValidatorType {
+    fn default() -> Self { ValidatorType::Human }
+}
+
+// ---------------------------------------------------------------------------
+// JoiningCertificate — structured membrane-proof credential
+// ---------------------------------------------------------------------------
+
+/// Internal msgpack payload appended after the 64-byte signature.
+/// Absent for legacy 64-byte-only proofs (treated as Human, no initial tier).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct JoiningCertificateMeta {
+    pub validator_type: ValidatorType,
+    /// Only set when `validator_type == AI`.
+    pub initial_tier:   Option<CertificationTier>,
+}
+
+/// Structured joining credential issued by the `authorized_joining_certificate_issuer`.
+///
+/// Presented as the membrane-proof bytes when a validator joins the Attestation DHT.
+///
+/// Wire encoding of the proof bytes:
+///   `bytes[0..64]`  — Ed25519 signature (always present).
+///   `bytes[64..]`   — `rmp_serde::to_vec_named({ validator_type, initial_tier })`
+///                     (absent for legacy 64-byte proofs; absence implies Human).
+///
+/// Signed payload = agent_raw_39_bytes || bytes[64..].
+/// Legacy proofs (len == 64) are treated as a Human certificate with no initial tier.
+///
+/// The integrity zome validates `len >= 64` only; full cryptographic verification
+/// runs in the coordinator `init()` callback where `verify_signature` is available.
+#[derive(Debug, Clone)]
+pub struct JoiningCertificate {
+    /// Ed25519 signature (64 bytes) by the authorized issuer.
+    pub signature:      [u8; 64],
+    pub validator_type: ValidatorType,
+    /// Only meaningful when `validator_type == AI`.  Specifies the initial
+    /// `CertificationTier` granted by the issuer — bypasses round-based
+    /// progression for the lifetime of this certificate.
+    pub initial_tier:   Option<CertificationTier>,
+}
+
+impl JoiningCertificate {
+    /// Parse a `JoiningCertificate` from raw membrane-proof bytes.
+    ///
+    /// Accepts both the legacy 64-byte format (Human, no tier) and the extended
+    /// format (64-byte sig + msgpack meta).
+    pub fn from_proof_bytes(bytes: &[u8]) -> Result<Self, String> {
+        if bytes.len() < 64 {
+            return Err("proof too short — minimum 64 bytes required".into());
+        }
+        let signature: [u8; 64] = bytes[0..64]
+            .try_into()
+            .map_err(|_| String::from("signature slice wrong size"))?;
+        if bytes.len() == 64 {
+            // Legacy format: signature only — treat as Human with no initial tier.
+            return Ok(Self { signature, validator_type: ValidatorType::Human, initial_tier: None });
+        }
+        let meta: JoiningCertificateMeta = rmp_serde::from_slice(&bytes[64..])
+            .map_err(|e| format!("meta decode error: {e}"))?;
+        Ok(Self { signature, validator_type: meta.validator_type, initial_tier: meta.initial_tier })
+    }
 }
 
 /// Structured per-metric outcome — included in OutcomeSummary.

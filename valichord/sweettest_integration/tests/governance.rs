@@ -28,13 +28,14 @@
 //!   9.  get_harmony_records_by_discipline — empty + after round (new)
 //!  10.  get_badges_for_study — 2 validators, count < 3, no badge (new)
 //!  11.  get_badges_by_type — 3 validators, BronzeReproducible issued (new)
-//!  12.  tier promotion — Provisional → Standard after 5 Reproduced rounds
-//!  13.  tier stays Provisional before 5 rounds
+//!  12.  tier promotion — Provisional → Standard after 3 Reproduced rounds
+//!  13.  tier stays Provisional before 3 rounds
+//!  14.  AI validator tier does not advance through completed rounds
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
 use governance_integrity::{BadgeType, ValidatorReputation};
-use valichord_shared_types::{AttestationOutcome, CertificationTier, Discipline};
+use valichord_shared_types::{AttestationOutcome, CertificationTier, Discipline, ValidatorType};
 
 // ---------------------------------------------------------------------------
 // Internal helpers — shared attestation round setup
@@ -434,6 +435,8 @@ async fn update_validator_reputation_dev_bypass() {
                 discipline:         valichord_shared_types::Discipline::ComputationalBiology,
                 outcome:            valichord_shared_types::AttestationOutcome::Reproduced,
                 time_invested_secs: 3_600,
+                validator_type:     ValidatorType::Human,
+                initial_tier:       None,
             },
         )
         .await;
@@ -689,20 +692,20 @@ async fn get_badges_by_type_bronze_with_three_validators() {
 }
 
 // ---------------------------------------------------------------------------
-// 12. Tier promotion — Provisional → Standard after 5 Reproduced rounds
+// 12. Tier promotion — Provisional → Standard after 3 Reproduced rounds
 // ---------------------------------------------------------------------------
 //
 // update_validator_reputation accumulates totals across calls (each call reads
-// the previous reputation and increments). After 5 Reproduced outcomes the
+// the previous reputation and increments). After 3 Reproduced outcomes the
 // cert_tier() function must return Standard.
 
 #[tokio::test(flavor = "multi_thread")]
-async fn validator_tier_promotes_to_standard_after_five_rounds() {
+async fn validator_tier_promotes_to_standard_after_three_rounds() {
     let (conductor, app) = setup_single().await;
     let gov_zome = app.governance_zome();
     let validator = app.governance.agent_pubkey().clone();
 
-    for _ in 0..5 {
+    for _ in 0..3 {
         let _: ActionHash = conductor
             .call(
                 &gov_zome,
@@ -712,6 +715,8 @@ async fn validator_tier_promotes_to_standard_after_five_rounds() {
                     discipline:         Discipline::ComputationalBiology,
                     outcome:            AttestationOutcome::Reproduced,
                     time_invested_secs: 3_600,
+                    validator_type:     ValidatorType::Human,
+                    initial_tier:       None,
                 },
             )
             .await;
@@ -721,30 +726,30 @@ async fn validator_tier_promotes_to_standard_after_five_rounds() {
         .call(&gov_zome, "get_validator_reputation", validator)
         .await;
     let rep: ValidatorReputation = record
-        .expect("reputation should exist after 5 updates")
+        .expect("reputation should exist after 3 updates")
         .entry()
         .to_app_option()
         .unwrap()
         .unwrap();
-    assert_eq!(rep.total_validations, 5);
+    assert_eq!(rep.total_validations, 3);
     assert_eq!(
         rep.tier,
         CertificationTier::Standard,
-        "5 completed rounds should promote from Provisional to Standard"
+        "3 completed rounds should promote from Provisional to Standard"
     );
 }
 
 // ---------------------------------------------------------------------------
-// 13. Tier stays Provisional before 5 rounds
+// 13. Tier stays Provisional before 3 rounds
 // ---------------------------------------------------------------------------
 
 #[tokio::test(flavor = "multi_thread")]
-async fn validator_tier_stays_provisional_before_five_rounds() {
+async fn validator_tier_stays_provisional_before_three_rounds() {
     let (conductor, app) = setup_single().await;
     let gov_zome = app.governance_zome();
     let validator = app.governance.agent_pubkey().clone();
 
-    for _ in 0..4 {
+    for _ in 0..2 {
         let _: ActionHash = conductor
             .call(
                 &gov_zome,
@@ -754,6 +759,8 @@ async fn validator_tier_stays_provisional_before_five_rounds() {
                     discipline:         Discipline::ComputationalBiology,
                     outcome:            AttestationOutcome::Reproduced,
                     time_invested_secs: 3_600,
+                    validator_type:     ValidatorType::Human,
+                    initial_tier:       None,
                 },
             )
             .await;
@@ -763,15 +770,84 @@ async fn validator_tier_stays_provisional_before_five_rounds() {
         .call(&gov_zome, "get_validator_reputation", validator)
         .await;
     let rep: ValidatorReputation = record
-        .expect("reputation should exist after 4 updates")
+        .expect("reputation should exist after 2 updates")
         .entry()
         .to_app_option()
         .unwrap()
         .unwrap();
-    assert_eq!(rep.total_validations, 4);
+    assert_eq!(rep.total_validations, 2);
     assert_eq!(
         rep.tier,
         CertificationTier::Provisional,
-        "4 rounds is not enough to leave Provisional — threshold is 5"
+        "2 rounds is not enough to leave Provisional — threshold is 3"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 14. AI validator tier does not advance through completed rounds
+// ---------------------------------------------------------------------------
+//
+// AI validators use the issuer-granted tier only.  The first call to
+// update_validator_reputation creates an initial reputation entry with the
+// supplied initial_tier; all subsequent calls return the existing hash without
+// creating a new entry or changing the tier.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ai_validator_tier_does_not_advance_through_rounds() {
+    let (conductor, app) = setup_single().await;
+    let gov_zome = app.governance_zome();
+    let validator = app.governance.agent_pubkey().clone();
+
+    // First call: creates initial reputation with issuer-granted Standard tier.
+    let _: ActionHash = conductor
+        .call(
+            &gov_zome,
+            "update_validator_reputation",
+            ReputationUpdateInput {
+                validator:          validator.clone(),
+                discipline:         Discipline::ComputationalBiology,
+                outcome:            AttestationOutcome::Reproduced,
+                time_invested_secs: 3_600,
+                validator_type:     ValidatorType::AI,
+                initial_tier:       Some(CertificationTier::Standard),
+            },
+        )
+        .await;
+
+    // Subsequent calls: no tier advancement despite many completed rounds.
+    for _ in 0..10 {
+        let _: ActionHash = conductor
+            .call(
+                &gov_zome,
+                "update_validator_reputation",
+                ReputationUpdateInput {
+                    validator:          validator.clone(),
+                    discipline:         Discipline::ComputationalBiology,
+                    outcome:            AttestationOutcome::Reproduced,
+                    time_invested_secs: 3_600,
+                    validator_type:     ValidatorType::AI,
+                    initial_tier:       None,
+                },
+            )
+            .await;
+    }
+
+    let record: Option<Record> = conductor
+        .call(&gov_zome, "get_validator_reputation", validator)
+        .await;
+    let rep: ValidatorReputation = record
+        .expect("reputation should exist after AI validator initialization")
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        rep.tier,
+        CertificationTier::Standard,
+        "AI validator tier must remain issuer-granted Standard regardless of completed rounds"
+    );
+    assert_eq!(
+        rep.total_validations, 0,
+        "AI validator total_validations must stay at 0 — rounds do not count toward progression"
     );
 }

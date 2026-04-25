@@ -7,8 +7,8 @@ use attestation_integrity::{
     StudyClaim, StudyClaimRelease, ValidatorAgentType, ValidatorProfile, ValidationRequest,
 };
 use valichord_shared_types::{
-    Discipline, ValidationAttestation, ValidationPhase, ValiChordError, ValiChordResult,
-    discipline_tag, metric_results_msgpack_bytes,
+    Discipline, JoiningCertificate, ValidationAttestation, ValidationPhase,
+    ValiChordError, ValiChordResult, discipline_tag, metric_results_msgpack_bytes,
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -104,29 +104,24 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
         .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?
         .ok_or_else(|| ValiChordError::Guest("Attestation DNA requires a membrane proof".into()))?;
 
-    if proof.bytes().len() < 64 {
-        return Err(ValiChordError::Guest(
-            "Membrane proof too short — must be at least 64 bytes".into(),
-        ));
+    // Decode as a JoiningCertificate (supports legacy 64-byte format and the extended
+    // format that carries validator_type and initial_tier for AI validators).
+    let cert = JoiningCertificate::from_proof_bytes(proof.bytes())
+        .map_err(|e| ValiChordError::Guest(format!("invalid joining certificate: {e}")))?;
+
+    // Signed payload = agent raw pubkey bytes (39) || proof meta bytes (if present).
+    // Legacy proofs (len == 64) sign the pubkey only — same as before.
+    // Extended proofs sign pubkey || msgpack({ validator_type, initial_tier }).
+    // verify_signature serialises the payload via rmp_serde (SerializedBytes → msgpack BIN).
+    // The JS issuer tool must use the same encoding: sign msgpack_bin(payload_bytes).
+    let joining_agent = agent_info()?.agent_initial_pubkey;
+    let mut signed_data: Vec<u8> = joining_agent.get_raw_39().to_vec();
+    if proof.bytes().len() > 64 {
+        signed_data.extend_from_slice(&proof.bytes()[64..]);
     }
 
-    // Extract the 64-byte Ed25519 signature from the start of the proof.
-    let sig_bytes: [u8; 64] = proof.bytes()[0..64]
-        .try_into()
-        .map_err(|_| ValiChordError::Guest("proof slice wrong size".into()))?;
-    let signature = Signature::from(sig_bytes);
-
-    // Signed data = joining agent's raw 39-byte pubkey as Vec<u8>.
-    // verify_signature serialises the data parameter via rmp_serde (SerializedBytes).
-    // rmp_serde encodes Vec<u8> using serialize_bytes → msgpack BIN format (not a
-    // fixarray of fixints). The JS issuer tool must therefore sign the msgpack-bin-
-    // encoded key, e.g. encode(Buffer.from(agentPubKey)) with a msgpack library
-    // that treats Buffer/Uint8Array as bytes — NOT encode(Array.from(agentPubKey)),
-    // which would produce a fixarray and fail verification.
-    let joining_agent = agent_info()?.agent_initial_pubkey;
-    let raw_bytes: Vec<u8> = joining_agent.get_raw_39().to_vec();
-    let valid = verify_signature(issuer_key, signature, raw_bytes)?;
-
+    let signature = Signature::from(cert.signature);
+    let valid = verify_signature(issuer_key, signature, signed_data)?;
     if !valid {
         return Err(ValiChordError::Guest(
             "Membrane proof signature is invalid — not signed by the authorized issuer".into(),
@@ -616,7 +611,63 @@ fn reject_if_warranted(agent: &AgentPubKey) -> ExternResult<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Validator self-assignment
+// Validator self-assignment (current model)
+// ---------------------------------------------------------------------------
+//
+// Current design: pull-based, human-initiated.
+//   Validators browse `get_pending_requests_for_discipline` and voluntarily
+//   call `claim_study` to self-assign.  Conflict-of-interest checks (shared
+//   institution with the researcher) are enforced by `validate()` at the
+//   network layer; capacity limits are enforced here in the coordinator.
+//
+// ---------------------------------------------------------------------------
+// FUTURE DESIGN DIRECTION — AI validator pool with random selection
+// ---------------------------------------------------------------------------
+//
+// When AI validators become the primary validation path, the pull model above
+// would be replaced (or supplemented) by a push-based pool-draw:
+//
+//   1. Volunteer nodes join the pool.
+//      Any operator downloads the ValiChord validator installer — a bundled
+//      package that includes the Holochain conductor, a pre-configured AI
+//      analysis pipeline, and this hApp.  On startup the node registers via
+//      a membrane proof (issued automatically by the onboarding service) with
+//      `validator_type = AI` and an issuer-granted `CertificationTier`.  No
+//      institutional affiliation is required — independence comes from pool
+//      diversity rather than credentialing.
+//
+//   2. Studies trigger a pool draw.
+//      When a researcher submits a `ValidationRequest`, the protocol randomly
+//      selects `num_validators_required` AI nodes from the live pool instead
+//      of waiting for volunteers to claim.  "Live" means the node's profile
+//      is present on the DHT and no recent warrant has been issued against it.
+//      Randomness must be derived from a seed that no single party controls
+//      (e.g. the request's data_hash XOR a VDF output, or a commit-reveal
+//      scheme among a small quorum of seed contributors).
+//
+//   3. Selected nodes receive a remote signal.
+//      The requesting conductor sends a `recv_remote_signal` to each selected
+//      node's cell, carrying the `request_ref`.  The AI pipeline wakes, fetches
+//      the deposit, runs analysis, seals its private attestation, and calls
+//      `notify_commitment_sealed` — all without human interaction.
+//
+//   4. Independence guarantee.
+//      Because volunteers are anonymous, geographically distributed, and
+//      randomly drawn per round, no single actor can bias the validator set.
+//      The AI does the computational work; the volunteer provides the
+//      independent execution environment.  Institutional diversity (the
+//      current basis for COI checks) is replaced by operational diversity
+//      across the volunteer pool.
+//
+// Implementation prerequisites before this can replace the current model:
+//   - A "live pool" index (e.g. a DHT path updated by periodic heartbeat links,
+//     with stale entries pruned by `reclaim_abandoned_claim`-style timeout logic).
+//   - A provably fair on-chain randomness scheme for the pool draw.
+//   - The ValiChord installer bundling the AI pipeline alongside the conductor.
+//   - Revision of the COI validation rule in `attestation_integrity` to skip
+//     institution checks for `validator_type = AI` profiles.
+//
+// Until these prerequisites are met, the pull model below remains in use.
 // ---------------------------------------------------------------------------
 
 /// Claim a study from the pending queue.

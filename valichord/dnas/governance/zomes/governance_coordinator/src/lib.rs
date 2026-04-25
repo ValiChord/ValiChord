@@ -6,7 +6,7 @@ use governance_integrity::{
 };
 use valichord_shared_types::{
     AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation,
-    ValidatorAgentType, derive_agreement_level, derive_majority_outcome, discipline_tag,
+    ValidatorAgentType, ValidatorType, derive_agreement_level, derive_majority_outcome, discipline_tag,
 };
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,17 @@ pub struct ReputationUpdateInput {
     pub discipline:          Discipline,
     pub outcome:             AttestationOutcome,
     pub time_invested_secs:  u64,
+    /// `Human` → round-based tier progression (default).
+    /// `AI`    → issuer-granted tier only; `initial_tier` sets the tier on the first call.
+    /// `#[serde(default)]` allows callers written before this field was added to omit it
+    /// (treated as Human — preserves existing behaviour).
+    #[serde(default)]
+    pub validator_type:      ValidatorType,
+    /// Only used on the first call for an AI validator (when no reputation record exists).
+    /// Ignored for Human validators and for AI validators who already have a record.
+    /// `None` defaults to `Provisional` if no existing record is found.
+    #[serde(default)]
+    pub initial_tier:        Option<CertificationTier>,
 }
 
 // ---------------------------------------------------------------------------
@@ -383,12 +394,13 @@ fn write_harmony_record(
     let qualified = compute_qualified_counts(&participating_validators)?;
 
     // Write HarmonyRecord entry and indexes.
+    // Clone validator_types before moving into the record so the rep update loop can use it.
     let record = HarmonyRecord {
         request_ref: request_ref.clone(),
         outcome,
         agreement_level,
         participating_validators: participating_validators.clone(),
-        validator_types,
+        validator_types: validator_types.clone(),
         validation_duration_secs,
         discipline,                 // moved — no clone
     };
@@ -434,12 +446,23 @@ fn write_harmony_record(
         // Use participating_validators + attestations (both sorted from pairs) so the
         // validator key and their assessment data are always aligned after the sort.
         // attestation_records is in original gossip order and would mismatch after sort.
-        for (validator, attestation) in participating_validators.iter().zip(attestations.iter()) {
+        // validator_types[i] is parallel to participating_validators[i] (same sort order).
+        for ((validator, attestation), vtype_opt) in participating_validators.iter()
+            .zip(attestations.iter())
+            .zip(validator_types.iter())
+        {
+            let vt = match vtype_opt {
+                Some(ValidatorAgentType::AutomatedTool) => ValidatorType::AI,
+                _ => ValidatorType::Human,
+            };
             let _ = _update_reputation_internal(
                 validator.clone(),
                 attestation.discipline.clone(),
                 attestation.outcome.clone(),
                 attestation.time_invested_secs,
+                vt,
+                None, // initial_tier not available from round context; AI validators should
+                      // already have an issuer-created record before participating in rounds
             );
         }
     }
@@ -476,6 +499,8 @@ pub fn update_validator_reputation(
         input.discipline,
         input.outcome,
         input.time_invested_secs,
+        input.validator_type,
+        input.initial_tier,
     )
 }
 
@@ -775,6 +800,10 @@ fn evaluate_badge(agreement: &AgreementLevel, q: &QualifiedCounts) -> Option<Bad
 /// Internal reputation update — creates a new ValidatorReputation entry that
 /// supersedes the previous one (links accumulate; highest count wins).
 ///
+/// AI validators bypass round-based progression entirely: if a reputation record
+/// already exists, its hash is returned unchanged; if none exists, an initial
+/// record is created with `initial_tier` (defaulting to Provisional).
+///
 /// The link tag encodes `total_validations` as 8 big-endian bytes so that
 /// `get_validator_reputation` can find the correct record by max-tag rather
 /// than relying on gossip-ordering (.last()), which is non-deterministic
@@ -784,8 +813,44 @@ fn _update_reputation_internal(
     discipline: Discipline,
     outcome: AttestationOutcome,
     time_invested_secs: u64,
+    validator_type: ValidatorType,
+    initial_tier: Option<CertificationTier>,
 ) -> ExternResult<ActionHash> {
-    // Fetch existing reputation if any, using max-tag for correctness.
+    // AI validators use issuer-granted tier only — no round-based progression.
+    if validator_type == ValidatorType::AI {
+        let links = get_links(
+            LinkQuery::try_new(validator.clone(), LinkTypes::ValidatorToReputation)?,
+            GetStrategy::Network,
+        )?;
+        if let Some(link) = links.iter().max_by_key(|l| reputation_link_count(l)) {
+            // Existing record — return its hash; tier is frozen.
+            return link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                    "Invalid ValidatorToReputation link target".into()
+                )));
+        }
+        // No record yet — create the initial reputation with the issuer-granted tier.
+        let tier = initial_tier.unwrap_or(CertificationTier::Provisional);
+        let rep = ValidatorReputation {
+            validator: validator.clone(),
+            discipline,
+            total_validations:      0,
+            successful_validations: 0,
+            agreement_rate:         0.0,
+            avg_time_secs:          0,
+            tier,
+            person_key: None,
+        };
+        let rep_hash = create_entry(EntryTypes::ValidatorReputation(rep))?;
+        let tag = LinkTag::new(0u64.to_be_bytes().to_vec());
+        create_link(validator, rep_hash.clone(), LinkTypes::ValidatorToReputation, tag)?;
+        return Ok(rep_hash);
+    }
+
+    // Human validators: fetch existing reputation if any, using max-tag for correctness.
     let links = get_links(
         LinkQuery::try_new(validator.clone(), LinkTypes::ValidatorToReputation)?,
         GetStrategy::Network,
@@ -870,11 +935,12 @@ fn initial_rate(outcome: &AttestationOutcome) -> f64 {
 }
 
 fn cert_tier(total: u32, rate: f64) -> CertificationTier {
-    if total >= 50 && rate >= 0.80 {
+    // Placeholder thresholds — to be calibrated with real-world data.
+    if total >= 25 && rate >= 0.80 {
         CertificationTier::Certified
-    } else if total >= 20 && rate >= 0.60 {
+    } else if total >= 10 && rate >= 0.60 {
         CertificationTier::Advanced
-    } else if total >= 5 {
+    } else if total >= 3 {
         CertificationTier::Standard
     } else {
         CertificationTier::Provisional
