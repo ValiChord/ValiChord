@@ -900,8 +900,17 @@ fn cert_tier(total: u32, rate: f64) -> CertificationTier {
 /// Holochain drops the schedule automatically — the conductor log will show the
 /// reason.
 #[hdk_extern(infallible)]
-fn sweep_timed_out_rounds(_: Option<Schedule>) -> Option<Schedule> {
+fn sweep_timed_out_rounds(schedule: Option<Schedule>) -> Option<Schedule> {
     let hourly = Some(Schedule::Persisted("0 0 * * * * *".into()));
+
+    // Seed invocation (called from init() with None) — return the schedule
+    // without doing any work.  The first real sweep runs on the next hourly tick.
+    // Without this guard the seed fires immediately after init(), while the
+    // calling agent's local DHT already holds their attestation, and the sweep
+    // can write the HarmonyRecord before a direct force_finalize_round call.
+    if schedule.is_none() {
+        return hourly;
+    }
 
     // Step 1: query attestation for each known named discipline.
     //

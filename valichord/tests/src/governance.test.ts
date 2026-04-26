@@ -1302,6 +1302,15 @@ describe("11. force_finalize_round", () => {
         const attDnaHash = dnaHashForRole(alice, "attestation");
         const dataHash = fakeExternalHash(0x7c);
 
+        // Seed governance init() before any attestations exist.
+        // schedule("sweep_timed_out_rounds") in init() triggers an immediate seed
+        // invocation of the scheduled function.  If init() fires after the
+        // attestation is on the DHT, the sweeper writes the HarmonyRecord first
+        // and the direct force_finalize_round call below returns null (idempotency).
+        // Calling any governance read here triggers init() while the DHT is empty,
+        // so the seed runs as a no-op.
+        await gov(alice, "get_harmony_record", fakeExternalHash(0x00));
+
         await att(alice, "submit_validation_request",
           makeValidationRequest({ data_hash: dataHash }));
         // Let Bob see the ValidationRequest before he commits — the coordinator
