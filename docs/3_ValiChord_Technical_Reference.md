@@ -2344,6 +2344,82 @@ pub fn submit_verdict(input: AttestationRevealInput) -> ExternResult<ActionHash>
 
 ---
 
+## Frontend — `valichord-ui`
+
+**Status: Complete (v0.4.2, April 2026).** A Svelte 5 + TypeScript single-page application that connects directly to a running Holochain conductor via `AppWebsocket` over WebSocket — no intermediary server required.
+
+### Tech Stack
+
+| Component | Choice |
+|---|---|
+| Framework | Svelte 5 (TypeScript, Vite) |
+| Holochain client | `@holochain/client` v0.20.4-rc.0 |
+| Entry point | `valichord-ui/src/App.svelte` |
+| Type definitions | `valichord-ui/src/lib/types.ts` — TypeScript mirrors of all Rust types |
+| Conductor bridge | `valichord-ui/src/lib/holochain.ts` — singleton `AppWebsocket` wrapper |
+| State | `valichord-ui/src/lib/store.ts` — Svelte stores |
+
+### Port Detection
+
+The app resolves the conductor's WebSocket port from three sources in priority order:
+1. `window.location.hash` — Holochain Launcher injects `#APP_PORT=PORT` at startup
+2. `VITE_HC_PORT` build-time env var — set in `.env` for local development
+3. `AppWebsocket` default — falls back to Launcher's well-known port
+
+`AppWebsocket.connect()` requires the `url` option to be a `URL` object, not a plain string: `{ url: new URL("ws://localhost:PORT") }`.
+
+### Role Detection
+
+On connect, `get_validator_profile(myPubKey)` is called on the `attestation` zome. If a `ValidatorProfile` is returned, the active tab defaults to **Validator**. Otherwise it defaults to **Researcher**. Users can switch freely between all three tabs.
+
+### Signal Handling
+
+`RevealOpen` signals arrive as `{ RevealOpen: { request_ref: Uint8Array } }` (external-tag serde — the `Signal` enum in `attestation_coordinator` has no `#[serde(tag)]` attribute). The global listener in `App.svelte` calls `addPendingReveal(request_ref)` which the `ValidatorView` consumes to surface the reveal workflow.
+
+### Three Views
+
+**ResearcherView** (`src/lib/ResearcherView.svelte`):
+1. Submit `ValidationRequest` — data hash (hex), access URL, deposit access type, discipline, institution, validation tier, number of validators required
+2. Lock result metrics before validators finish — `lock_researcher_result({ request_ref, metrics })` on the `researcher_repository` DNA + `publish_researcher_commitment` on the `attestation` DNA
+3. Reveal when prompted — `get_locked_result(request_ref)` (returns stored nonce) → `reveal_researcher_result({ request_ref, metrics, nonce })` on the `attestation` DNA
+
+**ValidatorView** (`src/lib/ValidatorView.svelte`) — five-screen workflow:
+1. **Dashboard** — profile status, pending reveal badge from `RevealOpen` signals
+2. **Setup profile** — `publish_validator_profile` (institution, disciplines, certification tier, availability)
+3. **Browse open requests** — `get_pending_requests_for_discipline` filtered by validator's disciplines; lists all claimable studies
+4. **Attest (commit)** — after `claim_study` on DNA 3, UI calls `receive_task` on DNA 2 to create a `ValidationTask` and obtain `task_hash`; full attestation form; on submit calls `seal_private_attestation({ task_hash, attestation })` on DNA 2 — nonce is generated internally and never passed by the UI; `post_commit` fires `notify_commitment_sealed` automatically
+5. **Reveal** — triggered by `RevealOpen` signal or manual check; `get_private_attestation_for_task` retrieves the sealed nonce; `submit_attestation({ attestation, nonce })` publishes to DNA 3
+
+**GovernanceView** (`src/lib/GovernanceView.svelte`) — read-only analytics:
+- Browse `HarmonyRecord` entries by discipline via `get_harmony_records_for_discipline`
+- Inferred badge (Gold/Silver/Bronze/Failed) from outcome agreement counts — matches the badge threshold logic in the governance DNA
+- Validator type breakdown per round (`ValidatorAgentType` from `HarmonyRecord.validator_types`)
+- Advanced: `force_finalize_round` panel (collapsed amber `<details>` block) — accepts hex `request_ref`, calls `force_finalize_round` on the governance DNA for stuck rounds
+
+### Serialisation Rules — TypeScript ↔ Rust
+
+All types in `types.ts` mirror the Rust serde encoding exactly:
+
+| Type | Serde strategy | TypeScript encoding |
+|---|---|---|
+| `Discipline`, `AttestationOutcome`, `DeviationType` | adjacent-tag (`#[serde(tag="type", content="content")]`) | unit → `{ type: "Reproduced" }`, struct → `{ type: "PartiallyReproduced", content: { details: "..." } }` |
+| `ValidatorAgentType`, `CertificationTier`, `ValidationTier`, `AttestationConfidence`, `AgreementLevel`, `ValidationFocus` | plain string (no tag) | `"Individual"`, `"Gold"`, `"Basic"`, etc. |
+| `CompensationTier` | external-tag (default serde, no attributes) | `{ Tier1: { amount_pence: 5000 } }` |
+| `ExternalHash` | `Uint8Array` (39 bytes) | construct via `hashFrom32AndType(core32, HoloHashType.External)` — DHT location bytes must be a valid blake2b checksum; never use raw `new Uint8Array(39)` |
+
+### Running the Frontend
+
+```bash
+cd valichord-ui
+cp .env.example .env           # set VITE_HC_PORT to your conductor's app port
+npm install
+npm run dev                    # opens http://localhost:5173
+```
+
+Requires a running Holochain conductor with the `valichord.happ` installed. See `valichord-ui/FRONTEND.md` for the full UX walkthrough.
+
+---
+
 ## What This Document Does and Doesn't Claim
 
 **It does claim:**

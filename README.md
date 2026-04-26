@@ -109,6 +109,17 @@ valichord/
 │   ├── security.test.ts             — 9 tests
 │   └── validator_workspace.test.ts   — 7 tests
 └── happ.yaml               — all four DNA roles bundled
+
+valichord-ui/               — Svelte 5 + TypeScript browser UI
+├── src/
+│   ├── App.svelte          — shell, port detection, signal handling
+│   ├── lib/holochain.ts    — AppWebsocket singleton + callZome wrapper
+│   ├── lib/types.ts        — TypeScript mirrors of all Rust types
+│   ├── lib/store.ts        — Svelte stores
+│   ├── lib/ResearcherView.svelte
+│   ├── lib/ValidatorView.svelte
+│   └── lib/GovernanceView.svelte
+└── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
 **158 integration tests passing across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped.** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
@@ -312,10 +323,12 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Resource | Link |
 | :--- | :--- |
 | Codebase (Rust / Holochain) | [`valichord/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord) |
+| Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord-ui) |
+| Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
-| Technical Reference v27 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
+| Technical Reference v29 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
 | Deployment Checklist | [`docs/DEPLOYMENT_CHECKLIST.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) |
 | Engineer Handover | [`docs/13_Valichord_Engineer_Handover.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/13_Valichord_Engineer_Handover.md) |
 
@@ -350,7 +363,7 @@ npm test
 
 > **Running the demo:** See [`demo/DECENTRALISED_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md) for full instructions.
 
-> **Note:** There is no end-user UI yet — that is Phase 1. The current interface is a developer demo and integration endpoint. If you are a Holochain engineer interested in contributing, please get in touch: [topeuph@gmail.com](mailto:topeuph@gmail.com)
+> **Browser UI:** A Svelte 5 + TypeScript UI (`valichord-ui/`) is now complete. See [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) for the UX walkthrough and setup guide. Requires a running Holochain conductor with the `.happ` installed.
 
 ---
 
@@ -359,7 +372,7 @@ npm test
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
-| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Infrastructure and integration layer complete — awaiting Phase 0 funding** |
+| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment awaiting Phase 0 funding.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
 ---

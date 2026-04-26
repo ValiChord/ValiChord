@@ -157,6 +157,46 @@ Write access is decentralised: `HarmonyRecord`, `ReproducibilityBadge`, and `Val
 
 ---
 
+### Frontend — `valichord-ui`
+**Status: Complete (v0.4.2, April 2026)**
+
+Svelte 5 + TypeScript SPA. Connects directly to the running conductor via `AppWebsocket`. No intermediary server.
+
+**Entry points:**
+- `src/App.svelte` — app shell, port detection, global `RevealOpen` signal subscription, role detection
+- `src/lib/holochain.ts` — singleton `AppWebsocket` wrapper; `callZome<T>(role, fnName, payload)` with role→zome name map
+- `src/lib/store.ts` — Svelte stores (`connectState`, `myPubKey`, `activeRole`, `myValidatorProfile`, `pendingReveals`)
+- `src/lib/types.ts` — TypeScript mirrors of all Rust types with correct serde encoding
+
+**Three views:**
+- `ResearcherView.svelte` — submit request, lock metrics, reveal
+- `ValidatorView.svelte` — dashboard, setup profile, browse studies, seal attestation, reveal
+- `GovernanceView.svelte` — browse HarmonyRecords, inferred badge display, force-finalize panel
+
+**Commit-reveal flow — validator path (critical: do not deviate):**
+1. `claim_study(request_ref)` on `attestation` DNA → `receive_task(ValidationTask)` on `validator_workspace` DNA to get `task_hash`
+2. Attestation form → `seal_private_attestation({ task_hash, attestation })` on `validator_workspace` DNA — nonce is generated internally; UI never supplies it
+3. `post_commit` in `validator_workspace` automatically fires `notify_commitment_sealed` to `attestation` DNA — **UI must NOT call this manually**
+4. `RevealOpen` signal → `get_private_attestation_for_task(task_hash)` on `validator_workspace` → extract `nonce` → `submit_attestation({ attestation, nonce })` on `attestation` DNA
+
+**Commit-reveal flow — researcher path:**
+1. `lock_researcher_result({ request_ref, metrics })` on `researcher_repository` DNA + `publish_researcher_commitment(...)` on `attestation` DNA — nonce generated internally
+2. `get_locked_result(request_ref)` on `researcher_repository` DNA retrieves the stored nonce → `reveal_researcher_result({ request_ref, metrics, nonce })` on `attestation` DNA
+
+**Port detection** — three-source priority: `window.location.hash` (`#APP_PORT=PORT`, Launcher injection) → `VITE_HC_PORT` env var → Launcher default. `AppWebsocket.connect()` requires `url: new URL(...)` (URL object, not string).
+
+**Signal encoding** — `Signal` enum in `attestation_coordinator` has no `#[serde(tag)]`, so external-tag serialisation applies: `{ RevealOpen: { request_ref: Uint8Array } }`.
+
+**To run:**
+```bash
+cd valichord-ui
+cp .env.example .env   # set VITE_HC_PORT
+npm install && npm run dev
+```
+See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen instructions.
+
+---
+
 ## What Is Stubbed
 
 These functions exist and compile but return placeholder values. They are designed to be filled in during Phase 1 without touching any other part of the system.
@@ -734,6 +774,10 @@ Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondomi
 | `backend/app.py` | Flask web entry point — REST API including /validate, /result, /health |
 | `backend/holochain_bridge.py` | Python → Holochain bridge wrapper (graceful degradation) |
 | `demo/serve.mjs` | Static server + WS proxy + internal Holochain bridge endpoints |
+| `valichord-ui/src/App.svelte` | Frontend shell — port detection, role detection, signal subscription |
+| `valichord-ui/src/lib/holochain.ts` | AppWebsocket singleton — callZome wrapper, role→zome name map |
+| `valichord-ui/src/lib/types.ts` | TypeScript mirrors of all Rust types (serde encoding preserved) |
+| `valichord-ui/FRONTEND.md` | UX walkthrough — screen-by-screen instructions for all three roles |
 | `docs/3_ValiChord_Technical_Reference.md` | Full architectural narrative — read before modifying architecture |
 | `docs/4_ValiChord_RUST_Scaffold.rs` | Single-file scaffold v12 — useful reference for overall structure |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Technical architecture document |
