@@ -9,6 +9,7 @@
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-158_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
+[![UI](https://img.shields.io/badge/UI-Svelte_5_%2B_TypeScript-ff3e00?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
 ---
@@ -33,6 +34,29 @@ python3 demo/ai_validator.py --mode decentralised
 ```
 
 **[Decentralised demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
+
+---
+
+## 🖥️ **New: Browser UI — Svelte 5 (v0.4.3, April 2026)**
+
+> **The full commit-reveal protocol now has a browser-based interface — no command line required.**
+
+`valichord-ui/` connects directly to a running Holochain conductor via WebSocket and exposes three role-based dashboards:
+
+| Role | What you can do |
+| :--- | :--- |
+| **Researcher** | Submit a validation request, lock result metrics before validators finish, reveal when the protocol opens |
+| **Validator** | Publish a profile, browse open studies, claim a study, submit a blind attestation, reveal when the phase opens |
+| **Governance** | Browse permanent Harmony Records by discipline, view inferred reproducibility badges, force-finalize stuck rounds |
+
+```bash
+cd valichord-ui
+cp .env.example .env   # set VITE_HC_PORT to your conductor's app port
+npm install && npm run dev
+# opens http://localhost:5173
+```
+
+**[Full UX walkthrough and setup guide →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)**
 
 ---
 
@@ -294,8 +318,14 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 | [4-DNA Architecture — Technical](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) | Full technical architecture document for engineers |
 | [4-DNA Architecture — Plain English](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7a_ValiChord_4-DNA_architecture_nontechnical.md) | Non-technical explanation of the four-membrane design |
 | [Eight-Layer Infrastructure](https://github.com/topeuph-ai/ValiChord/blob/main/docs/8_ValiChord_8_Layer_Infrastructure_and_Harmony_Records.md) | The full eight-layer conceptual architecture |
-| [Technical Reference v27](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
+| [Technical Reference v29](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) | Full architectural narrative and engineering reference |
 | [Architecture Scaffold v13 (Rust)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) | Single-file representation of the four-DNA architecture |
+
+### Frontend
+
+| Document | Description |
+| :--- | :--- |
+| [Frontend UX Guide](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) | Screen-by-screen walkthrough for researchers, validators, and governance observers; setup instructions |
 
 ### Integrations
 
