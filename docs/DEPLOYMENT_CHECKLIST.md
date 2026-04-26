@@ -36,6 +36,21 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 
 ---
 
+### `ai_validator_issuer`
+
+| Property | Value |
+|---|---|
+| Type | `String` (base64url-encoded `AgentPubKey`, `uhCAk...` format) |
+| Dev/test bypass | **Empty string `""`** — AI certificates fall back to `authorized_joining_certificate_issuer`; if that is also empty, the whole credential system is bypassed |
+| Production requirement | The `AgentPubKey` of the operator agent who signs AI-validator joining certificates. Leave empty to reuse the same issuer key for both human and AI validators (single-key mode). |
+| What breaks if wrong | Empty string with a non-empty `authorized_joining_certificate_issuer`: AI validators must present a certificate signed by the human issuer key — functionally correct but semantically wrong (operators are the trust anchor for AI validators, not institutions). Wrong key: AI validators cannot join. |
+
+**How to set:** Generate or reuse a keypair for your operator authority. Export the `AgentPubKey` as a `uhCAk...` string. Set it in `happ.yaml` under the `attestation` role `modifiers.ai_validator_issuer`. To use a single issuer key for both humans and AI validators, leave this field empty.
+
+**Trust model:** Human validators are vouched for by their institution (`authorized_joining_certificate_issuer`). AI validators are approved directly by the ValiChord operator (`ai_validator_issuer`). Keeping the keys separate lets you rotate them independently and audit which agent type a joining certificate covers.
+
+---
+
 ### `discipline`
 
 | Property | Value |
@@ -127,6 +142,7 @@ No security-sensitive DNA properties. This DNA is single-agent private (no DHT, 
 | DNA | Property | Dev/Test Value | Production Requirement |
 |---|---|---|---|
 | 3 — Attestation | `authorized_joining_certificate_issuer` | `""` (anyone joins) | Issuer `AgentPubKey` in `uhCAk...` format |
+| 3 — Attestation | `ai_validator_issuer` | `""` (falls back to human issuer) | Operator `AgentPubKey` for AI-validator certs; leave empty to reuse human issuer |
 | 3 — Attestation | `discipline` | any string | Canonical discipline slug |
 | 3 — Attestation | `minimum_validators` | `0` (no quorum floor) | `≥ 3` |
 | 3 — Attestation | `min_claim_timeout_secs` | `0` (no floor) | `≥ 259200` (72 h) |
