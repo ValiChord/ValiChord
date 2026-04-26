@@ -49,6 +49,8 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 
 **Trust model:** Human validators are vouched for by their institution (`authorized_joining_certificate_issuer`). AI validators are approved directly by the ValiChord operator (`ai_validator_issuer`). Keeping the keys separate lets you rotate them independently and audit which agent type a joining certificate covers.
 
+> **Decentralisation caveat:** A single operator holding `ai_validator_issuer` is a centralisation point in an otherwise peer-to-peer network. Any operator with the key can admit or deny AI validators unilaterally, and there is no on-DHT mechanism to challenge that decision. This is acceptable for Phase 0 / institutional deployments with a known operator, but is architecturally at odds with a fully decentralised network. Future directions worth considering: a multi-sig threshold over the key (M-of-N operators must co-sign a certificate), on-DHT vouching (existing high-tier human validators collectively endorse an AI agent), or DAO-style governance over the approved AI validator registry. None of these are implemented; the note is here so the tension is not forgotten.
+
 ---
 
 ### `discipline`
