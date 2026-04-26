@@ -21,6 +21,13 @@ pub struct DnaProperties {
     /// onboarding tooling that signs joining credentials.
     /// Empty string = dev/test bypass (membrane proof not verified).
     pub authorized_joining_certificate_issuer: String,
+    /// Base64url-encoded `AgentPubKey` of the operator who signs AI-validator
+    /// joining certificates.  AI validators don't have institutional affiliations,
+    /// so the ValiChord operator vouches for them directly.
+    /// Empty string = use `authorized_joining_certificate_issuer` for AI certs too
+    /// (single-key mode), or bypass entirely when that field is also empty.
+    #[serde(default)]
+    pub ai_validator_issuer: String,
     pub discipline: String,
     pub minimum_validators: u32,
     /// Minimum seconds that must elapse since a StudyClaim was created before

@@ -1307,12 +1307,15 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
 });
 
 // ---------------------------------------------------------------------------
-// 12. Badge thresholds — Silver (5 validators) and Gold (7 validators)
+// 12. Badge thresholds — Bronze, Silver and Gold
 // ---------------------------------------------------------------------------
 //
-// evaluate_badge() in governance_coordinator applies:
-//   GoldReproducible:   ExactMatch  AND validator_count >= 7
-//   SilverReproducible: ExactMatch | WithinTolerance  AND validator_count >= 5
+// evaluate_badge() in governance_coordinator applies raw-count thresholds,
+// mirroring badge_ceiling() in governance_integrity exactly:
+//   GoldReproducible:   ExactMatch                                AND count >= 7
+//   SilverReproducible: ExactMatch | WithinTolerance              AND count >= 5
+//   BronzeReproducible: ExactMatch | WithinTolerance | Directional AND count >= 3
+//   FailedReproduction: Divergent | UnableToAssess                AND count >= 3
 //
 // ExactMatch is derived when ≥90% of attestation outcomes are
 // Reproduced or PartiallyReproduced. All-Reproduced rounds always
@@ -1399,20 +1402,11 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
 
         // Submit a ValidationRequest so check_and_create_harmony_record can
         // resolve num_validators_required (N) via cross-DNA call.
-        // No separate dhtSync here — the VR propagates alongside the
-        // CommitmentAnchors in the single sync below, which is sufficient
-        // because check_and_create_harmony_record is only called after the
-        // attestation round completes.
         await zomeCall(alice, "submit_validation_request", makeValidationRequest({ data_hash: REQUEST_REF, num_validators_required: N }));
-        // Sync so all validators see Alice's VR before calling notify_commitment_sealed
-        // (which now requires the study.{request_ref} path to resolve the VR ActionHash).
+        // Sync so all validators see Alice's VR before calling notify_commitment_sealed.
         await dhtSync(validators, attDnaHash, 100, 120_000);
 
-        // All N validators post CommitmentAnchors. After the Nth call the
-        // coordinator's check_all_commitments_sealed_inner fires and writes
-        // the PhaseMarker — but for badge issuance only the anchors and
-        // public attestations matter. We do them in sequence to keep tests
-        // deterministic, then sync once.
+        // All N validators post CommitmentAnchors.
         for (const v of validators) {
           await zomeCall(v, "notify_commitment_sealed", commitInput(REQUEST_REF));
         }
@@ -1426,21 +1420,17 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         await dhtSync(validators, attDnaHash, 100, 120_000);
 
         // Alice (acting as governance coordinator) assembles the HarmonyRecord.
-        // check_and_create_harmony_record fetches attestations via cross-DNA
-        // call, derives ExactMatch agreement (5/5 = 100% success rate),
-        // and issues SilverReproducible (count=5, 5 >= 5, < 7).
+        // ExactMatch (5/5 = 100% Reproduced) + count=5 >= 5 → SilverReproducible.
         const harmonyHash = await govCall<Uint8Array | null>(
           alice, "check_and_create_harmony_record", REQUEST_REF,
         );
         expect(harmonyHash).not.toBeNull();
 
-        // Retrieve the issued badge.
         const badges = await govCall<any[]>(
           alice, "get_badges_for_study", REQUEST_REF,
         );
         expect(badges).toHaveLength(1);
 
-        // Decode entry bytes to verify badge_type.
         // ReproducibilityBadge.badge_type serialises as a plain string
         // (BadgeType enum has no serde tag → external tag → unit variant = string).
         const entry = (badges[0] as any).entry;

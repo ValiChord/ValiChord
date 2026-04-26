@@ -7,7 +7,7 @@ use attestation_integrity::{
     StudyClaim, StudyClaimRelease, ValidatorAgentType, ValidatorProfile, ValidationRequest,
 };
 use valichord_shared_types::{
-    Discipline, JoiningCertificate, ValidationAttestation, ValidationPhase,
+    Discipline, JoiningCertificate, ValidatorType, ValidationAttestation, ValidationPhase,
     ValiChordError, ValiChordResult, discipline_tag, metric_results_msgpack_bytes,
 };
 use sha2::{Digest, Sha256};
@@ -75,24 +75,14 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
 fn verify_membrane_proof() -> ValiChordResult<()> {
     let props = DnaProperties::try_from_dna_properties()?;
 
-    // Empty string = dev/test bypass: skip crypto verification.
+    // Dev/test bypass: when the human issuer key is empty the whole credential
+    // system is inactive (ai_validator_issuer is also irrelevant).
     if props.authorized_joining_certificate_issuer.is_empty() {
         return Ok(());
     }
 
-    // Parse the issuer's AgentPubKey from the base64url string in DNA properties.
-    let issuer_b64 = props
-        .authorized_joining_certificate_issuer
-        .parse::<HoloHashB64<hash_type::Agent>>()
-        .map_err(|_| ValiChordError::Guest(
-            "authorized_joining_certificate_issuer is not a valid AgentPubKey".into(),
-        ))?;
-    let issuer_key = AgentPubKey::from(issuer_b64);
-
     // Find the AgentValidationPkg action on our own source chain (genesis action 2).
     let records = query(ChainQueryFilter::new())?;
-    // Use Option<Option<MembraneProof>>: outer None = AVP not found;
-    // inner None = AVP found but membrane_proof field is absent.
     let mut avp_result: Option<Option<MembraneProof>> = None;
     for record in &records {
         if let Action::AgentValidationPkg(avp) = record.action() {
@@ -104,16 +94,30 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
         .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?
         .ok_or_else(|| ValiChordError::Guest("Attestation DNA requires a membrane proof".into()))?;
 
-    // Decode as a JoiningCertificate (supports legacy 64-byte format and the extended
-    // format that carries validator_type and initial_tier for AI validators).
+    // Decode the JoiningCertificate to determine validator_type before choosing
+    // which issuer key to verify against.
     let cert = JoiningCertificate::from_proof_bytes(proof.bytes())
         .map_err(|e| ValiChordError::Guest(format!("invalid joining certificate: {e}")))?;
 
+    // Route to the correct issuer key based on validator type:
+    //   Human → authorized_joining_certificate_issuer (institutional credential)
+    //   AI    → ai_validator_issuer if set, else fall back to the human issuer key
+    //           (single-key deployments can reuse one key for both paths).
+    let issuer_str = match cert.validator_type {
+        ValidatorType::AI if !props.ai_validator_issuer.is_empty() => {
+            props.ai_validator_issuer.clone()
+        }
+        _ => props.authorized_joining_certificate_issuer.clone(),
+    };
+    let issuer_key = AgentPubKey::from(
+        issuer_str
+            .parse::<HoloHashB64<hash_type::Agent>>()
+            .map_err(|_| ValiChordError::Guest(
+                "issuer key in DNA properties is not a valid AgentPubKey".into(),
+            ))?,
+    );
+
     // Signed payload = agent raw pubkey bytes (39) || proof meta bytes (if present).
-    // Legacy proofs (len == 64) sign the pubkey only — same as before.
-    // Extended proofs sign pubkey || msgpack({ validator_type, initial_tier }).
-    // verify_signature serialises the payload via rmp_serde (SerializedBytes → msgpack BIN).
-    // The JS issuer tool must use the same encoding: sign msgpack_bin(payload_bytes).
     let joining_agent = agent_info()?.agent_initial_pubkey;
     let mut signed_data: Vec<u8> = joining_agent.get_raw_39().to_vec();
     if proof.bytes().len() > 64 {
@@ -121,8 +125,7 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
     }
 
     let signature = Signature::from(cert.signature);
-    let valid = verify_signature(issuer_key, signature, signed_data)?;
-    if !valid {
+    if !verify_signature(issuer_key, signature, signed_data)? {
         return Err(ValiChordError::Guest(
             "Membrane proof signature is invalid — not signed by the authorized issuer".into(),
         ));

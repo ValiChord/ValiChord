@@ -332,25 +332,34 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "Only validators who participated in the round may issue a badge".into(),
                 ));
             }
-            // Badge type must match what the agreement level + validator count warrant.
+            // Badge type must be consistent with agreement level + raw validator count.
+            // Two checks (integrity cannot access tier/reputation data):
+            //   1. Quorum: at least 3 validators must have participated.
+            //   2. Ceiling: badge tier must not exceed what raw count warrants.
+            //      The coordinator may issue Bronze when tier-qualified count is
+            //      below the Silver threshold — that is expected and valid.
             let validator_count = harmony_record.participating_validators.len();
-            match evaluate_badge_type(&harmony_record.agreement_level, validator_count) {
-                Some(ref expected)
-                    if std::mem::discriminant(expected)
-                        != std::mem::discriminant(&badge.badge_type) =>
-                {
-                    return Ok(ValidateCallbackResult::Invalid(
-                        "ReproducibilityBadge.badge_type does not match the \
-                         HarmonyRecord's agreement_level and validator count".into(),
-                    ));
-                }
+            match badge_ceiling(&harmony_record.agreement_level, validator_count) {
                 None => {
                     return Ok(ValidateCallbackResult::Invalid(
                         "No badge may be issued for this HarmonyRecord — \
                          quorum not met for any badge tier".into(),
                     ));
                 }
-                _ => {}
+                Some(ref ceiling) => {
+                    if badge_is_reproduced(&badge.badge_type) != badge_is_reproduced(ceiling) {
+                        return Ok(ValidateCallbackResult::Invalid(
+                            "ReproducibilityBadge.badge_type direction does not match \
+                             the HarmonyRecord's agreement_level".into(),
+                        ));
+                    }
+                    if badge_tier_rank(&badge.badge_type) > badge_tier_rank(ceiling) {
+                        return Ok(ValidateCallbackResult::Invalid(
+                            "ReproducibilityBadge.badge_type exceeds the ceiling \
+                             permitted by raw validator count and agreement level".into(),
+                        ));
+                    }
+                }
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -498,7 +507,20 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 // Any change to tier thresholds MUST be applied to both functions identically.
 // ---------------------------------------------------------------------------
 
-fn evaluate_badge_type(
+/// Returns the MAXIMUM badge type the coordinator may issue for the given
+/// agreement level and raw (unfiltered) validator count.
+///
+/// The integrity zome cannot perform DHT reputation lookups, so it cannot
+/// enforce the tier-qualified thresholds that the coordinator applies
+/// (standard_plus >= 5 for Silver, advanced_plus >= 7 for Gold).
+/// Instead it enforces two network-verifiable constraints:
+///   1. Quorum: at least 3 validators participated.
+///   2. Ceiling: the issued badge tier must NOT exceed what raw count
+///      warrants — the coordinator may downgrade (Bronze when tier-qualified
+///      count is too low for Silver) but may never inflate above the ceiling.
+/// Direction consistency (Reproduced ↔ positive agreement) is checked
+/// separately by `badge_is_reproduced`.
+fn badge_ceiling(
     agreement: &AgreementLevel,
     validator_count: usize,
 ) -> Option<BadgeType> {
@@ -524,6 +546,22 @@ fn evaluate_badge_type(
             Some(BadgeType::FailedReproduction)
         }
         _ => None,
+    }
+}
+
+fn badge_is_reproduced(bt: &BadgeType) -> bool {
+    !matches!(bt, BadgeType::FailedReproduction)
+}
+
+/// Rank within the Reproduced track: Bronze=1, Silver=2, Gold=3.
+/// FailedReproduction is on a separate track and returns 0 (unused for
+/// cross-track comparisons since direction is checked first).
+fn badge_tier_rank(bt: &BadgeType) -> u8 {
+    match bt {
+        BadgeType::BronzeReproducible => 1,
+        BadgeType::SilverReproducible => 2,
+        BadgeType::GoldReproducible   => 3,
+        BadgeType::FailedReproduction => 0,
     }
 }
 
