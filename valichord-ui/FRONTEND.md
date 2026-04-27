@@ -1,6 +1,6 @@
 # ValiChord UI — Frontend Guide
 
-**Version:** 0.4.2 — April 2026  
+**Version:** 0.4.3 — April 2026  
 **Stack:** Svelte 5 + TypeScript + Vite  
 **Connects to:** Holochain conductor (local or Launcher) via WebSocket
 
@@ -11,36 +11,47 @@
 ### Prerequisites
 
 - Node.js 18+
-- A running Holochain conductor with `valichord.happ` installed
-  - Build the hApp: see `valichord/tests/README.md`
-  - Or launch via Holochain Launcher
+- Holochain CLI on your PATH — `cargo install holochain_cli --locked`
+- `valichord/workdir/valichord.happ` built (see `valichord/tests/README.md`)
 
-### Install and run
+### Local dev — two terminals
+
+**Terminal 1: start the conductor**
 
 ```bash
 cd valichord-ui
-cp .env.example .env      # edit VITE_HC_PORT to match your conductor's app port
-npm install
-npm run dev               # dev server at http://localhost:5173
+npm install          # first time only
+bash dev.sh
 ```
 
-### Port detection
+`dev.sh` starts a single-agent conductor (admin on `:4444`), installs the hApp with dev-mode bypass, and writes an auth token + per-cell signing credentials to `.env.local`. Wait for the line:
 
-The app resolves the conductor WebSocket port in priority order:
+```
+Token + signing credentials written to …/valichord-ui/.env.local
+```
 
-1. `window.location.hash` — Holochain Launcher injects `#APP_PORT=PORT` automatically
-2. `VITE_HC_PORT` env var — set in `.env` for local development
-3. `AppWebsocket` default — Launcher's well-known port
+**Terminal 2: start the UI**
 
-For a local conductor not managed by Launcher, set `VITE_HC_PORT=8888` (or whatever port your conductor is using) in `.env`.
+```bash
+cd valichord-ui
+npm run dev
+```
 
-### Build for production
+Open **http://localhost:5173**.
+
+The conductor is wiped and recreated on every `dev.sh` run (fresh agent identity). To reuse the same identity across restarts you would need to persist `/tmp/valichord-dev-data` — not necessary for dev.
+
+### Holochain Launcher
+
+When running inside Holochain Launcher, no `.env` file is needed. Launcher injects the app port and auth token via the URL hash automatically. `holochain.ts` reads them from `window.location.hash` first.
+
+### Build
 
 ```bash
 npm run build   # outputs to dist/
 ```
 
-The built `dist/` folder is a static site that can be bundled into a `.webhapp` for Holochain Launcher packaging.
+The `dist/` folder is a static site that can be bundled into a `.webhapp` for Launcher packaging.
 
 ---
 

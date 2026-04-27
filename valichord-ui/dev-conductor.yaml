@@ -1,0 +1,21 @@
+# Local dev conductor — single agent, in-process lair (no separate lair-keystore).
+# Admin WebSocket: ws://localhost:4444  (used by dev-setup.mjs)
+# App   WebSocket: ws://localhost:8888  (attached by dev-setup.mjs, used by Vite UI)
+#
+# Started by dev.sh. Data lives in /tmp/valichord-dev-data (wiped each run).
+data_root_path: /tmp/valichord-dev-data
+keystore:
+  type: lair_server_in_proc
+  lair_root: /tmp/valichord-dev-data/ks
+admin_interfaces:
+  - driver:
+      type: websocket
+      port: 4444
+      allowed_origins: '*'
+network:
+  bootstrap_url: https://dev-test-bootstrap2.holochain.org/
+  signal_url: wss://dev-test-bootstrap2.holochain.org/
+  advanced:
+    tx5Transport:
+      signalAllowPlainText: true
+db_sync_strategy: Resilient

@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
 **Last updated:** 2026-04-27
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend scaffolded. v0.4.3.
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.3.
 
 ---
 
@@ -28,7 +28,7 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
 | HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
-| valichord-ui (Svelte/TS frontend) | **Scaffolded** | Full UI for all three roles (researcher, validator, governance). `valichord-ui/src/lib/` — ResearcherView, ValidatorView, GovernanceView. Not yet wired to a live conductor. See `valichord-ui/FRONTEND.md`. |
+| valichord-ui (Svelte/TS frontend) | **Working end-to-end** | Full UI for all three roles (researcher, validator, governance). Wired to a live local conductor: `bash dev.sh` starts conductor + installs app + writes auth token; `npm run dev` serves at `:5173`. `submit_validation_request` → DHT → `get_validation_request_for_data_hash` verified. See `valichord-ui/README.md` and `FRONTEND.md`. |
 
 ---
 
@@ -75,6 +75,22 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### valichord-ui wired to live conductor — 2026-04-27 ✓
+Full browser UI connected to a real Holochain conductor for the first time.
+
+**What was built:**
+- `dev.sh` — start script: launches conductor via `dev-conductor.yaml` (in-process lair, admin `:4444`), then runs `dev-setup.mjs`
+- `dev-setup.mjs` — Node.js bootstrap: installs hApp with membrane-proof bypass (`0x42×64` + `authorized_joining_certificate_issuer: ''`), enables app, attaches app interface on `:8888`, issues no-expiry auth token, calls `admin.authorizeSigningCredentials()` for all 4 cells, writes `VITE_HC_TOKEN` + `VITE_HC_SIGNING_CREDENTIALS` to `.env.local`
+- `holochain.ts` — reads `VITE_HC_TOKEN` (base64 → `number[]`) and `VITE_HC_SIGNING_CREDENTIALS` (base64 JSON) from Vite env; calls `setSigningCredentials` before `AppWebsocket.connect` (required by `@holochain/client` 0.20.x)
+- `types.ts` → `entryFromRecord` — now msgpack-decodes the raw entry bytes returned by `@holochain/client` 0.20.x (entry is not auto-decoded; must call `decode()` from `@msgpack/msgpack`)
+- Fixed two TypeScript narrowing errors in `GovernanceView.svelte` (Discipline union cast)
+
+**Verified:** `submit_validation_request` writes to attestation DHT; `get_validation_request_for_data_hash` reads back with all fields correctly decoded. Idempotency guard (duplicate data_hash rejection) working.
+
+**Not yet tested in a real browser:** the Node.js verification script uses the same code path as the UI. A human clicking through the form is the remaining manual step.
+
+---
+
 ### Reputation/certification system — 2026-04-24 ✓
 **4-tier `CertificationTier`**: `Provisional` → `Standard` (≥5 rounds) → `Advanced` (≥20 + rate ≥60%) → `Certified` (≥50 + rate ≥80%).
 **Badge thresholds**: use raw validator count (7/5/3/3) — tier-weighted thresholds were attempted but reverted (too complex for now; revisit post-Phase 1 when real validator tiers exist).
@@ -115,7 +131,7 @@ Source: https://github.com/holochain/ai-tools (branch: main)
 
 ### holochain/kangaroo-electron — future desktop packaging path
 Template for packaging ValiChord as a cross-platform Electron app. **Not started yet.**
-Pre-requisites before we can use it: (1) ~~browser UI for ValiChord~~ scaffolded (valichord-ui), (2) Holochain 0.6.1 upgrade, (3) dedicated bootstrap/signal/relay servers (`holochain/network-services` Pulumi repo).
+Pre-requisites before we can use it: (1) ~~browser UI for ValiChord~~ **done** (`valichord-ui/` wired end-to-end), (2) Holochain 0.6.1 upgrade, (3) dedicated bootstrap/signal/relay servers (`holochain/network-services` Pulumi repo).
 Branch to use: `main-0.6` (Holochain 0.6.x). Enables: validators install desktop app and run their own conductor.
 
 Source: https://github.com/holochain/kangaroo-electron (branch: main-0.6)

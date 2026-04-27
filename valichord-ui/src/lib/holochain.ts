@@ -6,6 +6,7 @@ import {
   type AppSignal,
   encodeHashToBase64,
   decodeHashFromBase64,
+  setSigningCredentials,
   type HoloHashB64,
   HoloHashType,
   hashFrom32AndType,
@@ -27,9 +28,63 @@ const ZOME_NAMES: Record<string, string> = {
 let _client: AppClient | null = null;
 let _signalHandlers: Array<(signal: AppSignal) => void> = [];
 
+function resolveToken(): number[] | undefined {
+  // Launcher injects token via URL hash; dev mode reads VITE_HC_TOKEN (base64)
+  const hash = window.location.hash.slice(1);
+  const params = new URLSearchParams(hash);
+  const hashToken = params.get("TOKEN");
+  if (hashToken) return Array.from(atob(hashToken), c => c.charCodeAt(0));
+  const envToken = import.meta.env.VITE_HC_TOKEN as string | undefined;
+  if (envToken) return Array.from(atob(envToken), c => c.charCodeAt(0));
+  return undefined;
+}
+
+// ── Dev-mode signing credentials ─────────────────────────────────────────────
+// In Launcher, signing credentials are injected automatically. For a raw
+// conductor (dev.sh), dev-setup.mjs pre-generates per-cell key pairs, grants
+// them via the admin API, and serializes them into VITE_HC_SIGNING_CREDENTIALS.
+// We register them here so callZome can sign requests without Launcher.
+
+interface DevCellCred {
+  dnaHash: string;
+  agentKey: string;
+  capSecret: string; // base64
+  signingKey: string;
+  pubKey: string;    // base64
+  privKey: string;   // base64
+}
+
+function loadDevSigningCredentials() {
+  const raw = import.meta.env.VITE_HC_SIGNING_CREDENTIALS as string | undefined;
+  if (!raw) return;
+  try {
+    const creds: DevCellCred[] = JSON.parse(atob(raw));
+    for (const c of creds) {
+      const cellId: [Uint8Array, Uint8Array] = [
+        decodeHashFromBase64(c.dnaHash as HoloHashB64),
+        decodeHashFromBase64(c.agentKey as HoloHashB64),
+      ];
+      setSigningCredentials(cellId, {
+        capSecret: Uint8Array.from(atob(c.capSecret), ch => ch.charCodeAt(0)),
+        signingKey: decodeHashFromBase64(c.signingKey as HoloHashB64),
+        keyPair: {
+          publicKey: Uint8Array.from(atob(c.pubKey), ch => ch.charCodeAt(0)),
+          privateKey: Uint8Array.from(atob(c.privKey), ch => ch.charCodeAt(0)),
+        },
+      });
+    }
+  } catch (e) {
+    console.warn("Failed to load dev signing credentials:", e);
+  }
+}
+
 export async function connect(url?: string): Promise<AppClient> {
   if (_client) return _client;
-  _client = await AppWebsocket.connect(url ? { url: new URL(url) } : undefined);
+  loadDevSigningCredentials();
+  const token = resolveToken();
+  _client = await AppWebsocket.connect(
+    url || token ? { url: url ? new URL(url) : undefined, token } : undefined,
+  );
   (_client as AppWebsocket).on("signal", (signal: Signal) => {
     if (signal.type === SignalType.App) {
       for (const h of _signalHandlers) h(signal.value);

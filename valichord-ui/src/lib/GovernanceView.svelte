@@ -36,7 +36,7 @@
         // No "get all" endpoint — iterate disciplines and merge
         const results: HolochainRecord<HarmonyRecord>[] = [];
         for (const d of DISCIPLINES.slice(1)) {
-          const disc: Discipline = { type: d.value as Discipline["type"] };
+          const disc = { type: d.value } as Discipline;
           const recs = await callZome<HolochainRecord<HarmonyRecord>[]>(
             "governance",
             "get_harmony_records_by_discipline",
@@ -55,7 +55,7 @@
           }),
         );
       } else {
-        const disc: Discipline = { type: filterDiscipline as Discipline["type"] };
+        const disc = { type: filterDiscipline } as Discipline;
         const recs = await callZome<HolochainRecord<HarmonyRecord>[]>(
           "governance",
           "get_harmony_records_by_discipline",

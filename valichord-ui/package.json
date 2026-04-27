@@ -19,6 +19,7 @@
     "vite": "^8.0.10"
   },
   "dependencies": {
-    "@holochain/client": "^0.20.4-rc.0"
+    "@holochain/client": "^0.20.4-rc.0",
+    "@msgpack/msgpack": "^3.1.3"
   }
 }

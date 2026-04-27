@@ -58,9 +58,11 @@ python3 demo/ai_validator.py --mode decentralised
 | **Governance** | Browse permanent Harmony Records by discipline, view inferred reproducibility badges, force-finalize stuck rounds |
 
 ```bash
-cd valichord-ui
-cp .env.example .env   # set VITE_HC_PORT to your conductor's app port
-npm install && npm run dev
+# Terminal 1 — start conductor + install app + write auth token
+cd valichord-ui && npm install && bash dev.sh
+
+# Terminal 2 — start dev server (once Terminal 1 prints "Token written")
+cd valichord-ui && npm run dev
 # opens http://localhost:5173
 ```
 
@@ -391,7 +393,7 @@ npm test
 
 > **Running the demo:** See [`demo/DECENTRALISED_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md) for full instructions.
 
-> **Browser UI:** A Svelte 5 + TypeScript UI (`valichord-ui/`) is now complete. See [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) for the UX walkthrough and setup guide. Requires a running Holochain conductor with the `.happ` installed.
+> **Browser UI:** A Svelte 5 + TypeScript UI (`valichord-ui/`) is complete and end-to-end tested against a live conductor. `bash dev.sh` starts a local conductor and writes the auth token; `npm run dev` serves the UI. See [`valichord-ui/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/README.md) for the quick start and [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) for the full UX walkthrough.
 
 ---
 

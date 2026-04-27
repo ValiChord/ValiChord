@@ -11,6 +11,7 @@
 //     DepositAccessType, ValidationPhase, ValidatorType
 
 import type { AgentPubKey, ActionHash } from "@holochain/client";
+import { decode as msgpackDecode } from "@msgpack/msgpack";
 
 export type ExternalHash = Uint8Array; // 39-byte HoloHash (External type)
 
@@ -297,8 +298,15 @@ export interface HolochainRecord<T> {
 }
 
 export function entryFromRecord<T>(record: HolochainRecord<T>): T | null {
-  if ("Present" in record.entry) return record.entry.Present.entry;
-  return null;
+  if (!("Present" in record.entry)) return null;
+  const raw = record.entry.Present.entry;
+  // @holochain/client 0.20.x returns the inner entry as raw msgpack bytes
+  // (Uint8Array / Buffer). Decode them to get the actual entry struct.
+  if (raw instanceof Uint8Array || (raw && typeof (raw as unknown as { data: unknown }).data === "object")) {
+    const bytes = raw instanceof Uint8Array ? raw : new Uint8Array((raw as unknown as { data: number[] }).data);
+    return msgpackDecode(bytes) as T;
+  }
+  return raw;
 }
 
 export function hashFromRecord<T>(record: HolochainRecord<T>): ActionHash {

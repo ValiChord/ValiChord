@@ -1,47 +1,115 @@
-# Svelte + TS + Vite
+# valichord-ui
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+Svelte 5 + TypeScript browser UI for the ValiChord reproducibility validation protocol.
 
-## Recommended IDE Setup
+Connects directly to a local Holochain conductor via WebSocket and exposes three role-based dashboards: **Researcher**, **Validator**, and **Governance**.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+For the full UX walkthrough, type mapping, and architecture notes see [FRONTEND.md](./FRONTEND.md).
 
-## Need an official Svelte framework?
+---
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+## Quick start (local dev)
 
-## Technical considerations
+### Prerequisites
 
-**Why use this over SvelteKit?**
+- Node.js 18+
+- Holochain CLI (`hc`) on your PATH — install via `cargo install holochain_cli --locked`
+- `valichord/workdir/valichord.happ` built (see `valichord/tests/README.md`)
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+### Terminal 1 — conductor
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+```bash
+cd valichord-ui
+npm install          # first time only
+bash dev.sh
+```
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+`dev.sh` does three things in sequence:
+1. Starts a single-agent Holochain conductor (admin on `:4444`, in-process lair)
+2. Installs `valichord.happ` with dev-mode bypass (no real credential check)
+3. Issues an auth token and per-cell signing credentials, writes them to `.env.local`
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+Wait for the line `Token + signing credentials written to …env.local` before continuing.
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+### Terminal 2 — UI
 
-**Why include `.vscode/extensions.json`?**
+```bash
+cd valichord-ui
+npm run dev
+```
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+Open **http://localhost:5173**.
 
-**Why enable `allowJs` in the TS template?**
+The UI connects to the conductor on `:8888`, reads the auth token and signing credentials from `.env.local` (injected by Vite at build time), and shows the Researcher dashboard.
 
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
+### Type-check
 
-**Why is HMR not preserving my local component state?**
+```bash
+npm run check
+```
 
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
+### Build for production / Launcher packaging
 
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+```bash
+npm run build   # outputs to dist/
+```
 
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+The `dist/` folder is a static site that can be bundled into a `.webhapp` for Holochain Launcher.
+
+---
+
+## Environment variables
+
+| Variable | Source | Purpose |
+|---|---|---|
+| `VITE_HC_PORT` | `.env.local` (written by `dev-setup.mjs`) | App WebSocket port (default 8888) |
+| `VITE_HC_TOKEN` | `.env.local` | Auth token (base64) for `AppWebsocket.connect` |
+| `VITE_HC_SIGNING_CREDENTIALS` | `.env.local` | Per-cell Ed25519 key pairs (base64 JSON) for zome call signing |
+
+All three are written automatically by `bash dev.sh`. Do not edit `.env.local` by hand.
+
+For Holochain Launcher, none of these are needed — Launcher injects the token and port via the URL hash automatically.
+
+---
+
+## How dev.sh works
+
+```
+dev.sh
+  └─ starts holochain --config-path dev-conductor.yaml --piped  (admin :4444)
+  └─ node dev-setup.mjs
+        ├─ waits for admin port to be ready
+        ├─ installs valichord.happ with membrane-proof bypass
+        │     attestation role:  membrane_proof=0x42×64, authorized_joining_certificate_issuer=''
+        │     governance role:   system_coordinator_key='', harmony_record_creator_key=''
+        ├─ enables the app
+        ├─ attaches app interface on :8888
+        ├─ issues a no-expiry reusable auth token
+        ├─ calls admin.authorizeSigningCredentials(cellId) for each of the 4 cells
+        └─ writes VITE_HC_PORT, VITE_HC_TOKEN, VITE_HC_SIGNING_CREDENTIALS to .env.local
+```
+
+Conductor data lives in `/tmp/valichord-dev-data` and is wiped each time `dev.sh` runs (fresh agent identity on every restart).
+
+---
+
+## Files
+
+```
+valichord-ui/
+├── dev.sh                  # start script (conductor + setup)
+├── dev-conductor.yaml      # conductor config (admin :4444, in-proc lair, /tmp data)
+├── dev-setup.mjs           # Node.js: install app, issue token, write .env.local
+├── .env.example            # template (committed); .env.local is gitignored
+├── src/
+│   ├── main.ts
+│   ├── App.svelte          # connection bootstrap, role detection, tab nav
+│   └── lib/
+│       ├── holochain.ts    # AppWebsocket singleton, callZome, token/creds loading
+│       ├── store.ts        # Svelte stores (connection state, role, notifications)
+│       ├── types.ts        # TypeScript mirrors of Rust types; entryFromRecord (msgpack decode)
+│       ├── ResearcherView.svelte
+│       ├── ValidatorView.svelte
+│       └── GovernanceView.svelte
+└── FRONTEND.md             # full UX walkthrough and architecture notes
 ```
