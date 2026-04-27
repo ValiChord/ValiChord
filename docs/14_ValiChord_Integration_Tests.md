@@ -2,9 +2,16 @@
   <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Valichord%20logo-standard%20v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
-# ValiChord — Tryorama Integration Tests
+# ValiChord — Integration Tests
 
-**Status: 87 pass, 1 skipped, 0 fail** (as of 2026-03-18)
+Two test suites cover the protocol end-to-end:
+
+- **Tryorama** (TypeScript/Node) — live conductor tests against a compiled `.happ` bundle. Status: **94 pass, 1 skipped, 0 fail** (as of 2026-03-25)
+- **Sweettest** (Rust/`cargo test`) — native HDK harness, faster, no bundle needed. Authoritative source: `valichord/sweettest_integration/tests/`
+
+---
+
+## Tryorama Integration Tests
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -86,7 +93,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (40 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (46 tests, 1 skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -115,7 +122,7 @@ cd tests && npm test
 | 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
 | 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS |
 | 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
-| 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
+| 13.1 | 3 validators all FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
 | 15.1 | two ComputationalBiology profiles published → both returned; MachineLearning returns 0 | PASS |
 | 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |
@@ -131,6 +138,15 @@ cd tests && npm test
 | 21.1 | reclaim_abandoned_claim returns false when claim is younger than timeout_secs | PASS |
 | 21.2 | returns true and frees the slot when timeout has elapsed; replacement can claim | PASS |
 | 21.3 | returns false when validator has already submitted an attestation | PASS |
+| 22.1 | happy path: link two agents and retrieve via get_linked_agents | PASS |
+| 22.2 | self-link is rejected | PASS |
+| 22.3 | bad signature is rejected | PASS |
+| 22.4 | either named agent can revoke; entry disappears from get_linked_agents | PASS |
+| 22.5 | third-party revocation is rejected | PASS |
+
+> ‡ **Phase threshold (11.1):** Passes on a clean Codespace. `dhtSync([alice, bob])` can time out at 40 s when the Codespace is under load. Clean up with `pkill -f holochain; pkill -f lair-keystore` before running.
+
+> † **Silver (12.2):** Passes on a clean Codespace. May fail with WebsocketClosedError when the Codespace is under heavy load (5 conductors). Clean up orphaned processes with `pkill -f kitsune2-bootstrap-srv; pkill -f holochain; pkill -f lair-keystore` before running.
 
 > ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
 > processes crash under load in resource-constrained environments (codespace /
@@ -162,6 +178,96 @@ cd tests && npm test
 | 10.3 | no delete function exists for ReproducibilityBadge in the coordinator API | PASS |
 | 11.1 | force_finalize_round returns null when round has not yet timed out (< 7 days old) | PASS |
 | 11.2 | force_finalize_round returns null when no attestations exist yet | PASS |
+
+### Security — `security.test.ts` (7 tests)
+
+| ID   | Test name | Status |
+|------|-----------|--------|
+| S1   | Duplicate attestation guard — second submit_attestation for the same study rejects | PASS |
+| S2   | Duplicate commitment guard — second notify_commitment_sealed for the same study rejects | PASS |
+| S3   | Researcher commitment idempotency — second publish_researcher_commitment for the same study rejects | PASS |
+| S4.1 | reclaim_abandoned_claim min_claim_timeout_secs floor — caller-supplied timeout below DNA floor is overridden — reclaim returns false | PASS |
+| S4.2 | when no DNA floor is set (0), caller-supplied timeout_secs=0 succeeds immediately | PASS |
+| S5   | force_finalize_round conservative abort on missing VR — returns null when no ValidationRequest exists for the request_ref | PASS |
+| S6   | reveal_researcher_result idempotency — second reveal for the same study rejects | PASS |
+
+---
+
+## Sweettest Integration Tests
+
+Rust-native tests using `hdk`'s `sweettest` harness. Run directly via `cargo test` — no Node, no Tryorama. Each test file mirrors one DNA. Authoritative source: `valichord/sweettest_integration/tests/`.
+
+### DNA 1 — `researcher_repository.rs` (10 tests)
+
+All entries are private (single-agent source chain only). No DHT sync needed.
+
+1. register_study + get_study
+2. register_protocol + get_protocol_for_study
+3. take_data_snapshot + get_snapshots_for_study
+4. declare_deviation + get_deviations_for_study
+5. compute_data_hash (SHA-256, deterministic, collision-resistant)
+6. PreRegisteredProtocol immutability — no delete function in API
+7. get_all_studies (empty + multi)
+8. lock_researcher_result + get_locked_result
+9. lock_researcher_result cross-DNA commitment publish
+10. get_locked_result returns None for unknown request_ref
+
+### DNA 2 — `validator_workspace.rs` (5 tests)
+
+All entries are private (single-agent source chain only). No DHT sync needed.
+
+1. receive_task + get_task
+2. seal_private_attestation + get_private_attestation_for_task
+3. get_all_tasks (empty + multi)
+4. get_all_private_attestations — empty + multi
+5. ValidatorPrivateAttestation immutability — no delete function in API
+
+### DNA 3 — `attestation.rs` (15 tests)
+
+1. submit_validation_request + get_validation_request + get_validation_request_for_data_hash
+2. get_current_phase returns None before any commits
+3. Two validators commit → phase transitions to RevealOpen
+4. Full commit-reveal round (core 2-agent protocol)
+5. get_attestations_for_request
+6. ValidationAttestation immutability — no update/delete functions
+7. CommitmentAnchor and PhaseMarker immutability — no update/delete functions
+8. publish_validator_profile + get_validator_profile
+9. claim_study + release_claim
+10. COI rejection — same institution blocks claim
+11. reclaim_abandoned_claim with timeout_secs=0
+12. assess_difficulty + get_difficulty_assessment
+13. link_agent_identity — self-link rejected
+14. get_linked_agents returns empty when no identity links exist
+15. DHT-poll phase transition (late-joining validator discovers RevealOpen)
+
+### DNA 4 — `governance.rs` (14 tests)
+
+1. check_and_create_harmony_record returns None when no attestations
+2. Full 2-agent round — HarmonyRecord created on public DHT
+3. check_and_create_harmony_record idempotent after record exists
+4. Any participant can trigger finalisation (Bob, not the request submitter)
+5. Premature finalisation (1 of 2 attestations) returns None
+6. force_finalize_round — partial quorum + round_timeout_secs=0
+7. GovernanceDecision key-gated — non-matching key rejected
+8. update_validator_reputation — dev bypass allows any agent
+9. get_harmony_records_by_discipline — empty + after round
+10. get_badges_for_study — 2 validators, count < 3, no badge
+11. get_badges_by_type — 3 validators, BronzeReproducible issued
+12. Tier promotion — Provisional → Standard after 3 Reproduced rounds
+13. Tier stays Provisional before 3 rounds
+14. AI validator tier does not advance through completed rounds
+
+### Security — `security.rs` (7 tests)
+
+Covers protocol-gap fixes. Only guards exercisable at the coordinator/client layer are tested here.
+
+- S1. Duplicate attestation guard — second submit_attestation rejected
+- S2. Duplicate commitment guard — second notify_commitment_sealed rejected
+- S3. Researcher commitment idempotency — second publish_researcher_commitment rejected
+- S4a. reclaim_abandoned_claim: timeout below DNA floor → reclaim returns false
+- S4b. reclaim_abandoned_claim: no floor (0) → timeout_secs=0 succeeds
+- S5. force_finalize_round conservative abort when no ValidationRequest
+- S6. reveal_researcher_result idempotency — second call rejected
 
 ---
 

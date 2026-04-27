@@ -113,7 +113,7 @@ cd tests && npm test
 | 12.1 | 3 validators all Reproduced → BronzeReproducible badge issued | PASS |
 | 12.2 | 5 validators all Reproduced → SilverReproducible badge issued | PASS† |
 | 12.3 | 7 validators all Reproduced → GoldReproducible badge issued | SKIP¹ |
-| 13.1 | 2 validators both FailedToReproduce → FailedReproduction badge issued | PASS |
+| 13.1 | 3 validators all FailedToReproduce → FailedReproduction badge issued | PASS |
 | 14.1 | update_validator_reputation then get_validator_reputation returns the record | PASS |
 | 15.1 | two ComputationalBiology profiles published → both returned; MachineLearning returns 0 | PASS |
 | 16.1 | check_all_commitments_sealed: false after 1 of 2 commits, true after 2nd | PASS |

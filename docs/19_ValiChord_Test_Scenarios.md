@@ -16,7 +16,7 @@ Project
 ValiChord — Distributed Validation Infrastructure
 Status
 Specification Draft — February 2026
-Implementation Update (March 2026): The trust guarantees specified in this document have been verified in the actual implementation. 87 integration tests pass against live Holochain conductors via Tryorama. See valichord/tests/ for the authoritative test suite and docs/14_ValiChord_Tryorama_Integration_tests.md for the full test inventory. Function names in the implementation may differ slightly from the placeholder names used in this specification document.
+Implementation Update (March 2026): The trust guarantees specified in this document have been verified in the actual implementation. 94 Tryorama integration tests pass against live Holochain conductors, plus a sweettest Rust suite covering all four DNAs. See valichord/tests/ for the authoritative Tryorama suite, valichord/sweettest_integration/ for the Rust suite, and docs/14_ValiChord_Integration_Tests.md for the full test inventory. Function names in the implementation may differ slightly from the placeholder names used in this specification document.
 Date
 February 2026
 Framework

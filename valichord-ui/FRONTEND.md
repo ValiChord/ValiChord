@@ -193,7 +193,7 @@ The **Governance** tab is read-only. It shows the permanent public record of com
 
 ### Browse harmony records
 
-Select a discipline from the dropdown and click **Load records**. This calls `get_harmony_records_for_discipline` on the `governance` DNA.
+Select a discipline from the dropdown and click **Load records**. This calls `get_harmony_records_by_discipline` on the `governance` DNA.
 
 Each record card shows:
 - Agreement level and outcome

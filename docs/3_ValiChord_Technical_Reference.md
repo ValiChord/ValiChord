@@ -2391,7 +2391,7 @@ On connect, `get_validator_profile(myPubKey)` is called on the `attestation` zom
 5. **Reveal** — triggered by `RevealOpen` signal or manual check; `get_private_attestation_for_task` retrieves the sealed nonce; `submit_attestation({ attestation, nonce })` publishes to DNA 3
 
 **GovernanceView** (`src/lib/GovernanceView.svelte`) — read-only analytics:
-- Browse `HarmonyRecord` entries by discipline via `get_harmony_records_for_discipline`
+- Browse `HarmonyRecord` entries by discipline via `get_harmony_records_by_discipline`
 - Inferred badge (Gold/Silver/Bronze/Failed) from outcome agreement counts — matches the badge threshold logic in the governance DNA
 - Validator type breakdown per round (`ValidatorAgentType` from `HarmonyRecord.validator_types`)
 - Advanced: `force_finalize_round` panel (collapsed amber `<details>` block) — accepts hex `request_ref`, calls `force_finalize_round` on the governance DNA for stuck rounds

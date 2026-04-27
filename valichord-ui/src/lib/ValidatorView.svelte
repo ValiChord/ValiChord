@@ -49,7 +49,6 @@
     max_concurrent_tasks: 2,
     orcid: "",
     agent_type: "Individual" as ValidatorAgentType,
-    certification_tier: "Provisional" as CertificationTier,
   };
 
   // ── Pending requests ──────────────────────────────────────────────────────────
@@ -171,7 +170,7 @@
       const profile: ValidatorProfile = {
         institution: profileForm.institution,
         disciplines,
-        certification_tier: profileForm.certification_tier,
+        certification_tier: "Provisional" as CertificationTier,
         available: profileForm.available,
         max_concurrent_tasks: profileForm.max_concurrent_tasks,
         orcid: profileForm.orcid || null,
@@ -397,7 +396,6 @@
       profileForm.max_concurrent_tasks = profileEntry.max_concurrent_tasks;
       profileForm.orcid = profileEntry.orcid ?? "";
       profileForm.agent_type = profileEntry.agent_type ?? "Individual";
-      profileForm.certification_tier = profileEntry.certification_tier;
     }
     screen = "setup-profile";
   }

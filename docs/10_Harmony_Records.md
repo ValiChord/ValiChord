@@ -99,7 +99,7 @@ When a Harmony Record meets the threshold conditions, ValiChord automatically is
 | 🥇 **Gold Reproducible** | ≥ 7 validators | ExactMatch or WithinTolerance |
 | 🥈 **Silver Reproducible** | ≥ 5 validators | ExactMatch or WithinTolerance |
 | 🥉 **Bronze Reproducible** | ≥ 3 validators | ExactMatch or WithinTolerance |
-| ❌ **Failed Reproduction** | Any count | Majority Divergent or NotReproduced |
+| ❌ **Failed Reproduction** | ≥ 3 validators | Majority Divergent or UnableToAssess |
 
 Badges are designed to be meaningful at scale — queryable by journals, funders, and institutions via the HTTP Gateway without requiring any Holochain infrastructure.
 

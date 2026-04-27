@@ -998,7 +998,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     let mut read_fns = BTreeSet::new();
     for fn_name in &[
         "get_harmony_record",
-        "get_harmony_records_for_discipline",
+        "get_harmony_records_by_discipline",
         "get_badge",
         "get_validator_reputation",
         "get_governance_decisions",
@@ -1030,7 +1030,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
 
 // Read functions (unrestricted — HTTP Gateway targets):
 #[hdk_extern] pub fn get_harmony_record(request_ref: ExternalHash)  -> ExternResult<Option<Record>>
-#[hdk_extern] pub fn get_harmony_records_for_discipline(d: Discipline) -> ExternResult<Vec<Record>>
+#[hdk_extern] pub fn get_harmony_records_by_discipline(d: Discipline) -> ExternResult<Vec<Record>>
 #[hdk_extern] pub fn get_badge(request_ref: ExternalHash)            -> ExternResult<Option<Record>>
 #[hdk_extern] pub fn get_validator_reputation(id: AgentPubKey)       -> ExternResult<Option<Record>>
 #[hdk_extern] pub fn get_governance_decisions(limit: u32)            -> ExternResult<Vec<Record>>
@@ -1047,7 +1047,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
 
 ```
 GET  /api/v1/harmony/{request_ref}           → get_harmony_record
-GET  /api/v1/harmony/discipline/{discipline} → get_harmony_records_for_discipline
+GET  /api/v1/harmony/discipline/{discipline} → get_harmony_records_by_discipline
 GET  /api/v1/badges/{request_ref}            → get_badge
 GET  /api/v1/validators/{agent_id}           → get_validator_reputation
 GET  /api/v1/governance/decisions            → get_governance_decisions

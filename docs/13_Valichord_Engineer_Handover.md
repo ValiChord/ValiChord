@@ -779,7 +779,6 @@ Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondomi
 | `valichord-ui/src/lib/types.ts` | TypeScript mirrors of all Rust types (serde encoding preserved) |
 | `valichord-ui/FRONTEND.md` | UX walkthrough — screen-by-screen instructions for all three roles |
 | `docs/3_ValiChord_Technical_Reference.md` | Full architectural narrative — read before modifying architecture |
-| `docs/4_ValiChord_RUST_Scaffold.rs` | Single-file scaffold v12 — useful reference for overall structure |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Technical architecture document |
 | `nondominium_integration/INTEGRATION_VISION.md` | Nondominium × ValiChord integration design document |
 
