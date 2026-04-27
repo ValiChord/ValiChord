@@ -1,13 +1,15 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-04-24
-**Phase:** Full protocol live on Oracle. 3-validator + researcher reveal + production-grade commit-reveal running end-to-end. v0.3.0 released.
+**Last updated:** 2026-04-27
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend scaffolded. v0.4.3.
 
 ---
 
 ## What ValiChord does (one paragraph)
 
-ValiChord is a scientific reproducibility verification system. Researchers submit a research deposit. ValiChord runs 100+ automated checks plus Claude semantic analysis, maps the findings to a reproducibility verdict (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`), and writes that verdict as a tamper-evident **HarmonyRecord** to a Holochain DHT using a fully symmetric blind commit-reveal protocol. The record is cryptographically permanent — no central party can alter it after the fact.
+ValiChord is a scientific reproducibility verification system built on Holochain. A researcher deposits a hash of their data and result claim. Independent validators each reproduce the analysis blindly, seal their verdict using a commit-reveal protocol, then reveal simultaneously — removing any last-mover advantage. Outcomes are aggregated into a tamper-evident **HarmonyRecord** on a public DHT. No central party can alter it after the fact.
+
+**valichord_at_home** (separate tool, live on Render) runs 100+ automated deposit-quality checks and Claude semantic analysis to help researchers prepare a clean, reproducible deposit before the protocol begins. It does not produce the validation verdict — validators do.
 
 ---
 
@@ -26,6 +28,7 @@ ValiChord is a scientific reproducibility verification system. Researchers submi
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
 | HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
+| valichord-ui (Svelte/TS frontend) | **Scaffolded** | Full UI for all three roles (researcher, validator, governance). `valichord-ui/src/lib/` — ResearcherView, ValidatorView, GovernanceView. Not yet wired to a live conductor. See `valichord-ui/FRONTEND.md`. |
 
 ---
 
@@ -70,16 +73,18 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ---
 
+## Recently completed
+
+### Reputation/certification system — 2026-04-24 ✓
+**4-tier `CertificationTier`**: `Provisional` → `Standard` (≥5 rounds) → `Advanced` (≥20 + rate ≥60%) → `Certified` (≥50 + rate ≥80%).
+**Badge thresholds**: use raw validator count (7/5/3/3) — tier-weighted thresholds were attempted but reverted (too complex for now; revisit post-Phase 1 when real validator tiers exist).
+**Production implication**: all validators stay `Provisional` until Phase 1 oracle is wired — Gold and Silver cannot be issued in production yet. Bronze remains fully functional.
+**DNA hash changed**: `CertificationTier` is in `ValidatorReputation` (governance integrity) and `ValidatorProfile` (attestation integrity). Dev-only — no live network impact.
+**Tests**: sweettest tests 12 + 13 in `governance.rs` verify Provisional→Standard promotion boundary.
+
 ---
 
 ## What is NOT done yet
-
-### 0. Reputation/certification system — implemented 2026-04-24 ✓
-**4-tier `CertificationTier`**: `Provisional` → `Standard` (≥5 rounds) → `Advanced` (≥20 + rate ≥60%) → `Certified` (≥50 + rate ≥80%).
-**Tier-weighted badge thresholds** (coordinator layer): Gold requires 7+ `Advanced`/`Certified` validators; Silver requires 5+ `Standard`+; Bronze/FailedReproduction count all validators.
-**Production implication**: all validators stay `Provisional` until Phase 1 oracle is wired — Gold and Silver cannot be issued in production yet (more conservative than before). Bronze remains fully functional.
-**DNA hash changed**: `CertificationTier` is embedded in `ValidatorReputation` (governance integrity) and `ValidatorProfile` (attestation integrity). Both DNA hashes changed. Dev-only — no live network impact.
-**Tests**: sweettest tests 12 + 13 in `governance.rs` verify Provisional→Standard promotion boundary.
 
 ### 1. `ANTHROPIC_API_KEY` persistent on Oracle — HIGH, 2 min fix
 Currently must be manually exported each SSH session. Blocks unattended demo runs.
@@ -110,7 +115,7 @@ Source: https://github.com/holochain/ai-tools (branch: main)
 
 ### holochain/kangaroo-electron — future desktop packaging path
 Template for packaging ValiChord as a cross-platform Electron app. **Not started yet.**
-Pre-requisites before we can use it: (1) browser UI for ValiChord, (2) Holochain 0.6.1 upgrade, (3) dedicated bootstrap/signal/relay servers (`holochain/network-services` Pulumi repo).
+Pre-requisites before we can use it: (1) ~~browser UI for ValiChord~~ scaffolded (valichord-ui), (2) Holochain 0.6.1 upgrade, (3) dedicated bootstrap/signal/relay servers (`holochain/network-services` Pulumi repo).
 Branch to use: `main-0.6` (Holochain 0.6.x). Enables: validators install desktop app and run their own conductor.
 
 Source: https://github.com/holochain/kangaroo-electron (branch: main-0.6)
@@ -185,6 +190,8 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnTx5`, `loadHcClient`, `externalHashFromB64` |
 | `backend/app.py` | Flask REST API |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
+| `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
+| `valichord-ui/src/lib/` | Svelte components: ResearcherView, ValidatorView, GovernanceView, types.ts, holochain.ts |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Four-DNA architecture |
 
 ---
