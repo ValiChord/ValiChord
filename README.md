@@ -12,6 +12,14 @@
 [![UI](https://img.shields.io/badge/UI-Svelte_5_%2B_TypeScript-ff3e00?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)
 [![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
 
+## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
+*The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
+
+## 🧬 The Mission
+Across every scientific discipline — computational, experimental, clinical, hardware — **70% of researchers** have failed to reproduce another scientist's work. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
+
+**ValiChord** is a distributed, agent-centric infrastructure designed to make scientific reproducibility verifiable, tamper-evident, and structurally resistant to corruption. The protocol is domain-agnostic: methodology and data go in, independent validators reproduce the work, and the result is a **Harmony Record** — a permanent, publicly queryable record that preserves the full texture of scientific agreement and disagreement. Computation is the first and most tractable instance. It is not the only one. The same protocol applies wherever independent verification must be structurally tamper-proof: AI capability evaluation, regulatory auditing, clinical trial attestation, structured intelligence assessment, and any high-stakes domain where the integrity of independent judgment cannot be left to procedural norms alone.
+
 ---
 
 ## 🎬 **[▶ Watch the demo on YouTube](https://www.youtube.com/watch?v=DinSdR-U114&feature=youtu.be)**
@@ -60,19 +68,9 @@ npm install && npm run dev
 
 ---
 
-## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
-*The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
-
----
-
 [ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home)** ]
 
 </div>
-
-## 🧬 The Mission
-Across every scientific discipline — computational, experimental, clinical, hardware — **70% of researchers** have failed to reproduce another scientist's work. This "Verification Gap" results in an estimated **$200 billion in wasted R&D annually**.
-
-**ValiChord** is a distributed, agent-centric infrastructure designed to make scientific reproducibility verifiable, tamper-evident, and structurally resistant to corruption. The protocol is domain-agnostic: methodology and data go in, independent validators reproduce the work, and the result is a **Harmony Record** — a permanent, publicly queryable record that preserves the full texture of scientific agreement and disagreement. Computation is the first and most tractable instance. It is not the only one. The same protocol applies wherever independent verification must be structurally tamper-proof: AI capability evaluation, regulatory auditing, clinical trial attestation, structured intelligence assessment, and any high-stakes domain where the integrity of independent judgment cannot be left to procedural norms alone.
 
 ---
 
