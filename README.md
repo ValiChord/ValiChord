@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/Tests-164_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
 [![UI](https://img.shields.io/badge/UI-Svelte_5_%2B_TypeScript-ff3e00?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)
-[![Grant](https://img.shields.io/badge/Grant-UKRI_Metascience_2-purple?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md)
+
 
 ## 📖 [**Primary Entry Point: Vision & Architecture**](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md)
 *The core vision: Why ValiChord matters and how it solves the $200B verification gap.*
@@ -344,7 +344,7 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 
 | Document | Description |
 | :--- | :--- |
-| [Phase 0 Proposal v3.1](https://github.com/topeuph-ai/ValiChord/blob/main/docs/5_ValiChord_Phase_0_proposal_ukri_etc.md) | UKRI Metascience Round 2 funding proposal |
+
 | [Open Design Questions](https://github.com/topeuph-ai/ValiChord/blob/main/docs/6_ValiChord_Open_Design_Questions.md) | Outstanding design decisions and open questions |
 
 ---
@@ -404,8 +404,8 @@ npm test
 
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
-| **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation. ~£158K FEC, 12 months. | **Proposed — UKRI Metascience Round 2 (April 2026)** |
-| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment awaiting Phase 0 funding.** |
+| **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation — how long it takes, what makes it difficult, what it costs. | **Seeking funding / may be superseded by direct project engagement.** |
+| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
 ---
