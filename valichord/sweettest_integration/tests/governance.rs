@@ -31,6 +31,7 @@
 //!  12.  tier promotion — Provisional → Standard after 3 Reproduced rounds
 //!  13.  tier stays Provisional before 3 rounds
 //!  14.  AI validator tier does not advance through completed rounds
+//!  15.  GoldReproducible badge — 7 validators, all Reproduced (ExactMatch)
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
@@ -849,5 +850,97 @@ async fn ai_validator_tier_does_not_advance_through_rounds() {
     assert_eq!(
         rep.total_validations, 0,
         "AI validator total_validations must stay at 0 — rounds do not count toward progression"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 15. GoldReproducible badge — 7 validators, all Reproduced (ExactMatch)
+// ---------------------------------------------------------------------------
+//
+// This is the highest badge tier. 7 independent conductors each commit and
+// reveal a Reproduced attestation. ExactMatch (7/7 = 100%) + count=7 satisfies
+// the GoldReproducible threshold.
+//
+// Sweettest conductors are in-process with no Node.js or WebSocket overhead,
+// making this feasible within normal CI RAM budgets where a 7-conductor
+// Tryorama run would OOM.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn gold_badge_issued_with_seven_validators() {
+    const N: usize = 7;
+
+    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(N).await;
+    let dnas = dnas_with_roles().await;
+    let apps: Vec<ValiChordApp> = conductors
+        .setup_app("valichord", &dnas)
+        .await
+        .unwrap()
+        .into_inner()
+        .into_iter()
+        .map(ValiChordApp::from_sweet_app)
+        .collect();
+
+    // 7 validators required so the quorum check and badge threshold both trigger.
+    let mut vr = make_validation_request(fake_external_hash(0x60));
+    vr.num_validators_required = N as u8;
+    let request_ref = vr.data_hash.clone();
+
+    let _: ActionHash = conductors[0]
+        .call(&apps[0].attestation_zome(), "submit_validation_request", vr)
+        .await;
+
+    let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
+    await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+
+    // Commit phase — sequential with interleaved DHT sync so each conductor
+    // sees all prior CommitmentAnchors before the phase-open check fires.
+    for i in 0..N {
+        commit(&conductors[i], &apps[i], request_ref.clone()).await;
+        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    }
+
+    // Reveal phase — sequential with interleaved sync. No governance sync here:
+    // the last reveal's auto-call (submit_attestation → check_and_create_harmony_record)
+    // creates the HarmonyRecord but skips badge creation via the 3-deep cross-DNA
+    // call chain. apps[0]'s explicit call below creates both.
+    for i in 0..N {
+        reveal(&conductors[i], &apps[i], request_ref.clone()).await;
+        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    }
+
+    // Explicit harmony + badge creation — no governance sync first so apps[0]
+    // does not hit idempotency from the last reveal's auto-call.
+    let harmony: Option<ActionHash> = conductors[0]
+        .call(
+            &apps[0].governance_zome(),
+            "check_and_create_harmony_record",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(harmony.is_some(), "7-agent round must produce a HarmonyRecord");
+
+    // Sync governance so the badge propagates before querying.
+    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    await_consistency_20_s(gov_cells.iter().copied()).await.unwrap();
+
+    // GoldReproducible: ExactMatch (7/7) + count=7 ≥ 7.
+    let badges: Vec<Record> = conductors[0]
+        .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
+        .await;
+    assert!(
+        !badges.is_empty(),
+        "GoldReproducible badge should be issued for ExactMatch + count=7"
+    );
+
+    let by_type: Vec<Record> = conductors[0]
+        .call(
+            &apps[0].governance_zome(),
+            "get_badges_by_type",
+            BadgeType::GoldReproducible,
+        )
+        .await;
+    assert!(
+        !by_type.is_empty(),
+        "get_badges_by_type(GoldReproducible) should return the issued badge"
     );
 }
