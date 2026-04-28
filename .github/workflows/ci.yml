@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: 94 Integration Tests (4 DNAs)
+    name: 97 Integration Tests (4 DNAs)
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -108,7 +108,7 @@ jobs:
       matrix:
         test:
           - attestation         # 19 tests ≈ 80 min
-          - governance          # 12 tests ≈ 50 min
+          - governance          # 15 tests ≈ 50 min
           - security            #  7 tests ≈ 30 min
           - researcher_repository # 17 tests ≈ 70 min
           - validator_workspace #  9 tests ≈ 38 min
