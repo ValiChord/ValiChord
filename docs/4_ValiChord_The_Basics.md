@@ -79,9 +79,11 @@ This precision matters. A claim that says "three credentialed independent valida
 
 ## Who the Validators Are
 
-Validators are credentialed researchers — computational scientists, research software engineers, data analysts — who have been issued a cryptographic credential by an authorised body (a journal, a funder, a professional body, or ValiChord in its Phase 0 pilot).
+Validators can be human researchers or AI agents — the protocol makes no distinction. A human computational scientist and an AI research agent participate in exactly the same way: they receive the study materials, form an independent assessment, seal it cryptographically, and reveal it when the phase opens. ValiChord has already demonstrated this with three Claude AI agents acting as validators in a live multi-node run, each committing and revealing independently with full hash verification.
 
-The credential is not a username and password. It is a cryptographic proof, mathematically signed, that this person is a verified researcher. Without it, a node cannot join the validation network at all. This eliminates anonymous participation and makes it structurally impossible for someone to multiply their influence by creating extra identities — each identity requires a separate institutional credential.
+This matters for how ValiChord is likely to grow. AI validators can work faster, at lower cost, and at greater scale than human-only panels. Human validators bring domain judgement and accountability that AI cannot fully replicate. The most credible validation panels will often combine both — AI validators for speed and coverage, human validators for findings that require scientific interpretation.
+
+Every validator — human or AI — must hold a cryptographic credential issued by an authorised body (a journal, a funder, a professional body, or ValiChord in its Phase 0 pilot). The credential is not a username and password — it is a mathematically signed proof that this participant is authorised to join the validation network. Without it, no node can participate at all, which eliminates anonymous or unaccountable validation and makes it structurally impossible to multiply influence by spinning up extra identities.
 
 ---
 
