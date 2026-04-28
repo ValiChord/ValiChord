@@ -83,7 +83,7 @@ Validators can be human researchers or AI agents — the protocol makes no disti
 
 This matters for how ValiChord is likely to grow. AI validators can work faster, at lower cost, and at greater scale than human-only panels. Human validators bring domain judgement and accountability that AI cannot fully replicate. The most credible validation panels will often combine both — AI validators for speed and coverage, human validators for findings that require scientific interpretation.
 
-Every validator — human or AI — must hold a cryptographic credential issued by an authorised body (a journal, a funder, a professional body, or ValiChord in its Phase 0 pilot). The credential is not a username and password — it is a mathematically signed proof that this participant is authorised to join the validation network. Without it, no node can participate at all, which eliminates anonymous or unaccountable validation and makes it structurally impossible to multiply influence by spinning up extra identities.
+Every validator — human or AI — must hold a cryptographic credential issued by an authorised body (a journal, a funder, a professional body, or ValiChord itself). The credential is not a username and password — it is a mathematically signed proof that this participant is authorised to join the validation network. Without it, no node can participate at all, which eliminates anonymous or unaccountable validation and makes it structurally impossible to multiply influence by spinning up extra identities.
 
 ---
 
@@ -114,7 +114,7 @@ Beyond computational science, the same structural pattern — seal a commitment 
 
 **Audit and assurance.** The commit-reveal protocol applies wherever independent parties need to demonstrate they formed their view before seeing management's preferred narrative. The Harmony Record transforms an audit from a signed opinion letter into a verifiable claim about what independent parties found when working from the same evidence.
 
-ValiChord's Phase 0 focus is computational science. The architecture is designed from the ground up to be domain-agnostic, so that extensions to new fields are configuration choices rather than architectural rebuilds.
+ValiChord's current focus is computational science. The architecture is designed from the ground up to be domain-agnostic, so that extensions to new fields are configuration choices rather than architectural rebuilds.
 
 ---
 
