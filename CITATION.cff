@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use ValiChord in your research, please cite it as below."
 title: "ValiChord: Distributed Infrastructure for Computational Research Validation"
-version: 0.1.0-alpha
-date-released: 2026-03-12
+version: 0.4.3
+date-released: 2026-04-28
 authors:
   - family-names: John
     given-names: Ceri
@@ -17,7 +17,7 @@ abstract: >
   researcher data never leaves the researcher's own environment.
 repository-code: "https://github.com/topeuph-ai/ValiChord"
 url: "https://topeuph-ai.github.io/ValiChord"
-license: MIT
+license: Apache-2.0
 keywords:
   - reproducibility
   - open-science
