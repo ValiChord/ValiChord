@@ -22,7 +22,7 @@ ValiChord builds that infrastructure.
 
 ## What ValiChord Does
 
-ValiChord is a system that lets independent validators attempt to reproduce a computational study, and then creates a permanent public record of what they found — including disagreement.
+ValiChord is a system for structured independent verification: validators attempt to reproduce a verifiable claim, and a permanent public record is created of what they found — including disagreement.
 
 The key word is *independent*. ValiChord is specifically designed to prevent the two most common ways that verification systems fail:
 
