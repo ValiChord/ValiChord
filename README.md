@@ -304,6 +304,7 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 
 | Document | Description |
 | :--- | :--- |
+| [The Basics](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_The_Basics.md) | Non-technical introduction: what ValiChord does, how it works, and which fields it applies to |
 | [Vision & Architecture v13](https://github.com/topeuph-ai/ValiChord/blob/main/docs/1_ValiChord_Vision&Architecture.md) | What ValiChord is and why it matters |
 | [Governance Framework](https://github.com/topeuph-ai/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md) | How the system resists corruption |
 | [Harmony Records](https://github.com/topeuph-ai/ValiChord/blob/main/docs/10_Harmony_Records.md) | What a Harmony Record is and why it matters |
