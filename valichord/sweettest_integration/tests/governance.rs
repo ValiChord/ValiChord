@@ -32,6 +32,7 @@
 //!  13.  tier stays Provisional before 3 rounds
 //!  14.  AI validator tier does not advance through completed rounds
 //!  15.  GoldReproducible badge — 7 validators, all Reproduced (ExactMatch)
+//!  16.  SilverReproducible badge — 5 validators, all Reproduced (ExactMatch)
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
@@ -942,5 +943,81 @@ async fn gold_badge_issued_with_seven_validators() {
     assert!(
         !by_type.is_empty(),
         "get_badges_by_type(GoldReproducible) should return the issued badge"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 16. SilverReproducible badge — 5 validators, all Reproduced (ExactMatch)
+// ---------------------------------------------------------------------------
+//
+// ExactMatch (5/5 = 100%) + count=5 satisfies SilverReproducible but not Gold.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn silver_badge_issued_with_five_validators() {
+    const N: usize = 5;
+
+    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(N).await;
+    let dnas = dnas_with_roles().await;
+    let apps: Vec<ValiChordApp> = conductors
+        .setup_app("valichord", &dnas)
+        .await
+        .unwrap()
+        .into_inner()
+        .into_iter()
+        .map(ValiChordApp::from_sweet_app)
+        .collect();
+
+    let mut vr = make_validation_request(fake_external_hash(0x61));
+    vr.num_validators_required = N as u8;
+    let request_ref = vr.data_hash.clone();
+
+    let _: ActionHash = conductors[0]
+        .call(&apps[0].attestation_zome(), "submit_validation_request", vr)
+        .await;
+
+    let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
+    await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+
+    for i in 0..N {
+        commit(&conductors[i], &apps[i], request_ref.clone()).await;
+        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    }
+
+    for i in 0..N {
+        reveal(&conductors[i], &apps[i], request_ref.clone()).await;
+        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    }
+
+    let harmony: Option<ActionHash> = conductors[0]
+        .call(
+            &apps[0].governance_zome(),
+            "check_and_create_harmony_record",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(harmony.is_some(), "5-agent round must produce a HarmonyRecord");
+
+    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    await_consistency_20_s(gov_cells.iter().copied()).await.unwrap();
+
+    // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
+    let badges: Vec<Record> = conductors[0]
+        .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
+        .await;
+    assert!(
+        !badges.is_empty(),
+        "SilverReproducible badge should be issued for ExactMatch + count=5"
+    );
+
+    let by_type: Vec<Record> = conductors[0]
+        .call(
+            &apps[0].governance_zome(),
+            "get_badges_by_type",
+            BadgeType::SilverReproducible,
+        )
+        .await;
+    assert!(
+        !by_type.is_empty(),
+        "get_badges_by_type(SilverReproducible) should return the issued badge"
     );
 }

@@ -108,7 +108,7 @@ jobs:
       matrix:
         test:
           - attestation         # 19 tests ≈ 80 min
-          - governance          # 16 tests ≈ 80 min
+          - governance          # 17 tests ≈ 90 min
           - security            #  7 tests ≈ 30 min
           - researcher_repository # 17 tests ≈ 70 min
           - validator_workspace #  9 tests ≈ 38 min
