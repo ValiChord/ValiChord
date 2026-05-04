@@ -290,7 +290,8 @@ DNA 2 post_commit
         → if count >= minimum_validators:
             → write PhaseMarker(RevealOpen)
             → create_link(phase_path, marker_hash, RequestToPhaseMarker)
-            → emit_signal(PhaseSignal) — UI notification only, NOT a protocol gate
+            → emit_signal(Signal::RevealOpen) — UI notification only, NOT a protocol gate
+            → send_remote_signal(RevealOpenWire) to all other committed validators
 
 Validator polls get_current_phase(request_ref)
     → get_links(phase_path, RequestToPhaseMarker)
@@ -301,11 +302,23 @@ Validator polls get_current_phase(request_ref)
 Validator calls submit_attestation(attestation)
     → create_entry(ValidationAttestation) — required_validations = 7
     → create_link(agent, hash, ValidatorToAttestation)
-    → post_commit detects ValidationAttestation
-    → call(OtherRole("governance"), "check_and_create_harmony_record", request_ref)
+    → call_governance_fire_and_forget("check_and_create_harmony_record", request_ref)
+        → Ok  → round finalised (HarmonyRecord written to governance DHT)
+        → Err → emit_signal(Signal::FinalizationFailed) — UI prompted to retry
 ```
 
 **Phase transition is DHT-poll-driven, not signal-driven.** Signals are send-and-forget and cannot be relied upon for protocol state transitions. `get_current_phase()` is the authoritative source of phase state.
+
+### Signals emitted by DNA 3
+
+All signals use `#[serde(tag = "type", content = "content")]` (adjacent-tag). The msgpack payload delivered to the AppWebsocket is `{ type: "<Variant>", content: { ... } }`.
+
+| Signal variant | When emitted | Scope |
+|---|---|---|
+| `RevealOpen { request_ref }` | All required validators have committed; reveal window open | Local + remote (send_remote_signal to other committed validators) |
+| `FinalizationFailed { request_ref }` | `submit_attestation` succeeded but the governance cross-DNA call failed | Local only |
+
+`RevealOpen` is a best-effort notification — the UI must always verify via `get_current_phase()`. `FinalizationFailed` signals that the attestation is safely written but the round needs manual recovery (`force_finalize_round` or waiting for another validator's reveal to retry).
 
 ### Validation Rules (validate callback)
 

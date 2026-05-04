@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-04-27
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.3.
+**Last updated:** 2026-05-04
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.4.
 
 ---
 
@@ -74,6 +74,22 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### UI bug fixes + backend signal hardening — 2026-05-04 ✓
+
+**UI fixes (both are live-demo killers):**
+- **Signal handler leak** (`App.svelte`) — `onSignal` return value was never captured. Each component remount stacked another handler; validators received duplicate `RevealOpen` notifications. Fixed with `onDestroy` + captured unsubscribe.
+- **`checkPendingReveals` race** (`ValidatorView.svelte`) — the reactive `$:` fired `checkPendingReveals()` unawaited; multiple concurrent invocations could race to set `revealTaskHash`/`revealPrivateAttestation`/`screen`. Fixed with a `checkingReveals` boolean guard.
+- **Signal format mismatch** (`types.ts`, `App.svelte`) — `Signal` enum uses adjacent-tag serde (`#[serde(tag = "type", content = "content")]`), delivering `{ type: "RevealOpen", content: { ... } }` over the WebSocket. `types.ts` and the previous `"RevealOpen" in payload` check assumed external-tag format and never fired. Fixed throughout.
+
+**Backend fixes (attestation + governance coordinators):**
+- **`FinalizationFailed` signal** — `call_governance_fire_and_forget` now returns `bool`. When the cross-DNA call to `check_and_create_harmony_record` fails after a successful `submit_attestation`, the attestation coordinator emits `Signal::FinalizationFailed { request_ref }` locally. The UI displays an actionable error pointing to `force_finalize_round`.
+- **Warrant-check asymmetry comment** — `unwrap_or(true)` in the HarmonyRecord warrant filter is intentionally asymmetric with `reject_if_warranted()` (claim time). At finalisation time there is no automatic retry trigger, so excluding a legitimate validator on a transient network error would permanently strand a completed round. Comment updated to explain this explicitly.
+- **TOCTOU comment** — updated to note that `write_harmony_record` already sorts `participating_validators` by key bytes, making the same-set race benign via content-addressing. Only the N vs N+1 case remains as documented Phase 1 work.
+
+**Docs updated:** `FRONTEND.md` (signal format, handler cleanup pattern), `docs/7_ValiChord_4-DNA_architecture_technical.md` (signals table, commit-reveal flow).
+
+---
 
 ### valichord-ui wired to live conductor — 2026-04-27 ✓
 Full browser UI connected to a real Holochain conductor for the first time.

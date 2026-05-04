@@ -246,13 +246,33 @@ All types in `src/lib/types.ts` mirror Rust serde encoding exactly. Key rules:
 
 ### Signal payload
 
-The `Signal` enum in `attestation_coordinator` has no `#[serde(tag)]` attribute, so external-tag serialisation applies. `RevealOpen` arrives as:
+The `Signal` enum in `attestation_coordinator` uses `#[serde(tag = "type", content = "content")]` (adjacent-tag). Signals arrive over the AppWebsocket as msgpack maps:
 
-```json
-{ "RevealOpen": { "request_ref": "<Uint8Array>" } }
+| Signal | Payload shape |
+|---|---|
+| `RevealOpen` | `{ type: "RevealOpen", content: { request_ref: Uint8Array } }` |
+| `FinalizationFailed` | `{ type: "FinalizationFailed", content: { request_ref: Uint8Array } }` |
+
+`RevealOpen` fires when all required validators have committed — the reveal window is now open.
+
+`FinalizationFailed` fires locally when `submit_attestation` succeeds but the cross-DNA call to `check_and_create_harmony_record` on the governance DNA fails. The attestation **is** written to the DHT; only round finalisation is affected. Prompt the user to retry via `force_finalize_round` (Governance tab).
+
+The TypeScript union type is `AppHcSignal` in `src/lib/types.ts`. Check via `payload.type === "RevealOpen"` — **not** `"RevealOpen" in payload`, which was the previous (incorrect) external-tag check.
+
+### Signal handler cleanup
+
+The global signal handler in `App.svelte` is registered in an `async onMount`. Because async `onMount` cannot return a cleanup function (Svelte ignores the returned Promise), use `onDestroy` instead:
+
+```typescript
+let unsubscribeSignal: (() => void) | undefined;
+onDestroy(() => { unsubscribeSignal?.(); });
+onMount(async () => {
+  // ...
+  unsubscribeSignal = onSignal(handler);
+});
 ```
 
-Not `{ "type": "RevealOpen", ... }`.
+Without this, each component remount stacks another handler onto `_signalHandlers` and validators receive duplicate notifications.
 
 ### post_commit is automatic
 
