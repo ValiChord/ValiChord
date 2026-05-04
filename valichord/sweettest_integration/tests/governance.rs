@@ -891,13 +891,14 @@ async fn gold_badge_issued_with_seven_validators() {
         .await;
 
     let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
-    await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    // 60-second timeout: N=7 conductors gossip slowly on a loaded CI runner.
+    await_consistency(60, att_cells.iter().copied()).await.unwrap();
 
     // Commit phase — sequential with interleaved DHT sync so each conductor
     // sees all prior CommitmentAnchors before the phase-open check fires.
     for i in 0..N {
         commit(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+        await_consistency(60, att_cells.iter().copied()).await.unwrap();
     }
 
     // Reveal phase — sequential with interleaved sync. No governance sync here:
@@ -906,7 +907,7 @@ async fn gold_badge_issued_with_seven_validators() {
     // call chain. apps[0]'s explicit call below creates both.
     for i in 0..N {
         reveal(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+        await_consistency(60, att_cells.iter().copied()).await.unwrap();
     }
 
     // Explicit harmony + badge creation — no governance sync first so apps[0]
@@ -922,7 +923,7 @@ async fn gold_badge_issued_with_seven_validators() {
 
     // Sync governance so the badge propagates before querying.
     let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
-    await_consistency_20_s(gov_cells.iter().copied()).await.unwrap();
+    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
 
     // GoldReproducible: ExactMatch (7/7) + count=7 ≥ 7.
     let badges: Vec<Record> = conductors[0]
@@ -976,16 +977,17 @@ async fn silver_badge_issued_with_five_validators() {
         .await;
 
     let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
-    await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+    // 60-second timeout: N=5 conductors on a loaded CI runner (runs after gold).
+    await_consistency(60, att_cells.iter().copied()).await.unwrap();
 
     for i in 0..N {
         commit(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+        await_consistency(60, att_cells.iter().copied()).await.unwrap();
     }
 
     for i in 0..N {
         reveal(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency_20_s(att_cells.iter().copied()).await.unwrap();
+        await_consistency(60, att_cells.iter().copied()).await.unwrap();
     }
 
     let harmony: Option<ActionHash> = conductors[0]
@@ -998,7 +1000,7 @@ async fn silver_badge_issued_with_five_validators() {
     assert!(harmony.is_some(), "5-agent round must produce a HarmonyRecord");
 
     let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
-    await_consistency_20_s(gov_cells.iter().copied()).await.unwrap();
+    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
 
     // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
     let badges: Vec<Record> = conductors[0]
