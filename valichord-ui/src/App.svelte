@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { connect, callZome, getMyPubKey, onSignal } from "./lib/holochain.js";
   import {
     connectState,
@@ -12,7 +12,7 @@
     addPendingReveal,
     type AppRole,
   } from "./lib/store.js";
-  import type { ValidatorProfile, RevealOpenSignal } from "./lib/types.js";
+  import type { ValidatorProfile, AppHcSignal } from "./lib/types.js";
   import type { HolochainRecord } from "./lib/types.js";
   import ResearcherView from "./lib/ResearcherView.svelte";
   import ValidatorView from "./lib/ValidatorView.svelte";
@@ -28,6 +28,12 @@
     return undefined; // let client use its default (Launcher env)
   }
 
+  let unsubscribeSignal: (() => void) | undefined;
+
+  onDestroy(() => {
+    unsubscribeSignal?.();
+  });
+
   onMount(async () => {
     connectState.set({ status: "connecting" });
     try {
@@ -37,12 +43,17 @@
       myPubKey.set(pubKey);
       connectState.set({ status: "connected" });
 
-      // Global signal listener — RevealOpen notifies validators to reveal
-      onSignal((signal) => {
-        const payload = signal.payload as RevealOpenSignal | null;
-        if (payload && "RevealOpen" in payload) {
-          addPendingReveal(payload.RevealOpen.request_ref);
+      // Global signal listener.  Signal enum uses adjacent-tag serde, so the
+      // msgpack payload arrives as { type: "RevealOpen", content: { ... } }.
+      // Capture unsubscribe so onDestroy can clean up if the component remounts.
+      unsubscribeSignal = onSignal((signal) => {
+        const payload = signal.payload as AppHcSignal | null;
+        if (!payload || typeof payload !== "object") return;
+        if (payload.type === "RevealOpen") {
+          addPendingReveal(payload.content.request_ref);
           notify("info", "Reveal phase open — you can now publish your attestation");
+        } else if (payload.type === "FinalizationFailed") {
+          notify("error", "Round finalisation failed — the attestation was written but the HarmonyRecord could not be created. Try force-finalising the round from the Governance tab.");
         }
       });
 

@@ -74,7 +74,11 @@
     checkPendingReveals();
   }
 
+  let checkingReveals = false;
+
   async function checkPendingReveals() {
+    if (checkingReveals) return;
+    checkingReveals = true;
     try {
       const tasks = await callZome<HolochainRecord<ValidationTask>[]>(
         "validator_workspace",
@@ -110,6 +114,8 @@
       }
     } catch (err) {
       console.warn("checkPendingReveals:", err);
+    } finally {
+      checkingReveals = false;
     }
   }
 

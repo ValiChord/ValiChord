@@ -278,12 +278,22 @@ export interface ValidatorPrivateAttestation {
 }
 
 // ── App signals ───────────────────────────────────────────────────────────────
-// Signal enum in attestation_coordinator has no #[serde(tag)] → external tag.
-// RevealOpen { request_ref } → { RevealOpen: { request_ref: Uint8Array } }
+// Signal enum in attestation_coordinator uses #[serde(tag = "type", content = "content")]
+// (adjacent-tag). The msgpack payload delivered by @holochain/client is:
+//   { type: "RevealOpen",          content: { request_ref: Uint8Array } }
+//   { type: "FinalizationFailed",  content: { request_ref: Uint8Array } }
 
 export interface RevealOpenSignal {
-  RevealOpen: { request_ref: ExternalHash };
+  type: "RevealOpen";
+  content: { request_ref: ExternalHash };
 }
+
+export interface FinalizationFailedSignal {
+  type: "FinalizationFailed";
+  content: { request_ref: ExternalHash };
+}
+
+export type AppHcSignal = RevealOpenSignal | FinalizationFailedSignal;
 
 // ── Holochain Record wrapper ──────────────────────────────────────────────────
 
