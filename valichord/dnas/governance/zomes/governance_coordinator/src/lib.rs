@@ -144,11 +144,14 @@ where
 ///   4-7. Delegate to write_harmony_record.
 ///
 /// TOCTOU note: two concurrent last-validator submissions can both pass the
-/// idempotency check and each write a HarmonyRecord.  If gossip order is
-/// identical, content-addressing collapses them to the same hash (benign).
-/// If one call saw N and the other N+1 attestations, two different entries are
-/// written — the earlier record's badge may be orphaned.  Proper fix (single
-/// finalisation trigger) is Phase 1 work.
+/// idempotency check and each write a HarmonyRecord.  write_harmony_record
+/// sorts participating_validators by key bytes before writing, so two concurrent
+/// calls that see the *same* set of attestations (regardless of gossip order)
+/// produce identical entry content — content-addressing collapses them to the
+/// same entry hash, making that case benign.  The remaining risk is two calls
+/// that see *different* counts (N vs N+1): they write structurally different
+/// entries and the N-validator record's badge may be orphaned.  Proper fix
+/// (single-shot finalisation trigger or countersigning) is Phase 1 work.
 #[hdk_extern]
 pub fn check_and_create_harmony_record(
     request_ref: ExternalHash,
@@ -193,7 +196,13 @@ pub fn check_and_create_harmony_record(
 
     // Filter out attestations from warranted agents — a validator who received
     // warrants after claiming should not contribute to a permanent HarmonyRecord.
-    // If the activity check fails for an author, include them conservatively.
+    //
+    // unwrap_or(true) — include on activity-check failure — is intentionally
+    // asymmetric with reject_if_warranted() in DNA 3 (which propagates errors).
+    // At claim time a validator can retry; here a transient network failure that
+    // excludes a legitimate validator could permanently strand a completed round
+    // (no automatic retry trigger exists once all attestations are written).
+    // Including on failure is the safer default at finalisation time.
     let attestation_records: Vec<Record> = attestation_records
         .into_iter()
         .filter(|r| {

@@ -317,9 +317,15 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         (),
     )?;
 
-    // Attempt to finalise the round.  Errors are swallowed — a failed
-    // finalisation attempt does not invalidate the attestation itself.
-    call_governance_fire_and_forget("check_and_create_harmony_record", request_ref);
+    // Attempt to finalise the round.  A failed governance call does not
+    // invalidate the attestation itself.  Emit FinalizationFailed so the
+    // local UI can surface a retry path (e.g. prompt for force_finalize_round).
+    if !call_governance_fire_and_forget(
+        "check_and_create_harmony_record",
+        request_ref.clone(),
+    ) {
+        let _ = emit_signal(&Signal::FinalizationFailed { request_ref });
+    }
 
     Ok(attestation_hash)
 }
@@ -1882,10 +1888,13 @@ fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
 /// the next validator who calls `submit_attestation`.
 ///
 /// Inspired by ad4m's `send_broadcast` / `send_signal` distinction.
+/// Returns `true` if governance responded Ok, `false` on any failure.
+/// Callers should emit a `Signal::FinalizationFailed` when this returns `false`
+/// so the local UI can surface a retry path.
 fn call_governance_fire_and_forget(
     fn_name: &str,
     input: impl serde::Serialize + std::fmt::Debug,
-) {
+) -> bool {
     match call(
         CallTargetCell::OtherRole("governance".into()),
         ZomeName::from("governance_coordinator"),
@@ -1893,17 +1902,23 @@ fn call_governance_fire_and_forget(
         None,
         input,
     ) {
-        Ok(ZomeCallResponse::Ok(_)) => {}
-        Ok(other) => warn!(
-            "call_governance_fire_and_forget({fn_name}): non-Ok response — \
-             round finalisation may be stuck: {:?}",
-            other
-        ),
-        Err(e) => warn!(
-            "call_governance_fire_and_forget({fn_name}): call failed — \
-             round finalisation may be stuck: {:?}",
-            e
-        ),
+        Ok(ZomeCallResponse::Ok(_)) => true,
+        Ok(other) => {
+            warn!(
+                "call_governance_fire_and_forget({fn_name}): non-Ok response — \
+                 round finalisation may be stuck: {:?}",
+                other
+            );
+            false
+        }
+        Err(e) => {
+            warn!(
+                "call_governance_fire_and_forget({fn_name}): call failed — \
+                 round finalisation may be stuck: {:?}",
+                e
+            );
+            false
+        }
     }
 }
 
@@ -1930,6 +1945,12 @@ pub enum Signal {
     /// UI note: NOT a protocol gate — always verify via get_current_phase()
     /// or check_all_commitments_sealed().  Signals can be lost.
     RevealOpen { request_ref: ExternalHash },
+    /// Emitted locally when the governance cross-DNA call fails after a
+    /// successful submit_attestation.  The attestation IS written to the DHT;
+    /// only round finalisation is affected.  The UI should prompt the user to
+    /// retry via force_finalize_round or wait for another validator's reveal
+    /// to trigger a retry.  Signals can be lost — always poll DHT state to confirm.
+    FinalizationFailed { request_ref: ExternalHash },
 }
 
 /// Flat struct used as the over-the-wire payload for remote signals.
