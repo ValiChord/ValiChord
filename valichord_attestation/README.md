@@ -128,7 +128,7 @@ pip install -e ".[dev]"
 pytest tests/ --cov=valichord_attestation
 ```
 
-81 tests, 100% line coverage.
+138 tests, 100% line coverage.
 
 ---
 
