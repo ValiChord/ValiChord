@@ -135,18 +135,18 @@ This is a hard correctness requirement. An attestation system that silently prod
 
 ## Concrete deliverables
 
-### 1. Spec document — `valichord/spec/attestation_format_v1.md`
+### 1. Spec document — `valichord_attestation/spec/attestation_format_v1.md`
 
 Sections:
 - Overview and goals
 - Bundle JSON schema (with examples inline)
-- Canonical encoding rules (sorted keys, no whitespace, UTF-8, number representation rules — fixed-precision floats or strings)
+- Canonical encoding rules: **RFC 8785 (JSON Canonicalization Scheme / JCS)** with mandatory pre-rounding (see "Number representation" below)
 - Hashing rules (SHA-256 over canonical encoding)
 - Faithfulness-verification protocol (Merkle tree construction, proof format, verifier algorithm)
 - Versioning policy
 - Non-goals (what v1 deliberately doesn't cover)
 
-### 2. Reference implementation — `valichord/attestation/`
+### 2. Reference implementation — `valichord_attestation/`
 
 Python module with:
 - `Bundle` dataclass / Pydantic model
@@ -158,7 +158,7 @@ Python module with:
 - `verify_faithfulness(bundle, sample_index, sample_content, merkle_path) -> bool`
 - `AdapterBase` — abstract class defining the interface a future harness adapter implements (input: harness-native output; output: `Bundle`)
 
-### 3. Tests — `valichord/attestation/tests/`
+### 3. Tests — `valichord_attestation/tests/`
 
 Coverage:
 - **Round-trip:** build → canonicalise → reconstruct from bytes → re-canonicalise → byte-identical
@@ -170,7 +170,7 @@ Coverage:
 
 Aim for ≥90% line coverage on the implementation module.
 
-### 4. Examples — `valichord/attestation/examples/`
+### 4. Examples — `valichord_attestation/examples/`
 
 Two end-to-end example bundles in JSON, each with the corresponding synthetic source data so a reader can verify the bundle was correctly derived:
 
@@ -179,7 +179,7 @@ Two end-to-end example bundles in JSON, each with the corresponding synthetic so
 
 Include a small `examples/verify_examples.py` script that loads each bundle and confirms it canonicalises, hashes, and round-trips correctly.
 
-### 5. README — `valichord/attestation/README.md`
+### 5. README — `valichord_attestation/README.md`
 
 Brief, scoped to:
 - What the format is and why it exists (link to Scott's review comment as the architectural rationale)
@@ -187,7 +187,7 @@ Brief, scoped to:
 - How a future harness adapter would be written (sketch, not full implementation)
 - Pointer to the spec doc for the formal definition
 
-### 6. Adapter sketch — `valichord/attestation/adapters/inspect_evals_stub.py`
+### 6. Adapter sketch — `valichord_attestation/adapters/inspect_evals_stub.py`
 
 A single stub file showing the shape of an inspect_evals adapter, raising `NotImplementedError`. The stub should make the mapping concrete in comments so a future implementer (or Scott, if he reviews it) can see the intent:
 
@@ -238,12 +238,12 @@ This stub is documentation as much as code — it tells a future contributor exa
 
 Work is complete when all of the following are true:
 
-- [ ] `valichord/spec/attestation_format_v1.md` exists and is internally complete (someone with no prior context can read it and implement an adapter)
-- [ ] `valichord/attestation/` reference implementation passes all tests
+- [ ] `valichord_attestation/spec/attestation_format_v1.md` exists and is internally complete (someone with no prior context can read it and implement an adapter)
+- [ ] `valichord_attestation/` reference implementation passes all tests
 - [ ] Test coverage ≥90% on the implementation module
 - [ ] Two example bundles exist, round-trip cleanly, and `verify_examples.py` exits 0
 - [ ] `AdapterBase` is defined with at least one stub demonstrating the shape
-- [ ] `valichord/attestation/README.md` explains the format and adapter pattern
+- [ ] `valichord_attestation/README.md` explains the format and adapter pattern
 - [ ] No unrelated changes (don't touch DNAs, UI, or `demo/ai_validator.py`)
 - [ ] Apache 2.0 license headers on new files matching the rest of the repo
 
@@ -261,7 +261,7 @@ The single most common way this work goes wrong is scope creep: adding a signatu
 
 Raise the question before guessing. Particular things worth checking with the founder before committing:
 
-- **Number representation in canonical encoding.** Fixed-precision string (e.g. `"0.84700000"`) is reproducible across languages but ugly; IEEE 754 round-trip via shortest-roundtrip representation is cleaner but Python-flavoured. Recommend: shortest-roundtrip with explicit precision rules in the spec, or stringify all numeric values. Decide before writing canonicaliser.
+- ~~**Number representation in canonical encoding.**~~ **RESOLVED:** RFC 8785 (JSON Canonicalization Scheme / JCS) for the encoding, with mandatory pre-rounding of inputs before construction. Specifically: accuracy/probability/score-style metrics pre-rounded to **6 decimal places**; counts and sample totals stored as JSON integers (no rounding); time durations as integer milliseconds; `NaN`/`Infinity`/subnormal values explicitly rejected with an error. Pre-rounding happens *before* the canonical encoder runs, not as part of it. Use a maintained Python JCS library (`jcs` or `jsoncanon`) — do not hand-roll RFC 8785.
 - **Merkle tree leaf format.** Three options: (a) raw per-sample-output bytes, (b) sha256 of structured per-sample dict, (c) sha256 of canonicalised per-sample JSON. Recommend (c) — most robust to representation drift in the harness. Confirm before implementing.
 - **Whether to mirror upstream `commit` semantics or use a separate `harness_commit`.** The merged `EvaluationReport.commit` is the upstream-eval-repo commit. Valichord might want both that and the harness-implementation commit (e.g., `inspect_ai` framework version). Recommend two fields: `repo_commit` and `harness_version`. Confirm.
 
