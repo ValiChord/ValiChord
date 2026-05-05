@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "valichord-attestation"
+version = "0.1.0"
+description = "Canonical attestation format for AI evaluation runs"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "jcs>=0.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["valichord_attestation*"]
+
+[tool.coverage.run]
+source = ["valichord_attestation"]
