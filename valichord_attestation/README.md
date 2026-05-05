@@ -21,9 +21,9 @@ Architectural context: this format was designed in response to Scott Simmons's r
 
 A bundle in isolation is a **verifiable statement**: any reader can confirm the bundle's internal consistency (the Merkle root commits to the per-sample outputs; the canonical encoding is deterministic; the challenge-response succeeds against a holder of the log). But anyone could have produced the bundle — there is no built-in identity layer in the format itself.
 
-When a bundle is committed on-chain through Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`), it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in their tamper-proof source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
+When a bundle is committed to a signed, append-only log — for example, Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`) — it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in a tamper-proof source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
 
-The two layers are deliberately separable. The format is harness-agnostic and useful in contexts beyond Valichord's protocol. Within Valichord's protocol, the on-chain layer adds the identity and witnessing properties that the format alone deliberately doesn't carry.
+The two layers are deliberately separable. The format is harness-agnostic and substrate-agnostic — useful in contexts beyond Valichord's protocol, and compatible with any signed-log infrastructure. Within Valichord's protocol, the signed-log layer adds the identity and witnessing properties that the format alone deliberately doesn't carry.
 
 ---
 
