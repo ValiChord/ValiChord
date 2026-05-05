@@ -27,6 +27,18 @@ The two layers are deliberately separable. The format is harness-agnostic and us
 
 ---
 
+## Concrete example
+
+A lab publishes a benchmark result for a frontier model — say, *"87.2% on SWE-bench Verified"* — and constructs a bundle with the canonical metric, the harness configuration, and a Merkle commitment over the per-sample outputs. The lab does not need to share the underlying 4 GB of log files publicly.
+
+A third-party verifier (a journalist, a regulator, a competing lab) reads the bundle and wants to confirm the score is faithful. They generate a fresh challenge — *"reveal samples 17, 142, 391, 894, 1,205, ..."* — and the lab responds with those 50 samples plus their Merkle paths. The verifier checks each path against the bundle's commitment, and recomputes the headline metric from the disclosed samples to confirm it matches what the lab reported.
+
+If the lab fabricated even 5% of their results, the verifier's 50-sample challenge catches the fabrication with probability ≈92%. The verifier has confirmed faithfulness without ever downloading the full log; the lab has demonstrated their result without exposing per-sample data their privacy or competitive position requires they not publish wholesale.
+
+That tradeoff — *probabilistic faithfulness verification with selective disclosure* — is what the protocol is for.
+
+---
+
 ## Quickstart
 
 ```python

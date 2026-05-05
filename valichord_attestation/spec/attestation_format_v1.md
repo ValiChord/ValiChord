@@ -392,7 +392,43 @@ The metric names in `raw_metrics` should match the harness's own names verbatim 
 
 ---
 
-## 10. Limitations and trust boundaries
+## 10. Threat model
+
+### Attacker capabilities assumed
+
+An adversary constructing a bundle is assumed to control:
+- The harness execution environment (so they can fabricate per-sample outputs)
+- The adapter that translates harness output into a bundle (so they can omit, reorder, or alter samples before commitment)
+- The reported metric values in `raw_metrics`
+
+An adversary is **not** assumed to control:
+- The verifier's randomness (the verifier supplies a fresh nonce for each challenge)
+- The cryptographic hash function (SHA-256 collision resistance is assumed)
+- Out-of-band knowledge such as the expected total sample count for a known benchmark
+
+### Attack surfaces and what the protocol catches
+
+**(a) Misreporting of committed sample contents.** If the adversary commits to a Merkle root and later, when challenged, reveals samples whose hashes do not reconstruct the root — the verifier detects the inconsistency directly via Merkle proof verification. *Always caught when challenged.*
+
+**(b) Fabrication of sample outputs.** If the adversary fabricates a fraction `f` of per-sample outputs (committing to fake samples consistent with their fake Merkle root), a verifier requesting `k` random samples catches at least one fake with probability `1 - (1-f)^k`. The verifier tunes `k` to the cheating fraction they want to detect (see sensitivity table in Section 6). *Catches with bounded probability that grows with k.*
+
+**(c) Metric misreporting (metric ↔ sample linkage).** The bundle separately commits to `raw_metrics` (the reported numbers) and `outputs_merkle_root` (the Merkle commitment over samples). An adversary could compute honest metrics from genuine samples and then attach those metrics to a different Merkle root, OR commit to honest samples and report different metrics. To detect this, **a verifier must recompute the metric from the disclosed samples and confirm it matches the reported metric in `raw_metrics`.** This recomputation is a verifier-side responsibility in v1.1; future versions may bundle the metric-derivation function into the bundle itself so the recomputation is automatic. *Caught only if the verifier performs metric recomputation on disclosed samples.*
+
+**(d) Sample omission.** If the adversary drops failed or inconvenient samples wholesale before constructing the bundle, the resulting Merkle root is honest about a smaller-than-real run. The bundle commits `samples.total` (the declared count); a verifier with out-of-band knowledge of the benchmark's true size can detect a discrepancy. In Valichord's federated protocol, multiple independent validators running the same eval should converge on the same `samples.total`, and divergence is itself a flag. *Caught only with external knowledge of expected sample count, or via federation.*
+
+### Composition with the protocol layer
+
+The format provides defences against (a) and (b) directly, and against (c) given an honest verifier who performs metric recomputation. It cannot fully address (d) without external context. Valichord's broader protocol — federation across independent validators, on-chain commit-reveal, warrants — addresses (d) by making divergent `samples.total` claims detectable across the validator pool.
+
+### What the protocol does not claim
+
+- It does **not** provide zero-disclosure verification (verifying without any log access). The log holder must be available to respond to challenges; selective disclosure of challenged samples is required.
+- It does **not** provide absolute (rather than probabilistic) faithfulness verification under (b) and (c) without full sample disclosure.
+- It does **not** prevent collusion between adversaries who control both the bundle producer and the log holder of the same bundle.
+
+---
+
+## 11. Limitations and trust boundaries
 
 ### Adapter trust boundary
 
