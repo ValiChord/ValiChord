@@ -22,7 +22,9 @@ This brief fixes that with three targeted edits. The cryptographic protocol stay
 
 ---
 
-## Three edits to make
+## Five edits to make
+
+(The original three documentation edits below, plus two added after a second external review — see Edits 4 and 5.)
 
 ### Edit 1 — README opening: lead with the strong claim
 
@@ -88,6 +90,64 @@ Suggested content covering three points:
 
 These are not weaknesses-to-hide; they are honest scope boundaries that demonstrate the design has been thought through.
 
+### Edit 4 — Add a "Threat model" section to the spec, including the metric ↔ sample linkage
+
+This is the most substantive addition. Add a "Threat model" section to `attestation_format_v1.md` (immediately before "Limitations and trust boundaries"), spelling out attacker capabilities and what the protocol guarantees against each.
+
+Suggested content:
+
+> ## Threat model
+>
+> ### Attacker capabilities assumed
+>
+> An adversary constructing a bundle is assumed to control:
+> - The harness execution environment (so they can fabricate per-sample outputs)
+> - The adapter that translates harness output into a bundle (so they can omit, reorder, or alter samples before commitment)
+> - The reported metric values in `raw_metrics`
+>
+> An adversary is **not** assumed to control:
+> - The verifier's randomness (the verifier supplies a fresh nonce for each challenge)
+> - The cryptographic hash function (SHA-256 collision resistance is assumed)
+> - Out-of-band knowledge such as the expected total sample count for a known benchmark
+>
+> ### Attack surfaces and what the protocol catches
+>
+> **(a) Misreporting of committed sample contents.** If the adversary commits to a Merkle root and later, when challenged, reveals samples whose hashes do not reconstruct the root — the verifier detects the inconsistency directly via Merkle proof verification. *Always caught when challenged.*
+>
+> **(b) Fabrication of sample outputs.** If the adversary fabricates a fraction `f` of per-sample outputs (committing to fake samples consistent with their fake Merkle root), a verifier requesting `k` random samples catches at least one fake with probability `1 - (1-f)^k`. The verifier tunes `k` to the cheating fraction they want to detect (see sensitivity table in Section 6). *Catches with bounded probability that grows with k.*
+>
+> **(c) Metric misreporting (metric ↔ sample linkage).** The bundle separately commits to `raw_metrics` (the reported numbers) and `outputs_merkle_root` (the Merkle commitment over samples). An adversary could compute honest metrics from genuine samples and then attach those metrics to a different Merkle root, OR commit to honest samples and report different metrics. To detect this, **a verifier must recompute the metric from the disclosed samples and confirm it matches the reported metric in `raw_metrics`.** This recomputation is a verifier-side responsibility in v1.1; future versions may bundle the metric-derivation function into the bundle itself so the recomputation is automatic. *Caught only if the verifier performs metric recomputation on disclosed samples.*
+>
+> **(d) Sample omission.** If the adversary drops failed or inconvenient samples wholesale before constructing the bundle, the resulting Merkle root is honest about a smaller-than-real run. The bundle commits `samples_total` (the declared count); a verifier with out-of-band knowledge of the benchmark's true size can detect a discrepancy. In Valichord's federated protocol, multiple independent validators running the same eval should converge on the same `samples_total`, and divergence is itself a flag. *Caught only with external knowledge of expected sample count, or via federation.*
+>
+> ### Composition with the protocol layer
+>
+> The format alone provides (a), (b), and (c) — given an honest verifier and an honest log holder. It cannot fully address (d) without external context. Valichord's broader protocol — federation across independent validators, on-chain commit-reveal, warrants — addresses (d) by making divergent `samples_total` claims detectable across the validator pool.
+>
+> ### What the protocol does not claim
+>
+> - It does **not** provide zero-disclosure verification (verifying without any log access). The log holder must be available to respond to challenges; selective disclosure of challenged samples is required.
+> - It does **not** provide absolute (rather than probabilistic) faithfulness verification under (b) and (c) without full sample disclosure.
+> - It does **not** prevent collusion between adversaries who control both the bundle producer and the log holder of the same bundle.
+
+This section is the substantive answer to *"what does this protocol actually guarantee?"* — written precisely enough that a careful reader can decide whether the guarantees are sufficient for their use case.
+
+### Edit 5 — Add one concrete "why this matters" vignette to the README
+
+After the strong-claim opening and the "verifiable statement vs attested claim" section, add a short concrete example so the abstract claims become tangible. Suggested text:
+
+> ## Concrete example
+>
+> A lab publishes a benchmark result for a frontier model — say, *"87.2% on SWE-bench Verified"* — and constructs a bundle with the canonical metric, the harness configuration, and a Merkle commitment over the per-sample outputs. The lab does not need to share the underlying 4 GB of log files publicly.
+>
+> A third-party verifier (a journalist, a regulator, a competing lab) reads the bundle and wants to confirm the score is faithful. They generate a fresh challenge — *"reveal samples 17, 142, 391, 894, 1,205, ..."* — and the lab responds with those 50 samples plus their Merkle paths. The verifier checks each path against the bundle's commitment, and recomputes the headline metric from the disclosed samples to confirm it matches what the lab reported.
+>
+> If the lab fabricated even 5% of their results, the verifier's 50-sample challenge catches the fabrication with probability ≈92%. The verifier has confirmed faithfulness without ever downloading the full log; the lab has demonstrated their result without exposing per-sample data their privacy or competitive position requires they not publish wholesale.
+>
+> That tradeoff — *probabilistic faithfulness verification with selective disclosure* — is what the protocol is for.
+
+This makes the protocol concrete in a way the abstract framing alone cannot.
+
 ---
 
 ## Out of scope — do not implement in this work
@@ -103,7 +163,10 @@ These are not weaknesses-to-hide; they are honest scope boundaries that demonstr
 
 - [ ] `valichord_attestation/README.md` opens with the strong-claim paragraph (or equivalent wording that surfaces verifiable commitment, probabilistic challenge-response, selective disclosure, and deterministic encoding)
 - [ ] `valichord_attestation/README.md` includes the "verifiable statement vs attested claim" subsection
+- [ ] `valichord_attestation/README.md` includes the "Concrete example" vignette (Edit 5)
+- [ ] `valichord_attestation/spec/attestation_format_v1.md` includes the new "Threat model" section (Edit 4) covering attacker capabilities, four attack surfaces (a)-(d), composition with the protocol layer, and explicit non-claims
 - [ ] `valichord_attestation/spec/attestation_format_v1.md` includes the new "Limitations and trust boundaries" section covering adapter trust, metric semantics vs faithfulness, and floating-point determinism
+- [ ] The Threat model and Limitations sections sit adjacent in the spec (Threat model first, Limitations second) so a reader sees them as a coherent pair
 - [ ] No changes to any Python files
 - [ ] No changes to test files
 - [ ] No changes to bundle JSON schema, canonical encoding rules, or any cryptographic protocol detail
