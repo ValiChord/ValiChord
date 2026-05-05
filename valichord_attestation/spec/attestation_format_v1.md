@@ -389,3 +389,26 @@ The metric names in `raw_metrics` should match the harness's own names verbatim 
 - **NaN/Infinity in metrics** — rejected with a `MalformedBundleError`. Including non-finite values in the canonical encoding produces implementation-defined bytes, breaking cross-implementation hash compatibility.
 - **Absent fields defaulting** — `build_bundle` raises `MalformedBundleError` if a required metric field is missing. Never silently default to `0.0` — two logs that both fail extraction would produce the same hash, falsely claiming the runs matched.
 - **Proof forgery** — an adversary who controls both the bundle and the proof could construct a false inclusion proof. The Merkle root in the bundle and the proof are only meaningful together with a trustworthy bundle provenance (e.g. a git commit, a signed statement, or a Valichord DHT entry).
+
+---
+
+## 10. Limitations and trust boundaries
+
+### Adapter trust boundary
+
+The protocol commits to per-sample outputs that the adapter chooses to include. If a malicious adapter drops failed samples wholesale before constructing the bundle, the resulting Merkle root is internally honest about a smaller-than-real run. The challenge-response catches misreporting of committed samples, not omission of samples that should have been committed.
+
+Mitigations available at the protocol layer (outside the format itself):
+- The bundle commits `samples.total` (the declared sample count), which a verifier can check against external expectations of the benchmark size.
+- In Valichord's federated protocol, multiple independent validators running the same eval should converge on the same `samples.total`; an adapter that systematically drops samples would diverge from honest validators.
+- On-chain warrants can be issued against validators whose attestations are demonstrably inconsistent with peers'.
+
+The format alone cannot solve this; the protocol layer mitigates it.
+
+### Metric semantics vs metric faithfulness
+
+The bundle proves that the reported numerical metrics are faithful to the underlying run — not that two runs producing the same numbers are methodologically equivalent. Two evaluations producing `{"accuracy": 0.847}` may differ in prompt formatting, scaffold, decoding parameters, or system message, while still both being honest about their respective runs. The bundle's `harness_version` and `command` fields capture some of this context, but semantic equivalence across runs is a methodology problem, not a cryptographic one. Verifiers comparing bundles should treat numerical match as necessary but not sufficient evidence of methodological equivalence.
+
+### Floating-point determinism
+
+RFC 8785 canonical encoding does not by itself guarantee cross-language determinism for floating-point numbers, since IEEE 754 representations and shortest-roundtrip serialisations can vary subtly across implementations. The format addresses this with mandatory pre-rounding rules: accuracy / probability / score-style metrics are pre-rounded to six decimal places before encoding; counts and sample totals are stored as integers; time durations are stored as integer milliseconds; `NaN`, `Infinity`, and subnormal values are explicitly rejected. Pre-rounding happens before the canonical encoder runs, not as part of it. Implementations that follow these rules produce byte-identical encodings across Python, JavaScript, Rust, and other JCS-compliant runtimes.

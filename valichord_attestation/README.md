@@ -1,15 +1,29 @@
 # valichord_attestation
 
-Canonical attestation format for AI evaluation runs.
+A lightweight verification layer for AI evaluation claims.
 
-A **bundle** is a lightweight JSON document that binds a reported evaluation result to the underlying run that produced it. Two things make it verifiable:
+The protocol provides a **verifiable commitment over an entire evaluation trace** — its summary metrics, its per-sample outputs, and the harness configuration that produced them — together with a **probabilistic challenge-response protocol** that lets a verifier confirm faithfulness of reported results without transferring the full log.
 
-1. **Deterministic hash** — the bundle is RFC 8785 (JCS) encoded, so the same run always produces the same bytes and the same SHA-256 digest.
-2. **Merkle root** — a SHA-256 Merkle tree over per-sample outputs lets the log holder prove any individual sample to a third party without disclosing the full log.
+The system enables:
+- **Selective disclosure** — the holder of the log can prove individual samples on demand without revealing the rest
+- **Bounded-confidence fraud detection** — the verifier picks random samples; the probability of catching a misreport grows with the number of samples requested
+- **Deterministic cross-implementation comparison** — RFC 8785 (JCS) canonical encoding means two implementations in different languages produce byte-identical bundles for the same input
+
+v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 (already shipped) adds the probabilistic challenge-response. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs.
 
 The format is harness-agnostic. Adapters for specific harnesses (Inspect AI, lm-evaluation-harness, etc.) are thin converters written separately.
 
 Architectural context: this format was designed in response to Scott Simmons's review of [UKGovernmentBEIS/inspect_evals#1610](https://github.com/UKGovernmentBEIS/inspect_evals/pull/1610). The core feedback was that the canonical spec belongs in Valichord, not in each eval harness, and that the valuable attestation is not "I have the log file" but "this reported result is faithful to the run."
+
+---
+
+## Verifiable statement vs attested claim
+
+A bundle in isolation is a **verifiable statement**: any reader can confirm the bundle's internal consistency (the Merkle root commits to the per-sample outputs; the canonical encoding is deterministic; the challenge-response succeeds against a holder of the log). But anyone could have produced the bundle — there is no built-in identity layer in the format itself.
+
+When a bundle is committed on-chain through Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`), it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in their tamper-proof source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
+
+The two layers are deliberately separable. The format is harness-agnostic and useful in contexts beyond Valichord's protocol. Within Valichord's protocol, the on-chain layer adds the identity and witnessing properties that the format alone deliberately doesn't carry.
 
 ---
 
