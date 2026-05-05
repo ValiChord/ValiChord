@@ -50,6 +50,7 @@ bundle = build_bundle(
     task_id="gsm8k",
     raw_metrics=[{"key": "accuracy", "value": 0.847, "stderr": 0.025}],
     samples=[{"index": i, "output": "...", "correct": True} for i in range(1319)],
+    samples_total=1319,           # optional: assert intended run size (detects silent omission)
     repo_commit="abc123",
     harness_version="inspect_ai/0.3.19",
     command="inspect eval gsm8k --model openai/gpt-4o-2024-08-06",
@@ -76,7 +77,7 @@ raw_metrics = [
 ]
 ```
 
-`build_bundle` raises `MalformedBundleError` if any `value` key is missing — absent metrics are never silently defaulted to `0.0`.
+`build_bundle` raises `MalformedBundleError` if any `value` key is missing — absent metrics are never silently defaulted to `0.0`. Pass `samples_total` to explicitly declare the intended run size; if an adapter silently drops samples, `bundle.samples_total > bundle.samples_completed` will be directly visible. Raises `ValueError` if `samples_total < len(samples)`.
 
 ---
 
@@ -154,7 +155,7 @@ pip install -e ".[dev]"
 pytest tests/ --cov=valichord_attestation
 ```
 
-138 tests, 100% line coverage.
+142 tests, 100% line coverage.
 
 ---
 

@@ -75,6 +75,12 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### `valichord_attestation` explicit `samples_total` — 2026-05-05 ✓
+
+Closes sample-omission gap (threat model §10 attack surface (d)). `build_bundle` now accepts `samples_total: Optional[int]`; when provided and larger than `len(samples)`, `bundle.samples_total > bundle.samples_completed` is directly visible in the bundle without out-of-band context. Raises `ValueError` if `samples_total < len(samples)`. 4 new tests (boundary: omitted, equal, larger, smaller); 142 tests total, 100% line coverage. Spec §2 field descriptions tightened; §10 (d) updated to note that explicit declaration shifts detection in-bundle, and that federation remains the backstop against a lying adapter.
+
+---
+
 ### `valichord_attestation` probabilistic challenge-response — 2026-05-05 ✓
 
 Additive extension on top of v1 Merkle structure. Verifier-controlled randomness: challenged indices derived deterministically from `HMAC-SHA256(nonce, bundle_hash)` + SHA-256 counter-mode PRNG, so the holder cannot predict which samples will be challenged.
@@ -91,7 +97,7 @@ Additive extension on top of v1 Merkle structure. Verifier-controlled randomness
 - `merkle_path` reuses existing `list[{"position","sibling"}]` format from `merkle_proof`
 - `_leaf_hash` promoted to public `leaf_hash` (protocol-defining)
 
-**Test coverage:** 57 new tests (38 challenge + 35 response, 4 pre-existing overlap removed). 138 tests total, 100% line coverage maintained.
+**Test coverage:** 57 new tests (38 challenge + 35 response, 4 pre-existing overlap removed). 138 tests at this point; 142 total after subsequent `samples_total` additions. 100% line coverage maintained.
 
 **Fixed test vector:** `bundle_hash='a'*64`, `nonce=bytes(range(16))`, `k=5`, `total=100` → indices `[9, 69, 33, 74, 38]`
 
