@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
 **Last updated:** 2026-05-05
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.0.
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.0. `valichord_attestation` now includes probabilistic challenge-response (v1.1 additive).
 
 ---
 
@@ -74,6 +74,30 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### `valichord_attestation` probabilistic challenge-response — 2026-05-05 ✓
+
+Additive extension on top of v1 Merkle structure. Verifier-controlled randomness: challenged indices derived deterministically from `HMAC-SHA256(nonce, bundle_hash)` + SHA-256 counter-mode PRNG, so the holder cannot predict which samples will be challenged.
+
+**New modules:**
+- `challenge.py` — `Challenge` dataclass, `derive_seed`, `generate_indices`, `compute_challenge_hash`
+- `response.py` — `ResponseSample`, `ChallengeResponse`, `build_response`, `verify_response`
+
+**Protocol properties:**
+- Seed: `HMAC-SHA256(key=verifier_nonce, msg=bundle_hash_ascii)`
+- Indices: SHA-256 counter-mode (`SHA256(seed || counter_u64_be)` mod `total_samples`, rejection-sampled for distinctness)
+- Response contains only hashes + proof paths — no raw sample content
+- `challenge_hash` = `SHA-256(JCS({"bundle_hash", "k", "verifier_nonce_hex"}))` binds response to challenge
+- `merkle_path` reuses existing `list[{"position","sibling"}]` format from `merkle_proof`
+- `_leaf_hash` promoted to public `leaf_hash` (protocol-defining)
+
+**Test coverage:** 57 new tests (38 challenge + 35 response, 4 pre-existing overlap removed). 138 tests total, 100% line coverage maintained.
+
+**Fixed test vector:** `bundle_hash='a'*64`, `nonce=bytes(range(16))`, `k=5`, `total=100` → indices `[9, 69, 33, 74, 38]`
+
+**No breaking changes** — v1 bundle format unchanged. No new dependencies.
+
+---
 
 ### `valichord_attestation` v0.1.0 — 2026-05-05 ✓
 

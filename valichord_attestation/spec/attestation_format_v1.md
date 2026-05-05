@@ -223,7 +223,139 @@ The Merkle root proves the *samples were present*, not that the *aggregate metri
 
 ---
 
-## 6. Versioning policy
+## 6. Probabilistic Challenge-Response
+
+### Goal and trust model
+
+Section 5 delivers *selective disclosure* — the log holder proves individual samples on request, choosing which ones to reveal. A stronger property is verifier-controlled randomness: the verifier picks which samples to inspect, the holder must reveal those specific ones, and the verifier gains high-confidence evidence of faithfulness without the log holder being able to cherry-pick favourable samples.
+
+This protocol achieves that. The verifier supplies a random nonce; the challenged indices are derived deterministically from `(bundle_hash, nonce, k)`, so the holder cannot predict them before committing to the bundle, and cannot choose which samples to reveal.
+
+### Probabilistic guarantee
+
+If a fraction `f` of the log is fabricated and the verifier requests `k` random samples, the probability of catching at least one fabricated sample is `1 - (1-f)^k`.
+
+| f \ k | k=10 | k=30 | k=60 | k=100 | k=300 |
+|---|---|---|---|---|---|
+| f = 1% | 10% | 26% | 45% | 63% | 95% |
+| f = 5% | 40% | 79% | 95% | 99% | >99% |
+| f = 10% | 65% | 96% | 99.8% | >99% | >99% |
+
+This guarantee is probabilistic, not deterministic. A verifier must choose `k` based on the cheating fraction they want to detect and the confidence level they require. A response that passes verification does not mean the log is 100% faithful — it means the verifier found no fabrication in the `k` challenged samples.
+
+### `Challenge` schema
+
+```json
+{
+  "bundle_hash":     "<64 hex chars>",
+  "verifier_nonce":  "<hex string, min 32 chars = 16 bytes>",
+  "k":               20
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `bundle_hash` | `string` | SHA-256 hex digest of the target bundle (from Section 4). |
+| `verifier_nonce` | `bytes` | Verifier-chosen random bytes, minimum 16 bytes. Serialised as a lowercase hex string when encoding. |
+| `k` | `integer` | Number of samples to challenge. Must be > 0 and ≤ `samples.total`. |
+
+### `ChallengeResponse` schema
+
+```json
+{
+  "challenge_hash": "<64 hex chars>",
+  "samples": [
+    {
+      "sample_index":        42,
+      "sample_content_hash": "<64 hex chars>",
+      "merkle_path": [
+        {"position": "right", "sibling": "<64 hex chars>"},
+        {"position": "left",  "sibling": "<64 hex chars>"}
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `challenge_hash` | `string` | `compute_challenge_hash(challenge)` — binds this response to a specific challenge. |
+| `samples` | `array` | One entry per challenged index, in the order returned by `generate_indices`. |
+| `samples[i].sample_index` | `integer` | Position of this sample in the original log. |
+| `samples[i].sample_content_hash` | `string` | `SHA-256(JCS(sample_dict))` — the same leaf hash used in the Merkle tree (see `leaf_hash` in the reference implementation). |
+| `samples[i].merkle_path` | `array` | Inclusion proof in the same format as Section 5 (`{"position", "sibling"}` steps). |
+
+The response contains only hashes and proof paths — no raw sample content. The verifier learns that the holder has a sample whose hash chains to the bundle's Merkle root, without receiving the sample content itself.
+
+### Seed derivation
+
+```
+seed = HMAC-SHA256(key=verifier_nonce_bytes, msg=bundle_hash_ascii_bytes)
+```
+
+`bundle_hash` is the 64-character ASCII hex string encoded as UTF-8 bytes. Using `verifier_nonce` as the HMAC key and `bundle_hash` as the message binds the seed to both: changing either produces a completely different seed.
+
+### Index derivation — SHA-256 counter-mode
+
+```
+seed = derive_seed(challenge)
+indices = []
+seen = {}
+counter = 0
+while len(indices) < k:
+    digest = SHA-256(seed || counter.to_bytes(8, big-endian))
+    candidate = int.from_bytes(digest, big-endian) mod total_samples
+    if candidate not in seen:
+        seen.add(candidate)
+        indices.append(candidate)
+    counter += 1
+```
+
+The counter is an 8-byte big-endian unsigned integer. Any conforming implementation produces identical `indices` given the same `(bundle_hash, verifier_nonce, k, total_samples)`.
+
+**Test vector** (for cross-implementation validation):
+- `bundle_hash`: `"aaaa...aaaa"` (64 `a` characters)
+- `verifier_nonce`: bytes `[0x00, 0x01, ..., 0x0f]` (16 bytes)
+- `k = 5`, `total_samples = 100`
+- Expected `seed` (hex): `4b763d6f418f14dd085e3458c666fd9a00b6cd0132da3a049c07f96a1d9582f7`
+- Expected `indices`: `[9, 69, 33, 74, 38]`
+
+### `challenge_hash` computation
+
+```
+canonical = JCS({"bundle_hash": <str>, "k": <int>, "verifier_nonce_hex": <hex str>})
+challenge_hash = SHA-256(canonical).hex()
+```
+
+Keys are sorted lexicographically by JCS. The nonce is hex-encoded so the dict is JSON-serialisable. The `challenge_hash` appears in the `ChallengeResponse` to bind it to a specific challenge; a response verified against the wrong challenge will fail immediately.
+
+### Response verification algorithm
+
+```python
+def verify_response(challenge, response, bundle):
+    if response.challenge_hash != compute_challenge_hash(challenge):
+        return False
+    expected_indices = set(generate_indices(challenge, bundle.samples_total))
+    if {s.sample_index for s in response.samples} != expected_indices:
+        return False
+    for sample in response.samples:
+        current = bytes.fromhex(sample.sample_content_hash)
+        for step in sample.merkle_path:
+            sibling = bytes.fromhex(step["sibling"])
+            if step["position"] == "right":
+                current = SHA-256(current + sibling)
+            else:
+                current = SHA-256(sibling + current)
+        if current.hex() != bundle.outputs_merkle_root:
+            return False
+    return True
+```
+
+Missing or `None` required fields MUST raise an error rather than produce a hash of `0` or an empty value — see Section 8 (hash-collision safety).
+
+---
+
+## 7. Versioning policy
 
 - The `format_version` field is `"v1"` for all bundles conforming to this spec.
 - **Additive changes** (new optional fields, new optional Metric fields) MAY be made without incrementing the version, under the `extra="allow"` posture. v1 readers MUST ignore unrecognised fields.
@@ -232,7 +364,7 @@ The Merkle root proves the *samples were present*, not that the *aggregate metri
 
 ---
 
-## 7. Adapter interface
+## 8. Adapter interface
 
 Adapters map harness-native outputs to `Bundle` objects. The interface:
 
@@ -252,7 +384,7 @@ The metric names in `raw_metrics` should match the harness's own names verbatim 
 
 ---
 
-## 8. Security considerations
+## 9. Security considerations
 
 - **NaN/Infinity in metrics** — rejected with a `MalformedBundleError`. Including non-finite values in the canonical encoding produces implementation-defined bytes, breaking cross-implementation hash compatibility.
 - **Absent fields defaulting** — `build_bundle` raises `MalformedBundleError` if a required metric field is missing. Never silently default to `0.0` — two logs that both fail extraction would produce the same hash, falsely claiming the runs matched.

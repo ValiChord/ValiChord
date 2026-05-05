@@ -5,8 +5,12 @@ import hashlib
 import jcs
 
 
-def _leaf_hash(sample: dict) -> bytes:
-    """SHA-256 of the JCS-canonical encoding of a per-sample output dict."""
+def leaf_hash(sample: dict) -> bytes:
+    """SHA-256 of the JCS-canonical encoding of a per-sample output dict.
+
+    This is the protocol-defining leaf hash function for the Merkle tree.
+    It is public because challenge responses reference it by name.
+    """
     raw = jcs.canonicalize(sample)
     encoded = raw if isinstance(raw, bytes) else raw.encode("utf-8")
     return hashlib.sha256(encoded).digest()
@@ -40,7 +44,7 @@ def merkle_root(samples: list[dict]) -> str:
     Each sample dict is JCS-encoded then SHA-256 hashed to form a leaf.
     Returns the root as a 64-character hex string.
     """
-    leaves = [_leaf_hash(s) for s in samples]
+    leaves = [leaf_hash(s) for s in samples]
     tree = _build_tree(leaves)
     return tree[-1][0].hex()
 
@@ -56,7 +60,7 @@ def merkle_proof(samples: list[dict], index: int) -> list[dict]:
     The verifier reconstructs the root by combining current with each sibling
     in the stated position at each level.
     """
-    leaves = [_leaf_hash(s) for s in samples]
+    leaves = [leaf_hash(s) for s in samples]
     tree = _build_tree(leaves)
     proof: list[dict] = []
     idx = index
@@ -82,7 +86,7 @@ def verify_faithfulness(
     not used in this implementation — the `proof` list encodes all path directions.
     """
     _ = sample_index
-    current = _leaf_hash(sample)
+    current = leaf_hash(sample)
     for step in proof:
         sibling = bytes.fromhex(step["sibling"])
         if step["position"] == "right":

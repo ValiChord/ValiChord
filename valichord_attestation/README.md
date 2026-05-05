@@ -78,6 +78,31 @@ The `InspectEvalsAdapter` stub in `valichord_attestation/adapters/inspect_evals_
 
 ---
 
+## Probabilistic Challenge-Response
+
+Selective disclosure (Section 5 of the spec) lets the log holder choose which samples to prove. The challenge-response protocol inverts control: the verifier picks which samples to inspect, and the holder must reveal those specific ones.
+
+```python
+from valichord_attestation import (
+    build_bundle, hash_bundle, Challenge,
+    build_response, verify_response,
+)
+import os
+
+bundle = build_bundle(...)
+challenge = Challenge(
+    bundle_hash=hash_bundle(bundle),
+    verifier_nonce=os.urandom(32),
+    k=60,  # challenge 60 randomly-chosen samples
+)
+response = build_response(challenge, samples)  # holder's side
+ok = verify_response(challenge, response, bundle)  # verifier's side
+```
+
+With `k=60` and a 5% fabrication rate, catch probability is ~95%. See [`spec/attestation_format_v1.md`](spec/attestation_format_v1.md) Section 6 for the full protocol (seed derivation, index algorithm, test vector) and the sensitivity table. Runnable walkthrough: [`examples/challenge_response_demo.py`](examples/challenge_response_demo.py).
+
+---
+
 ## Running the examples
 
 ```bash
