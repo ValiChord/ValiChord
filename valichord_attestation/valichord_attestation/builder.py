@@ -14,6 +14,7 @@ def build_bundle(
     task_id: str,
     raw_metrics: list[dict],
     samples: list[dict],
+    samples_total: Optional[int] = None,
     repo_commit: Optional[str] = None,
     harness_version: Optional[str] = None,
     command: Optional[str] = None,
@@ -31,6 +32,11 @@ def build_bundle(
             Missing keys always raise MalformedBundleError — never silently defaulted.
         samples: list of per-sample output dicts used to compute outputs_merkle_root.
             Must be non-empty.
+        samples_total: declared total number of samples the run was intended to produce.
+            When provided it is recorded as samples.total in the bundle, allowing a verifier
+            to detect silent sample omission (threat model §10 attack surface (d)).
+            Must be >= len(samples); raises ValueError otherwise.
+            Defaults to len(samples) when omitted.
         repo_commit: git commit hash of the eval repository (optional).
         harness_version: eval harness version string (optional).
         command: command used to run the eval (optional).
@@ -42,11 +48,22 @@ def build_bundle(
     Raises:
         MalformedBundleError: if any required field is absent, empty, or contains
             a non-finite numeric value.
+        ValueError: if samples_total is less than len(samples).
     """
     if not raw_metrics:
         raise MalformedBundleError("raw_metrics must not be empty")
     if not samples:
         raise MalformedBundleError("samples must not be empty — required for outputs_merkle_root")
+
+    completed = len(samples)
+    if samples_total is None:
+        total = completed
+    elif samples_total < completed:
+        raise ValueError(
+            f"samples_total ({samples_total}) must not be less than len(samples) ({completed})"
+        )
+    else:
+        total = samples_total
 
     metrics: list[Metric] = []
     for entry in raw_metrics:
@@ -73,8 +90,8 @@ def build_bundle(
         model_id=model_id,
         task_id=task_id,
         metrics=metrics,
-        samples_total=len(samples),
-        samples_completed=len(samples),
+        samples_total=total,
+        samples_completed=completed,
         outputs_merkle_root=root,
         repo_commit=repo_commit,
         harness_version=harness_version,

@@ -141,3 +141,24 @@ def test_hash_is_deterministic_given_fixed_timestamp():
     b1 = _basic_bundle(generated_at=ts)
     b2 = _basic_bundle(generated_at=ts)
     assert hash_bundle(b1) == hash_bundle(b2)
+
+
+# --- samples_total parameter tests ---
+
+def test_samples_total_omitted_defaults_to_len_samples():
+    b = _basic_bundle()
+    assert b.samples_total == len(SAMPLES)
+    assert b.samples_completed == len(SAMPLES)
+
+
+def test_samples_total_explicit_larger_records_divergence():
+    declared = len(SAMPLES) + 4
+    b = _basic_bundle(samples_total=declared)
+    assert b.samples_total == declared
+    assert b.samples_completed == len(SAMPLES)
+    assert b.samples_total > b.samples_completed
+
+
+def test_samples_total_less_than_samples_raises():
+    with pytest.raises(ValueError, match="samples_total"):
+        _basic_bundle(samples_total=len(SAMPLES) - 1)
