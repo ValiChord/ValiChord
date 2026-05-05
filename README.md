@@ -70,7 +70,7 @@ cd valichord-ui && npm run dev
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
 
-**v0.5.0 (May 2026):** `valichord_attestation` Python library released — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface. 81 tests, 100% line coverage. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
+**v0.5.0 (May 2026):** `valichord_attestation` Python library — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface, and probabilistic challenge-response (verifier-controlled randomness, HMAC-SHA256 seed derivation, SHA-256 counter-mode index generation). 138 tests, 100% line coverage. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
 
 **v0.4.4 (May 2026):** Signal handling hardened — fixed a handler leak that stacked duplicate `RevealOpen` notifications on component remount (`App.svelte`), a race condition in reveal-phase detection (`ValidatorView.svelte`), and a signal format mismatch (signals use adjacent-tag serde: `{ type: "RevealOpen", content: { ... } }`). Backend: `submit_attestation` now emits `FinalizationFailed` when the governance cross-DNA call fails after a successful attestation write, letting the UI prompt recovery via `force_finalize_round`. Two new sweettest tests verify SilverReproducible (5-conductor) and GoldReproducible (7-conductor) badge issuance end-to-end in CI.
 
@@ -329,7 +329,18 @@ ok = verify_faithfulness(bundle.outputs_merkle_root, 42, samples[42], proof)
 
 The format is harness-agnostic. An `AdapterBase` class and an Inspect AI stub (`valichord_attestation/adapters/inspect_evals_stub.py`) provide the adapter interface — concrete adapters map harness-native outputs to `Bundle` objects.
 
-**Status:** v0.1.0. 81 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
+A **probabilistic challenge-response layer** (Section 6 of the spec) adds verifier-controlled randomness on top of the Merkle structure. The verifier supplies a random nonce; challenged indices are derived from `HMAC-SHA256(nonce, bundle_hash)` + SHA-256 counter-mode, so the holder cannot predict which samples will be inspected. The response contains only hashes and proof paths — no raw sample content. With `k=60` and a 5% fabrication rate, catch probability is ~95%.
+
+```python
+from valichord_attestation import hash_bundle, Challenge, build_response, verify_response
+import os
+
+challenge = Challenge(bundle_hash=hash_bundle(bundle), verifier_nonce=os.urandom(32), k=60)
+response = build_response(challenge, samples)          # holder's side
+ok = verify_response(challenge, response, bundle)      # verifier's side
+```
+
+**Status:** 138 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
 
 ```bash
 pip install -e "valichord_attestation[dev]"
@@ -452,7 +463,7 @@ npm test
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
-Future versions extend selective disclosure with probabilistic challenge-response and hardware-attested execution via TEE, working toward the goal of report faithfulness verifiable without log access.
+Probabilistic challenge-response is shipped (`valichord_attestation` v0.5.0). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
 
 ---
 
