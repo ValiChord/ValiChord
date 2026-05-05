@@ -162,3 +162,14 @@ def test_samples_total_explicit_larger_records_divergence():
 def test_samples_total_less_than_samples_raises():
     with pytest.raises(ValueError, match="samples_total"):
         _basic_bundle(samples_total=len(SAMPLES) - 1)
+
+
+def test_samples_total_explicit_equal_to_len():
+    bundle = build_bundle(
+        model_id="m", task_id="t",
+        raw_metrics=[{"key": "accuracy", "value": 0.5}],
+        samples=SAMPLES,
+        samples_total=len(SAMPLES),
+    )
+    assert bundle.samples_total == len(SAMPLES)
+    assert bundle.samples_completed == len(SAMPLES)
