@@ -7,8 +7,8 @@
 ## Illustrative Architecture Sketches for Engineering Discussion
 
 **Author:** Ceri John
-**Date:** April 2026
-**Version:** 29
+**Date:** May 2026
+**Version:** 30
 
 **© 2026 Ceri John. All Rights Reserved.**
 
@@ -19,6 +19,8 @@
 ## Important Note on Status
 
 **Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped.
+
+**v0.4.5 addition:** `valichord_attestation/` — a Python library that extends ValiChord's commit-hash-reveal principle to AI evaluation runs. A bundle is a canonical, deterministically hashed JSON document (RFC 8785 / JCS) containing reported metrics and a SHA-256 Merkle root over per-sample outputs. Any individual sample can be proven to a verifier without disclosing the full log. The Holochain DHT integration (bundles as on-chain attestations) is v2 scope. See `valichord_attestation/spec/attestation_format_v1.md` and `docs/13_Valichord_Engineer_Handover.md` § `valichord_attestation`.
 
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They were illustrative sketches developed during twelve months of architectural design. The system is now built. For the authoritative implementation, see:
 - Source files under `valichord/dnas/`

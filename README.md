@@ -45,7 +45,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 ---
 
-## 🖥️ **New: Browser UI — Svelte 5 (v0.4.3, April 2026)**
+## 🖥️ **New: Browser UI — Svelte 5 (v0.4.5, May 2026)**
 
 > **The full commit-reveal protocol now has a browser-based interface — no command line required.**
 
@@ -69,6 +69,10 @@ cd valichord-ui && npm run dev
 **[Full UX walkthrough and setup guide →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)**
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
+
+**v0.4.5 (May 2026):** `valichord_attestation` Python library released — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface. 81 tests, 100% line coverage. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
+
+**v0.4.4 (May 2026):** Signal handling hardened — fixed a handler leak that stacked duplicate `RevealOpen` notifications on component remount (`App.svelte`), a race condition in reveal-phase detection (`ValidatorView.svelte`), and a signal format mismatch (signals use adjacent-tag serde: `{ type: "RevealOpen", content: { ... } }`). Backend: `submit_attestation` now emits `FinalizationFailed` when the governance cross-DNA call fails after a successful attestation write, letting the UI prompt recovery via `force_finalize_round`. Two new sweettest tests verify SilverReproducible (5-conductor) and GoldReproducible (7-conductor) badge issuance end-to-end in CI.
 
 ---
 
@@ -298,6 +302,44 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 
 ---
 
+## 🔬 AI Evaluation Attestation — `valichord_attestation`
+
+`valichord_attestation/` is a Python library for producing cryptographically verifiable attestation bundles for AI evaluation runs. The same verification logic that ValiChord applies to scientific reproducibility — commit, hash, reveal — applies to AI capability benchmarks: a published accuracy score should be traceable to a specific run and independently verifiable without access to the full log.
+
+Two properties make a bundle verifiable:
+
+1. **Deterministic hash** — bundles are encoded with RFC 8785 (JSON Canonicalization Scheme), so the same run always produces the same bytes and the same SHA-256 digest.
+2. **Merkle root** — a SHA-256 Merkle tree over per-sample outputs lets the log holder prove any individual sample to a verifier without disclosing the full log.
+
+```python
+from valichord_attestation import build_bundle, hash_bundle, merkle_proof, verify_faithfulness
+
+bundle = build_bundle(
+    model_id="gpt-4o-2024-08-06",
+    task_id="gsm8k",
+    raw_metrics=[{"key": "accuracy", "value": 0.847, "stderr": 0.025}],
+    samples=[{"index": i, "output": "...", "correct": True} for i in range(1319)],
+    repo_commit="abc123",
+    harness_version="inspect_ai/0.3.19",
+)
+bundle_hash = hash_bundle(bundle)   # publish alongside the report
+proof = merkle_proof(samples, index=42)   # selective disclosure
+ok = verify_faithfulness(bundle.outputs_merkle_root, 42, samples[42], proof)
+```
+
+The format is harness-agnostic. An `AdapterBase` class and an Inspect AI stub (`valichord_attestation/adapters/inspect_evals_stub.py`) provide the adapter interface — concrete adapters map harness-native outputs to `Bundle` objects.
+
+**Status:** v0.1.0. 81 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
+
+```bash
+pip install -e "valichord_attestation[dev]"
+pytest valichord_attestation/tests/
+```
+
+📄 **[Format spec →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md)**
+
+---
+
 ## 📚 Document Library
 
 ### Understanding ValiChord
@@ -337,6 +379,7 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 | [Deployment Checklist](https://github.com/topeuph-ai/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) | All DNA properties, dev/test bypass values, production requirements, and misconfiguration failure modes |
 | [Integration Guide](https://github.com/topeuph-ai/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide for any tool — curl, Python, TypeScript examples, webhooks |
 | [OpenAPI 3.0 Spec](https://github.com/topeuph-ai/ValiChord/blob/main/backend/openapi.yaml) | Machine-readable API spec; served live at `GET /openapi.yaml` |
+| [Attestation Format v1 Spec](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md) | Canonical attestation bundle format for AI evaluation runs — schema, Merkle construction, encoding rules |
 | [Nondominium Integration Vision](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
 | [Nondominium Integration Status](https://github.com/topeuph-ai/ValiChord/blob/main/nondominium_integration/README.md) | Status and open design decisions |
 
@@ -356,6 +399,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Resource | Link |
 | :--- | :--- |
 | Codebase (Rust / Holochain) | [`valichord/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord) |
+| AI eval attestation library (Python) | [`valichord_attestation/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord_attestation) |
 | Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord-ui) |
 | Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |

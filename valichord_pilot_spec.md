@@ -230,3 +230,108 @@ These are things to watch, not things to solve up front.
 **End of spec.**
 
 Codespaces Claude: implement against this. If anything is ambiguous, raise it as a question to the founder before guessing — this spec is meant to be precise where it matters and silent where founder judgment is needed.
+
+---
+
+## Appendix A — Funding-Constrained Variant ($0 Pilot)
+
+**Added:** 2026-05-04
+**Status:** Founder-approved revision. Supersedes the §7 study slate and §9 decision 4 (compute funding). All other sections of the spec remain in force.
+
+### A.1 What changed and why
+
+The original spec assumed a Valichord-funded validator grant pool and implicitly scoped the Tier A slate to frontier API models. Both assumptions require budget that doesn't exist at pilot start. This appendix replaces those assumptions with a zero-budget configuration that:
+
+- Exercises the protocol end-to-end identically to the expensive version
+- Produces independently citable output (HuggingFace Open LLM Leaderboard scores are real claims that genuinely don't get audited)
+- Costs under $50 if validators bring their own hardware, under $200 if a few RunPod hours are needed
+- Generates the credibility needed to pursue the funding paths in §A.4
+
+The $0 pilot is not a downgrade. "Ten studies verified for under $50" is a stronger story for grant applications than "we spent $30k of someone else's money."
+
+### A.2 Three constraints that define this variant
+
+1. **Open-weights models only.** Llama 3.1 8B, Mistral 7B, Qwen 2.5 7B, Phi-3, Gemma 2 9B, and equivalents. These run on a consumer GPU (or slowly on CPU). No API key required; no per-token cost.
+2. **Cheap benchmarks.** GSM8K, MMLU subsets, ARC-Challenge, HellaSwag, BBH subsets, WinoGrande. A full eval run on a 7B model takes minutes and pennies of electricity.
+3. **Volunteer validators with own hardware.** AI safety students, hobbyists with home GPUs, academic groups with idle compute. Incentive is the validator badge and public attestation record. No payment. 12 such operators are reachable on Discord today.
+
+### A.3 Revised study slate (replaces §7)
+
+| Slot | Type | Suggested study | Expected outcome |
+|---|---|---|---|
+| A1 | Tier A — happy path | Mistral-7B-Instruct-v0.3 on GSM8K (HF leaderboard score) | Reproduced |
+| A2 | Tier A — happy path | Llama-3.1-8B-Instruct on MMLU (HF leaderboard score) | Reproduced |
+| A3 | Tier A — happy path | Qwen-2.5-7B-Instruct on ARC-Challenge | Reproduced |
+| A4 | Tier A — happy path | Phi-3-mini-4k-instruct on HellaSwag | Reproduced |
+| B1 | Tier B — contested | Open LLM Leaderboard score with known community dispute | Non-Gold expected |
+| B2 | Tier B — contested | Older score suspected to be harness-sensitive | Non-Gold expected |
+| C1 | Tier C — stress | Deliberate bundle error (wrong temperature param) | Protocol catches deviation |
+| C2 | Tier C — stress | Model with limited access or deprecated checkpoint | InsufficientData |
+| D  | Tier D — anchor | Most interesting open-weights discrepancy you can find | Either direction is newsworthy |
+| X  | Spare | Held for opportunistic addition during pilot | — |
+
+**Founder still selects:** B1, B2, and D. Sourcing strategy: scan the HuggingFace Open LLM Leaderboard discussions tab and the EleutherAI Discord for publicly-flagged score disputes. These exist and are easy to find.
+
+### A.4 Validator model for this variant
+
+No payment. No formal employment. Validators opt in by:
+
+1. Joining the ValiChord validator Discord channel
+2. Declaring their hardware capability (`harness_id` + GPU type + available VRAM)
+3. Receiving a membrane proof (CertificationTier: Standard) from the issuer
+4. Running the validator node software against assigned studies
+
+The existing `ValidatorProfile.validator_capabilities` field (§10) handles capability-based routing. The only change from the funded model: `CompensationTier` is set to `Volunteer` (a new enum value — add to shared_types alongside the §10 changes).
+
+Validator motivations in this pool: badge on a public attestation record, citation in any publications arising from the pilot, early contributor status if ValiChord raises funding later.
+
+### A.5 Revised success metrics (replaces §8)
+
+Same structure; compute cost target added; external engagement target adjusted.
+
+| Metric | Target | Stretch |
+|---|---|---|
+| Studies reaching a HarmonyRecord | ≥7 of 10 | 10 of 10 |
+| Median time to HarmonyRecord | ≤7 days | ≤4 days |
+| Studies producing non-Gold outcome | ≥2 | ≥3 |
+| Validator participation rate | ≥80% | ≥95% |
+| Protocol-level incidents | 0 critical, ≤3 minor | 0 minor |
+| Total compute cost (all validators combined) | <$200 | <$50 |
+| External engagement | ≥1 HF / eval community citation | ≥1 academic/org inquiry |
+
+### A.6 Funding pursuit checklist (run in parallel with pilot)
+
+Pursue exactly two tracks simultaneously. Do not pursue all six — that is how applications become generic and fail.
+
+**Recommended primary track: Anthropic Startup Credits**
+- Application is light (a few paragraphs + link to repo)
+- $5k–$25k in API credits; unlocks frontier-model Tier A studies immediately
+- Profile match is near-perfect: open-source AI safety infrastructure, Holochain not crypto, reproducibility verification
+- Apply now. Does not conflict with any other funding. No exclusivity.
+
+**Recommended secondary track: one EA-aligned foundation grant**
+- Open Philanthropy, Survival and Flourishing Fund, or Long Term Future Fund
+- All three list "AI safety infrastructure" and "eval verification" as in-scope
+- Typical range $20k–$200k; slower process (2–4 months)
+- Apply once the $0 pilot has at least 3 completed HarmonyRecords — concrete results dramatically improve success rate
+- SFF has the lightest application; start there
+
+**Other paths (defer until after pilot):**
+
+| Funder | Notes | When to approach |
+|---|---|---|
+| OpenAI / Google API credits | Same play as Anthropic credits, lower profile match | After Anthropic result |
+| Protocol Labs Research | Decentralised infrastructure angle; Holochain is in scope | After pilot complete |
+| Mozilla Builders / Open Source Program | Trust and verification framing | After pilot complete |
+| Eval org sponsorship (METR, MLCommons) | Requires something to show; data from pilot is the pitch | Post-pilot, pre-frontier upgrade |
+
+### A.7 Upgrade path to the funded pilot
+
+The $0 pilot and the original spec are the same protocol. Once any of the §A.6 tracks produces funding:
+
+1. Add frontier API model benchmarks to the slate without changing any protocol code
+2. Move validators from Volunteer to compensated (update `CompensationTier`)
+3. Raise `num_validators_required` from 5 toward 7 as the pool grows
+4. The HarmonyRecords from the $0 pilot remain valid and publicly citable — the record of what the protocol did does not get superseded
+
+The $0 pilot is not a prototype. It is the first ten entries in the permanent public record.

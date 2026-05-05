@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-04
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.4.
+**Last updated:** 2026-05-05
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.5.
 
 ---
 
@@ -74,6 +74,28 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### `valichord_attestation` v0.1.0 — 2026-05-05 ✓
+
+Python library for canonical, cryptographically verifiable attestation bundles for AI evaluation runs. Applies ValiChord's commit-hash-reveal principle to AI benchmarks: a published accuracy score becomes traceable to the run that produced it.
+
+**Key properties:**
+- **Deterministic hash** — RFC 8785 (JCS) encoding; `SHA-256(JCS(bundle))` is stable across implementations
+- **Merkle root** — SHA-256 tree over per-sample outputs; selective disclosure without the full log
+- **Harness-agnostic** — `AdapterBase` ABC; Inspect AI stub included
+
+**What's in the package:**
+- `builder.py` — `build_bundle(...)`, `MalformedBundleError` on NaN/missing fields
+- `canonical.py` — JCS encoding + `hash_bundle()`
+- `merkle.py` — `merkle_root`, `merkle_proof`, `verify_faithfulness`
+- `spec/attestation_format_v1.md` — canonical spec
+- 81 tests, 100% line coverage
+
+**Not in v1:** cryptographic signing (v2), ZK proofs, Holochain DHT integration (post-format-stabilisation).
+
+**Motivation:** Scott Simmons's review of `UKGovernmentBEIS/inspect_evals#1610` — canonical attestation spec belongs in ValiChord, not in each harness.
+
+---
 
 ### UI bug fixes + backend signal hardening — 2026-05-04 ✓
 

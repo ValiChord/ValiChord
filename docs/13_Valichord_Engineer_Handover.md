@@ -1,6 +1,6 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 2.4 — April 2026
+**Version:** 2.5 — May 2026
 **Author:** Ceri John
 **Status:** Current — reflects codebase as of last commit
 
@@ -194,6 +194,50 @@ cp .env.example .env   # set VITE_HC_PORT
 npm install && npm run dev
 ```
 See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen instructions.
+
+---
+
+### `valichord_attestation` — Canonical AI Evaluation Attestation Format
+**Status: v0.1.0 — standalone Python library, 81 tests, 100% line coverage**
+
+`valichord_attestation/` is a harness-agnostic Python library that produces cryptographically verifiable attestation bundles for AI evaluation runs. It applies the same commit-hash-reveal principle that ValiChord uses for scientific reproducibility to AI capability benchmarks: a published accuracy score becomes traceable to the specific run that produced it, and any individual sample can be proven to a third party without disclosing the full log.
+
+**Location:** `valichord_attestation/` (sibling to `valichord/` — a pure-Python package, no Rust dependency)
+
+**Key modules:**
+
+| Module | Purpose |
+|---|---|
+| `valichord_attestation/builder.py` | `build_bundle(model_id, task_id, raw_metrics, samples, ...)` — constructs and validates a `Bundle`, computes the Merkle root, enforces pre-rounding rules, rejects NaN/Infinity |
+| `valichord_attestation/canonical.py` | RFC 8785 (JCS) deterministic encoding; `hash_bundle(bundle)` — SHA-256 hex of the canonical encoding |
+| `valichord_attestation/merkle.py` | `merkle_root(samples)`, `merkle_proof(samples, index)`, `verify_faithfulness(root_hex, index, sample, proof)` |
+| `valichord_attestation/bundle.py` | `Bundle` Pydantic model — required and optional fields, `extra="allow"` for forwards compatibility |
+| `valichord_attestation/adapters/base.py` | `AdapterBase` ABC — subclass and implement `to_bundle(...)` to wrap any harness |
+| `valichord_attestation/adapters/inspect_evals_stub.py` | Stub adapter for Inspect AI — maps `EvaluationReport` fields once the upstream API stabilises |
+
+**Format summary:**
+
+A bundle is a JSON document with required fields `format_version`, `generated_at`, `model_id`, `task_id`, `metrics`, `samples`, and `outputs_merkle_root`. Optional fields (`repo_commit`, `harness_version`, `command`) are omitted from the canonical encoding when absent. Metric values are pre-rounded to 6 decimal places before encoding; NaN, Infinity, and missing `value` keys raise `MalformedBundleError`.
+
+The Merkle root is a SHA-256 tree over per-sample output dicts, each leaf computed as `SHA-256(JCS(sample_dict))`. The bundle hash is `SHA-256(JCS(bundle_dict))`. Both are 64-char hex strings.
+
+**What v1 does not do (non-goals):** cryptographic signing (reserved for v2), zero-knowledge disclosure proofs, integration with Holochain DNAs (bundles becoming DHT attestations is post-format-stabilisation work), concrete harness adapters (shipped separately when upstream APIs stabilise).
+
+**Running tests:**
+```bash
+pip install -e "valichord_attestation[dev]"
+pytest valichord_attestation/tests/ --cov=valichord_attestation
+```
+
+**Running examples:**
+```bash
+python valichord_attestation/examples/verify_examples.py
+```
+Each example JSON contains a synthetic bundle, source samples, and a pre-computed inclusion proof. The script recomputes hash and Merkle root from scratch and confirms they match.
+
+**Full spec:** `valichord_attestation/spec/attestation_format_v1.md` — schema, encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, security considerations.
+
+**Architectural context:** the format was designed in response to Scott Simmons's review of `UKGovernmentBEIS/inspect_evals#1610`. The core feedback was that the canonical attestation spec belongs in ValiChord (the verification infrastructure), not inside each eval harness, and that the meaningful attestation is not "I have the log file" but "this reported result is faithful to the run that produced it."
 
 ---
 
