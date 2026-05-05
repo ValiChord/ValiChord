@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
 **Last updated:** 2026-05-05
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.4.5.
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.0.
 
 ---
 

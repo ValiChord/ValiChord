@@ -45,7 +45,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 ---
 
-## 🖥️ **New: Browser UI — Svelte 5 (v0.4.5, May 2026)**
+## 🖥️ **New: Browser UI — Svelte 5 (v0.5.0, May 2026)**
 
 > **The full commit-reveal protocol now has a browser-based interface — no command line required.**
 
@@ -70,7 +70,7 @@ cd valichord-ui && npm run dev
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
 
-**v0.4.5 (May 2026):** `valichord_attestation` Python library released — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface. 81 tests, 100% line coverage. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
+**v0.5.0 (May 2026):** `valichord_attestation` Python library released — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface. 81 tests, 100% line coverage. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
 
 **v0.4.4 (May 2026):** Signal handling hardened — fixed a handler leak that stacked duplicate `RevealOpen` notifications on component remount (`App.svelte`), a race condition in reveal-phase detection (`ValidatorView.svelte`), and a signal format mismatch (signals use adjacent-tag serde: `{ type: "RevealOpen", content: { ... } }`). Backend: `submit_attestation` now emits `FinalizationFailed` when the governance cross-DNA call fails after a successful attestation write, letting the UI prompt recovery via `force_finalize_round`. Two new sweettest tests verify SilverReproducible (5-conductor) and GoldReproducible (7-conductor) badge issuance end-to-end in CI.
 
