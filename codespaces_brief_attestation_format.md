@@ -21,7 +21,7 @@ He's effectively given Valichord a roadmap. This brief implements step one: buil
 
 ## Upstream context — what's already in inspect_evals
 
-**Important update (verified after Scott's review):** PR #1575 was merged on 2026-04-30 — the `evaluation_report` schema is now stable in main. PR #1593 added a worked example (hangman-bench). Read both before designing the Valichord bundle so we mirror their field shapes where they overlap rather than inventing new ones.
+**Important update (verified after Scott's review):** PR #1575 was merged on 2026-04-30 — the `evaluation_report` schema is now in main. PR #1593 added a worked example (hangman-bench). Read both before designing the Valichord bundle so we mirror their field shapes where they overlap rather than inventing new ones. **Note:** Scott explicitly cautioned the schema is "subject to change / evolution" — merged is not the same as frozen. Mirror the field names; don't import their Pydantic models; expect minor evolution and design Valichord-side to absorb it without breaking changes (this is what the bundle's `format_version` and `extra="allow"` posture are for).
 
 The merged schema, in `src/inspect_evals/metadata.py`:
 
@@ -103,6 +103,10 @@ The bundle must let a verifier confirm "this reported result is faithful to the 
 
 This replaces the weak "hash the whole log file" approach with a mechanism that supports selective disclosure. **This is the load-bearing reason a Valichord bundle exists at all on top of an `EvaluationReport`** — without R2, the Valichord bundle is just a re-encoding of upstream metadata.
 
+**Be honest about what v1 delivers.** Scott articulated the ideal goal as "verify the report is faithful to the run *without having the log at all*." The v1 Merkle approach is a *partial* answer: it supports selective disclosure (holder of log can prove individual samples), not zero-disclosure (verify with no log access). The spec doc must be explicit about this — don't oversell what v1 achieves. Zero-disclosure verification (e.g., zero-knowledge proofs over eval execution) is a v2+ direction; v1 commits to the foundation a stronger scheme can build on.
+
+**Framing context:** inspect_evals already has a *social* attestation chain — git commit author + reviewer approval — sitting on top of the report. Valichord's bundle adds a *cryptographic* faithfulness layer on top of that, not a replacement for it. Worth one sentence to that effect in the spec doc so readers don't read Valichord as duplicating work that's already covered by git/PR review.
+
 ### R3 — Self-describing
 
 The bundle must carry enough metadata to be interpretable in isolation: model id, task ids, results, format version, harness identifier (if known). No floating hashes.
@@ -114,6 +118,18 @@ Spec and bundle both carry `format_version: "v1"`. Versioning policy in the spec
 ### R5 — Stdlib-friendly
 
 Reference implementation should lean on stdlib for hashing, JSON, encoding. Pydantic is acceptable as a single dependency. Resist heavyweight crypto libraries unless strictly necessary.
+
+### R6 — No silent defaults (hash-collision safety)
+
+**Critical requirement caught by Scott in code review:** missing fields must raise errors, never default to placeholder values that get included in the canonical encoding. The failure pattern is: two eval logs both missing the same key both fall back to `0.0`, both produce identical hashes, and the bundle falsely claims "these runs are the same" when neither extracted correctly.
+
+Concrete rules:
+- All required fields raise `ValueError` (or a domain-specific `MalformedEvalLog` exception) on absence
+- Optional fields are *omitted* from the bundle when missing, never included as `null` or `0`
+- The canonical encoding never includes a field with a default value as if it were present
+- Tests must include the negative case: bundles built from logs missing required fields raise, do not produce a hash
+
+This is a hard correctness requirement. An attestation system that silently produces matching hashes for two broken inputs is worse than no attestation system.
 
 ---
 
