@@ -452,6 +452,8 @@ npm test
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
+Future versions extend selective disclosure with probabilistic challenge-response and hardware-attested execution via TEE, working toward the goal of report faithfulness verifiable without log access.
+
 ---
 
 ValiChord is built on Holochain — an end-to-end open-source agent-centric P2P application framework.
