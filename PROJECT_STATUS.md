@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 **Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.0. `valichord_attestation` now includes probabilistic challenge-response (v1.1 additive).
 
 ---
@@ -74,6 +74,29 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Wind-Tunnel performance scenarios — 2026-05-06 ✓
+
+Three load-testing scenarios under `valichord/wind-tunnel/` (commit `fcf8ced`).
+Separate Cargo workspace — intentionally outside `valichord/Cargo.toml` (same isolation pattern as `sweettest_integration`; native `holochain` deps can't compile to `wasm32`).
+All three compile clean (`cargo check --workspace`).
+
+| Scenario | What it measures | Default invocation |
+|---|---|---|
+| `validation_request_throughput` | Concurrent CommitmentAnchor write throughput — N agents loop `submit_validation_request` + `notify_commitment_sealed`; reports `commits_sent` counter | `--agents 4 --duration 60` |
+| `phase_observation_latency` | Time from `notify_commitment_sealed` returning to first `RevealOpen` observation via polling — uses `num_validators_required=1`; reports `phase_observation_ms`, `poll_count`, `phase_timeout_count` | `--agents 2 --duration 60` |
+| `concurrent_reveal_throughput` | Full commit-reveal cycle under N-agent concurrent load; tests `ChainTopOrdering::Relaxed` under 3 sequential source-chain writes; reports `round_total_ms`, `reveal_count`, `reveal_timeout_count` | `--agents 4 --duration 90` |
+
+Pre-requisite: pack `valichord.happ` first. Override path with `VALICHORD_HAPP_PATH` env var.
+
+```bash
+cd valichord/wind-tunnel
+cargo run -p validation_request_throughput -- --agents 4 --duration 60
+cargo run -p phase_observation_latency    -- --agents 2 --duration 60
+cargo run -p concurrent_reveal_throughput -- --agents 4 --duration 90
+```
+
+---
 
 ### `valichord_attestation` real-data example — 2026-05-06 ✓
 
@@ -291,6 +314,7 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
 | `valichord-ui/src/lib/` | Svelte components: ResearcherView, ValidatorView, GovernanceView, types.ts, holochain.ts |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Four-DNA architecture |
+| `valichord/wind-tunnel/` | Wind-Tunnel load-test workspace — 3 performance scenarios (write throughput, phase latency, reveal throughput) |
 
 ---
 
