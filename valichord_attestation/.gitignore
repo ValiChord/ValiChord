@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+# Real lm-eval output from run_eval.sh (gigabytes — never commit)
+examples/mistral_7b_gsm8k_demo/eval_output/

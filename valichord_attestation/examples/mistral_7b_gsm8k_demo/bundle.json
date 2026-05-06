@@ -1,0 +1,660 @@
+{
+  "_source": {
+    "note": "Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K (100-sample subset). Built with build_bundle.py; verified by challenge_response_demo.py.",
+    "bundle_sha256": "a355db8cd63447bad8a2e04e5ac070ddeaa07ad5b0f75a82a43a1cdbfa85fe1c",
+    "sample_0_proof": [
+      {
+        "position": "right",
+        "sibling": "1449fd34203db331154812b85230d4b8dbb8037b994cb160d87270c3b9093b80"
+      },
+      {
+        "position": "right",
+        "sibling": "1fe74154e6d73ca258b11e152e2fddee722258168b8786afc95341164d0e08f0"
+      },
+      {
+        "position": "right",
+        "sibling": "5075780673d0b2236e2cd715f02a23ab8d91114ca0a0d6788cf2b25c43c0f874"
+      },
+      {
+        "position": "right",
+        "sibling": "882bd57a442226b37519441b7d6067fa2c736ac6d704f2faea3b667c5a0d774c"
+      },
+      {
+        "position": "right",
+        "sibling": "26499af9ec1a426c45cb4e3154cc4cf7309a853efd330d8fc633e405b87448e7"
+      },
+      {
+        "position": "right",
+        "sibling": "7ed953afe2edf36861c0c692547d578417be00726a182c2c8159ff04fae825b8"
+      },
+      {
+        "position": "right",
+        "sibling": "0c283bb56dd9f0b8164508b3d4d000ee64ba5396186742696edcde1025211f54"
+      }
+    ],
+    "warning": "SIMULATED DATA \u2014 not from a real GPU run. Run run_eval.sh on a GPU and re-run this script with --output-path to produce a bundle from a real evaluation."
+  },
+  "bundle": {
+    "format_version": "v1",
+    "generated_at": "2026-05-06T00:00:00+00:00",
+    "metrics": [
+      {
+        "key": "exact_match,flexible-extract",
+        "value": 0.35,
+        "stderr": 0.047697
+      }
+    ],
+    "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+    "outputs_merkle_root": "69cf9934e9c2647133daee2304edcf0c5f66da5965278d34dadd2c090f9b8c08",
+    "samples": {
+      "completed": 100,
+      "total": 100
+    },
+    "task_id": "gsm8k",
+    "command": "lm_eval --model hf --model_args 'pretrained=mistralai/Mistral-7B-Instruct-v0.3,revision=main,dtype=bfloat16' --tasks gsm8k --num_fewshot 5 --limit 100 --batch_size 1 --log_samples",
+    "harness_version": "lm-evaluation-harness==v0.5.0",
+    "repo_commit": "v0.5.0"
+  },
+  "samples": [
+    {
+      "doc_id": 0,
+      "target": "57",
+      "filtered_response": "60",
+      "exact_match": false
+    },
+    {
+      "doc_id": 1,
+      "target": "451",
+      "filtered_response": "902",
+      "exact_match": false
+    },
+    {
+      "doc_id": 2,
+      "target": "48",
+      "filtered_response": "96",
+      "exact_match": false
+    },
+    {
+      "doc_id": 3,
+      "target": "48",
+      "filtered_response": "192",
+      "exact_match": false
+    },
+    {
+      "doc_id": 4,
+      "target": "290",
+      "filtered_response": "1160",
+      "exact_match": false
+    },
+    {
+      "doc_id": 5,
+      "target": "59",
+      "filtered_response": "236",
+      "exact_match": false
+    },
+    {
+      "doc_id": 6,
+      "target": "14",
+      "filtered_response": "14",
+      "exact_match": true
+    },
+    {
+      "doc_id": 7,
+      "target": "39",
+      "filtered_response": "39",
+      "exact_match": true
+    },
+    {
+      "doc_id": 8,
+      "target": "13",
+      "filtered_response": "65",
+      "exact_match": false
+    },
+    {
+      "doc_id": 9,
+      "target": "919",
+      "filtered_response": "924",
+      "exact_match": false
+    },
+    {
+      "doc_id": 10,
+      "target": "107",
+      "filtered_response": "214",
+      "exact_match": false
+    },
+    {
+      "doc_id": 11,
+      "target": "122",
+      "filtered_response": "113",
+      "exact_match": false
+    },
+    {
+      "doc_id": 12,
+      "target": "207",
+      "filtered_response": "207",
+      "exact_match": true
+    },
+    {
+      "doc_id": 13,
+      "target": "364",
+      "filtered_response": "364",
+      "exact_match": true
+    },
+    {
+      "doc_id": 14,
+      "target": "138",
+      "filtered_response": "139",
+      "exact_match": false
+    },
+    {
+      "doc_id": 15,
+      "target": "14",
+      "filtered_response": "15",
+      "exact_match": false
+    },
+    {
+      "doc_id": 16,
+      "target": "2379",
+      "filtered_response": "2379",
+      "exact_match": true
+    },
+    {
+      "doc_id": 17,
+      "target": "25",
+      "filtered_response": "25",
+      "exact_match": true
+    },
+    {
+      "doc_id": 18,
+      "target": "23",
+      "filtered_response": "25",
+      "exact_match": false
+    },
+    {
+      "doc_id": 19,
+      "target": "62",
+      "filtered_response": "124",
+      "exact_match": false
+    },
+    {
+      "doc_id": 20,
+      "target": "750",
+      "filtered_response": "748",
+      "exact_match": false
+    },
+    {
+      "doc_id": 21,
+      "target": "25",
+      "filtered_response": "20",
+      "exact_match": false
+    },
+    {
+      "doc_id": 22,
+      "target": "19",
+      "filtered_response": "23",
+      "exact_match": false
+    },
+    {
+      "doc_id": 23,
+      "target": "834",
+      "filtered_response": "829",
+      "exact_match": false
+    },
+    {
+      "doc_id": 24,
+      "target": "571",
+      "filtered_response": "571",
+      "exact_match": true
+    },
+    {
+      "doc_id": 25,
+      "target": "68",
+      "filtered_response": "204",
+      "exact_match": false
+    },
+    {
+      "doc_id": 26,
+      "target": "15",
+      "filtered_response": "30",
+      "exact_match": false
+    },
+    {
+      "doc_id": 27,
+      "target": "282",
+      "filtered_response": "282",
+      "exact_match": true
+    },
+    {
+      "doc_id": 28,
+      "target": "304",
+      "filtered_response": "313",
+      "exact_match": false
+    },
+    {
+      "doc_id": 29,
+      "target": "30",
+      "filtered_response": "45",
+      "exact_match": false
+    },
+    {
+      "doc_id": 30,
+      "target": "144",
+      "filtered_response": "144",
+      "exact_match": true
+    },
+    {
+      "doc_id": 31,
+      "target": "23",
+      "filtered_response": "23",
+      "exact_match": true
+    },
+    {
+      "doc_id": 32,
+      "target": "18",
+      "filtered_response": "72",
+      "exact_match": false
+    },
+    {
+      "doc_id": 33,
+      "target": "900",
+      "filtered_response": "1800",
+      "exact_match": false
+    },
+    {
+      "doc_id": 34,
+      "target": "94",
+      "filtered_response": "188",
+      "exact_match": false
+    },
+    {
+      "doc_id": 35,
+      "target": "113",
+      "filtered_response": "113",
+      "exact_match": true
+    },
+    {
+      "doc_id": 36,
+      "target": "25",
+      "filtered_response": "50",
+      "exact_match": false
+    },
+    {
+      "doc_id": 37,
+      "target": "41",
+      "filtered_response": "39",
+      "exact_match": false
+    },
+    {
+      "doc_id": 38,
+      "target": "107",
+      "filtered_response": "97",
+      "exact_match": false
+    },
+    {
+      "doc_id": 39,
+      "target": "65",
+      "filtered_response": "60",
+      "exact_match": false
+    },
+    {
+      "doc_id": 40,
+      "target": "3",
+      "filtered_response": "9",
+      "exact_match": false
+    },
+    {
+      "doc_id": 41,
+      "target": "611",
+      "filtered_response": "1222",
+      "exact_match": false
+    },
+    {
+      "doc_id": 42,
+      "target": "14",
+      "filtered_response": "20",
+      "exact_match": false
+    },
+    {
+      "doc_id": 43,
+      "target": "3324",
+      "filtered_response": "3324",
+      "exact_match": true
+    },
+    {
+      "doc_id": 44,
+      "target": "523",
+      "filtered_response": "1046",
+      "exact_match": false
+    },
+    {
+      "doc_id": 45,
+      "target": "32",
+      "filtered_response": "32",
+      "exact_match": true
+    },
+    {
+      "doc_id": 46,
+      "target": "42",
+      "filtered_response": "84",
+      "exact_match": false
+    },
+    {
+      "doc_id": 47,
+      "target": "118",
+      "filtered_response": "472",
+      "exact_match": false
+    },
+    {
+      "doc_id": 48,
+      "target": "48",
+      "filtered_response": "47",
+      "exact_match": false
+    },
+    {
+      "doc_id": 49,
+      "target": "118",
+      "filtered_response": "133",
+      "exact_match": false
+    },
+    {
+      "doc_id": 50,
+      "target": "639",
+      "filtered_response": "635",
+      "exact_match": false
+    },
+    {
+      "doc_id": 51,
+      "target": "609",
+      "filtered_response": "609",
+      "exact_match": true
+    },
+    {
+      "doc_id": 52,
+      "target": "9",
+      "filtered_response": "9",
+      "exact_match": true
+    },
+    {
+      "doc_id": 53,
+      "target": "74",
+      "filtered_response": "87",
+      "exact_match": false
+    },
+    {
+      "doc_id": 54,
+      "target": "313",
+      "filtered_response": "313",
+      "exact_match": true
+    },
+    {
+      "doc_id": 55,
+      "target": "11",
+      "filtered_response": "11",
+      "exact_match": true
+    },
+    {
+      "doc_id": 56,
+      "target": "633",
+      "filtered_response": "648",
+      "exact_match": false
+    },
+    {
+      "doc_id": 57,
+      "target": "149",
+      "filtered_response": "149",
+      "exact_match": true
+    },
+    {
+      "doc_id": 58,
+      "target": "30",
+      "filtered_response": "45",
+      "exact_match": false
+    },
+    {
+      "doc_id": 59,
+      "target": "192",
+      "filtered_response": "192",
+      "exact_match": true
+    },
+    {
+      "doc_id": 60,
+      "target": "212",
+      "filtered_response": "212",
+      "exact_match": true
+    },
+    {
+      "doc_id": 61,
+      "target": "80",
+      "filtered_response": "92",
+      "exact_match": false
+    },
+    {
+      "doc_id": 62,
+      "target": "188",
+      "filtered_response": "188",
+      "exact_match": true
+    },
+    {
+      "doc_id": 63,
+      "target": "988",
+      "filtered_response": "2964",
+      "exact_match": false
+    },
+    {
+      "doc_id": 64,
+      "target": "79",
+      "filtered_response": "93",
+      "exact_match": false
+    },
+    {
+      "doc_id": 65,
+      "target": "11",
+      "filtered_response": "11",
+      "exact_match": true
+    },
+    {
+      "doc_id": 66,
+      "target": "118",
+      "filtered_response": "110",
+      "exact_match": false
+    },
+    {
+      "doc_id": 67,
+      "target": "4121",
+      "filtered_response": "8242",
+      "exact_match": false
+    },
+    {
+      "doc_id": 68,
+      "target": "7",
+      "filtered_response": "7",
+      "exact_match": true
+    },
+    {
+      "doc_id": 69,
+      "target": "506",
+      "filtered_response": "506",
+      "exact_match": true
+    },
+    {
+      "doc_id": 70,
+      "target": "720",
+      "filtered_response": "720",
+      "exact_match": true
+    },
+    {
+      "doc_id": 71,
+      "target": "90",
+      "filtered_response": "86",
+      "exact_match": false
+    },
+    {
+      "doc_id": 72,
+      "target": "11",
+      "filtered_response": "9",
+      "exact_match": false
+    },
+    {
+      "doc_id": 73,
+      "target": "186",
+      "filtered_response": "186",
+      "exact_match": true
+    },
+    {
+      "doc_id": 74,
+      "target": "3454",
+      "filtered_response": "3445",
+      "exact_match": false
+    },
+    {
+      "doc_id": 75,
+      "target": "2",
+      "filtered_response": "3",
+      "exact_match": false
+    },
+    {
+      "doc_id": 76,
+      "target": "24",
+      "filtered_response": "48",
+      "exact_match": false
+    },
+    {
+      "doc_id": 77,
+      "target": "515",
+      "filtered_response": "508",
+      "exact_match": false
+    },
+    {
+      "doc_id": 78,
+      "target": "16",
+      "filtered_response": "48",
+      "exact_match": false
+    },
+    {
+      "doc_id": 79,
+      "target": "281",
+      "filtered_response": "271",
+      "exact_match": false
+    },
+    {
+      "doc_id": 80,
+      "target": "32",
+      "filtered_response": "32",
+      "exact_match": true
+    },
+    {
+      "doc_id": 81,
+      "target": "979",
+      "filtered_response": "980",
+      "exact_match": false
+    },
+    {
+      "doc_id": 82,
+      "target": "83",
+      "filtered_response": "76",
+      "exact_match": false
+    },
+    {
+      "doc_id": 83,
+      "target": "31",
+      "filtered_response": "31",
+      "exact_match": true
+    },
+    {
+      "doc_id": 84,
+      "target": "1677",
+      "filtered_response": "1677",
+      "exact_match": true
+    },
+    {
+      "doc_id": 85,
+      "target": "39",
+      "filtered_response": "39",
+      "exact_match": true
+    },
+    {
+      "doc_id": 86,
+      "target": "105",
+      "filtered_response": "105",
+      "exact_match": true
+    },
+    {
+      "doc_id": 87,
+      "target": "4094",
+      "filtered_response": "4088",
+      "exact_match": false
+    },
+    {
+      "doc_id": 88,
+      "target": "406",
+      "filtered_response": "406",
+      "exact_match": true
+    },
+    {
+      "doc_id": 89,
+      "target": "609",
+      "filtered_response": "609",
+      "exact_match": true
+    },
+    {
+      "doc_id": 90,
+      "target": "3662",
+      "filtered_response": "3657",
+      "exact_match": false
+    },
+    {
+      "doc_id": 91,
+      "target": "34",
+      "filtered_response": "34",
+      "exact_match": true
+    },
+    {
+      "doc_id": 92,
+      "target": "114",
+      "filtered_response": "121",
+      "exact_match": false
+    },
+    {
+      "doc_id": 93,
+      "target": "22",
+      "filtered_response": "15",
+      "exact_match": false
+    },
+    {
+      "doc_id": 94,
+      "target": "36",
+      "filtered_response": "27",
+      "exact_match": false
+    },
+    {
+      "doc_id": 95,
+      "target": "15",
+      "filtered_response": "11",
+      "exact_match": false
+    },
+    {
+      "doc_id": 96,
+      "target": "46",
+      "filtered_response": "46",
+      "exact_match": true
+    },
+    {
+      "doc_id": 97,
+      "target": "109",
+      "filtered_response": "117",
+      "exact_match": false
+    },
+    {
+      "doc_id": 98,
+      "target": "3",
+      "filtered_response": "6",
+      "exact_match": false
+    },
+    {
+      "doc_id": 99,
+      "target": "273",
+      "filtered_response": "546",
+      "exact_match": false
+    }
+  ]
+}

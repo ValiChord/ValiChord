@@ -75,6 +75,20 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### `valichord_attestation` real-data example — 2026-05-06 ✓
+
+Real-data demo of the v1.1 protocol under `valichord_attestation/examples/mistral_7b_gsm8k_demo/`:
+
+- **`run_eval.sh`** — lm-evaluation-harness v0.5.0, Mistral-7B-Instruct-v0.3, GSM8K 100-sample subset, fully pinned; ~10 min on a 4090, ~£1.50
+- **`build_bundle.py`** — parses lm-eval output (glob-based, robust to directory structure) OR `--fixture` for no-GPU demo. `samples_total=100` passed explicitly (exercises threat-model §10(d) sample-omission defence). Merkle round-trip validated on every run.
+- **`challenge_response_demo.py`** — loads `bundle.json`, k=20 challenge with documented fixed nonce, verifies all 20 Merkle paths, demonstrates tamper detection
+- **`bundle.json`** — committed bundle (simulated fixture, `random.Random(42)`, 35% accuracy); replace with real eval output by running the two scripts on a GPU
+- **`examples/README.md`** — new index pointing at both synthetic and real-data examples
+
+No library code changed. All 142 tests pass.
+
+---
+
 ### `valichord_attestation` explicit `samples_total` — 2026-05-05 ✓
 
 Closes sample-omission gap (threat model §10 attack surface (d)). `build_bundle` now accepts `samples_total: Optional[int]`; when provided and larger than `len(samples)`, `bundle.samples_total > bundle.samples_completed` is directly visible in the bundle without out-of-band context. Raises `ValueError` if `samples_total < len(samples)`. 4 new tests (boundary: omitted, equal, larger, smaller); 142 tests total, 100% line coverage. Spec §2 field descriptions tightened; §10 (d) updated to note that explicit declaration shifts detection in-bundle, and that federation remains the backstop against a lying adapter.

@@ -133,10 +133,17 @@ With `k=60` and a 5% fabrication rate, catch probability is ~95%. See [`spec/att
 ## Running the examples
 
 ```bash
+# Verify synthetic examples (no GPU required)
 python examples/verify_examples.py
+python examples/challenge_response_demo.py
+
+# Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
+python examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
 ```
 
-Each example JSON contains a synthetic bundle, the source samples, and a pre-computed inclusion proof. The script recomputes the bundle hash and Merkle root from scratch and confirms they match.
+The synthetic examples contain GSM8K-shaped and agentdojo-shaped bundles with pre-computed inclusion proofs. `verify_examples.py` recomputes bundle hashes and Merkle roots from scratch.
+
+The real-data demo (`mistral_7b_gsm8k_demo/`) exercises the full v1.1 protocol — `samples_total=100` declared explicitly, k=20 challenge-response, tamper detection — against a committed `bundle.json`. The bundle ships with simulated fixture data so the demo runs without a GPU. Run `run_eval.sh` on a GPU and re-run `build_bundle.py --output-path ./eval_output` to replace it with real eval output. See [`examples/mistral_7b_gsm8k_demo/README.md`](examples/mistral_7b_gsm8k_demo/README.md) for full instructions.
 
 ---
 
