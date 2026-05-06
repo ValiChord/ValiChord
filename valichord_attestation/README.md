@@ -39,6 +39,22 @@ That tradeoff — *probabilistic faithfulness verification with selective disclo
 
 ---
 
+## Installation
+
+From the `valichord_attestation/` directory:
+
+```bash
+pip install -e .
+```
+
+For development (includes pytest, coverage, and type-checking tools):
+
+```bash
+pip install -e ".[dev]"
+```
+
+---
+
 ## Quickstart
 
 ```python
@@ -137,7 +153,7 @@ With `k=60` and a 5% fabrication rate, catch probability is ~95%. See [`spec/att
 python examples/verify_examples.py
 python examples/challenge_response_demo.py
 
-# Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
+# Real-data demo: verify the committed Mistral-7B-Instruct-v0.3 + GSM8K-100 bundle (no GPU required for verification)
 python examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
 ```
 
