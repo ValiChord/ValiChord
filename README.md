@@ -138,6 +138,11 @@ valichord/
 │   ├── researcher_repository.test.ts — 14 tests
 │   ├── security.test.ts             — 9 tests
 │   └── validator_workspace.test.ts   — 7 tests
+├── sweettest_integration/  — 69 Rust sweettest tests (native conductor)
+├── wind-tunnel/            — 3 Wind-Tunnel performance scenarios
+│   ├── scenarios/validation_request_throughput/  — CommitmentAnchor write throughput
+│   ├── scenarios/phase_observation_latency/      — commit → RevealOpen DHT lag
+│   └── scenarios/concurrent_reveal_throughput/  — full round under N-agent load
 └── happ.yaml               — all four DNA roles bundled
 
 valichord-ui/               — Svelte 5 + TypeScript browser UI
@@ -182,6 +187,7 @@ Test coverage includes:
 - Security protocol guards — duplicate attestation rejection, duplicate commitment rejection, researcher commitment idempotency, reclaim timeout floor enforcement, force_finalize_round conservative abort, self-claim prevention (researcher cannot validate own study — no dev bypass), researcher reveal authorisation, PhaseMarker write idempotency (TOCTOU-safe), deterministic link resolution (all `links.last()` → `max_by_key(timestamp)`), O(N) DHT round-trip elimination in claim functions
 - Conductor-free unit tests for pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`) in `shared_types` — run in < 1 s with `cargo test -p valichord_shared_types`
 - Native Rust sweettest suite (`valichord/sweettest_integration/`) in 5 parallel CI matrix jobs alongside Tryorama
+- Wind-Tunnel load-test scenarios (`valichord/wind-tunnel/`) — three performance scenarios measuring CommitmentAnchor write throughput, DHT phase-observation latency, and full commit-reveal round throughput under N-agent concurrent load; separate Cargo workspace (same isolation pattern as sweettest); run with `cargo run -p <scenario> -- --agents N --duration S`
 
 ---
 
@@ -418,6 +424,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord-ui) |
 | Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/README.md) |
+| Wind-Tunnel performance scenarios | [`valichord/wind-tunnel/`](https://github.com/topeuph-ai/ValiChord/tree/main/valichord/wind-tunnel) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |
 | Technical Reference v29 | [`docs/3_ValiChord_Technical_Reference.md`](https://github.com/topeuph-ai/ValiChord/blob/main/docs/3_ValiChord_Technical_Reference.md) |
