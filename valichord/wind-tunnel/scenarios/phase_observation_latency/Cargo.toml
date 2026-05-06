@@ -1,0 +1,32 @@
+[package]
+name = "phase_observation_latency"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Measures how long it takes for a phase transition to become observable on
+# the DHT after a CommitmentAnchor is written.
+#
+# Uses num_validators_required=1 so a single commit triggers
+# PhaseMarker(RevealOpen).  After committing, the agent polls get_current_phase
+# until RevealOpen appears and reports the elapsed time as
+# `phase_observation_ms`.
+#
+# This captures: CommitmentAnchor write → DHT gossip → PhaseMarker write →
+# DHT gossip → query returns RevealOpen.  On a local dev conductor the latency
+# is typically < 500 ms.  Under heavy load or across a WAN it may be seconds.
+#
+# Default run: 2 agents, 60 s
+#   cargo run -p phase_observation_latency -- --agents 2 --duration 60
+
+[[bin]]
+name = "phase_observation_latency"
+path = "src/main.rs"
+
+[dependencies]
+holochain_wind_tunnel_runner = "0.6"
+holo_hash = "0.6"
+serde = { version = "1", features = ["derive"] }
+
+attestation_integrity  = { path = "../../../dnas/attestation/zomes/attestation_integrity" }
+valichord_shared_types = { path = "../../../shared_types" }

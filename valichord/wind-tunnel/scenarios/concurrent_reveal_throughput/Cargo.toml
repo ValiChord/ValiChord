@@ -1,0 +1,41 @@
+[package]
+name = "concurrent_reveal_throughput"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Measures the full commit-reveal round trip under concurrent load from N agents.
+#
+# Each agent independently completes one full validation round per iteration:
+#   submit_validation_request → notify_commitment_sealed →
+#   poll for RevealOpen → submit_attestation (reveal)
+#
+# Uses num_validators_required=1 so each agent can complete a round solo.
+# With N agents running simultaneously, this exercises:
+#   - DHT write throughput under concurrent load
+#   - ChainTopOrdering::Relaxed under rapid sequential writes per agent
+#     (request write, then anchor write, then attestation write — 3 source
+#     chain entries back-to-back without HeadMoved errors)
+#   - Full DNA3 entry lifecycle: ValidationRequest → CommitmentAnchor →
+#     PhaseMarker → ValidationAttestation
+#
+# Key metrics (custom):
+#   `round_total_ms`   — time for a complete request→reveal round (ms)
+#   `reveal_count`     — attestations successfully written per agent
+#
+# Run:
+#   cargo run -p concurrent_reveal_throughput -- --agents 4 --duration 90
+#   cargo run -p concurrent_reveal_throughput -- --agents 8 --duration 120 --reporter=influx-file
+
+[[bin]]
+name = "concurrent_reveal_throughput"
+path = "src/main.rs"
+
+[dependencies]
+holochain_wind_tunnel_runner = "0.6"
+holo_hash = "0.6"
+serde = { version = "1", features = ["derive"] }
+
+attestation_integrity   = { path = "../../../dnas/attestation/zomes/attestation_integrity" }
+attestation_coordinator = { path = "../../../dnas/attestation/zomes/attestation_coordinator" }
+valichord_shared_types  = { path = "../../../shared_types" }

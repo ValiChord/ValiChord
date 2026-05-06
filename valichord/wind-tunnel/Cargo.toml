@@ -1,0 +1,32 @@
+[workspace]
+members = [
+    "scenarios/validation_request_throughput",
+    "scenarios/phase_observation_latency",
+    "scenarios/concurrent_reveal_throughput",
+]
+resolver = "2"
+
+# This workspace is intentionally NOT a member of valichord/Cargo.toml.
+# holochain_wind_tunnel_runner pulls in holochain = "0.6" (native conductor),
+# which cannot compile to wasm32-unknown-unknown and would break the main
+# workspace's cross-compilation target.
+#
+# Pre-requisite: build ValiChord WASMs and pack all DNAs first:
+#
+#   cd /workspaces/ValiChord/valichord
+#   cargo build --target wasm32-unknown-unknown --release
+#   hc dna pack dnas/attestation            -o workdir/attestation.dna
+#   hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+#   hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+#   hc dna pack dnas/governance             -o workdir/governance.dna
+#   hc app pack . -o workdir/valichord.happ
+#
+# Run a scenario:
+#   pkill -f holochain; pkill -f lair-keystore; sleep 2
+#   cd valichord/wind-tunnel
+#   cargo run -p validation_request_throughput -- --agents 4 --duration 60
+#   cargo run -p phase_observation_latency    -- --agents 2 --duration 60
+#   cargo run -p concurrent_reveal_throughput -- --agents 6 --duration 90
+#
+# Point to a custom happ path:
+#   VALICHORD_HAPP_PATH=/path/to/valichord.happ cargo run -p ...

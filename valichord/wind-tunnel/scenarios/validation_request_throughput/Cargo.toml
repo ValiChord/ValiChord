@@ -1,0 +1,26 @@
+[package]
+name = "validation_request_throughput"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Measures concurrent write throughput for the commit phase:
+# each agent submits a unique ValidationRequest then writes a CommitmentAnchor
+# (notify_commitment_sealed) in a tight loop.
+#
+# Default run: 4 agents, 60 s
+#   cargo run -p validation_request_throughput -- --agents 4 --duration 60
+
+[[bin]]
+name = "validation_request_throughput"
+path = "src/main.rs"
+
+[dependencies]
+holochain_wind_tunnel_runner = "0.6"
+holo_hash = "0.6"
+serde = { version = "1", features = ["derive"] }
+
+# ValiChord type crates — compiled as native rlibs (same pattern as
+# sweettest_integration).  Path is relative to this crate's Cargo.toml.
+attestation_integrity  = { path = "../../../dnas/attestation/zomes/attestation_integrity" }
+valichord_shared_types = { path = "../../../shared_types" }
