@@ -325,10 +325,44 @@ as normal.
 
 ---
 
+## AI evaluation attestation (`valichord_attestation`)
+
+For AI pipelines submitting benchmark claims (e.g. model accuracy on a public dataset),
+ValiChord provides a standalone Python library — **`valichord_attestation`** — that does not
+require the full Holochain protocol.
+
+The library builds a cryptographically deterministic bundle from an AI evaluation run:
+a stable SHA-256 hash of the complete run (via RFC 8785 / JCS encoding), a Merkle tree over
+per-sample outputs for selective disclosure, and a probabilistic challenge-response protocol
+so a verifier can spot-check any subset of samples without holding the full log.
+
+A bundle is the *evidence layer*. A researcher publishes the bundle hash as their claim.
+Independent validators run the same evaluation, build their own bundles, and compare. When a
+full ValiChord validation round is required (commit-reveal on the Holochain DHT), the bundle
+hash becomes the `data_hash` passed into the attestation DNA.
+
+```python
+from valichord_attestation import build_bundle, hash_bundle
+
+bundle = build_bundle(
+    model_id="mistralai/Mistral-7B-Instruct-v0.3",
+    task_id="gsm8k",
+    raw_metrics=[{"key": "exact_match,flexible-extract", "value": 0.35}],
+    samples=[{"doc_id": 0, "target": "42", "filtered_resps": [["42"]]}],
+    samples_total=500,   # declare total so partial runs are detectable
+)
+print(hash_bundle(bundle))   # stable SHA-256 across implementations
+```
+
+See `valichord_attestation/README.md` for the full API and
+`valichord_attestation/examples/` for a worked Mistral-7B / GSM8K walkthrough.
+
+---
+
 ## Further reading
 
 - **Interactive docs:** `GET /docs` (Swagger UI)
 - **OpenAPI spec:** `GET /openapi.yaml`
-- **Feynman integration:** `feynman_integration/INTEGRATION_VISION.md`
+- **`valichord_attestation` library:** `valichord_attestation/README.md`
 - **4-DNA architecture:** `docs/7_ValiChord_4-DNA_architecture_technical.md`
 - **How a validation round works:** `docs/15_How_a_Validation_Round_Works.md`

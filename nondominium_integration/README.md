@@ -2,9 +2,9 @@
 
 **Status:** Pre-implementation. Design decisions open. No integration code written yet.
 **Authors:** Ceri John (ValiChord), in dialogue with Tiberius Brastaviceanu and Sacha (Sensorica)
-**Last updated:** April 2026
+**Last updated:** May 2026
 
-> **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.3.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Feynman AI research agent integration is complete (ValiChord skill in Feynman 0.2.16, PR #23 closed). The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting. See `feynman_integration/INTEGRATION_VISION.md` for the Feynman integration that is already live.
+> **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.5.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting.
 
 ---
 
@@ -35,7 +35,7 @@ pub struct ResourceValidation {
     pub resource: ActionHash,
     pub validation_scheme: String,
     pub required_validators: u32,
-    pub current_validators: Vec<AgentPubKey>,
+    pub current_validators: u32,
     pub status: ...,
 }
 ```
@@ -54,7 +54,7 @@ ValiChord's blind commit-reveal produces a `HarmonyRecord` — a cryptographical
 | `zome_gouvernance::create_validation_receipt()` | A ready-made sink for ValiChord's per-validator attestations |
 | `zome_gouvernance::create_resource_validation()` | Multi-validator consensus tracking, already structured |
 | `zome_gouvernance::log_economic_event(VfAction::Work)` | Participation Receipts (PPRs) — automatic contribution attribution for validators |
-| `zome_person::promote_agent_to_accountable()` | Role promotion pathway for enrolling ValiChord validators in NDO |
+| `zome_person::promote_agent_with_validation()` | Role promotion pathway for enrolling ValiChord validators in NDO |
 | hREA bridge pattern | Cross-DNA call pattern already in production use — ValiChord integration follows the same approach |
 | Capability-based private data grants | Selective disclosure of private data without exposing it — philosophically identical to ValiChord's private DNAs |
 
@@ -68,6 +68,7 @@ ValiChord's blind commit-reveal produces a `HarmonyRecord` — a cryptographical
 | `ValidatorPrivateAttestation` | Private DNA entry — raw findings never reach the shared DHT |
 | Membrane proof system | Ed25519 institutional credentials — validators are verified before joining a round |
 | 4-DNA sovereignty model | Researcher's raw data stays in a private DNA. Only hashes move into the shared DHT. Compatible with Nondominium's private data philosophy |
+| `valichord_attestation` Python library | Standalone evidence layer for AI evaluation runs — builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol |
 
 ### What neither project needs to rebuild
 
@@ -105,7 +106,7 @@ Researcher creates the study as an NDO resource **[NDO]** `zome_resource::create
 ValiChord opens a validation round **[VC]** `attestation::create_validation_request()`
 
 **Step 2 — Validators enrolled**
-Each validator is promoted to accountable agent in NDO **[NDO]** `zome_person::promote_agent_to_accountable()`
+Each validator is promoted to accountable agent in NDO **[NDO]** `zome_person::promote_agent_with_validation()`
 Each validator publishes their profile in ValiChord **[VC]** `attestation::publish_validator_profile()`
 
 **Step 3 — Commit phase**
@@ -147,7 +148,7 @@ Option A is simpler to implement. Option B avoids duplication but requires Nondo
 
 ### Decision 2 — Membrane proofs and NDO roles
 
-ValiChord validators hold an Ed25519 institutional credential (membrane proof) that grants access to the Attestation DNA. Nondominium validators hold an `AccountableAgent` role granted via `zome_person::promote_agent_to_accountable()`, which calls into `zome_gouvernance` for approval.
+ValiChord validators hold an Ed25519 institutional credential (membrane proof) that grants access to the Attestation DNA. Nondominium validators hold an `AccountableAgent` role granted via `zome_person::promote_agent_with_validation()`, which calls into `zome_gouvernance` for approval.
 
 These are currently independent systems. Should holding a valid ValiChord membrane proof be sufficient to trigger NDO role promotion automatically? Or should they remain independent, with validators enrolling separately in each system?
 

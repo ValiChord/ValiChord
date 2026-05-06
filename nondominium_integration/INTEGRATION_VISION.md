@@ -1,7 +1,7 @@
 # ValiChord × Nondominium — Integrated System Vision
 
 **Status:** Pre-implementation design document — ValiChord protocol is production-grade; integration layer not yet written
-**Written:** March 2026 | **Updated:** April 2026
+**Written:** March 2026 | **Updated:** May 2026
 **Based on:** Full read-through of both codebases
 
 ---
@@ -32,8 +32,9 @@ The integrated system is a **trusted, ungameable pipeline from resource contribu
 - Four-DNA sovereignty — researcher's raw data and validator working notes never enter any shared DHT
 - The `HarmonyRecord` — deterministic majority consensus with agreement level, immutable once written
 - The `ReproducibilityBadge` — a cryptographically traceable Gold/Silver/Bronze/Failed credential, linked to the HarmonyRecord that produced it, linked to every ValidationAttestation that fed it
-- `ValidatorReputation` — per-discipline agreement rate, average time invested, certification tier (Provisional/Certified/Senior)
+- `ValidatorReputation` — per-discipline agreement rate, average time invested, certification tier (Provisional/Standard/Advanced/Certified)
 - `AgentIdentityAttestation` — mutual Ed25519 proof that two device keys belong to the same person
+- `valichord_attestation` Python library — standalone evidence layer for AI evaluation runs; builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol
 
 **What neither needs to rebuild:** Nondominium does not need a blind validation protocol. ValiChord does not need contribution tracking or resource lifecycle management. The cross-DNA call pattern is already proven in Nondominium's hREA bridge.
 
@@ -73,7 +74,7 @@ Each validator independently runs the analysis. Then:
 
 **The guarantee:** the assessment that gets written is provably the same one that was sealed before unblinding. There is no mechanism to change your answer after seeing others'.
 
-**This protocol is now running end-to-end.** As of v0.3.0 (April 2026), 3 Claude AI validators plus a researcher all commit-reveal simultaneously on a live Holochain conductor on Oracle. The resulting `HarmonyRecord` is queryable at a permanent public URL (`GET /record/<hash>`) with no authentication required. A working demo is at `demo/ai_validator.py` — see `demo/AI_VALIDATOR_DEMO.md`.
+**This protocol is now running end-to-end.** As of v0.5.0 (May 2026), 3 Claude AI validators plus a researcher all commit-reveal simultaneously on a live Holochain conductor on Oracle. The resulting `HarmonyRecord` is queryable at a permanent public URL (`GET /record/<hash>`) with no authentication required. A working demo is at `demo/ai_validator.py` — see `demo/DECENTRALISED_DEMO.md`.
 
 ### Act 3 — Consensus (ValiChord Governance DNA)
 
@@ -110,7 +111,7 @@ For each validator who completed the round:
 zome_gouvernance::log_economic_event({
     action_type: VfAction::Work,
     provider: validator_ndo_agent_key,
-    auto_generate_ppr: true,
+    generate_pprs: true,
 })
 → 2 bilateral PrivateParticipationClaims generated automatically
 → feeds into derive_reputation_summary()
@@ -128,7 +129,7 @@ Validators earn NDO reputation for completing ValiChord rounds. This closes the 
 - Verifiable provenance: anyone can follow the chain backwards from badge → HarmonyRecord → each individual ValidationAttestation → each CommitmentAnchor → original ValidationRequest
 
 **Validator who participated:**
-- `ValidatorReputation` update: +1 validation, updated agreement_rate, potential tier promotion (Provisional → Certified → Senior)
+- `ValidatorReputation` update: +1 validation, updated agreement_rate, potential tier promotion (Provisional → Standard → Advanced → Certified)
 - NDO PPRs: participation receipts that accrue in Nondominium's reputation system
 - `AccountableAgent` status in Nondominium — required for custody and economic responsibility
 
@@ -161,7 +162,7 @@ Without Flowsta, the integration must either assume same-device registration acr
 | # | Question | Option A | Option B | Stakes |
 |---|---|---|---|---|
 | 1 | Who owns validation state? | ValiChord feeds NDO's `ResourceValidation` (simpler) | HarmonyRecord is canonical; NDO queries it (no duplication) | Data architecture |
-| 2 | Membrane proofs vs NDO roles | Valid ValiChord credential auto-triggers `promote_agent_to_accountable()` | Independent enrollment in each system | Trust architecture |
+| 2 | Membrane proofs vs NDO roles | Valid ValiChord credential auto-triggers `promote_agent_with_validation()` | Independent enrollment in each system | Trust architecture |
 | 3 | Who creates the NDO resource? | Researcher creates in NDO first, gives hash to ValiChord | ValiChord creates it via cross-app call | UX and coupling |
 | 4 | Flowsta as shared identity layer | Required for cross-system validators | Optional with manual key-mapping fallback | Identity and attribution |
 
@@ -303,13 +304,13 @@ For each of the five validators, Nondominium fires:
 zome_gouvernance::log_economic_event({
     action_type: VfAction::Work,
     provider: validator_ndo_key,
-    auto_generate_ppr: true,
+    generate_pprs: true,
 })
 ```
 
 Two bilateral `PrivateParticipationClaim` entries are generated per validator — one for the validator, one for the community. These feed into `derive_reputation_summary()`. The validators' NDO standing increases. A validator who completes many such rounds accrues reputation as a trusted expert in their discipline within the Sensorica commons, independent of any single organisation's endorsement.
 
-Each validator's `ValidatorReputation` in ValiChord also updates: +1 validation, updated agreement_rate. The Sensorica lab validator (Validator E), having completed 5 validations total now with a 60% agreement rate, holds their `Certified` tier. The Wageningen validator, with 18 completions and an 83% agreement rate, promotes to `Senior`.
+Each validator's `ValidatorReputation` in ValiChord also updates: +1 validation, updated agreement_rate. The Sensorica lab validator (Validator E), having completed 5 validations total now with a 60% agreement rate, holds their `Standard` tier (first threshold crossed). The Wageningen validator, with 22 completions and an 83% agreement rate, promotes to `Advanced`.
 
 ---
 
