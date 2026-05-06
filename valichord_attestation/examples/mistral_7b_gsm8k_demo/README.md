@@ -43,6 +43,82 @@ The bundle committed here was produced by the scripts below.  The
 
 ---
 
+## Reproducing this demo
+
+### Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| OS | Linux or WSL2 (macOS untested; Windows native not supported by lm-eval) |
+| Python | 3.10 or 3.11 (3.12 may have dependency conflicts) |
+| CUDA | 12.x (CUDA 11.x not tested with torch 2.5.1) |
+| VRAM | ≥16 GB for `bfloat16` · ≥8 GB if you add `load_in_4bit=True` (see below) |
+| RAM | ≥32 GB system RAM recommended |
+| Disk | ≥20 GB free (model weights ~14 GB + harness output) |
+
+### HuggingFace access
+
+Mistral-7B-Instruct-v0.3 is a gated model.  Before running the eval:
+
+1. Accept the licence at https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3
+2. Log in from the terminal:
+   ```bash
+   pip install huggingface_hub
+   huggingface-cli login
+   # Paste your HF read-access token when prompted
+   ```
+
+If the eval exits with a 401 or `OSError: You are trying to access a gated repo`, you have not accepted the licence or your token is missing/expired.
+
+### Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+`requirements.txt` pins all versions to match `run_eval.sh`.  Note that
+`lm-evaluation-harness v0.5.0` is **not on PyPI** — the latest published
+version there is 0.4.11.  `requirements.txt` installs it directly from the
+tagged GitHub commit.  Do not run `pip install lm-eval==0.5.0`; that will
+install the wrong version.
+
+For the 8 GB VRAM path, also install `bitsandbytes` and add `load_in_4bit=True`
+to the `--model_args` line in `run_eval.sh`:
+
+```bash
+pip install "bitsandbytes>=0.44.0"
+# In run_eval.sh, change:
+#   --model_args "pretrained=mistralai/Mistral-7B-Instruct-v0.3,...,dtype=bfloat16"
+# to:
+#   --model_args "pretrained=mistralai/Mistral-7B-Instruct-v0.3,...,load_in_4bit=True"
+```
+
+### Expected outputs
+
+After `bash run_eval.sh` completes:
+
+```
+eval_output/
+└── mistralai__Mistral-7B-Instruct-v0.3/
+    └── <timestamp>/
+        ├── results_<timestamp>.json         # accuracy metric
+        └── samples_gsm8k_<timestamp>.jsonl  # per-sample outputs (--log_samples)
+```
+
+Pass `--output-path ./eval_output` to `build_bundle.py` to parse this structure.
+
+### Common failure modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `OSError: 401` or gated-repo error | HF token missing or licence not accepted | `huggingface-cli login`; accept licence at HF |
+| `CUDA out of memory` | VRAM too low | Add `load_in_4bit=True` to `--model_args`; install `bitsandbytes` |
+| `ModuleNotFoundError: lm_eval` | pip install failed or wrong version | `pip install -r requirements.txt` (not `pip install lm-eval==0.5.0`) |
+| `FileNotFoundError` in `build_bundle.py` | `--log_samples` flag missing | Re-run `run_eval.sh`; that flag is required for per-sample output |
+| Bundle hash mismatch in demo | `bundle.json` edited after build | Re-run `python build_bundle.py --output-path ./eval_output` |
+
+---
+
 ## How to reproduce from scratch
 
 **Step 1 — run the eval (GPU required)**
@@ -97,6 +173,7 @@ data.  Run `run_eval.sh` on a GPU to replace it with real eval output.
 | File | Purpose |
 |---|---|
 | `run_eval.sh` | Installs lm-eval, runs GSM8K eval, writes `eval_output/` |
+| `requirements.txt` | Pinned deps matching `run_eval.sh` (lm-eval from git, not PyPI) |
 | `build_bundle.py` | Parses eval output → `bundle.json` |
 | `challenge_response_demo.py` | Challenge-response walkthrough |
 | `bundle.json` | Committed bundle (simulated fixture; replace with real eval) |

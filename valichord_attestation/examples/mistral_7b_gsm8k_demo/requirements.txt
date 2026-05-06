@@ -1,0 +1,12 @@
+# lm-evaluation-harness v0.5.0 is NOT on PyPI (latest there is 0.4.11).
+# Install from the tagged GitHub commit, with the math extra for GSM8K.
+lm-eval[math] @ git+https://github.com/EleutherAI/lm-evaluation-harness.git@v0.5.0
+
+# Core inference stack — pinned to match run_eval.sh
+torch==2.5.1
+transformers==4.46.3
+accelerate==1.2.1
+
+# Optional: 4-bit quantization (reduces VRAM requirement to ~8 GB)
+# Uncomment and add load_in_4bit=True to --model_args in run_eval.sh:
+# bitsandbytes>=0.44.0
