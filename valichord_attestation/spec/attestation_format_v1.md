@@ -428,7 +428,19 @@ The format provides defences against (a) and (b) directly, and against (c) given
 
 ---
 
-## 11. Limitations and trust boundaries
+## 11. Why probabilistic verification instead of full cryptographic proofs?
+
+The protocol provides probabilistic faithfulness verification, not absolute zero-knowledge guarantees. The trade-off is deliberate.
+
+Full cryptographic proofs over arbitrary evaluation execution — particularly inference over frontier-scale models — are not practical with current zk-SNARK or zk-STARK technology. Proof-generation costs and circuit sizes for model inference are research-stage; deploying them on real-world eval workloads in 2026 is not viable.
+
+The probabilistic approach (Merkle commitments + verifier-controlled challenge-response) gives bounded-confidence faithfulness verification that is implementable today, scales to frontier-model evaluations, and runs on commodity infrastructure. The trade-off is honest: probabilistic detection at chosen k, not absolute proof.
+
+Future protocol versions may compose with TEE-backed remote attestation and, eventually, zero-knowledge proofs over eval execution as those technologies mature. The current design is the strongest verification layer that is actually deployable.
+
+---
+
+## 12. Limitations and trust boundaries
 
 ### Adapter trust boundary
 

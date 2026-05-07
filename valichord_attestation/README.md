@@ -9,7 +9,7 @@ The system enables:
 - **Bounded-confidence fraud detection** — the verifier picks random samples; the probability of catching a misreport grows with the number of samples requested
 - **Deterministic cross-implementation comparison** — RFC 8785 (JCS) canonical encoding means two implementations in different languages produce byte-identical bundles for the same input
 
-v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 (already shipped) adds the probabilistic challenge-response. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs.
+v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 (already shipped) adds the probabilistic challenge-response. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs. The probabilistic approach is a deliberate choice given current constraints on cryptographic proof systems — full rationale in [§11 of the spec](spec/attestation_format_v1.md#11-why-probabilistic-verification-instead-of-full-cryptographic-proofs).
 
 The format is harness-agnostic. Adapters for specific harnesses (Inspect AI, lm-evaluation-harness, etc.) are thin converters written separately.
 
@@ -24,6 +24,21 @@ A bundle in isolation is a **verifiable statement**: any reader can confirm the 
 When a bundle is committed to a signed, append-only log — for example, Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`) — it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in a tamper-proof source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
 
 The two layers are deliberately separable. The format is harness-agnostic and substrate-agnostic — useful in contexts beyond Valichord's protocol, and compatible with any signed-log infrastructure. Within Valichord's protocol, the signed-log layer adds the identity and witnessing properties that the format alone deliberately doesn't carry.
+
+---
+
+## Schema instability across the AI eval ecosystem
+
+The AI evaluation ecosystem is in active schema evolution: inspect_evals' `evaluation_report` (merged April 2026) and the executable-report direction (`UKGovernmentBEIS/inspect_evals#910`), EveryEvalEver's aggregate schema (v0.2.2, March 2026), lm-evaluation-harness output formats across versions, METR's task-standard, HELM, and others. Each is a separate evolving target.
+
+The protocol layer is designed to survive this churn:
+
+- The bundle format commits only to its own minimal field set (`model_id`, `task_id`, `raw_metrics`, `outputs_merkle_root`, `samples_total`, `samples_completed`).
+- Harness-specific field names are adopted in adapters, not in the core bundle. Adapters can mirror upstream field names without coupling the protocol to them.
+- Adapters are versioned independently and can update without changing the bundle format.
+- No runtime imports from harness libraries in the core; adapters consume harness output as data.
+
+The strongest properties of the attestation (deterministic encoding, Merkle commitments, probabilistic challenge-response) are independent of any specific harness schema. Adapters absorb upstream churn so the core doesn't have to.
 
 ---
 
