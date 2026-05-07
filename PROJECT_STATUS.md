@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-06
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.0. `valichord_attestation` now includes probabilistic challenge-response (v1.1 additive).
+**Last updated:** 2026-05-07
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. `valichord_attestation` now includes probabilistic challenge-response (v1.1 additive) and two real-data demos.
 
 ---
 
