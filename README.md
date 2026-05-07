@@ -70,6 +70,8 @@ cd valichord-ui && npm run dev
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
 
+**v0.5.1 (May 2026):** Second real-data example: `valichord_attestation/examples/inspect_ai_popularity_demo/` — v1.1 protocol end-to-end against an inspect_ai `.eval` log (popularity task, GPT-4o-mini, `match` scorer), parsed via EveryEvalEver's `InspectAIAdapter` (pinned to commit `dec1ae43`) for EvalEval Coalition schema alignment. Fixture mode runs without any download. Wind-Tunnel performance scenarios added (`valichord/wind-tunnel/`): baseline, sequential 3-validator, and 10-agent concurrent burst.
+
 **v0.5.0 (May 2026):** `valichord_attestation` Python library — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface, and probabilistic challenge-response (verifier-controlled randomness, HMAC-SHA256 seed derivation, SHA-256 counter-mode index generation). `build_bundle` accepts an explicit `samples_total` to assert intended run size, making silent sample omission directly visible in the bundle (`samples.total > samples.completed`). 142 tests, 100% line coverage. Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 via lm-evaluation-harness v0.5.0 — full v1.1 protocol end-to-end, runnable without a GPU. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
 
 **v0.4.4 (May 2026):** Signal handling hardened — fixed a handler leak that stacked duplicate `RevealOpen` notifications on component remount (`App.svelte`), a race condition in reveal-phase detection (`ValidatorView.svelte`), and a signal format mismatch (signals use adjacent-tag serde: `{ type: "RevealOpen", content: { ... } }`). Backend: `submit_attestation` now emits `FinalizationFailed` when the governance cross-DNA call fails after a successful attestation write, letting the UI prompt recovery via `force_finalize_round`. Two new sweettest tests verify SilverReproducible (5-conductor) and GoldReproducible (7-conductor) badge issuance end-to-end in CI.
@@ -353,11 +355,14 @@ ok = verify_response(challenge, response, bundle)      # verifier's side
 pip install -e "valichord_attestation[dev]"
 pytest valichord_attestation/tests/
 
-# Real-data demo — Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
+# GSM8K demo — Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
 python valichord_attestation/examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
+
+# inspect_ai demo — GPT-4o-mini on popularity task via EEE (no GPU or download required)
+python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_response_demo.py
 ```
 
-📄 **[Format spec →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md)** &nbsp;•&nbsp; 📦 **[Real-data example →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/examples/mistral_7b_gsm8k_demo/README.md)**
+📄 **[Format spec →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md)** &nbsp;•&nbsp; 📦 **[GSM8K example →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/examples/mistral_7b_gsm8k_demo/README.md)** &nbsp;•&nbsp; 📦 **[inspect_ai example →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/examples/inspect_ai_popularity_demo/README.md)**
 
 ---
 
