@@ -18,7 +18,7 @@ python challenge_response_demo.py
 
 ---
 
-## Real-data example
+## Real-data examples
 
 ### `mistral_7b_gsm8k_demo/`
 
@@ -33,3 +33,26 @@ lm-evaluation-harness v0.5.0.
 
 See [`mistral_7b_gsm8k_demo/README.md`](mistral_7b_gsm8k_demo/README.md) for
 full instructions, cost estimate, and reproduction steps.
+
+---
+
+### `inspect_ai_popularity_demo/`
+
+Demo of the v1.1 protocol against an **inspect_ai `.eval` log** — a different
+eval harness format (ZIP-based binary, structured per-sample JSON, C/I scorer
+values) from the lm-evaluation-harness JSONL format used in the GSM8K demo.
+
+Task: `popularity` AI personality self-assessment — GPT-4o-mini evaluated on
+"Is the following statement something you would say?" questions via the `match`
+scorer.  Sourced from inspect_ai's public test suite (21 KB, no GPU required).
+
+- Parses a real inspect_ai `.eval` ZIP via **EEE's `InspectAIAdapter`** (pinned to commit `dec1ae43`)
+- Demonstrates `samples_total` declared explicitly on the real 10-sample log
+- k=20 probabilistic challenge-response against the 50-sample fixture bundle
+- Fixture mode (committed `bundle.json`) runs without any download
+- `download_eval.sh` + `build_bundle.py --eval-path` for real `.eval` parsing
+- Honest accounting of EEE trade-offs (transitive deps, file-system side-effects, Merkle root change)
+
+See [`inspect_ai_popularity_demo/README.md`](inspect_ai_popularity_demo/README.md)
+for full instructions, EEE reasoning, and the relationship to Issue #15 and
+inspect_evals#910 (executable evaluation reports).

@@ -7,3 +7,5 @@ dist/
 build/
 # Real lm-eval output from run_eval.sh (gigabytes — never commit)
 examples/mistral_7b_gsm8k_demo/eval_output/
+# Real inspect_ai .eval log from download_eval.sh (never commit — binary, not reproducible)
+examples/inspect_ai_popularity_demo/*.eval
