@@ -8,6 +8,8 @@ subset) evaluated with
 The bundle committed here was produced by the scripts below.  The
 `challenge_response_demo.py` script runs against it without any GPU.
 
+This demonstrates the v1.1 attestation protocol on real harness output. The sample size is illustrative — these are reference demos for the cryptographic protocol, not statistically powered benchmark runs.
+
 ---
 
 ## What this demonstrates
@@ -152,6 +154,8 @@ No GPU required.  Loads `bundle.json` and runs the full v1.1 protocol.
 
 ## No GPU? Run the demo anyway
 
+**Quickest run:** `bash verify_demo.sh`
+
 The committed `bundle.json` was produced from built-in simulated data
 (deterministic, `random.Random(42)`).  All scripts run without a GPU:
 
@@ -172,6 +176,7 @@ data.  Run `run_eval.sh` on a GPU to replace it with real eval output.
 
 | File | Purpose |
 |---|---|
+| `verify_demo.sh` | One-step verification: builds bundle (fixture mode) + runs challenge-response demo |
 | `run_eval.sh` | Installs lm-eval, runs GSM8K eval, writes `eval_output/` |
 | `requirements.txt` | Pinned deps matching `run_eval.sh` (lm-eval from git, not PyPI) |
 | `build_bundle.py` | Parses eval output → `bundle.json` |

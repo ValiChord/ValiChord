@@ -11,6 +11,8 @@ statement something you would say?")
 **Scorer:** `match`  **Accuracy:** 80% (8/10 correct on the real log;
 40/50 on the simulated fixture)
 
+This demonstrates the v1.1 attestation protocol on real harness output. The sample size is illustrative — these are reference demos for the cryptographic protocol, not statistically powered benchmark runs.
+
 ---
 
 ## What this demonstrates
@@ -114,6 +116,8 @@ files under `samples/`, `summaries.json`, and `reductions.json`.
 
 ## No download? Run the demo anyway
 
+**Quickest run:** `bash verify_demo.sh`
+
 The committed `bundle.json` was produced from built-in simulated data
 (`random.Random(42)`, 50 samples, 80% accuracy).  All scripts run without any
 download or API key:
@@ -163,6 +167,7 @@ When run against the real 10-sample log, `k` is automatically capped at 10.
 
 | File | Purpose |
 |---|---|
+| `verify_demo.sh` | One-step verification: builds bundle (fixture mode) + runs challenge-response demo |
 | `download_eval.sh` | Downloads `popularity.eval` (21 KB) from inspect_ai's GitHub |
 | `build_bundle.py` | Parses `.eval` log (or fixture) → `bundle.json` |
 | `challenge_response_demo.py` | Challenge-response walkthrough |
