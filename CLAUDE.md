@@ -15,19 +15,30 @@
 
 ## Pending upgrade checks (run at every session start)
 
-### Holochain 0.6.1 + tryorama 0.19.1 upgrade
-Run `holochain --version` at session start.
-- If still `0.6.0`: do nothing, report status to user.
-- If `0.6.1` or later is installed, OR if `cargo search holochain` / GitHub releases shows 0.6.1 available: perform the following automatically:
+### Holochain version upgrade check
+Run `holochain --version` at session start, then check https://github.com/holochain/holochain/releases for the latest stable releases. Handle each case:
+
+#### Case A — 0.6.1 stable available (and currently on 0.6.0)
+Perform automatically:
   1. Install: `cargo install holochain --version 0.6.1 --locked`
   2. In `valichord/tests/package.json` change `"@holochain/tryorama": "0.19.0"` → `"0.19.1"`
   3. Run `cd valichord/tests && npm install`
   4. Verify tests still pass: `pkill -f holochain; pkill -f lair-keystore; sleep 2 && cd valichord/tests && npm test`
   5. Report outcome to user.
 
-**Why:** tryorama 0.19.1 switches transport from WebRTC/tx5 → iroh/QUIC, requiring Holochain 0.6.1 (iroh 0.6.1). Currently pinned at tryorama 0.19.0 to avoid breakage. `valichord/tests/package.json` has `"@holochain/tryorama": "0.19.0"` (exact pin, not `^`).
+**Why 0.6.1 is safe to auto-upgrade:** zero API changes in zome code; tryorama 0.19.1 switches transport from WebRTC/tx5 → iroh/QUIC. `valichord/tests/package.json` has `"@holochain/tryorama": "0.19.0"` (exact pin, not `^`).
 
-**Note:** Check https://github.com/holochain/holochain/releases if `holochain --version` is ambiguous.
+**Status (2026-05-09):** 0.6.1 reported at 91% complete on the Holochain website, expected ~2026-05-16. rc.8 (2026-04-17) was the last pre-release. Trigger fires only on a stable release — rc tags do not count.
+
+#### Case B — 0.7.0 stable available
+Do **not** auto-upgrade. Report to user and list the breaking changes that need planning:
+- `hdk` → `0.7.x`, `hdi` → `0.8.x` (Cargo.toml changes across all zomes)
+- Wasmer feature flags renamed (`wasmer_sys` → `wasmer-sys-cranelift`, `wasmer_wamr` → `wasmer-wasmi`)
+- Conductor DB migrated to `holochain_data` — **no migration path**, conductor state must be cleared
+- `must_get_agent_activity` response types changed (affects governance zome if used)
+- `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
+
+**Note:** Ignore `0.7.0-dev.*` and `0.6.1-rc.*` tags — stable only.
 
 ---
 
