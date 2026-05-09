@@ -18,6 +18,7 @@ def build_bundle(
     repo_commit: Optional[str] = None,
     harness_version: Optional[str] = None,
     command: Optional[str] = None,
+    meta: Optional[dict] = None,
     generated_at: Optional[str] = None,
 ) -> Bundle:
     """Construct a Bundle from raw harness outputs.
@@ -29,7 +30,9 @@ def build_bundle(
             "key"    — str, metric name (required)
             "value"  — float, pre-rounded to 6 dp (required; MalformedBundleError if absent)
             "stderr" — float, optional; pre-rounded to 6 dp if present
-            Missing keys always raise MalformedBundleError — never silently defaulted.
+            "filter" — str, optional; disambiguates metrics with the same key produced
+                       by different filter passes (e.g. "strict-match", "flexible-extract")
+            Missing required keys always raise MalformedBundleError — never silently defaulted.
         samples: list of per-sample output dicts used to compute outputs_merkle_root.
             Must be non-empty.
         samples_total: declared total number of samples the run was intended to produce.
@@ -40,6 +43,10 @@ def build_bundle(
         repo_commit: git commit hash of the eval repository (optional).
         harness_version: eval harness version string (optional).
         command: command used to run the eval (optional).
+        meta: free-form provenance dict (optional). Suggested keys: repo_commit,
+            harness_version, command, timestamp, date, versions, n_shot. Included
+            in bundle_hash but excluded from content_hash — use for provenance that
+            varies between reruns of the same eval.
         generated_at: ISO 8601 timestamp; defaults to current UTC time if absent.
 
     Returns:
@@ -79,13 +86,14 @@ def build_bundle(
         stderr: Optional[float] = None
         if "stderr" in entry and entry["stderr"] is not None:
             stderr = pre_round(float(entry["stderr"]), label=f"metric '{key}' stderr")
-        metrics.append(Metric(key=key, value=value, stderr=stderr))
+        filter_val: Optional[str] = entry.get("filter")
+        metrics.append(Metric(key=key, value=value, stderr=stderr, filter=filter_val))
 
     root = merkle_root(samples)
     ts = generated_at or datetime.now(timezone.utc).isoformat()
 
     return Bundle(
-        format_version="v1",
+        format_version="v1.2",
         generated_at=ts,
         model_id=model_id,
         task_id=task_id,
@@ -96,4 +104,5 @@ def build_bundle(
         repo_commit=repo_commit,
         harness_version=harness_version,
         command=command,
+        meta=meta,
     )

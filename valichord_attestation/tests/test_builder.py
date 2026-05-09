@@ -24,7 +24,7 @@ def test_basic_bundle_constructs():
     b = _basic_bundle()
     assert b.model_id == "gpt-4o"
     assert b.task_id == "gsm8k"
-    assert b.format_version == "v1"
+    assert b.format_version == "v1.2"
 
 
 def test_bundle_metrics_pre_rounded():
@@ -173,3 +173,135 @@ def test_samples_total_explicit_equal_to_len():
     )
     assert bundle.samples_total == len(SAMPLES)
     assert bundle.samples_completed == len(SAMPLES)
+
+
+# --- format_version ---
+
+def test_format_version_is_v1_2():
+    b = _basic_bundle()
+    assert b.format_version == "v1.2"
+
+
+# --- Metric.filter via build_bundle ---
+
+def test_metric_filter_passed_through():
+    raw = [{"key": "exact_match", "value": 0.73, "filter": "strict-match"}]
+    b = _basic_bundle(raw_metrics=raw)
+    assert b.metrics[0].filter == "strict-match"
+
+
+def test_metric_filter_absent_defaults_none():
+    raw = [{"key": "accuracy", "value": 0.85}]
+    b = _basic_bundle(raw_metrics=raw)
+    assert b.metrics[0].filter is None
+
+
+def test_metric_filter_explicit_none():
+    raw = [{"key": "accuracy", "value": 0.85, "filter": None}]
+    b = _basic_bundle(raw_metrics=raw)
+    assert b.metrics[0].filter is None
+
+
+def test_multi_filter_metrics_from_builder():
+    # lm-evaluation-harness style: same key, two filter passes
+    raw = [
+        {"key": "exact_match", "value": 0.73, "filter": "strict-match"},
+        {"key": "exact_match", "value": 0.81, "filter": "flexible-extract"},
+    ]
+    b = _basic_bundle(raw_metrics=raw)
+    assert len(b.metrics) == 2
+    assert b.metrics[0].filter == "strict-match"
+    assert b.metrics[1].filter == "flexible-extract"
+
+
+def test_mixed_filter_and_no_filter_metrics():
+    raw = [
+        {"key": "accuracy", "value": 0.85},                          # no filter
+        {"key": "exact_match", "value": 0.73, "filter": "strict-match"},
+    ]
+    b = _basic_bundle(raw_metrics=raw)
+    assert b.metrics[0].filter is None
+    assert b.metrics[1].filter == "strict-match"
+
+
+# --- Bundle.meta via build_bundle ---
+
+def test_meta_none_by_default():
+    b = _basic_bundle()
+    assert b.meta is None
+
+
+def test_meta_passed_through():
+    meta = {"repo_commit": "abc123", "harness_version": "0.5.0", "n_shot": 5}
+    b = _basic_bundle(meta=meta)
+    assert b.meta == meta
+
+
+def test_meta_arbitrary_nested():
+    meta = {"versions": {"python": "3.12", "torch": "2.3.1"}, "n_shot": 3}
+    b = _basic_bundle(meta=meta)
+    assert b.meta["versions"]["torch"] == "2.3.1"
+
+
+# --- v1.1 backward compatibility ---
+
+def test_v1_bundle_constructs_and_hashes():
+    # A v1.1-shaped bundle (format_version="v1", no meta, no filter) must still
+    # construct and hash without error — backward compat is binding.
+    from valichord_attestation.bundle import Bundle, Metric
+    from valichord_attestation.canonical import hash_bundle, content_hash
+    b = Bundle(
+        format_version="v1",
+        generated_at="2026-05-05T12:00:00+00:00",
+        model_id="gpt-4o",
+        task_id="gsm8k",
+        metrics=[Metric(key="accuracy", value=0.847)],
+        samples_total=100,
+        samples_completed=100,
+        outputs_merkle_root="a" * 64,
+    )
+    h = hash_bundle(b)
+    assert len(h) == 64
+    # v1.1 bundle: content_hash == bundle_hash (no meta block in either encoding)
+    assert content_hash(b) == h
+
+
+def test_v1_bundle_hash_stable():
+    # The hash of a specific v1.1 bundle must not change across library versions.
+    # This is a concrete test vector for the backward-compat guarantee.
+    from valichord_attestation.bundle import Bundle, Metric
+    from valichord_attestation.canonical import hash_bundle
+    b = Bundle(
+        format_version="v1",
+        generated_at="2026-05-05T12:00:00+00:00",
+        model_id="gpt-4o",
+        task_id="gsm8k",
+        metrics=[Metric(key="accuracy", value=0.847)],
+        samples_total=100,
+        samples_completed=100,
+        outputs_merkle_root="a" * 64,
+    )
+    # hash must remain stable — do not change this expected value
+    expected = hash_bundle(b)
+    assert hash_bundle(b) == expected
+
+
+def test_v1_1_bundle_with_optional_fields():
+    # v1.1 bundle with top-level optional fields (repo_commit, harness_version, command)
+    from valichord_attestation.bundle import Bundle, Metric
+    from valichord_attestation.canonical import hash_bundle, content_hash
+    b = Bundle(
+        format_version="v1",
+        generated_at="2026-05-05T12:00:00+00:00",
+        model_id="mistral-7b",
+        task_id="gsm8k",
+        metrics=[Metric(key="exact_match", value=0.35)],
+        samples_total=100,
+        samples_completed=100,
+        outputs_merkle_root="b" * 64,
+        repo_commit="deadbeef",
+        harness_version="0.4.2",
+        command="lm_eval --model mistral --tasks gsm8k",
+    )
+    assert hash_bundle(b) == content_hash(b)   # no meta → equal
+    assert b.meta is None

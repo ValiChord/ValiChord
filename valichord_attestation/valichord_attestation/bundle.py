@@ -22,11 +22,16 @@ class Metric:
 
     `value` and `stderr` must be finite floats pre-rounded to 6 dp by the caller
     (see `canonical.pre_round`). Validated on construction.
+
+    `filter` disambiguates metrics that share the same key but were produced by
+    different filter passes (e.g. lm-evaluation-harness "strict-match" vs
+    "flexible-extract"). None means no filter; omitted from canonical encoding.
     """
 
     key: str
     value: float
     stderr: Optional[float] = None
+    filter: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.key:
@@ -38,10 +43,16 @@ class Metric:
 
 @dataclass
 class Bundle:
-    """Canonical attestation bundle (format v1).
+    """Canonical attestation bundle (format v1 / v1.2).
 
     Required fields raise MalformedBundleError on absence or empty string.
     Optional fields (None) are omitted from canonical encoding — never serialised as null.
+
+    `meta` is an optional free-form provenance dict (git commit, harness version,
+    command, timestamp, etc.). It is included in `bundle_hash` but excluded from
+    `content_hash`, so two reruns of the same eval with different provenance produce
+    identical content hashes. v1.1 bundles without a meta block have
+    content_hash == bundle_hash.
     """
 
     format_version: str
@@ -55,6 +66,7 @@ class Bundle:
     repo_commit: Optional[str] = None
     harness_version: Optional[str] = None
     command: Optional[str] = None
+    meta: Optional[dict] = None
 
     def __post_init__(self) -> None:
         required = {

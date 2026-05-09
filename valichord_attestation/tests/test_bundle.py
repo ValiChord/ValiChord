@@ -113,3 +113,46 @@ def test_multiple_metrics():
     b = _make_bundle(metrics=metrics)
     assert len(b.metrics) == 3
     assert b.metrics[2].stderr == 0.009
+
+
+# --- Metric.filter ---
+
+def test_metric_filter_default_none():
+    m = Metric(key="accuracy", value=0.847)
+    assert m.filter is None
+
+
+def test_metric_filter_set():
+    m = Metric(key="accuracy", value=0.847, filter="strict-match")
+    assert m.filter == "strict-match"
+
+
+def test_metric_filter_flexible_extract():
+    m = Metric(key="exact_match", value=0.731, filter="flexible-extract")
+    assert m.filter == "flexible-extract"
+
+
+def test_metric_filter_does_not_affect_validation():
+    # filter value is unconstrained — any string is accepted
+    m = Metric(key="f1", value=0.9, filter="none")
+    assert m.filter == "none"
+
+
+# --- Bundle.meta ---
+
+def test_bundle_meta_default_none():
+    b = _make_bundle()
+    assert b.meta is None
+
+
+def test_bundle_meta_set():
+    meta = {"repo_commit": "abc123", "harness_version": "0.5.0"}
+    b = _make_bundle(meta=meta)
+    assert b.meta == meta
+
+
+def test_bundle_meta_arbitrary_shape():
+    meta = {"nested": {"k": 1}, "list_val": [1, 2, 3], "timestamp": "2026-05-09T00:00:00Z"}
+    b = _make_bundle(meta=meta)
+    assert b.meta["nested"] == {"k": 1}
+    assert b.meta["list_val"] == [1, 2, 3]

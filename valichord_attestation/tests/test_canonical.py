@@ -4,7 +4,7 @@ import pytest
 import jcs
 from valichord_attestation.bundle import Bundle, Metric, MalformedBundleError
 from valichord_attestation.canonical import (
-    bundle_to_dict, canonicalise, hash_bundle, pre_round,
+    bundle_to_dict, canonicalise, content_hash, hash_bundle, pre_round,
 )
 
 
@@ -185,3 +185,163 @@ def test_hash_bundle_pass_at_k_shaped():
     ]
     b = _simple_bundle(task_id="swe-bench-verified", metrics=metrics)
     assert len(hash_bundle(b)) == 64
+
+
+# --- Metric.filter in canonical encoding ---
+
+def test_metric_filter_absent_when_none():
+    m = Metric(key="accuracy", value=0.85)
+    from valichord_attestation.canonical import _metric_to_dict
+    d = _metric_to_dict(m)
+    assert "filter" not in d
+
+
+def test_metric_filter_included_when_set():
+    m = Metric(key="exact_match", value=0.73, filter="strict-match")
+    from valichord_attestation.canonical import _metric_to_dict
+    d = _metric_to_dict(m)
+    assert d["filter"] == "strict-match"
+
+
+def test_metric_filter_in_canonical_bytes():
+    b = _simple_bundle(metrics=[Metric(key="exact_match", value=0.73, filter="strict-match")])
+    raw = canonicalise(b).decode("utf-8")
+    assert '"filter":"strict-match"' in raw or "filter" in raw
+    parsed = json.loads(raw)
+    assert parsed["metrics"][0]["filter"] == "strict-match"
+
+
+def test_multi_filter_metrics_produce_distinct_dicts():
+    # Same key, different filter → different canonical representations → different hashes
+    b1 = _simple_bundle(metrics=[Metric(key="exact_match", value=0.73, filter="strict-match")])
+    b2 = _simple_bundle(metrics=[Metric(key="exact_match", value=0.73, filter="flexible-extract")])
+    assert canonicalise(b1) != canonicalise(b2)
+    assert hash_bundle(b1) != hash_bundle(b2)
+
+
+def test_multi_filter_metrics_in_one_bundle():
+    # lm-evaluation-harness style: two entries for the same task, different filters
+    metrics = [
+        Metric(key="exact_match", value=0.73, filter="strict-match"),
+        Metric(key="exact_match", value=0.81, filter="flexible-extract"),
+    ]
+    b = _simple_bundle(metrics=metrics)
+    data = json.loads(canonicalise(b).decode("utf-8"))
+    assert data["metrics"][0]["filter"] == "strict-match"
+    assert data["metrics"][1]["filter"] == "flexible-extract"
+
+
+def test_filter_none_and_set_differ():
+    b_no_filter = _simple_bundle(metrics=[Metric(key="accuracy", value=0.85)])
+    b_with_filter = _simple_bundle(metrics=[Metric(key="accuracy", value=0.85, filter="none")])
+    assert canonicalise(b_no_filter) != canonicalise(b_with_filter)
+
+
+# --- Bundle.meta in canonical encoding ---
+
+def test_meta_absent_when_none():
+    d = bundle_to_dict(_simple_bundle())
+    assert "meta" not in d
+
+
+def test_meta_included_when_set():
+    meta = {"repo_commit": "abc123", "harness_version": "0.5.0"}
+    b = _simple_bundle(meta=meta)
+    d = bundle_to_dict(b)
+    assert d["meta"] == meta
+
+
+def test_meta_in_canonical_bytes():
+    b = _simple_bundle(meta={"repo_commit": "deadbeef"})
+    data = json.loads(canonicalise(b).decode("utf-8"))
+    assert data["meta"]["repo_commit"] == "deadbeef"
+
+
+def test_meta_changes_bundle_hash():
+    b_no_meta = _simple_bundle()
+    b_with_meta = _simple_bundle(meta={"repo_commit": "abc123"})
+    assert hash_bundle(b_no_meta) != hash_bundle(b_with_meta)
+
+
+# --- content_hash ---
+
+def test_content_hash_is_64_hex():
+    h = content_hash(_simple_bundle())
+    assert isinstance(h, str)
+    assert len(h) == 64
+    assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_content_hash_deterministic():
+    b = _simple_bundle()
+    assert content_hash(b) == content_hash(b)
+
+
+def test_content_hash_equals_bundle_hash_no_meta():
+    # v1.1 bundle (no meta) → content_hash == bundle_hash
+    b = _simple_bundle()
+    assert b.meta is None
+    assert content_hash(b) == hash_bundle(b)
+
+
+def test_content_hash_equals_bundle_hash_explicit_none_meta():
+    b = _simple_bundle(meta=None)
+    assert content_hash(b) == hash_bundle(b)
+
+
+def test_content_hash_invariant_to_meta():
+    # Same content, different meta → same content_hash
+    b1 = _simple_bundle(meta={"repo_commit": "aaa"})
+    b2 = _simple_bundle(meta={"repo_commit": "bbb"})
+    assert content_hash(b1) == content_hash(b2)
+
+
+def test_bundle_hash_differs_for_different_meta():
+    # Different meta → different bundle_hash (meta IS in canonical encoding)
+    b1 = _simple_bundle(meta={"repo_commit": "aaa"})
+    b2 = _simple_bundle(meta={"repo_commit": "bbb"})
+    assert hash_bundle(b1) != hash_bundle(b2)
+
+
+def test_content_hash_differs_from_bundle_hash_when_meta_present():
+    b = _simple_bundle(meta={"repo_commit": "abc"})
+    assert content_hash(b) != hash_bundle(b)
+
+
+def test_content_hash_sensitive_to_model():
+    b1 = _simple_bundle(model_id="model-a")
+    b2 = _simple_bundle(model_id="model-b")
+    assert content_hash(b1) != content_hash(b2)
+
+
+def test_content_hash_sensitive_to_metric():
+    b1 = _simple_bundle(metrics=[Metric(key="accuracy", value=0.847)])
+    b2 = _simple_bundle(metrics=[Metric(key="accuracy", value=0.848)])
+    assert content_hash(b1) != content_hash(b2)
+
+
+def test_content_hash_includes_filter():
+    # filter is part of content → content_hash differs
+    b1 = _simple_bundle(metrics=[Metric(key="exact_match", value=0.73, filter="strict-match")])
+    b2 = _simple_bundle(metrics=[Metric(key="exact_match", value=0.73, filter="flexible-extract")])
+    assert content_hash(b1) != content_hash(b2)
+
+
+def test_content_hash_meta_empty_dict_vs_no_meta():
+    # meta={} (present, empty) is still included in bundle_hash but excluded from content_hash
+    b_none = _simple_bundle()
+    b_empty = _simple_bundle(meta={})
+    # content_hash: meta excluded in both cases → same
+    assert content_hash(b_none) == content_hash(b_empty)
+    # bundle_hash: empty dict IS in canonical encoding → differs
+    assert hash_bundle(b_none) != hash_bundle(b_empty)
+
+
+def test_content_hash_identical_content_and_meta():
+    # Exact same bundle → same content_hash and same bundle_hash
+    ts = "2026-05-09T00:00:00+00:00"
+    meta = {"repo_commit": "abc123"}
+    b1 = _simple_bundle(generated_at=ts, meta=meta)
+    b2 = _simple_bundle(generated_at=ts, meta=meta)
+    assert content_hash(b1) == content_hash(b2)
+    assert hash_bundle(b1) == hash_bundle(b2)

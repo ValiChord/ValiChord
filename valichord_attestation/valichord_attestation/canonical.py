@@ -26,6 +26,8 @@ def pre_round(value: float, *, label: str = "value") -> float:
 
 def _metric_to_dict(m: Metric) -> dict:
     d: dict = {"key": m.key, "value": m.value}
+    if m.filter is not None:
+        d["filter"] = m.filter
     if m.stderr is not None:
         d["stderr"] = m.stderr
     return d
@@ -52,6 +54,8 @@ def bundle_to_dict(bundle: Bundle) -> dict:
         d["command"] = bundle.command
     if bundle.harness_version is not None:
         d["harness_version"] = bundle.harness_version
+    if bundle.meta is not None:
+        d["meta"] = bundle.meta
     if bundle.repo_commit is not None:
         d["repo_commit"] = bundle.repo_commit
     return d
@@ -64,5 +68,28 @@ def canonicalise(bundle: Bundle) -> bytes:
 
 
 def hash_bundle(bundle: Bundle) -> str:
-    """Return the SHA-256 hex digest of the canonical encoding."""
+    """Return the SHA-256 hex digest of the canonical encoding (full bundle).
+
+    Captures byte identity: any field change, including meta-block contents,
+    produces a different hash. Use this for archival, deduplication, and
+    challenge-response (the challenge binds to a specific bundle_hash).
+    """
     return hashlib.sha256(canonicalise(bundle)).hexdigest()
+
+
+def content_hash(bundle: Bundle) -> str:
+    """Return the SHA-256 hex digest of the canonical encoding with meta excluded.
+
+    Captures scientific equivalence: two bundles with identical model_id, task_id,
+    metrics, outputs_merkle_root, samples counts, and format_version produce the same
+    content_hash regardless of their meta-block contents. Use this when comparing
+    reruns that may differ only in provenance (commit, timestamp, command).
+
+    v1.1 bundles (no meta block) have content_hash == bundle_hash, because meta
+    is absent from both encodings.
+    """
+    d = bundle_to_dict(bundle)
+    d.pop("meta", None)
+    raw = jcs.canonicalize(d)
+    encoded = raw if isinstance(raw, bytes) else raw.encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

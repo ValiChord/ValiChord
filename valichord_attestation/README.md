@@ -9,7 +9,7 @@ The system enables:
 - **Bounded-confidence fraud detection** — the verifier picks random samples; the probability of catching a misreport grows with the number of samples requested
 - **Deterministic cross-implementation comparison** — RFC 8785 (JCS) canonical encoding means two implementations in different languages produce byte-identical bundles for the same input
 
-v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 (already shipped) adds the probabilistic challenge-response. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs. The probabilistic approach is a deliberate choice given current constraints on cryptographic proof systems — full rationale in [§11 of the spec](spec/attestation_format_v1.md#11-why-probabilistic-verification-instead-of-full-cryptographic-proofs).
+v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 adds the probabilistic challenge-response. v1.2 (current) adds `Metric.filter` for multi-filter harnesses and `Bundle.meta` for provenance-aware comparison, together with a `content_hash` function for scientific-equivalence checks. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs. The probabilistic approach is a deliberate choice given current constraints on cryptographic proof systems — full rationale in [§11 of the spec](spec/attestation_format_v1.md#11-why-probabilistic-verification-instead-of-full-cryptographic-proofs).
 
 The format is harness-agnostic. Adapters for specific harnesses (Inspect AI, lm-evaluation-harness, etc.) are thin converters written separately.
 
@@ -73,23 +73,31 @@ pip install -e ".[dev]"
 ## Quickstart
 
 ```python
-from valichord_attestation import build_bundle, hash_bundle, merkle_proof, verify_faithfulness
+from valichord_attestation import (
+    build_bundle, hash_bundle, content_hash,
+    merkle_proof, verify_faithfulness,
+)
 
 # 1. Build a bundle from raw harness output
+samples = [{"index": i, "output": "...", "correct": True} for i in range(1319)]
 bundle = build_bundle(
     model_id="gpt-4o-2024-08-06",
     task_id="gsm8k",
     raw_metrics=[{"key": "accuracy", "value": 0.847, "stderr": 0.025}],
-    samples=[{"index": i, "output": "...", "correct": True} for i in range(1319)],
+    samples=samples,
     samples_total=1319,           # optional: assert intended run size (detects silent omission)
-    repo_commit="abc123",
-    harness_version="inspect_ai/0.3.19",
-    command="inspect eval gsm8k --model openai/gpt-4o-2024-08-06",
+    meta={                        # optional: provenance metadata (v1.2)
+        "repo_commit": "abc123",
+        "harness_version": "inspect_ai/0.3.19",
+        "command": "inspect eval gsm8k --model openai/gpt-4o-2024-08-06",
+    },
 )
 
-# 2. Hash it — this is what you publish alongside the report
-bundle_hash = hash_bundle(bundle)
-print(bundle_hash)  # 64 hex chars
+# 2. Hash it — publish bundle_hash alongside the report
+bh = hash_bundle(bundle)   # byte identity: changes if any field changes, including meta
+ch = content_hash(bundle)  # scientific equivalence: stable across reruns with different meta
+print(bh)   # 64 hex chars
+print(bh == ch)  # False — meta block differs them; True for v1.1 bundles with no meta
 
 # 3. Prove a specific sample (for selective disclosure to a verifier)
 proof = merkle_proof(samples, index=42)
@@ -108,7 +116,24 @@ raw_metrics = [
 ]
 ```
 
+For harnesses that report multiple metrics with the same key (e.g. lm-evaluation-harness `strict-match` vs `flexible-extract` filter passes), add a `"filter"` key to each metric dict:
+
+```python
+raw_metrics = [
+    {"key": "exact_match", "value": 0.73, "filter": "strict-match"},
+    {"key": "exact_match", "value": 0.81, "filter": "flexible-extract"},
+]
+```
+
 `build_bundle` raises `MalformedBundleError` if any `value` key is missing — absent metrics are never silently defaulted to `0.0`. Pass `samples_total` to explicitly declare the intended run size; if an adapter silently drops samples, `bundle.samples_total > bundle.samples_completed` will be directly visible. Raises `ValueError` if `samples_total < len(samples)`.
+
+### `bundle_hash` vs `content_hash`
+
+| | `bundle_hash` | `content_hash` |
+|---|---|---|
+| **What changes it** | Any field, including `meta` | Everything except `meta` |
+| **Use for** | Archival, challenge-response, DHT entries | Comparing reruns, asserting reproducibility |
+| **v1.1 bundles** | Unchanged — backward-compatible | Equals `bundle_hash` (no meta present) |
 
 ---
 
@@ -193,7 +218,7 @@ pip install -e ".[dev]"
 pytest tests/ --cov=valichord_attestation
 ```
 
-142 tests, 100% line coverage.
+183 tests, 100% line coverage.
 
 ---
 

@@ -1,7 +1,7 @@
-# Valichord Attestation Format v1
+# Valichord Attestation Format v1 / v1.2
 
 **Status:** Draft  
-**Format version string:** `"v1"`  
+**Format version string:** `"v1.2"` (new bundles); `"v1"` and `"v1.1"` bundles remain valid  
 **Reference implementation:** `valichord_attestation/` (this repository)
 
 ---
@@ -17,6 +17,16 @@ The format is designed to be harness-agnostic. One bundle schema covers any eval
 - A canonical, deterministic encoding of the bundle (RFC 8785 / JCS) so the same run always produces the same bytes and therefore the same hash.
 - A metric-agnostic result encoding that covers single-metric evals (accuracy + stderr), multi-dimensional evals (agentdojo utility + ASR rates), and ranked-pass evals (SWE-bench pass@k).
 - A Merkle root over per-sample outputs so the holder of the full log can selectively prove individual sample faithfulness without disclosing the entire log.
+
+### What v1.1 adds (additive, backward-compatible)
+
+- `samples_total` explicit declaration — allows in-bundle detection of silent sample omission (threat model §10(d)).
+- Probabilistic challenge-response protocol — verifier-controlled randomness; holder cannot cherry-pick which samples to reveal.
+
+### What v1.2 adds (additive, backward-compatible)
+
+- `Metric.filter` — optional string field to disambiguate metrics with the same key produced by different filter passes (e.g. lm-evaluation-harness `strict-match` vs `flexible-extract`). When absent, omitted from canonical encoding.
+- `Bundle.meta` — optional free-form provenance dict. Included in `bundle_hash` (byte identity); excluded from `content_hash` (scientific equivalence). Enables comparison of reruns that differ only in provenance metadata. v1.1 bundles without a meta block have `content_hash == bundle_hash`.
 
 ### What v1 does not provide (non-goals)
 
@@ -53,6 +63,7 @@ Git commit authorship and PR-review endorsement already constitute a *social* at
 | `repo_commit` | `string` | Git commit hash of the eval repository. |
 | `harness_version` | `string` | Eval harness version (e.g. `"inspect_ai/0.3.19"`). |
 | `command` | `string` | Command used to run the eval. |
+| `meta` | `object` | Free-form provenance dict (v1.2). See §2a. Included in `bundle_hash`; excluded from `content_hash`. |
 
 Optional fields MUST be omitted from the canonical encoding when absent — never serialised as `null`.
 
@@ -67,11 +78,36 @@ Optional fields MUST be omitted from the canonical encoding when absent — neve
 | `key` | `string` | Yes | Metric name (e.g. `"accuracy"`, `"pass_at_1"`, `"benign_utility"`). |
 | `value` | `number` | Yes | Metric value. Must be a finite float pre-rounded to 6 decimal places. |
 | `stderr` | `number` | No | Standard error. Finite float pre-rounded to 6 dp if present; omitted otherwise. |
+| `filter` | `string` | No | Filter-pass identifier (v1.2). Disambiguates metrics sharing the same `key` produced by different filter passes. Omitted from canonical encoding when absent. |
+
+The `filter` field addresses the case where a harness (e.g. lm-evaluation-harness) emits multiple metric entries for the same `(task_id, key)` pair distinguished by the filter that produced them — `"strict-match"`, `"flexible-extract"`, `"none"`, etc. Without `filter`, two entries with the same `key` would collide in a bundle; with `filter`, they are distinct canonical entries whose ordering in the `metrics` array is significant.
 
 Additional fields on a Metric object are permitted (`extra="allow"` posture). Unrecognised fields are preserved in the canonical encoding but have no defined semantics in v1.
 
-### Complete example
+### Complete example (v1.2)
 
+```json
+{
+  "format_version": "v1.2",
+  "generated_at": "2026-05-09T10:00:00+00:00",
+  "model_id": "gpt-4o-2024-08-06",
+  "task_id": "gsm8k",
+  "metrics": [
+    {"key": "exact_match", "value": 0.847, "stderr": 0.025, "filter": "strict-match"},
+    {"key": "exact_match", "value": 0.891, "stderr": 0.021, "filter": "flexible-extract"}
+  ],
+  "samples": {"total": 1319, "completed": 1319},
+  "outputs_merkle_root": "a3f2...64 hex chars...",
+  "meta": {
+    "repo_commit": "abc123",
+    "harness_version": "lm_eval/0.4.5",
+    "command": "lm_eval --model gpt-4o --tasks gsm8k",
+    "n_shot": 5
+  }
+}
+```
+
+v1.1-compatible (no meta, no filter — hash unchanged):
 ```json
 {
   "format_version": "v1",
@@ -89,7 +125,7 @@ Additional fields on a Metric object are permitted (`extra="allow"` posture). Un
 }
 ```
 
-Multi-metric (agentdojo-shaped):
+Multi-metric (agentdojo-shaped, v1):
 ```json
 {
   "format_version": "v1",
@@ -105,6 +141,28 @@ Multi-metric (agentdojo-shaped):
   "outputs_merkle_root": "7f73...64 hex chars..."
 }
 ```
+
+---
+
+## 2a. `meta` block (v1.2)
+
+The `meta` block is an optional free-form JSON object for provenance metadata that varies between reruns of the same eval (git commit, timestamp, harness version, command, shot count, etc.). It is present in `bundle_hash` (byte identity) but excluded from `content_hash` (scientific equivalence).
+
+**Suggested keys** (none required; harness-specific keys are permitted):
+
+| Key | Type | Description |
+|---|---|---|
+| `repo_commit` | `string` | Git commit hash of the eval repository. |
+| `harness_version` | `string` | Eval harness version string. |
+| `command` | `string` | Full command used to run the eval. |
+| `timestamp` | `string` | ISO 8601 timestamp of when the eval was run. |
+| `date` | `string` | Run date (e.g. `"2026-05-09"`). |
+| `versions` | `object` | Dict of dependency versions (e.g. `{"python": "3.12", "torch": "2.3.1"}`). |
+| `n_shot` | `integer` | Number of few-shot examples used. |
+
+The bundle validator makes no assumption about which keys are present. Any JSON-serialisable value is permitted.
+
+**Note on v1.1 top-level optional fields:** `repo_commit`, `harness_version`, and `command` also exist as direct Bundle fields for backward compatibility. New bundles should prefer placing these in `meta`. Both placements are valid; if a field appears in both, the values in `meta` shadow the direct field in provenance metadata but both remain in `bundle_hash`.
 
 ---
 
@@ -136,13 +194,43 @@ UTF-8. No BOM.
 
 ## 4. Hashing rules
 
-The bundle hash is the SHA-256 hex digest of the JCS canonical encoding:
+### `bundle_hash` — byte identity (unchanged from v1)
 
 ```
-bundle_sha256 = hex(SHA-256(JCS(bundle_dict)))
+bundle_hash = hex(SHA-256(JCS(bundle_dict)))
 ```
 
-The `bundle_sha256` is not a field inside the bundle JSON — it is computed from the bundle and stored or transmitted separately (e.g. in a report, a commit message, or a Valichord DHT entry). Including it inside the bundle would make it a self-referential hash, which is undefined.
+`bundle_hash` captures **byte identity**: any change to any field — including meta-block contents — produces a different hash. Use this for:
+- Archival and deduplication (this specific run, on this commit, with this timestamp)
+- Challenge-response binding (challenges reference `bundle_hash`; the holder cannot substitute a different bundle)
+- On-chain Valichord DHT entries
+
+The `bundle_hash` is not a field inside the bundle JSON — it is computed from the bundle and stored or transmitted separately (e.g. in a report, a commit message, or a Valichord DHT entry). Including it inside the bundle would make it a self-referential hash, which is undefined.
+
+### `content_hash` — scientific equivalence (v1.2)
+
+```
+content_hash = hex(SHA-256(JCS(bundle_dict_without_meta)))
+```
+
+`content_hash` captures **scientific equivalence**: two bundles with identical `format_version`, `model_id`, `task_id`, `metrics` (including `filter`), `outputs_merkle_root`, `samples.total`, and `samples.completed` produce the same `content_hash` regardless of their `meta` block. Use this for:
+- Comparing two reruns of the same eval that differ only in provenance (different git commit, different timestamp, different operator)
+- Asserting that a result is reproducible: a replication bundle's `content_hash` matches the original's `content_hash`
+
+**v1.1 compatibility:** A v1.1 bundle (no `meta` field) has `content_hash == bundle_hash`, because `meta` is absent from both encodings. The `content_hash` function is a no-op transformation for legacy bundles.
+
+**Bundle Hash vs Content Hash — when to use which:**
+
+| Scenario | Use |
+|---|---|
+| Archiving a specific run | `bundle_hash` |
+| Challenge-response (binding a challenge to a run) | `bundle_hash` |
+| On-chain DHT attestation | `bundle_hash` |
+| Comparing two runs as scientifically equivalent | `content_hash` |
+| Asserting a replication matches the original | `content_hash` |
+| Deduplicating bundles regardless of when they were run | `content_hash` |
+
+Both values are **derived**, not stored in the bundle. Compute them from the bundle whenever needed.
 
 ---
 
@@ -357,10 +445,32 @@ Missing or `None` required fields MUST raise an error rather than produce a hash
 
 ## 7. Versioning policy
 
-- The `format_version` field is `"v1"` for all bundles conforming to this spec.
-- **Additive changes** (new optional fields, new optional Metric fields) MAY be made without incrementing the version, under the `extra="allow"` posture. v1 readers MUST ignore unrecognised fields.
+- The `format_version` field for new bundles is `"v1.2"`. Existing `"v1"` and `"v1.1"` bundles remain fully valid — readers MUST accept any `v1.x` version string.
+- **Additive changes** (new optional fields, new optional Metric fields) MAY be made within the v1.x family, under the `extra="allow"` posture. v1 readers MUST ignore unrecognised fields.
 - **Breaking changes** (removing required fields, changing canonical encoding rules, changing Merkle construction) MUST increment to `"v2"`. A v2 spec will document migration from v1.
-- The `bundle_sha256` of a v1 bundle remains stable across additive changes because the canonical encoding omits `None`-valued optional fields.
+- The `bundle_hash` of a v1.1 bundle is **stable** — the v1.2 additions (`Metric.filter`, `Bundle.meta`) are optional fields that are absent from v1.1 encodings, so omitting them does not alter the canonical encoding.
+
+### Changelog
+
+#### v1.2 — 2026-05-09
+
+Two additive extensions informed by FazeelUsmani's [lm-evaluation-harness PR #3752](https://github.com/EleutherAI/lm-evaluation-harness/pull/3752) and general design hygiene:
+
+1. **`Metric.filter`** — optional string disambiguating metrics produced by different filter passes. Absent from canonical encoding when `None`.
+2. **`Bundle.meta`** — optional provenance dict included in `bundle_hash` but excluded from `content_hash`. Enables scientific-equivalence comparison across reruns with different provenance.
+3. **`content_hash` function** — new derived value; SHA-256 of canonical encoding with `meta` excluded.
+4. **Default `format_version`** bumped to `"v1.2"` for bundles produced by `build_bundle()`.
+
+**Note on numeric encoding:** FazeelUsmani's PR also proposes decimal-string encoding for numeric stability across implementations. Valichord stays with RFC 8785 + pre-rounding to 6 dp. The divergence is acknowledged in the README's "schema instability" section.
+
+#### v1.1 — 2026-05-05
+
+- `samples_total` explicit declaration (threat model §10(d)).
+- Probabilistic challenge-response protocol (Section 6).
+
+#### v1 — 2026-05-05
+
+Initial format: canonical encoding, Metric schema, Merkle commitment, selective disclosure.
 
 ---
 
@@ -378,9 +488,9 @@ An adapter receives:
 1. The harness report metadata (model id, task id, metrics, commit, command).
 2. The per-sample output dicts (to compute `outputs_merkle_root`).
 
-It calls `build_bundle(...)` from the reference implementation, passing `raw_metrics` (list of `{"key", "value", "stderr"}` dicts) and `samples` (list of per-sample dicts).
+It calls `build_bundle(...)` from the reference implementation, passing `raw_metrics` (list of `{"key", "value", "stderr", "filter"}` dicts, where `stderr` and `filter` are optional) and `samples` (list of per-sample dicts). For v1.2 bundles, pass `meta={"repo_commit": ..., "harness_version": ..., ...}` for provenance metadata.
 
-The metric names in `raw_metrics` should match the harness's own names verbatim where possible, so the bundle field names are consistent with what the harness reports. For inspect_evals specifically, `EvaluationReportMetric.key` maps directly to `Metric.key`.
+The metric names in `raw_metrics` should match the harness's own names verbatim where possible, so the bundle field names are consistent with what the harness reports. For lm-evaluation-harness, include `"filter"` in each metric dict to preserve the filter-pass identifier. For inspect_evals specifically, `EvaluationReportMetric.key` maps directly to `Metric.key`.
 
 ---
 
