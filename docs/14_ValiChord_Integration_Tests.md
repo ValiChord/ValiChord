@@ -6,7 +6,7 @@
 
 Two test suites cover the protocol end-to-end:
 
-- **Tryorama** (TypeScript/Node) — live conductor tests against a compiled `.happ` bundle. Status: **94 pass, 1 skipped, 0 fail** (as of 2026-03-25)
+- **Tryorama** (TypeScript/Node) — live conductor tests against a compiled `.happ` bundle. Status: **96 pass, 1 skipped, 0 fail** (as of 2026-05-09). GoldReproducible covered by sweettest test 15.
 - **Sweettest** (Rust/`cargo test`) — native HDK harness, faster, no bundle needed. Authoritative source: `valichord/sweettest_integration/tests/`
 
 ---
@@ -93,7 +93,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (46 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (46 tests, 1 Tryorama-skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -148,10 +148,12 @@ cd tests && npm test
 
 > † **Silver (12.2):** Passes on a clean Codespace. May fail with WebsocketClosedError when the Codespace is under heavy load (5 conductors). Clean up orphaned processes with `pkill -f kitsune2-bootstrap-srv; pkill -f holochain; pkill -f lair-keystore` before running.
 
-> ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
-> processes crash under load in resource-constrained environments (codespace /
-> CI with <16 GB RAM). The test logic is correct; run it on adequately
-> resourced hardware.
+> ¹ **Tryorama-skipped:** requires 7 simultaneous Holochain conductors. Conductor
+> processes exhaust available websocket connections in resource-constrained environments
+> (Codespace / CI with <16 GB RAM). **Covered by sweettest test 15**
+> (`sweettest_integration/tests/governance.rs` → `gold_badge_issued_with_seven_validators`) —
+> in-process conductors make 7-agent runs feasible within normal RAM budgets. Run the
+> sweettest for authoritative GoldReproducible coverage.
 
 ### DNA 4 — `governance.test.ts` (24 tests)
 
@@ -277,7 +279,7 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | **Covered by sweettest** (test 15, `gold_badge_issued_with_seven_validators`). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | DNA 1 — lock_researcher_result | lock_researcher_result → LockedResult stored privately + ResearcherResultCommitment on DNA 3; get_locked_result returns private record | Cross-DNA call in test scenario required |
 | DNA 3 — reveal_researcher_result | Correct metrics+nonce → ResearcherReveal on DHT; wrong nonce → error rejected; get_researcher_reveal returns verified reveal | Must call all validators notify_commitment_sealed first (gate: check_all_commitments_sealed) |
 | DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama |

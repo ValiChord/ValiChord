@@ -82,8 +82,8 @@ If a test times out, the cause is almost always slow conductor startup, not a lo
 
 ## Expected results
 
-- **94 tests pass, 1 skipped**
-- Skipped: `GoldReproducible badge (7 validators)` — requires 7 simultaneous conductors (≥16 GB RAM). Skipped on Codespaces; run on adequately resourced hardware.
+- **96 Tryorama tests pass, 1 Tryorama-skipped**
+- Tryorama-skipped: `GoldReproducible badge (7 validators)` — 7 process conductors exhaust websocket connections in Codespaces (<16 GB RAM). **Covered by sweettest test 15** (`gold_badge_issued_with_seven_validators` in `sweettest_integration/tests/governance.rs`) — passes with in-process conductors.
 
 ---
 

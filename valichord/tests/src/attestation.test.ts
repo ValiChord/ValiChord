@@ -18,7 +18,6 @@
 import { runScenario, dhtSync, pause } from "@holochain/tryorama";
 import type { Scenario } from "@holochain/tryorama";
 import {
-  AppBundleSource,
   ActionHash,
   AgentPubKey,
   encodeHashToBase64,
@@ -148,7 +147,7 @@ function playerConfig(
 
 /** Typed wrapper for callZome — avoids repetition in test bodies. */
 async function zomeCall<T>(
-  player: Awaited<ReturnType<typeof runScenario extends (fn: (s: infer S) => any) => any ? S : never>["addPlayerWithApp"]>,
+  player: Awaited<ReturnType<Scenario["addPlayerWithApp"]>>,
   fnName: string,
   payload: unknown = null,
 ): Promise<T> {
@@ -507,7 +506,7 @@ describe("2. Full commit-reveal round", () => {
         expect(_requestHash).toBeTruthy();
 
         // Sync so Bob sees the request.
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
         await dhtSync([alice, bob], dnaHash);
 
         // --- Step 2: Alice commits (seals private attestation in DNA 2) ---
@@ -592,7 +591,7 @@ describe("3. DHT-poll phase transition", () => {
 
         const REQUEST_REF = fakeExternalHash(0xee);
 
-        const dnaHash = carol.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = carol.namedCells.get("attestation")!.cell_id[0];
 
         // Track signal received by Eve (should NOT be needed for phase discovery).
         let eveReceivedSignal = false;
@@ -880,7 +879,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
         ]);
 
         const REQUEST_REF = fakeExternalHash(0x22);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Submit a VR so check_all_commitments_sealed_inner can find num_validators_required=2.
         await zomeCall(alice, "submit_validation_request",
@@ -923,7 +922,7 @@ describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () =>
         ]);
 
         const REQUEST_REF = fakeExternalHash(0x33);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
         await zomeCall(alice, "submit_validation_request",
@@ -1279,7 +1278,7 @@ describe("11. Phase threshold — single validator below minimum_validators", ()
         ]);
 
         const REQUEST_REF = fakeExternalHash(0xa3);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
         await zomeCall(alice, "submit_validation_request",
@@ -1342,7 +1341,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const validators = await scenario.addPlayersWithApps(configs);
 
         const REQUEST_REF = fakeExternalHash(0xb0);
-        const attDnaHash = validators[0].namedCells.get("attestation")?.cell_id[0];
+        const attDnaHash = validators[0].namedCells.get("attestation")!.cell_id[0];
 
         // Submit a ValidationRequest so check_and_create_harmony_record can
         // resolve num_validators_required (N) via cross-DNA call.
@@ -1398,7 +1397,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const validators = [alice, bob, carol, dave, eve];
 
         const REQUEST_REF = fakeExternalHash(0xb1);
-        const attDnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const attDnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Submit a ValidationRequest so check_and_create_harmony_record can
         // resolve num_validators_required (N) via cross-DNA call.
@@ -1444,9 +1443,10 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
     },
   );
 
-  // SKIP: requires 7 simultaneous Holochain conductors. Conductors crash under
-  // load in resource-constrained dev environments (codespace / CI with <16 GB
-  // RAM). The test logic is correct; run it on adequately resourced hardware.
+  // TRYORAMA-SKIP: 7 process conductors exhaust websocket connections in
+  // resource-constrained environments (Codespace / CI with <16 GB RAM).
+  // Covered by sweettest test 15 (gold_badge_issued_with_seven_validators in
+  // sweettest_integration/tests/governance.rs) which passes with in-process conductors.
   test.skip(
     "7 validators all Reproduced → GoldReproducible badge issued",
     { timeout: 600_000 },
@@ -1459,7 +1459,7 @@ describe("12. Badge thresholds — Bronze, Silver and Gold", () => {
         const validators = await scenario.addPlayersWithApps(configs);
 
         const REQUEST_REF = fakeExternalHash(0xb2);
-        const attDnaHash = validators[0].namedCells.get("attestation")?.cell_id[0];
+        const attDnaHash = validators[0].namedCells.get("attestation")!.cell_id[0];
 
         for (const v of validators) {
           await zomeCall(v, "notify_commitment_sealed", commitInput(REQUEST_REF));
@@ -1515,7 +1515,7 @@ describe("13. FailedReproduction badge", () => {
         ]);
 
         const REQUEST_REF = fakeExternalHash(0xb3);
-        const attDnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const attDnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Submit a ValidationRequest (num_validators_required=3) so
         // check_and_create_harmony_record can resolve the quorum via cross-DNA call.
@@ -1623,7 +1623,7 @@ describe("15. get_validators_for_discipline", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const compBioProfile = {
           institution: "Open Science Lab",
@@ -1771,7 +1771,7 @@ describe("16. check_all_commitments_sealed direct call", () => {
         ]);
 
         const REQUEST_REF = fakeExternalHash(0xc0);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Submit a ValidationRequest so check_all_commitments_sealed can
         // determine num_validators_required (2).
@@ -1824,7 +1824,7 @@ describe("18. get_validators_for_institution", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const mitProfile = {
           institution: "MIT",
@@ -1882,7 +1882,7 @@ describe("19. get_attestations_for_discipline", () => {
           playerConfig(validMembraneProof()),
         ]);
 
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xd1);
 
@@ -1954,7 +1954,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Alice is the researcher; Bob is the validator.
         // researcher_institution="MIT", Bob's profile="Oxford" → no COI.
@@ -1992,7 +1992,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xe1);
         await zomeCall(alice, "submit_validation_request",
@@ -2022,7 +2022,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         // Both Alice (researcher) and Bob (validator) are at "MIT".
         const REQUEST_REF = fakeExternalHash(0xe2);
@@ -2052,7 +2052,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
           playerConfig(validMembraneProof()), // validator 2
           playerConfig(validMembraneProof()), // validator 3 — should be rejected
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xe3);
         await zomeCall(alice, "submit_validation_request",
@@ -2087,7 +2087,7 @@ describe("20. Validator self-assignment (StudyClaim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xe4);
         await zomeCall(alice, "submit_validation_request",
@@ -2143,7 +2143,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xf0);
         await zomeCall(alice, "submit_validation_request",
@@ -2181,7 +2181,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xf1);
         await zomeCall(alice, "submit_validation_request",
@@ -2227,7 +2227,7 @@ describe("21. Dropout recovery (reclaim_abandoned_claim)", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const REQUEST_REF = fakeExternalHash(0xf2);
         await zomeCall(alice, "submit_validation_request",

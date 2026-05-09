@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-07
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. `valichord_attestation` now includes probabilistic challenge-response (v1.1 additive) and two real-data demos.
+**Last updated:** 2026-05-09
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity).
 
 ---
 
@@ -74,6 +74,44 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### `valichord_attestation` format v1.2 — 2026-05-09 ✓
+
+Two additive, backward-compatible changes to the attestation bundle format, informed by FazeelUsmani's lm-evaluation-harness PR #3752.
+
+**`Metric.filter` (optional str):** disambiguates metrics sharing the same key produced by different filter passes (e.g. strict-match vs flexible-extract). `None`/absent → omitted from canonical encoding entirely; existing bundles unaffected.
+
+**`Bundle.meta` + `content_hash`:** `meta: Optional[dict]` is a free-form provenance block (harness version, commit, command, timestamp, n_shot, etc.). It is included in `bundle_hash` (byte identity) but excluded from `content_hash` (scientific equivalence). v1.1 bundles with no `meta` have `content_hash == bundle_hash`. `content_hash()` added to `canonical.py` and exported from `__init__.py`.
+
+`build_bundle()` default `format_version` bumped to `"v1.2"`. All v1/v1.1 bundles remain valid — no existing hash values change.
+
+Tests: 142 → 183 (+41 new). 100% line coverage maintained. Spec updated with §2a (meta block), dual-hash §4, filter in Metric schema, and changelog entry referencing the upstream PR.
+
+---
+
+### Governance badge idempotency fix — 2026-05-09 ✓
+
+The auto-call chain `submit_attestation` (DNA 3) → `check_and_create_harmony_record` (DNA 4) → `get_validation_request_for_data_hash` (DNA 3) silently fails: Holochain blocks the re-entrant call back into DNA 3 while `submit_attestation` is still executing. `call_attestation_zome_opt` returns `Ok(None)`, `maybe_researcher` is `None`, and badge issuance is skipped without error.
+
+When a subsequent explicit `check_and_create_harmony_record` call hit the idempotency guard, it returned the existing `HarmonyRecord` hash without retrying badge issuance — leaving the badge permanently absent. The silver badge sweettest exposed this: on a loaded CI runner governance gossip propagated the `RequestToHarmonyRecord` link before the explicit call, so the idempotency path fired every time.
+
+**Fix:** `issue_badge_if_missing()` is now called from the idempotency return path. It network-queries for existing badge links, reads the `HarmonyRecord` for `agreement_level` and `validator_count`, then calls `try_issue_badge()` — the same logic extracted from `write_harmony_record`. The retry runs from a direct governance call where DNA 3 is free, so `get_validation_request_for_data_hash` succeeds.
+
+Silver badge sweettest (`silver_badge_issued_with_five_validators`) updated to sync governance cells before the explicit call, deterministically exercising the idempotency+retry path.
+
+---
+
+### `valichord_attestation` inspect_ai popularity demo — 2026-05-07 ✓
+
+Second real-data example under `valichord_attestation/examples/inspect_ai_popularity_demo/`. Parses an inspect_ai `.eval` log (popularity task, GPT-4o-mini, match scorer) via EveryEvalEver's `InspectAIAdapter`, then builds and challenge-response-verifies a v1.1 bundle.
+
+- **`download_eval.sh`** — fetches the 21 KB real log from inspect_ai's test suite
+- **`build_bundle.py`** — EEE-based parsing path + `--fixture` mode (committed `bundle.json`)
+- **`challenge_response_demo.py`** — k=20 challenge-response with tamper detection
+
+Strategic context: demonstrates ValiChord format compatibility with the EvalEval Coalition aggregate schema (inspect_evals#910).
+
+---
 
 ### Wind-Tunnel performance scenarios — 2026-05-06 ✓
 

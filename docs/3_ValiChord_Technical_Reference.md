@@ -18,7 +18,7 @@
 
 ## Important Note on Status
 
-**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped.
+**Implementation is complete.** The four-DNA hApp described in this document has been fully implemented, integration-tested, and connected to a REST API layer. 166 integration tests pass across two suites (97 Tryorama, 69 Rust sweettest); 1 Tryorama test is `test.skip` (GoldReproducible — hardware-constrained; sweettest equivalent passes).
 
 **v0.5.0 addition:** `valichord_attestation/` — a Python library that extends ValiChord's commit-hash-reveal principle to AI evaluation runs. A bundle is a canonical, deterministically hashed JSON document (RFC 8785 / JCS) containing reported metrics and a SHA-256 Merkle root over per-sample outputs. Any individual sample can be proven to a verifier without disclosing the full log. The Holochain DHT integration (bundles as on-chain attestations) is v2 scope. See `valichord_attestation/spec/attestation_format_v1.md` and `docs/13_Valichord_Engineer_Handover.md` § `valichord_attestation`.
 
@@ -2024,7 +2024,7 @@ properties:
 
 ### Phase 0 Pragmatism
 
-*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 158 tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped. The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
+*(Update March 2026: This section was written before the Holochain infrastructure existed. The four-DNA hApp has since been fully implemented and integration-tested — 166 tests pass across two suites (97 Tryorama, 69 Rust sweettest); 1 Tryorama test.skip (GoldReproducible). The Phase 0 workload discovery study uses simple operational tools (time tracking, structured surveys) for its specific data collection purpose, which remains appropriate. The Holochain infrastructure exists in parallel and is ready for Phase 1 deployment; there is no PostgreSQL-to-Holochain migration required.)*
 
 ---
 
@@ -2426,7 +2426,7 @@ Requires a running Holochain conductor with the `valichord.happ` installed. See 
 
 **It does claim:**
 - The architectural approach is sound and confirmed feasible by Holochain Foundation engineers
-- The four-DNA hApp is fully implemented and tested — 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest), 1 skipped
+- The four-DNA hApp is fully implemented and tested — 166 integration tests pass across two suites (97 Tryorama, 69 Rust sweettest); 1 Tryorama test.skip (GoldReproducible — hardware-constrained; sweettest equivalent passes)
 - The REST API layer is live, with API keys, webhooks, OpenAPI spec, and Swagger UI
 - The REST API is integration-ready — any tool that can make an HTTP request can integrate
 

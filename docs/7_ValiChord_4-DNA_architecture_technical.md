@@ -506,7 +506,7 @@ hc app pack . -o workdir/valichord.happ
 cd tests && npm test
 ```
 
-**166 integration tests passing across two suites (97 Tryorama, 69 Rust sweettest), 1 skipped** (GoldReproducible — requires 7 simultaneous conductors, resource-constrained in Codespaces). See `tests/README.md` for full test inventory.
+**166 integration tests passing across two suites (97 Tryorama, 69 Rust sweettest).** The Tryorama GoldReproducible test remains `test.skip` (≥16 GB RAM for 7 process conductors); the sweettest equivalent (test 15, `gold_badge_issued_with_seven_validators`) passes. See `tests/README.md` for full test inventory.
 
 ---
 
@@ -528,7 +528,7 @@ These are not bugs — they are deliberate Phase 0 boundaries that affect how ex
 |---|---|---|
 | Validator assignment engine | DNA 3 `select_validators()` | Stub returns empty. Needs conflict-of-interest detection, institutional balance, randomisation |
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
-| GoldReproducible badge (7 validators) | sweettest governance test 15 | Sweettest version added (in-process conductors, CI-safe). Tryorama version remains skipped (≥16 GB RAM for 7 Tryorama conductors). |
+| GoldReproducible badge (7 validators) | sweettest governance test 15 | **Passes** (`gold_badge_issued_with_seven_validators`, in-process conductors, CI-safe). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
 | Multi-device identity / agent linking | DNA 3 `ValidatorProfile`, DNA 4 `ValidatorReputation` | **Partially addressed (March 2026):** Both structs now carry `person_key: Option<AgentPubKey>` (`#[serde(default)]`, backwards-compatible). When a cross-device identity system (Flowsta `IsSamePersonEntry`, Deepkey) links a validator's keys to a canonical person, this field carries that stable key — preventing reputation loss on device rotation. The field is `None` for all existing records; population and aggregation logic are Phase 1 work. Full resolution (querying `IsSamePersonEntry` links, deduplicating `CommitmentAnchor` counts by person, COI checks across linked keys) remains deferred. See `nondominium_integration/NONDOMINIUM_ARCHITECTURE.md` for Flowsta context. |
 

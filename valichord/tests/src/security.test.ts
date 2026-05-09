@@ -15,7 +15,6 @@ import {
   encodeHashToBase64,
   HoloHashType,
   hashFrom32AndType,
-  ActionHash,
 } from "@holochain/client";
 import { expect, test, describe } from "vitest";
 import { fileURLToPath } from "url";
@@ -319,7 +318,7 @@ describe("S4. reclaim_abandoned_claim min_claim_timeout_secs floor", () => {
           playerConfigWithMinTimeout(86400),
           playerConfigWithMinTimeout(86400),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const requestRef = fakeExternalHash(0x54);
 
@@ -358,7 +357,7 @@ describe("S4. reclaim_abandoned_claim min_claim_timeout_secs floor", () => {
           playerConfig(validMembraneProof()),
           playerConfig(validMembraneProof()),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const requestRef = fakeExternalHash(0x55);
 
@@ -571,7 +570,7 @@ describe("S8. Capacity-full rejection", () => {
           playerConfig(validMembraneProof(), 1),
           playerConfig(validMembraneProof(), 1),
         ]);
-        const dnaHash = alice.namedCells.get("attestation")?.cell_id[0];
+        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
 
         const requestRef = fakeExternalHash(0x58);
 

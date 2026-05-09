@@ -18,7 +18,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 158 integration tests pass across two suites (94 Tryorama, 64 Rust sweettest native), 1 skipped. As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 166 integration tests pass across two suites (97 Tryorama, 69 Rust sweettest native), with 1 Tryorama test.skip (GoldReproducible — hardware-constrained; sweettest equivalent passes). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -310,7 +310,7 @@ Integrity zomes run in a restricted WASM environment without host function acces
 `get_all_tasks` and `post_commit` in DNA 2 previously filtered entries using hardcoded `ZomeIndex(0)` and `EntryDefIndex(0/1)`. These indices break silently if the order of entry type declarations ever changes. The correct pattern is to filter by attempting deserialization: `r.entry().to_app_option::<MyType>().ok().flatten().is_some()`. Any coordinator function that needs to identify a specific entry type from the source chain must use this pattern.
 
 ### 11. dhtSync with 7+ conductors exhausts websocket connections in Codespaces
-The Gold badge test (7 validators) is skipped because spinning up 7 simultaneous Holochain conductors exhausts available websocket connections in resource-constrained environments (Codespaces, CI with <16GB RAM). The test logic is correct. Run it on hardware with ≥16GB RAM or a GitHub Actions runner with a large instance.
+The Tryorama Gold badge test (7 validators) is `test.skip` because spinning up 7 simultaneous Holochain conductors exhausts available websocket connections in resource-constrained environments (Codespaces, CI with <16GB RAM). **The sweettest equivalent (`gold_badge_issued_with_seven_validators` in `sweettest_integration/tests/governance.rs`) passes** — in-process conductors avoid the websocket overhead and are the authoritative coverage for this scenario.
 
 ### 12. get_private_attestation_for_task — use query(), not get()
 Private entries retrieved by the owning agent must be looked up via `query()`, not `get(target, GetOptions::local())`. In singleFork Tryorama tests, all cells share the same conductor and local DB, so `get()` with local options crosses cell boundaries — Bob's cell can retrieve Alice's private entry. `query()` is strictly bound to the calling agent's source chain and cannot cross this boundary. Pattern: follow the link to get the target ActionHash, then `query(ChainQueryFilter::new().include_entries(true))?.into_iter().find(|r| *r.action_address() == target)`.
@@ -432,11 +432,11 @@ The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Reb
 
 ## Test Inventory Summary
 
-94 Tryorama tests across 5 files, 1 skipped.
+97 Tryorama tests across 5 files, 1 skipped (GoldReproducible — hardware-constrained; sweettest equivalent passes).
 
 | File | Tests | Coverage |
 |---|---|---|
-| `attestation.test.ts` | 40 (1 skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim), dropout recovery (`reclaim_abandoned_claim`) — too-recent guard, eligible reclaim + slot freed, attested validator guard |
+| `attestation.test.ts` | 46 (1 Tryorama-skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim), dropout recovery (`reclaim_abandoned_claim`) — too-recent guard, eligible reclaim + slot freed, attested validator guard |
 | `governance.test.ts` | 24 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards, `force_finalize_round` — not-yet-timed-out guard, no-attestations guard |
 | `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
 | `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |

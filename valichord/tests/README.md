@@ -1,6 +1,6 @@
 # ValiChord — Tryorama Integration Tests
 
-**Status: 94 pass, 1 skipped, 0 fail** (as of 2026-03-25)
+**Status: 96 pass, 1 skipped, 0 fail** (Tryorama suite; as of 2026-05-09). GoldReproducible covered by sweettest test 15 — see `sweettest_integration/tests/governance.rs`.
 
 Four test files, one per DNA. All tests exercise live Holochain conductors via
 the compiled `workdir/valichord.happ` bundle.
@@ -84,7 +84,7 @@ cd tests && npm test
 | 4.1 | get_all_private_attestations returns empty list when no attestations sealed | PASS |
 | 4.2 | get_all_private_attestations returns all sealed attestations across multiple tasks | PASS |
 
-### DNA 3 — `attestation.test.ts` (46 tests, 1 skipped)
+### DNA 3 — `attestation.test.ts` (46 tests, 1 Tryorama-skipped)
 
 | ID   | Test name | Status |
 |------|-----------|--------|
@@ -139,10 +139,12 @@ cd tests && npm test
 
 > † **Silver (12.2):** Passes on a clean Codespace. May fail with WebsocketClosedError when the Codespace is under heavy load (5 conductors). Clean up orphaned processes with `pkill -f kitsune2-bootstrap-srv; pkill -f holochain; pkill -f lair-keystore` before running.
 
-> ¹ **Skipped:** requires 7 simultaneous Holochain conductors. Conductor
-> processes crash under load in resource-constrained environments (codespace /
-> CI with <16 GB RAM). The test logic is correct; run it on adequately
-> resourced hardware.
+> ¹ **Tryorama-skipped:** requires 7 simultaneous Holochain conductors. Conductor
+> processes exhaust available websocket connections in resource-constrained environments
+> (Codespace / CI with <16 GB RAM). **Covered by sweettest test 15**
+> (`sweettest_integration/tests/governance.rs` → `gold_badge_issued_with_seven_validators`) —
+> in-process conductors make 7-agent runs feasible within normal RAM budgets. Run the
+> sweettest for authoritative GoldReproducible coverage.
 
 ### DNA 4 — `governance.test.ts` (24 tests)
 
@@ -190,7 +192,7 @@ These are areas not yet covered by tests, ordered by value.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | Skipped; requires ≥16 GB RAM to run 7 conductors reliably |
+| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | **Covered by sweettest** (test 15, `gold_badge_issued_with_seven_validators`). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | **Covered by sweettest** (`valichord/sweettest_integration/tests/governance.rs`) using `round_timeout_secs: 0` in DNA properties so the age check always passes. Tryorama cannot wind the clock, so this path remains a Tryorama gap; run the sweettest instead. |
 | DNA 1 — lock_researcher_result | `lock_researcher_result` stores LockedResult + calls `publish_researcher_commitment` in DNA 3; `get_locked_result` returns the private record | Requires a cross-DNA call to DNA 3 in the test scenario |
 | DNA 3 — reveal_researcher_result happy path | Correct metrics+nonce → `ResearcherReveal` on DHT; `get_researcher_reveal` returns reveal across multiple validators | Idempotency guard (S6) and error path covered; happy-path multi-validator scenario not yet tested |

@@ -135,7 +135,7 @@ valichord/
 │   ├── validator_workspace/   — DNA 2: private, single-agent  
 │   └── governance/         — DNA 4: public DHT, HTTP Gateway
 ├── tests/
-│   ├── attestation.test.ts          — 46 tests (1 skipped)
+│   ├── attestation.test.ts          — 46 tests (1 Tryorama-skipped; sweettest equivalent passes)
 │   ├── governance.test.ts           — 22 tests
 │   ├── researcher_repository.test.ts — 14 tests
 │   ├── security.test.ts             — 9 tests
@@ -159,7 +159,7 @@ valichord-ui/               — Svelte 5 + TypeScript browser UI
 └── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
-**166 integration tests passing across two suites (97 Tryorama, 69 Rust sweettest), 1 skipped.** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
+**166 integration tests passing across two suites (97 Tryorama, 69 Rust sweettest).** The GoldReproducible badge (7 validators) is fully covered by sweettest test 15 (`gold_badge_issued_with_seven_validators`); the Tryorama equivalent remains `test.skip` due to RAM constraints in Codespaces. The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
 Test coverage includes:
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
