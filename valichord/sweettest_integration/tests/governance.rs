@@ -990,6 +990,12 @@ async fn silver_badge_issued_with_five_validators() {
         await_consistency(60, att_cells.iter().copied()).await.unwrap();
     }
 
+    // Sync governance cells before the explicit call so the auto-call's HarmonyRecord
+    // link has propagated — this guarantees we exercise the idempotency + badge-retry
+    // path (issue_badge_if_missing) rather than depending on a gossip-timing race.
+    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
+
     let harmony: Option<ActionHash> = conductors[0]
         .call(
             &apps[0].governance_zome(),
@@ -999,10 +1005,9 @@ async fn silver_badge_issued_with_five_validators() {
         .await;
     assert!(harmony.is_some(), "5-agent round must produce a HarmonyRecord");
 
-    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
     await_consistency(60, gov_cells.iter().copied()).await.unwrap();
 
-    // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
     let badges: Vec<Record> = conductors[0]
         .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
         .await;

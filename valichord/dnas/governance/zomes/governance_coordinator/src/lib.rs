@@ -168,6 +168,14 @@ pub fn check_and_create_harmony_record(
             .into_iter()
             .max_by_key(|l| l.timestamp)
             .and_then(|l| l.target.into_action_hash());
+        // Badge may be absent if the original write happened via the auto-call path
+        // (submit_attestation → check_and_create_harmony_record → get_validation_request…)
+        // where the back-call into DNA 3 fails because that cell is already executing
+        // submit_attestation (Holochain prevents reentrant same-cell calls).
+        // This retry runs from a direct governance call where DNA 3 is free, so it succeeds.
+        if let Some(ref h) = existing_hash {
+            let _ = issue_badge_if_missing(&request_ref, h);
+        }
         return Ok(existing_hash);
     }
 
@@ -416,32 +424,12 @@ fn write_harmony_record(
     create_link(anchor_key, record_hash.clone(), LinkTypes::RequestToHarmonyRecord, ())?;
     create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
-    // Issue badge — skip if the researcher's identity cannot be resolved.
-    // Falling back to a validator pubkey would issue a badge to the wrong
-    // recipient; it is safer to skip issuance than to mis-attribute.
+    // Issue badge.  Delegates to try_issue_badge, which no-ops silently if the
+    // researcher's identity cannot be resolved (3-hop reentrant call failure in the
+    // auto-call path).  The idempotency return path in check_and_create_harmony_record
+    // retries via issue_badge_if_missing when the badge is still absent.
     if let Some(badge_type) = evaluate_badge(&agreement_level, validator_count) {
-        let maybe_researcher: Option<AgentPubKey> = call_attestation_zome_opt::<_, Option<Record>>(
-            "get_validation_request_for_data_hash",
-            request_ref.clone(),
-        )
-        .ok()
-        .flatten()   // Option<Option<Record>> → Option<Record>
-        .flatten()
-        .map(|r| r.action().author().clone());
-        if let Some(issued_to) = maybe_researcher {
-            let type_anchor = badge_type_anchor(&badge_type)?;
-            let badge = ReproducibilityBadge {
-                study_ref:          request_ref.clone(),
-                issued_to,
-                badge_type,
-                harmony_record_ref: record_hash.clone(),
-            };
-            let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
-            create_link(request_ref.clone(), badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
-            create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
-        }
-        // If researcher identity is unknown, skip badge issuance rather than
-        // mis-attributing the badge to a validator.
+        let _ = try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type);
     }
 
     // Automatic reputation update — only runs in dev/test mode (system_coordinator_key
@@ -732,6 +720,75 @@ fn evaluate_badge(agreement: &AgreementLevel, validator_count: usize) -> Option<
         }
         _ => None,
     }
+}
+
+/// Issue a badge for `request_ref` if no badge link exists yet.
+///
+/// No-ops silently if: a badge already exists, the HarmonyRecord can't be fetched,
+/// the quorum doesn't meet any badge threshold, or researcher identity is unknown.
+/// Errors from DHT writes (create_entry, create_link) propagate so callers can log them.
+fn issue_badge_if_missing(
+    request_ref: &ExternalHash,
+    record_hash: &ActionHash,
+) -> ExternResult<()> {
+    let badge_links = get_links(
+        LinkQuery::try_new(request_ref.clone(), LinkTypes::StudyToBadge)?,
+        GetStrategy::Network,
+    )?;
+    if !badge_links.is_empty() {
+        return Ok(());
+    }
+    let Some(record) = get(record_hash.clone(), GetOptions::network())? else {
+        return Ok(());
+    };
+    let Some(harmony) = record
+        .entry()
+        .to_app_option::<HarmonyRecord>()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(
+            format!("HarmonyRecord decode failed in issue_badge_if_missing: {e}")
+        )))?
+    else {
+        return Ok(());
+    };
+    let validator_count = harmony.participating_validators.len();
+    let Some(badge_type) = evaluate_badge(&harmony.agreement_level, validator_count) else {
+        return Ok(());
+    };
+    try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type)
+}
+
+/// Write a ReproducibilityBadge entry and its two index links.
+///
+/// Returns Ok(()) silently if the researcher's identity cannot be resolved via
+/// the attestation DNA — mis-attributing a badge to a validator pubkey is worse
+/// than skipping issuance.
+fn try_issue_badge(
+    request_ref: ExternalHash,
+    record_hash: ActionHash,
+    badge_type: BadgeType,
+) -> ExternResult<()> {
+    let maybe_researcher: Option<AgentPubKey> = call_attestation_zome_opt::<_, Option<Record>>(
+        "get_validation_request_for_data_hash",
+        request_ref.clone(),
+    )
+    .ok()
+    .flatten()
+    .flatten()
+    .map(|r| r.action().author().clone());
+    let Some(issued_to) = maybe_researcher else {
+        return Ok(());
+    };
+    let type_anchor = badge_type_anchor(&badge_type)?;
+    let badge = ReproducibilityBadge {
+        study_ref:          request_ref.clone(),
+        issued_to,
+        badge_type,
+        harmony_record_ref: record_hash,
+    };
+    let badge_hash = create_entry(EntryTypes::ReproducibilityBadge(badge))?;
+    create_link(request_ref, badge_hash.clone(), LinkTypes::StudyToBadge, ())?;
+    create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+    Ok(())
 }
 
 /// Internal reputation update — creates a new ValidatorReputation entry that
