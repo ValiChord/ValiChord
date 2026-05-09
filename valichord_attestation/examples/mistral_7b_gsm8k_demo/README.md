@@ -1,5 +1,11 @@
 # Mistral-7B GSM8K Demo — ValiChord Attestation v1.1
 
+## What this demo is
+
+A reference demonstration of the ValiChord v1.1 attestation protocol against output from `lm-evaluation-harness` running Mistral-7B-Instruct-v0.3 on a 100-sample GSM8K subset. The demo builds a canonical attestation bundle from real harness output, runs a probabilistic challenge-response against the resulting Merkle commitment, and verifies tamper detection. The committed `bundle.json` is fixture-derived (no GPU required to verify); replacing it with a real bundle requires running the eval on a GPU (~£5, ~10 minutes). This is a protocol demo, not a statistically powered benchmark run.
+
+---
+
 Real-data example of the ValiChord attestation protocol (v1.1) on a standard
 AI benchmark: [GSM8K](https://huggingface.co/datasets/openai/gsm8k) (100-sample
 subset) evaluated with
@@ -20,6 +26,36 @@ This demonstrates the v1.1 attestation protocol on real harness output. The samp
 | Probabilistic challenge-response | `challenge_response_demo.py` — k=20 samples challenged (20% of log) |
 | Tamper detection | Step 5 of demo — replacing one hash causes rejection |
 | Merkle round-trip | `build_bundle.py` re-canonicalises and confirms hash matches |
+
+Protocol flow:
+
+```
+ Researcher / Adapter
+│
+▼
+┌───────────────────┐
+│ build_bundle.py   │ (per-sample outputs + raw_metrics
+│                   │  → canonicalise → SHA-256 + Merkle root)
+└─────────┬─────────┘
+          │
+          ▼
+┌───────────────────┐
+│   bundle.json     │ (verifiable statement; signed log = attested claim)
+└─────────┬─────────┘
+          │
+          ▼
+Verifier picks k random sample indices
+(verifier_nonce + bundle_hash → deterministic seed)
+          │
+          ▼
+┌─────────────────────────┐
+│ challenge_response_demo │ (holder reveals samples + Merkle paths;
+│                         │  verifier checks paths against root)
+└─────────────┬───────────┘
+              │
+              ▼
+      ✅ verified / ❌ tamper detected
+```
 
 ---
 

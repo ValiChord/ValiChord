@@ -1,5 +1,11 @@
 # inspect_ai Popularity Demo — ValiChord Attestation v1.1
 
+## What this demo is
+
+A reference demonstration of the ValiChord v1.1 attestation protocol against an `inspect_ai` `.eval` log, parsed via EveryEvalEver's `InspectAIAdapter` for ecosystem alignment. The demo builds a canonical attestation bundle from real evaluation output, runs a probabilistic challenge-response against the resulting Merkle commitment, and verifies tamper detection. The committed `bundle.json` is fixture-derived for protocol-scale demonstration (50 samples); a real `.eval` parse path is also provided (10 samples, no GPU required for verification). This is a protocol demo, not a statistically powered benchmark run.
+
+---
+
 Demo of the ValiChord attestation protocol (v1.1) against an
 [inspect_ai](https://inspect.aisi.org.uk/) `.eval` log file.
 
@@ -25,6 +31,36 @@ This demonstrates the v1.1 attestation protocol on real harness output. The samp
 | **Tamper detection** | Step 5 of demo — replacing one hash causes rejection |
 | **Merkle round-trip** | `build_bundle.py` re-canonicalises and confirms hash matches |
 | **Fixture mode** | Works without any download — simulated data, same protocol |
+
+Protocol flow:
+
+```
+ Researcher / Adapter
+│
+▼
+┌───────────────────┐
+│ build_bundle.py   │ (per-sample outputs + raw_metrics
+│                   │  → canonicalise → SHA-256 + Merkle root)
+└─────────┬─────────┘
+          │
+          ▼
+┌───────────────────┐
+│   bundle.json     │ (verifiable statement; signed log = attested claim)
+└─────────┬─────────┘
+          │
+          ▼
+Verifier picks k random sample indices
+(verifier_nonce + bundle_hash → deterministic seed)
+          │
+          ▼
+┌─────────────────────────┐
+│ challenge_response_demo │ (holder reveals samples + Merkle paths;
+│                         │  verifier checks paths against root)
+└─────────────┬───────────┘
+              │
+              ▼
+      ✅ verified / ❌ tamper detected
+```
 
 ---
 
