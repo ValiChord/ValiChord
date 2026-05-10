@@ -3,7 +3,7 @@
 This file collects 20 GitHub Issue drafts for the Valichord repo, organised in three sections:
 
 - **Section A: Protocol & architecture** (8 issues) — Valichord's own unanswered architectural questions: identity, governance, deployment, cryptographic gaps. The deeper engagement surface; expects expertise from distributed-systems, cryptography, governance reviewers.
-- **Section B: Integration & extensions** (8 issues) — adapter work, v1.2 protocol additions, future-direction research. The lower-bar engagement surface; concrete code work plus design questions tied to specific external systems.
+- **Section B: Integration & extensions** (9 issues) — adapter work, v1.2 protocol additions, future-direction research. The lower-bar engagement surface; concrete code work plus design questions tied to specific external systems.
 - **Section C: Honourable mentions** (4 issues) — real questions worth raising eventually, but not in the first wave.
 
 Each issue is ready to paste into GitHub. Body text is in a code block so the markdown is preserved verbatim.
@@ -335,7 +335,7 @@ Labels: `design`, `deployment`, `operations`, `help-wanted`, `expert-input-welco
 
 # Section B — Integration & extensions
 
-Eight issues about adapter work, v1.2 protocol additions, and future-direction research. Lower bar to engagement; concrete code work plus design questions tied to specific external systems.
+Nine issues about adapter work, v1.2 protocol additions, and future-direction research. Lower bar to engagement; concrete code work plus design questions tied to specific external systems.
 
 ## B1. Verifier-side metric recomputation helper (v1.2)
 
@@ -677,6 +677,39 @@ Labels: `design`, `governance`, `help-wanted`, `expert-input-welcome`
 
 ---
 
+## B9. Native multi-dimensional metric representation in the bundle schema
+
+**Title:** `Design: should Metric carry an optional dimension field for hierarchical scoring structures?`
+
+**Body:**
+
+```markdown
+## Context
+inspect_ai's scorer system supports multi-dimensional scoring via nested metric structures. From `inspect_evals/agentdojo/scorer.py`:
+```python
+@scorer(metrics=[{"utility": [accuracy(), stderr()], "security": [accuracy(), stderr()]}])
+```
+A single run produces four headline numbers (utility-accuracy, utility-stderr, security-accuracy, security-stderr). Per-sample scores are themselves dicts: {"utility": "C" or "I", "security": "C" or "I"}.
+
+Valichord's v1.2 raw_metrics schema is flat: list[{key, value, stderr, filter, metadata}]. Multi-dimensional outputs can be represented via naming convention — utility_accuracy, security_accuracy, etc. — but the dimension structure is encoded in the key string rather than as native schema.
+
+This issue documents the open question of whether the bundle schema should add an optional dimension field to Metric to natively represent the inspect_ai structure 1:1.
+
+What v1.2 supports today (works, via convention)
+"raw_metrics": [
+  {"key": "utility_accuracy", "value": 0.75, "stderr": 0.04},
+  {"key": "security_accuracy", "value": 0.30, "stderr": 0.05}
+]
+The flat representation works. Cryptographic verification is unaffected. Adapters from inspect_ai output can produce this shape today.
+
+What a native representation might look like (v1.3 candidate)
+"raw_metrics": [
+  {"key": "accuracy", "dimension": "utility", "value": 0.75, "stderr": 0.04},
+  {"key": "accuracy", "dimension": "security", "value": 0.30, "stderr": 0.05}
+```
+
+---
+
 # Section C — Honourable mentions
 
 Four issues worth raising eventually but not in the first wave. Hold these until the first 16 have had time to attract engagement.
@@ -808,7 +841,7 @@ Labels: `design`, `governance`, `architecture`, `long-term`, `help-wanted`
 
 # Closing notes
 
-**Total: 20 issues.** 8 architectural + 8 integration + 4 honourable mentions.
+**Total: 21 issues.** 8 architectural + 9 integration + 4 honourable mentions.
 
 **Strategic intent:** these issues convert "questions inside the founder's head" into "public artefacts that experts can engage with." Done well, the Issues tab becomes a recruitment surface for advisors, contributors, and (eventually) team members. The framing throughout — *"open questions," "what would help," "input welcome"* — is the recruitment surface, not the issue text itself.
 
