@@ -96,22 +96,28 @@ jobs:
 
   # ── Sweettest: one parallel job per test binary ──────────────────────────────
   # Each matrix leg runs a single --test binary so all five run concurrently.
-  # Wall-clock is ~the slowest binary (~80 min) rather than their serial sum
-  # (~256 min).  fail-fast:false lets all legs report even when one fails.
+  # Wall-clock is ~the slowest binary (governance ≈170 min) not their serial sum.
+  # fail-fast:false lets all legs report even when one fails.
+  # Governance gets its own timeout_minutes: 200 (gold badge=34 min, silver=30 min).
   sweettest:
     name: Sweettest (${{ matrix.test }})
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     needs: [test]
     strategy:
       fail-fast: false
       matrix:
-        test:
-          - attestation         # 19 tests ≈ 80 min
-          - governance          # 17 tests ≈ 90 min
-          - security            #  7 tests ≈ 30 min
-          - researcher_repository # 17 tests ≈ 70 min
-          - validator_workspace #  9 tests ≈ 38 min
+        include:
+          - test: attestation           # 19 tests ≈  80 min
+            timeout_minutes: 150
+          - test: governance            # 17 tests ≈ 170 min (gold=34 min, silver=30 min)
+            timeout_minutes: 200
+          - test: security              #  7 tests ≈  30 min
+            timeout_minutes: 150
+          - test: researcher_repository # 17 tests ≈  70 min
+            timeout_minutes: 150
+          - test: validator_workspace   #  9 tests ≈  38 min
+            timeout_minutes: 150
 
     steps:
       - uses: actions/checkout@v4
