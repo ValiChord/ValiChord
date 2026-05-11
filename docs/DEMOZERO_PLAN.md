@@ -27,7 +27,7 @@ The Rust aggregation is already N-agnostic. Verified in `valichord/shared_types/
 
 **No coordinator or integrity zome changes needed. No DNA hash change.**
 
-The one Holochain-adjacent thing to verify: `get_num_validators_required` returns the expected minimum quorum. If it is hardcoded to 3, update it to 9 (coordinator-only change, no DNA hash change). Search for `num_validators_required` in `valichord/dnas/attestation/`.
+**`num_validators_required` — no zome changes needed.** Investigation confirmed (`attestation_integrity/src/lib.rs:70`) that `num_validators_required` is a field on the `ValidationRequest` entry type set per-request by the caller, not a hardcoded constant. To use 9 validators, simply pass `num_validators_required: 9` when creating the ValidationRequest. No integrity or coordinator zome edits required.
 
 ---
 
@@ -40,13 +40,13 @@ ValiChord ai_validator.py
     ├─ POST /webhook → ZeroClaw A2 :8082  (Claude,   claude-sonnet-4-6)
     ├─ POST /webhook → ZeroClaw A3 :8083  (Claude,   claude-sonnet-4-6)
     │
-    ├─ POST /webhook → ZeroClaw B1 :8084  (OpenRouter, mistralai/mistral-large)
-    ├─ POST /webhook → ZeroClaw B2 :8085  (OpenRouter, mistralai/mistral-large)
-    ├─ POST /webhook → ZeroClaw B3 :8086  (OpenRouter, mistralai/mistral-large)
+    ├─ POST /webhook → ZeroClaw B1 :8084  (OpenRouter, mistralai/mistral-large ⚠️ slug unconfirmed)
+    ├─ POST /webhook → ZeroClaw B2 :8085  (OpenRouter, mistralai/mistral-large ⚠️ slug unconfirmed)
+    ├─ POST /webhook → ZeroClaw B3 :8086  (OpenRouter, mistralai/mistral-large ⚠️ slug unconfirmed)
     │
-    ├─ POST /webhook → ZeroClaw C1 :8087  (OpenRouter, meta-llama/llama-3.3-70b-instruct)
-    ├─ POST /webhook → ZeroClaw C2 :8088  (OpenRouter, meta-llama/llama-3.3-70b-instruct)
-    └─ POST /webhook → ZeroClaw C3 :8089  (OpenRouter, meta-llama/llama-3.3-70b-instruct)
+    ├─ POST /webhook → ZeroClaw C1 :8087  (OpenRouter, meta-llama/llama-3.3-70b-instruct ⚠️ slug unconfirmed)
+    ├─ POST /webhook → ZeroClaw C2 :8088  (OpenRouter, meta-llama/llama-3.3-70b-instruct ⚠️ slug unconfirmed)
+    └─ POST /webhook → ZeroClaw C3 :8089  (OpenRouter, meta-llama/llama-3.3-70b-instruct ⚠️ slug unconfirmed)
 ```
 
 All 9 calls are made in parallel (threads). Wall time ≈ slowest single call, not 9 × call.
@@ -77,6 +77,8 @@ No Docker image is published; build from source. The `Dockerfile` in the repo is
 ## Step 2 — The ValiChord Validation Skill
 
 Each ZeroClaw instance loads this skill from its workspace. The skill enforces JSON output so `ai_validator.py` can parse the response reliably.
+
+**Skill injection risk** (investigation, `skills/mod.rs:882`): in ZeroClaw's default `Full` mode, all SKILL.md content is injected into every LLM call as part of the system prompt. There is no priority ordering — a conflicting instruction in any installed skill could override the JSON format requirement. Keep each instance's workspace clean: the `valichord-validation` skill must be the only skill present, and the SKILL.md must not contain any instruction that contradicts JSON-only output.
 
 **File:** `demo/zeroclaw/skills/valichord-validation/SKILL.md`
 
@@ -153,7 +155,7 @@ aieos_inline = '''
 ```toml
 api_key = "${OPENROUTER_API_KEY}"
 default_provider = "openrouter"
-default_model = "mistralai/mistral-large"
+default_model = "mistralai/mistral-large"  # ⚠️ slug unconfirmed — verify at https://openrouter.ai/models
 default_temperature = 0.7
 
 [memory]
@@ -188,7 +190,7 @@ aieos_inline = '''
 ```toml
 api_key = "${OPENROUTER_API_KEY}"
 default_provider = "openrouter"
-default_model = "meta-llama/llama-3.3-70b-instruct"
+default_model = "meta-llama/llama-3.3-70b-instruct"  # ⚠️ slug unconfirmed — verify at https://openrouter.ai/models
 default_temperature = 0.7
 
 [memory]
@@ -246,7 +248,7 @@ start_validator() {
     cp "$SKILL_DIR/valichord-validation/SKILL.md" "$workspace/skills/valichord-validation/"
     # Substitute env vars into config
     envsubst < "$CONFIG_DIR/$config" > "$workspace/config.toml"
-    ZEROCLAW_CONFIG="$workspace/config.toml" \
+    ZEROCLAW_CONFIG_DIR="$workspace" \
     ZEROCLAW_WORKSPACE="$workspace" \
     "$ZEROCLAW" gateway --port "$port" &
     echo "Started $name on port $port (PID $!)"
@@ -271,9 +273,9 @@ echo "All 9 ZeroClaw validators started."
 wait
 ```
 
-**Check whether ZeroClaw supports `ZEROCLAW_CONFIG` and `ZEROCLAW_WORKSPACE` env vars** before
-relying on them — read the ZeroClaw source (`src/config.rs` or `src/main.rs`) to confirm the env
-var names. If it uses a `--config` CLI flag instead, adjust the script accordingly.
+**Env vars confirmed** (investigation, `crates/zeroclaw-config/src/schema.rs:9714` and `:69`):
+`ZEROCLAW_CONFIG_DIR` sets the config directory (ZeroClaw reads `config.toml` from it);
+`ZEROCLAW_WORKSPACE` sets the workspace directory. Both are used above.
 
 ---
 
@@ -353,10 +355,9 @@ def form_verdicts(readme: str, actual_output: str) -> list:
             try:
                 with urllib.request.urlopen(req, timeout=120) as resp:
                     body = json.loads(resp.read())
-                    # ZeroClaw gateway returns {"response": "<text>"} or similar —
-                    # verify the exact response key by reading ZeroClaw source
-                    # (src/gateway.rs). Adjust key name below if needed.
-                    raw = body.get('response') or body.get('message') or str(body)
+                    # Confirmed: ZeroClaw gateway returns {"response": "...", "model": "..."}
+                    # (crates/zeroclaw-gateway/src/lib.rs:~1516)
+                    raw = body.get('response') or str(body)
                 return _parse_verdict(raw)
             except (ValueError, json.JSONDecodeError, KeyError) as e:
                 last_error = e
@@ -420,17 +421,13 @@ The percentage-based `agreement_level` calculation (rate = success_count / len) 
 
 ---
 
-## Step 6 — Verify `num_validators_required`
+## Step 6 — Set `num_validators_required: 9` in the ValidationRequest
 
-Search for where the study's required validator quorum is set:
-
-```bash
-grep -rn "num_validators_required\|min_validators\|validators_required" valichord/dnas/
-```
-
-If it is hardcoded to `3`, update it to `9` (or make it configurable via DNA properties).
-This is a coordinator-only change — no DNA hash change — unless it lives in an integrity zome
-entry type definition. Check carefully before editing.
+No zome changes needed. `num_validators_required` is a field on the `ValidationRequest` entry
+type (`attestation_integrity/src/lib.rs:70`), set per-request by the caller. In `ai_validator.py`
+(or whatever creates the request), pass `num_validators_required: 9`. The integrity zome enforces
+`>= 1` and `>= props.minimum_validators` — verify `minimum_validators` in the DNA properties is
+not set above 9, but no code changes are required.
 
 ---
 
@@ -459,16 +456,14 @@ Before wiring into the full Holochain protocol, test ZeroClaw in isolation:
 # 1. Start one validator
 ./demo/start-zeroclaw-validators.sh   # or just one instance for smoke test
 
-# 2. Hit it manually
+# 2. Hit it manually — response key is "response" (confirmed)
 curl -s -X POST http://localhost:8081/webhook \
   -H 'Content-Type: application/json' \
   -d '{"message": "The study runs linear_regression.py on data.csv and reports R²=0.92. The output matches. Assess reproducibility and return JSON verdict."}' \
   | python3 -m json.tool
+# Expected: {"response": "{\"outcome\": ..., \"confidence\": ..., \"reasoning\": ...}", "model": "..."}
 
-# 3. Check that the response key name matches what _call_validator() expects
-# Adjust 'response' / 'message' key in _call_validator() if the shape differs.
-
-# 4. Run full demo
+# 3. Run full demo
 python3 demo/ai_validator.py
 ```
 
@@ -499,18 +494,16 @@ No new Holochain files. No new Rust. No DNA hash change.
 2. **Holochain ≠ blockchain** — ZeroClaw validators are "independent agents on a peer-to-peer network", not "nodes on a blockchain"
 3. **Before running tests:** `pkill -f holochain; pkill -f lair-keystore; sleep 2`
 4. **Coordinator-only changes** (no integrity zome edits) keep the DNA hash stable
-5. **`num_validators_required`** — if it lives in an integrity entry type, changing it IS a DNA hash change; verify before editing
+5. **`num_validators_required` requires no zome change** — it is a per-request field, not a constant; see Step 6
 
 ---
 
 ## Open Questions for the Implementing Session
 
-1. **ZeroClaw env var names** — confirm `ZEROCLAW_CONFIG` and `ZEROCLAW_WORKSPACE` are valid,
-   or find the correct flag/env var from `src/main.rs`. The startup script depends on this.
-2. **Gateway response shape** — confirm the JSON key ZeroClaw's `/webhook` returns the LLM
-   response under. Read `src/gateway.rs`. Likely `"response"` or `"message"`.
-3. **`require_pairing = false`** — verify this is a valid config key in the version being built,
-   or use `zeroclaw onboard` to generate a pre-paired config.
-4. **OpenRouter model IDs** — double-check `mistralai/mistral-large` and
-   `meta-llama/llama-3.3-70b-instruct` are current valid OpenRouter model slugs at build time.
-5. **`num_validators_required` location** — grep as shown in Step 6 before touching anything.
+All operational questions from the original plan are now resolved (see `docs/zeroclaw_investigation.md`). One remains:
+
+1. **OpenRouter model slugs** — `mistralai/mistral-large` and `meta-llama/llama-3.3-70b-instruct`
+   were not confirmed as valid slugs as of 2026-05-11 (investigation checked `/api/v1/models`).
+   Available Mistral models at that time: `mistralai/mistral-medium-3.5`, `mistralai/mistral-small-2603`.
+   **Before implementing:** verify current slugs at https://openrouter.ai/models and update
+   `config-b.toml`, `config-c.toml`, and the architecture diagram above.
