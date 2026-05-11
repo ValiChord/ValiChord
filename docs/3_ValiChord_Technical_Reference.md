@@ -1328,6 +1328,8 @@ pub enum BadgeLevel {
 }
 ```
 
+The count-only thresholds above are working placeholders; the intended direction for v2 is a statistical-confidence interpretation (N + agreement strength + CI lower bound). See [Harmony Records — Tier semantics](10_Harmony_Records.md#tier-semantics--preferred-direction-deferred-to-v2-or-later).
+
 ### Narrative Reports
 
 Human-readable summaries tailored for different audiences.

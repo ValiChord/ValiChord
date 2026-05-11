@@ -103,6 +103,28 @@ When a Harmony Record meets the threshold conditions, ValiChord automatically is
 
 Badges are designed to be meaningful at scale — queryable by journals, funders, and institutions via the HTTP Gateway without requiring any Holochain infrastructure.
 
+### Tier semantics — preferred direction (deferred to v2 or later)
+
+The Gold/Silver/Bronze tier definitions above are working placeholders. The intended evolution is toward a **statistical-confidence interpretation**: the tier reflects both the number of validators that participated *and* the strength of their convergence, gated by confidence-interval (or Bayesian credible-interval) bounds on the underlying reproduction rate.
+
+Sketch of the intended logic (numbers indicative, not final):
+
+| Tier | Criterion sketch |
+|---|---|
+| **Gold** | N ≥ 20, agreement ≥ 95%, 95% CI lower bound ≥ 0.80 |
+| **Silver** | N ≥ 12, agreement ≥ 90%, 95% CI lower bound ≥ 0.65 |
+| **Bronze** | N ≥ 5, agreement ≥ 75%, 95% CI lower bound ≥ 0.40 |
+| **Sub-tier outcomes** | InsufficientData (CI too wide), PartialAgreement (diffuse split), InformativeSplit (bimodal — distinct clusters detected) |
+
+Rationale: a study with N=20 and 19/20 agreement carries materially more statistical weight than N=5 and 5/5 agreement, even though the second is "unanimous". Tier should communicate the strength of the evidence, not just one input to it.
+
+Implementation deferred pending:
+- Adapter work surfacing real validator-count distributions
+- Statistical-method choice (Wilson, Clopper-Pearson, or Bayesian Beta-Binomial)
+- Decision on whether HarmonyRecord schema exposes CI bounds directly to consumers
+
+Tracked as an open design question for v2 or later.
+
 ---
 
 ## Who Can Read a Harmony Record?
