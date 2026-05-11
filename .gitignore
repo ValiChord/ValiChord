@@ -27,3 +27,11 @@ tweets_clean.csv
 backend/app.log
 demo/bootstrap.log
 demo/serve.log
+
+# Holochain pre-built binaries
+demo/bin/
+
+# Runtime artifacts
+.coverage
+valichord/tests/.hc
+.claude/scheduled_tasks.lock
