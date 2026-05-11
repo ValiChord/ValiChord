@@ -1,5 +1,6 @@
 use hdk::prelude::*;
 use std::collections::HashSet;
+use valichord_coordinator_utils::{call_other_role_opt, records_for_links};
 use governance_integrity::{
     BadgeType, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
@@ -88,51 +89,16 @@ pub struct ReputationUpdateInput {
 
 /// Call a function on the attestation coordinator and decode the response.
 ///
-/// Returns `Ok(None)` on any cross-DNA failure (network error, unauthorized,
-/// decode error) rather than propagating errors — callers use the None path
-/// to abort conservatively without failing the calling function.
-///
-/// This matches the documented design intent: "if the quorum count cannot be
-/// determined, return None conservatively — do NOT default to 1."
+/// Returns `Ok(None)` on any cross-DNA failure — callers use the None path to
+/// abort conservatively without failing the calling function.  Matches the
+/// documented design intent: "if the quorum count cannot be determined, return
+/// None conservatively — do NOT default to 1."
 fn call_attestation_zome_opt<I, O>(fn_name: &str, input: I) -> ExternResult<Option<O>>
 where
     I: serde::Serialize + std::fmt::Debug,
     O: serde::de::DeserializeOwned + std::fmt::Debug,
 {
-    let response = call(
-        CallTargetCell::OtherRole("attestation".into()),
-        ZomeName::from("attestation_coordinator"),
-        FunctionName::from(fn_name),
-        None,
-        input,
-    )?;
-    match response {
-        ZomeCallResponse::Ok(extern_io) => {
-            match extern_io.decode::<O>() {
-                Ok(v) => Ok(Some(v)),
-                Err(e) => {
-                    warn!("call_attestation_zome_opt: decode failed calling {fn_name}: {e}");
-                    Ok(None)
-                }
-            }
-        }
-        ZomeCallResponse::Unauthorized(cell, zome, func, agent) => {
-            warn!("call_attestation_zome_opt: Unauthorized — cell={cell:?} zome={zome:?} fn={func:?} agent={agent:?}");
-            Ok(None)
-        }
-        ZomeCallResponse::AuthenticationFailed(_, _) => {
-            warn!("call_attestation_zome_opt: AuthenticationFailed calling {fn_name}");
-            Ok(None)
-        }
-        ZomeCallResponse::NetworkError(msg) => {
-            warn!("call_attestation_zome_opt: NetworkError calling {fn_name}: {msg}");
-            Ok(None)
-        }
-        ZomeCallResponse::CountersigningSession(msg) => {
-            warn!("call_attestation_zome_opt: CountersigningSession calling {fn_name}: {msg}");
-            Ok(None)
-        }
-    }
+    call_other_role_opt("attestation", "attestation_coordinator", fn_name, input)
 }
 
 /// Idempotent — called automatically from DNA 3 submit_attestation.
@@ -633,19 +599,6 @@ pub fn get_badges_for_study(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/// Fetch records for a list of links whose targets are ActionHashes (network).
-fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
-}
 
 /// Compute the DHT anchor entry hash for a given request_ref.
 ///

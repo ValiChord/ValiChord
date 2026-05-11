@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "shared_types",
+    "coordinator_utils",
     "dnas/attestation/zomes/attestation_integrity",
     "dnas/attestation/zomes/attestation_coordinator",
     "dnas/researcher_repository/zomes/researcher_repository_integrity",
@@ -13,6 +14,7 @@ members = [
 ]
 
 [workspace.dependencies]
+valichord_coordinator_utils = { path = "coordinator_utils" }
 hdi = "=0.7.0"
 hdk = "=0.6.0"
 serde = { version = "1", features = ["derive"] }

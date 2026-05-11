@@ -1,4 +1,5 @@
 use hdk::prelude::*;
+use valichord_coordinator_utils::records_for_links;
 use attestation_integrity::{
     AgentIdentityAttestation,
     AssessmentConfidence, CommitmentAnchor, CommitmentSealedInput, DifficultyAssessment,
@@ -1860,20 +1861,6 @@ fn get_latest_validator_profile(agent: AgentPubKey) -> ExternResult<Option<Valid
         .and_then(|l| l.target.clone().into_action_hash())
         .and_then(|h| get(h, GetOptions::network()).ok().flatten())
         .and_then(|r| r.entry().to_app_option::<ValidatorProfile>().ok().flatten()))
-}
-
-/// Fetch records for a list of links whose targets are ActionHashes.
-/// Skips links with non-ActionHash targets and records that are not found.
-fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
-    }
-    Ok(records)
 }
 
 // ---------------------------------------------------------------------------

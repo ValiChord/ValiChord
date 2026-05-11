@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 hdk = { workspace = true }
 serde = { workspace = true }
 valichord_shared_types = { path = "../../../../shared_types" }
+valichord_coordinator_utils = { workspace = true }
 attestation_integrity = { path = "../attestation_integrity" }
 getrandom = { workspace = true }
 sha2 = { workspace = true }

@@ -12,5 +12,6 @@ hdk = { workspace = true }
 serde = { workspace = true }
 holochain_serialized_bytes = { workspace = true }
 valichord_shared_types = { path = "../../../../shared_types" }
+valichord_coordinator_utils = { workspace = true }
 governance_integrity = { path = "../governance_integrity" }
 getrandom = { workspace = true }
