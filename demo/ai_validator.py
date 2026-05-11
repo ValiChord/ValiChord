@@ -194,22 +194,72 @@ Reply with ONLY a JSON object — no markdown, no explanation:
   "reasoning": "<one sentence>"
 }}"""
 
+    _REQUIRED_KEYS = {'outcome', 'confidence', 'reasoning'}
+    _VALID_OUTCOMES = {'Reproduced', 'PartiallyReproduced', 'FailedToReproduce', 'UnableToAssess'}
+    _VALID_CONFIDENCE = {'High', 'Medium', 'Low'}
+
+    def _parse_verdict(raw: str) -> dict:
+        """Parse and validate the JSON verdict; raise ValueError with a
+        descriptive message on any problem (fed back into the next attempt)."""
+        # Strip common LLM decoration before parsing
+        text = raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+        verdict = json.loads(text)
+        missing = _REQUIRED_KEYS - verdict.keys()
+        if missing:
+            raise ValueError(f'Missing required keys: {sorted(missing)}')
+        if verdict['outcome'] not in _VALID_OUTCOMES:
+            raise ValueError(
+                f'Invalid outcome {verdict["outcome"]!r}. '
+                f'Must be one of: {sorted(_VALID_OUTCOMES)}'
+            )
+        if verdict['confidence'] not in _VALID_CONFIDENCE:
+            raise ValueError(
+                f'Invalid confidence {verdict["confidence"]!r}. '
+                f'Must be one of: {sorted(_VALID_CONFIDENCE)}'
+            )
+        return verdict
+
+    MAX_ATTEMPTS = 5
     verdicts = []
     for i in range(n):
         print(f'  Calling Claude (validator {i + 1}/{n})…', end=' ', flush=True)
-        message = client.messages.create(
-            model='claude-opus-4-6',
-            max_tokens=256,
-            messages=[{'role': 'user', 'content': prompt}],
-        )
-        block = message.content[0]
-        if not isinstance(block, anthropic.types.TextBlock):
-            die(f'Claude (validator {i + 1}) returned unexpected content type: {type(block).__name__}')
-        raw = block.text.strip()
-        try:
-            verdict = json.loads(raw)
-        except json.JSONDecodeError:
-            die(f'Claude (validator {i + 1}) returned non-JSON:\n{raw}')
+        messages = [{'role': 'user', 'content': prompt}]
+        verdict = None
+        last_error = None
+        last_raw = ''
+        for attempt in range(MAX_ATTEMPTS):
+            if attempt > 0:
+                # Feed the previous error back so Claude can self-correct
+                messages.append({'role': 'assistant', 'content': last_raw})
+                messages.append({
+                    'role': 'user',
+                    'content': (
+                        f'That response could not be parsed. Error: {last_error}\n'
+                        f'Please reply with ONLY the corrected JSON object — '
+                        f'no markdown, no explanation.'
+                    ),
+                })
+            message = client.messages.create(
+                model='claude-opus-4-6',
+                max_tokens=256,
+                messages=messages,
+            )
+            block = message.content[0]
+            if not isinstance(block, anthropic.types.TextBlock):
+                die(f'Claude (validator {i + 1}) returned unexpected content type: '
+                    f'{type(block).__name__}')
+            last_raw = block.text.strip()
+            try:
+                verdict = _parse_verdict(last_raw)
+                break
+            except (json.JSONDecodeError, ValueError, KeyError) as exc:
+                last_error = str(exc)
+                if attempt < MAX_ATTEMPTS - 1:
+                    print(f'(retry {attempt + 1})…', end=' ', flush=True)
+
+        if verdict is None:
+            die(f'Claude (validator {i + 1}) failed to return valid JSON after '
+                f'{MAX_ATTEMPTS} attempts. Last response:\n{last_raw}')
         print(f'{verdict["outcome"]} — {verdict["confidence"]} confidence')
         verdicts.append(verdict)
 

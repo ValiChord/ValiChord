@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { connect, callZome, getMyPubKey, onSignal } from "./lib/holochain.js";
+  import { initTabCoordinator } from "./lib/tabCoordinator.js";
   import {
     connectState,
     isConnected,
@@ -29,12 +30,15 @@
   }
 
   let unsubscribeSignal: (() => void) | undefined;
+  let stopTabCoordinator: (() => void) | undefined;
 
   onDestroy(() => {
     unsubscribeSignal?.();
+    stopTabCoordinator?.();
   });
 
   onMount(async () => {
+    stopTabCoordinator = initTabCoordinator();
     connectState.set({ status: "connecting" });
     try {
       const wsUrl = resolveWsUrl();

@@ -1,4 +1,5 @@
 import { writable, derived } from "svelte/store";
+export { isLeaderTab } from "./tabCoordinator.js";
 import type { AgentPubKey } from "@holochain/client";
 import type { ValidatorProfile, HarmonyRecord, ValidationRequest } from "./types.js";
 import type { HolochainRecord } from "./types.js";
