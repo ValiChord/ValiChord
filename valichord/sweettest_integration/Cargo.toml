@@ -7,7 +7,7 @@ edition = "2021"
 publish = false
 
 # This crate is intentionally NOT a workspace member — it depends on
-# holochain = "0.6.0" (native conductor) which cannot compile to wasm32.
+# holochain = "0.6.1" (native conductor) which cannot compile to wasm32.
 # Adding it to the workspace would break `cargo build --target wasm32-unknown-unknown`.
 #
 # Usage:
@@ -29,16 +29,22 @@ name = "valichord_sweettest"
 # ---------------------------------------------------------------------------
 
 [dependencies]
-holochain = { version = "0.6.0", features = ["test_utils"] }
-holochain_types = "0.6.0"
-holochain_keystore = "0.6.0"
-hdk = "0.6"
-holo_hash = "0.6"
+holochain = { version = "=0.6.1", features = ["test_utils"] }
+holochain_types = "=0.6.1"
+holochain_keystore = "=0.6.1"
+hdk = "=0.6.1"
+holo_hash = "=0.6.1"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 sha2 = { version = "0.10", default-features = false }
 rmp-serde = "1.3"
+# Pin pkcs8 to the pre-release version that holochain 0.6.1 was built against.
+# pkcs8 0.11.0 stable changed Error::KeyMalformed from a unit variant to
+# KeyMalformed(KeyError), breaking ed25519-dalek 3.0.0-pre.1 (a holochain dep).
+# Remove this pin when upgrading to a holochain version that uses a compatible
+# release of pkcs8 and ed25519-dalek.
+pkcs8 = "=0.11.0-rc.11"
 
 # ValiChord types — rlib output allows native compilation for type access.
 # Coordinator functions themselves are not called directly from tests
