@@ -26,12 +26,24 @@ Full upgrade details: `PROJECT_STATUS.md` → "Holochain 0.6.1 upgrade — 2026-
 #### Case B — 0.7.0 stable available
 Do **not** auto-upgrade. Report to user and list the breaking changes that need planning:
 - `hdk` → `0.7.x`, `hdi` → `0.8.x` (Cargo.toml changes across all zomes)
-- Wasmer feature flags renamed (`wasmer_sys` → `wasmer-sys-cranelift`, `wasmer_wamr` → `wasmer-wasmi`)
+- Wasmer feature flags renamed (`wasmer_sys` → `wasmer-sys-cranelift`, `wasmer_wamr` → `wasmer-wasmi`) — confirmed in holochain-wasmer 0.0.103 changelog
 - Conductor DB migrated to `holochain_data` — **no migration path**, conductor state must be cleared
 - `must_get_agent_activity` response types changed (affects governance zome if used)
 - `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
+- `get_links_details` renamed from `get_link_details`
+- CI: update `BASE=` URL and `key: hc-bin-0.6.1` in **both** jobs in `.github/workflows/ci.yml` (4 edits total — see "CI binary upgrade" below)
 
 **Note:** Ignore `0.7.0-dev.*` and `0.6.1-rc.*` tags — stable only.
+
+### CI binary upgrade (applies to any Holochain version bump)
+CI downloads pre-built binaries from the `holochain/holochain` GitHub release (not `cargo install`).
+When upgrading Holochain, update **4 places** in `.github/workflows/ci.yml`:
+1. `BASE=https://github.com/holochain/holochain/releases/download/holochain-X.Y.Z` — in the `test` job download step
+2. `key: ${{ runner.os }}-hc-bin-X.Y.Z` — in the `test` job cache step
+3. Same `BASE=` — in the `sweettest` job download step
+4. Same `key:` — in the `sweettest` job cache step
+
+Binary names follow the pattern `holochain-x86_64-unknown-linux-gnu`, `hc-x86_64-unknown-linux-gnu`, `lair-keystore-x86_64-unknown-linux-gnu`, `kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu`. Check they exist on the release before pushing.
 
 ---
 
