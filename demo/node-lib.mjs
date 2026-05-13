@@ -67,19 +67,19 @@ export function readBody(req) {
   });
 }
 
-// Retry wrapper for zome calls that touch the shared DHT via tx5/WebRTC.
-// In Holochain 0.6.0 the relay registration can lag behind the conductor start,
-// producing "tx5 send error / Peer connection failed" on the first DHT read.
-export async function retryOnTx5(fn, label, maxRetries = 5, delayMs = 4000) {
+// Retry wrapper for zome calls that touch the shared DHT.
+// Under iroh/QUIC (Holochain 0.6.1+) transport errors are rare but gossip lag
+// can still cause transient network timeouts on first DHT read.
+export async function retryOnNetworkError(fn, label, maxRetries = 5, delayMs = 4000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (err) {
       const msg = err?.message ?? String(err);
-      const isTx5 = msg.includes('tx5') || msg.includes('Peer connection') ||
-                    msg.includes('response channel dropped') || msg.includes('response timeout');
-      if (!isTx5 || attempt === maxRetries) throw err;
-      console.error(`[${label}] tx5 error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
+      const isTransient = msg.includes('response channel dropped') || msg.includes('response timeout') ||
+                          msg.includes('network') || msg.includes('connection');
+      if (!isTransient || attempt === maxRetries) throw err;
+      console.error(`[${label}] network error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
       await sleep(delayMs);
     }
   }

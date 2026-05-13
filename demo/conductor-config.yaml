@@ -19,7 +19,4 @@ admin_interfaces:
 network:
   bootstrap_url: http://localhost:9000
   signal_url: ws://localhost:9000
-  advanced:
-    tx5Transport:
-      signalAllowPlainText: true
 db_sync_strategy: Resilient

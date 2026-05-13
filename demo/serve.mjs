@@ -72,19 +72,18 @@ function _deserialize(v) {
 const _sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Retry wrapper for zome calls that touch the shared DHT.
-// In Holochain 0.6.0 with tx5/WebRTC transport, get_links fails with a fatal
-// "tx5 send error / Peer connection failed" if the relay registration hasn't
-// completed yet.  Retrying after a short wait resolves this.
-async function _retryOnTx5(fn, label, maxRetries = 5, delayMs = 4000) {
+// Under iroh/QUIC (Holochain 0.6.1+) transport errors are rare but transient
+// network timeouts can still occur while peers are being discovered.
+async function _retryOnNetworkError(fn, label, maxRetries = 5, delayMs = 4000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (err) {
       const msg = err?.message ?? String(err);
-      const isTx5 = msg.includes('tx5') || msg.includes('Peer connection') ||
-                    msg.includes('response channel dropped') || msg.includes('response timeout');
-      if (!isTx5 || attempt === maxRetries) throw err;
-      console.error(`[${label}] tx5 peer error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
+      const isTransient = msg.includes('response channel dropped') || msg.includes('response timeout') ||
+                          msg.includes('network') || msg.includes('connection');
+      if (!isTransient || attempt === maxRetries) throw err;
+      console.error(`[${label}] network error (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms…`);
       await _sleep(delayMs);
     }
   }
@@ -262,12 +261,12 @@ async function _runValidationRound({ data_hash_hex, outcome, discipline, confide
 
     // 2. Claim the study (required by notify_commitment_sealed's claim guard).
     // claim_study returns null if the ValidationRequest hasn't gossiped yet.
-    // Inner _retryOnTx5 handles WebRTC relay errors; outer loop handles gossip lag.
+    // Inner retry handles transient network errors; outer loop handles gossip lag.
     {
       let claimed = null;
       for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
         if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
-        claimed = await _retryOnTx5(
+        claimed = await _retryOnNetworkError(
           () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
           'claim_study', 3, 3000,
         );
@@ -514,7 +513,7 @@ async function _runFullProtocolRound({
         let claimed = null;
         for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
           if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
-          claimed = await _retryOnTx5(
+          claimed = await _retryOnNetworkError(
             () => call('attestation', 'attestation_coordinator', 'claim_study', externalHash),
             `claim_study (validator-${i + 1})`, 3, 3000,
           );

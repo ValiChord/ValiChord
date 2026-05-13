@@ -17,9 +17,5 @@ admin_interfaces:
 network:
   bootstrap_url: __BOOTSTRAP_URL__
   signal_url: __SIGNAL_URL__
-  advanced:
-    tx5Transport:
-      signalAllowPlainText: true
-      timeoutS: 20
 db_sync_strategy: Fast
 db_max_readers: 4

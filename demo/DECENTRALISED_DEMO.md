@@ -46,7 +46,7 @@ ValiChord asks: *can an independent party arrive at the same result as the resea
 docker-compose.yml
     │
     ├─ bootstrap  (port 9000)
-    │   kitsune2-bootstrap-srv — peer discovery + WebRTC SBD signalling
+    │   kitsune2-bootstrap-srv — peer discovery + iroh/QUIC transport
     │   No DHT participation; no access to entry content
     │
     ├─ researcher (port 3001 on host)
@@ -251,7 +251,7 @@ The `-v` flag removes the named volumes (each conductor's keystore and DHT cache
 
 | Component | Detail |
 |---|---|
-| bootstrap container | `kitsune2-bootstrap-srv` 0.3.2 — peer discovery (HTTP) + WebRTC SBD (WebSocket), port 9000, committed to `demo/bin/` |
+| bootstrap container | `kitsune2-bootstrap-srv` 0.4.1 — peer discovery (HTTP) + SBD (WebSocket), port 9000, committed to `demo/bin/` |
 | researcher container | Holochain 0.6.x, `researcher.happ` (DNAs 1 + 3 + 4), `researcher-node.mjs` bridge, port 3001 exposed on host |
 | validator-{1,2,3} containers | Holochain 0.6.x, `validator.happ` (DNAs 2 + 3 + 4), `validator-node.mjs` bridge, ports 3002–3004 on host |
 | Holochain binary | Auto-downloaded from GitHub Releases on first build if `demo/bin/holochain` absent |
@@ -336,7 +336,7 @@ Each validator runs `study.py` and checks whether its output matches those three
 | `demo/conductor-config-node.yaml` | Conductor config template; bootstrap URL is interpolated at startup |
 | `demo/researcher-node.mjs` | Node.js HTTP API for researcher conductor |
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
-| `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnTx5`, `loadHcClient`, `externalHashFromB64` |
+| `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
 | `demo/ai_validator.py` | Python orchestrator — `--mode decentralised` calls the five node APIs |
 | `demo/bin/kitsune2-bootstrap-srv` | Pre-compiled bootstrap server binary |
 | `valichord/workdir/researcher.happ` | Role-filtered happ for researcher containers (DNAs 1, 3, 4) |

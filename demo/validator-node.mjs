@@ -18,7 +18,7 @@
 
 import { createServer } from 'node:http';
 import {
-  withSession, retryOnTx5, readBody, loadHcClient, externalHashFromB64,
+  withSession, retryOnNetworkError, readBody, loadHcClient, externalHashFromB64,
 } from './node-lib.mjs';
 
 const PORT = parseInt(process.env.NODE_API_PORT || '3001', 10);
@@ -126,11 +126,11 @@ const server = createServer(async (req, res) => {
         });
 
         // claim_study returns null if the ValidationRequest hasn't gossiped yet — retry.
-        // Inner retryOnTx5 handles WebRTC relay errors; outer loop handles gossip lag.
+        // Inner retry handles transient network errors; outer loop handles gossip lag.
         let claimed = null;
         for (let attempt = 0; attempt < 12 && !claimed; attempt++) {
           if (attempt > 0) await new Promise(r => setTimeout(r, 5000));
-          claimed = await retryOnTx5(
+          claimed = await retryOnNetworkError(
             () => call('attestation', 'attestation_coordinator', 'claim_study', hashBytes),
             'claim_study', 3, 3000,
           );

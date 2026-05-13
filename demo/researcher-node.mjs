@@ -20,7 +20,7 @@
 
 import { createServer } from 'node:http';
 import {
-  withSession, retryOnTx5, readBody, loadHcClient, externalHashFromB64,
+  withSession, readBody, loadHcClient, externalHashFromB64,
 } from './node-lib.mjs';
 
 const PORT = parseInt(process.env.NODE_API_PORT || '3001', 10);

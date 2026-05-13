@@ -15,7 +15,4 @@ admin_interfaces:
 network:
   bootstrap_url: https://dev-test-bootstrap2.holochain.org/
   signal_url: wss://dev-test-bootstrap2.holochain.org/
-  advanced:
-    tx5Transport:
-      signalAllowPlainText: true
 db_sync_strategy: Resilient

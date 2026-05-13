@@ -225,7 +225,7 @@ create_link(path.path_entry_hash()?, target, LinkTypes::AttestationByDiscipline,
 
 **Own chain:** `query(ChainQueryFilter::new().entry_type(...).include_entries(true))?` → `Vec<Record>`
 
-**Another agent's chain (coordinator):** `get_agent_activity(agent_id, filter, ActivityRequest::Full)?`
+**Another agent's chain (coordinator):** `get_agent_activity(agent_id, filter, ActivityRequest::Full, GetOptions::network())?` *(4th param required since HDK 0.6.1)*
 - Returns action hashes + chain status (valid/invalid/forked) + warrants
 - Does NOT include entry data — must do separate DHT gets for entries
 - Design zome functions as single-query functions returning hashes, let client do follow-up calls
@@ -451,7 +451,7 @@ Each action produces multiple DHT ops sent to different authorities:
 
 (From previous session)
 
-`get_agent_activity(agent_id, filter, ActivityRequest::Full)` returns `AgentActivity` with:
+`get_agent_activity(agent_id, filter, ActivityRequest::Full, GetOptions::network())` returns `AgentActivity` with: *(4th `GetOptions` param required since HDK 0.6.1)*
 - `status: ChainStatus` — Valid, Invalid(warrant), Forked(warrant), Empty
 - `valid_activity: Vec<(u32, ActionHash)>` — sequence index + hash
 - `warrants: Vec<Warrant>`
@@ -479,6 +479,7 @@ let activity = get_agent_activity(
     suspect_agent.clone(),
     ChainQueryFilter::new(),
     ActivityRequest::Full,
+    GetOptions::network(),   // required since HDK 0.6.1
 )?;
 
 if !activity.warrants.is_empty() {
@@ -559,11 +560,11 @@ test("two agents attest", async () => {
 
 **DHT availability:** the DHT only exists while agents are running cells. For production: run always-on nodes (self-hosted or cloud VMs) to ensure continuous availability.
 
-**Network infrastructure required:**
-- Kitsune2 bootstrap/signal server (peer discovery + connection establishment)
-- WebRTC STUN servers (NAT traversal)
-- All agents in a DNA must use SAME bootstrap/signal servers to find each other
-- Configure in `kangaroo.config.ts`: `bootstrapUrl` (https://), `signalUrl` (wss://)
+**Network infrastructure required (0.6.1 / iroh era):**
+- Kitsune2 bootstrap server — peer discovery (HTTP) + SBD (WebSocket) on same port
+- iroh relay server — QUIC NAT traversal for production deployments (optional for direct LAN)
+- All agents in a DNA must use the SAME bootstrap server to find each other
+- Configure in `kangaroo.config.ts`: `bootstrapUrl` (https://), `signalUrl` (wss://), optionally `relayUrl`
 
 **ValiChord operational note:** The Governance/Harmony Records DNA (public DHT) benefits most from always-on nodes. Researcher Repository and Validator Workspace are private per-agent — no always-on nodes needed for those. Attestation DNA needs good availability during active validation rounds.
 
@@ -678,20 +679,22 @@ const getHolochainClient = (() => {
 
 ---
 
-## 25. HOLOCHAIN 0.6.0 CONDUCTOR CONFIG — VERIFIED FROM SOURCE
+## 25. HOLOCHAIN 0.6.0 CONDUCTOR CONFIG — LEGACY (tx5/WebRTC era)
 
-### NetworkConfig fields (holochain_conductor_api 0.6.0)
+> **Current ValiChord target is 0.6.1 (iroh/QUIC transport).** See §40 for the current NetworkConfig reference. This section is retained for historical context and for understanding the 0.6.0→0.6.1 migration.
+
+### NetworkConfig fields (holochain_conductor_api 0.6.0 — tx5 era)
 
 ```yaml
 network:
   bootstrap_url: https://...      # kitsune2 bootstrap server (peer discovery)
-  signal_url: wss://...           # SBD signal server (tx5/WebRTC signalling)
-  webrtc_config: ...              # Optional WebRTC peer connection config
+  signal_url: wss://...           # SBD signal server (tx5/WebRTC signalling) — obsolete under iroh
+  webrtc_config: ...              # Optional WebRTC peer connection config — obsolete under iroh
   target_arc_factor: 1            # 0 = leacher (no gossip contribution)
-  advanced:                       # Direct kitsune2 JSON config (merged with above)
-    tx5Transport:
-      signalAllowPlainText: true  # Allow ws:// instead of wss://
-      timeoutS: 60                # Connection/idle timeout (default: 60s)
+  advanced:                       # DEAD CONFIG under iroh — remove from conductor-config.yaml
+    tx5Transport:                 # iroh is the default transport in 0.6.1; this block is ignored
+      signalAllowPlainText: true
+      timeoutS: 60
       dangerForceSignalRelay: false
     coreBootstrap:
       serverUrl: ...              # Overridden by bootstrap_url if both set
@@ -699,31 +702,20 @@ network:
 
 **IMPORTANT:** `mem_bootstrap`, `disable_bootstrap`, `disable_publish`, `disable_gossip` are `#[cfg(feature = "test-utils")]` — they only exist in test builds, NOT the production `holochain` binary. Do not add them to conductor-config.yaml.
 
-**`advanced` merge behaviour:** `to_k2_config()` starts with `advanced`, then inserts `coreBootstrap.serverUrl` (from `bootstrap_url`) and `tx5Transport.serverUrl` (from `signal_url`), overwriting existing values with a warning. Other keys in `advanced.tx5Transport` (like `signalAllowPlainText`) are preserved.
+### ~~tx5 single-agent "Peer connection failed" issue~~ — RESOLVED IN 0.6.1
 
-### tx5 single-agent "Peer connection failed" issue
+In Holochain 0.6.0, `get_links` propagated ANY tx5 send error as a fatal WasmError. This was the primary motivation for the `_retryOnTx5` / `retryOnNetworkError` wrappers in the demo node scripts.
 
-In Holochain 0.6.0, `get_links` propagates ANY tx5 send error as a fatal WasmError (see `get_links.rs` line 76). In single-agent dev mode the conductor tries to contact peers via the SBD relay and fails — even when all DHT data is held locally.
+**This issue is resolved in 0.6.1.** iroh/QUIC is the default transport and does not produce "Peer connection failed" errors. The retry wrappers have been generalised to catch timeout/channel-drop errors rather than tx5-specific ones.
 
-**Fix for Oracle / local dev:** run `kitsune2-bootstrap-srv` locally and point the conductor at it:
-
-```yaml
-# conductor-config.yaml
-network:
-  bootstrap_url: http://localhost:9000
-  signal_url: ws://localhost:9000
-  advanced:
-    tx5Transport:
-      signalAllowPlainText: true
-```
+For local dev, `kitsune2-bootstrap-srv` is still required for peer discovery:
 
 ```bash
-# Start local server (installs once via cargo)
-cargo install kitsune2_bootstrap_srv --version 0.3.2 --locked
+cargo install kitsune2_bootstrap_srv --version 0.4.1 --locked
 kitsune2-bootstrap-srv --listen 127.0.0.1:9000 --sbd-disable-rate-limiting &
 ```
 
-The `kitsune2-bootstrap-srv` binary handles BOTH bootstrap (HTTP) and SBD signal (WebSocket) on the same port. In "testing" mode (default) it runs lightweight with no TLS.
+The binary handles BOTH bootstrap (HTTP) and SBD (WebSocket) on the same port. No `advanced.tx5Transport` config is needed.
 
 ### HTTP Gateway (hc-http-gw 0.3.1) — verified from source
 
@@ -1055,19 +1047,19 @@ create(CreateInput {
 
 ---
 
-## 40. UPDATED `NetworkConfig` (Kitsune2 / iroh era)
+## 40. `NetworkConfig` — CURRENT (Holochain 0.6.1 / iroh/QUIC era)
 
-Additions and changes to `NetworkConfig` not in the 0.6.0 section above:
+iroh/QUIC is the default transport in 0.6.1. The `advanced.tx5Transport` block is dead config and should be removed from conductor-config.yaml files. See §25 for the legacy tx5 config (historical reference only).
 
 ```yaml
 network:
-  bootstrap_url: https://...       # peer discovery
-  signal_url: wss://...            # SBD signal server (tx5/WebRTC)
-  relay_url: https://...           # iroh relay for QUIC transport (new)
+  bootstrap_url: https://...       # kitsune2 bootstrap server — peer discovery
+  signal_url: wss://...            # SBD WebSocket server — kept for tx5 fallback; still used by kitsune2-bootstrap-srv 0.4.1
+  relay_url: https://...           # iroh relay for QUIC NAT traversal (needed for production; optional for direct LAN/loopback)
   base64_auth_material_bootstrap: ... # URL-safe base64 auth token for bootstrap
   base64_auth_material_relay: ...     # URL-safe base64 auth token for relay
   target_arc_factor: 1.0           # 0.0 = leacher (no DHT gossip contribution)
-  webrtc_config: ...               # Optional STUN config (still present for tx5)
+  # webrtc_config / advanced.tx5Transport — REMOVE; dead under iroh default
 ```
 
 **`ConductorConfig` new fields:**
