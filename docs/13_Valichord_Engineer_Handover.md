@@ -586,30 +586,41 @@ Five LLM red-team audits (ChatGPT, Gemini, Grok ×2, Claude) and two systematic 
 
 ---
 
-## Holochain Upgrade Radar (as of 2026-03-21)
+## Holochain Upgrade Radar (updated 2026-05-13)
 
 Holochain's public roadmap (github.com/orgs/holochain/projects/11) has several upcoming milestones that affect this codebase. Read this before upgrading `holochain` / `hdk` / `hdi` versions in `Cargo.toml`.
 
-**Current ValiChord versions:** `hdk = "0.6"`, `hdi = "0.7"` — these are the current stable versions. See `.claude/skills/check-holochain-updates.md` for a repeatable process to check for newer versions.
+**Current ValiChord versions:** `hdk = "=0.6.1"`, `hdi = "=0.7.1"`, `holochain_serialized_bytes = "=0.0.57"` — upgraded 2026-05-13. All 97 tests green.
 
 ---
 
-### 0.6.1 — Almost released (rc.3 dropped March 11, 2026)
+### 0.6.1 — DONE (2026-05-13) ✓
 
-`0.6.1-rc.3` is the current latest stable release candidate as of March 11, 2026. This is a Wind Tunnel metrics and infrastructure release — always-online node monitoring, RAM reduction for the summariser, metric interval reporting. **Zero API changes for ValiChord.** Upgrading from 0.6.0 to 0.6.1 when it goes stable is a safe drop-in.
+The upgrade landed more changes than the early RCs suggested. Summary of what actually changed for ValiChord:
+
+- **iroh/QUIC is now the default transport** — tx5/WebRTC is gone. The `advanced.tx5Transport` conductor config block is dead and has been removed from all three conductor YAMLs. kitsune2-bootstrap-srv bumped to 0.4.1 (wire-incompatible with 0.3.x).
+- **`get_agent_activity` requires a 4th `GetOptions` parameter** — `GetOptions::network()` added at all call sites in attestation and governance coordinators.
+- **`recv_remote_signal` double-decode removed** — 0.6.1 delivers the signal payload directly as a msgpack map; the outer `bin8` wrapper strip is gone.
+- **`holochain_serialized_bytes` bumped to 0.0.57**, `holochain_wasmer` to 0.0.102.
+- **`@holochain/tryorama` bumped to 0.19.1** — iroh/QUIC transport; `dhtSync` signature: `(players, dnaHash, intervalMs?, timeoutMs?)`.
+- **`retryOnTx5` wrappers renamed to `retryOnNetworkError`** — tx5-specific error strings removed; now catches generic timeout/channel-drop errors.
+- **`Warrant` → `SignedWarrant`** type rename in `AgentActivityResponse` — handled automatically by the HDK version bump (code only uses `.warrants.is_empty()`).
 
 ---
 
-### 0.7 — Network transport switch (0.7.0-dev.16 dropped March 16, 2026)
+### 0.7 — Breaking changes, do not auto-upgrade
 
-**This is the most imminent change.** 0.7 switches the default kitsune2 transport from QUIC/WebRTC to **iroh** (`Switch default transport to iroh`, kitsune2 #442). This affects network configuration but NOT zome APIs.
+**The 0.7 section originally written here was incorrect** — it stated that iroh transport was a 0.7 change. That landed in 0.6.1 and is now done.
 
-When 0.7 stable releases, upgrading ValiChord will require:
-1. Bump `hdk` to `0.7.x` and `hdi` to `0.8.x` in workspace `Cargo.toml`
-2. Review whether `bootstrapUrl` / `signalUrl` config format changes for iroh (check the 0.7 migration guide — iroh uses a different signalling mechanism)
-3. Run `cargo build` — watch for any renamed crates (Holochain crates may be split across repositories for independent versioning in 0.7)
+The actual 0.7 breaking changes that affect ValiChord (from CLAUDE.md planning notes):
 
-**hdk 0.7.0-dev.10 breaking change already visible in the dev channel:** `get_link_details` is renamed to `get_links_details`. ValiChord does not currently call `get_link_details` directly (uses `get_links` only), so this rename is not expected to affect the build — but verify when upgrading.
+1. **`hdk` → `0.7.x`, `hdi` → `0.8.x`** — bump in workspace `Cargo.toml`; also Wasmer feature flags renamed (`wasmer_sys` → `wasmer-sys-cranelift`, `wasmer_wamr` → `wasmer-wasmi`)
+2. **Conductor DB path renamed to `holochain_data`** — no migration path; conductor state must be cleared on upgrade. Not a problem for dev, is a problem for any live network nodes.
+3. **`must_get_agent_activity` response types changed** — affects governance zome warrant checks; inspect the 0.7 changelog before upgrading.
+4. **`HCP2P_PROTO_VER` bumped 2→3** — wire-incompatible with 0.6.x nodes; all network participants must upgrade together.
+5. **`get_link_details` renamed to `get_links_details`** — ValiChord does not call this directly, but verify at upgrade time.
+
+**Do not upgrade to 0.7 without planning the conductor-DB wipe and coordinating all network nodes.** Flag for the Phase 1 production deployment review.
 
 ---
 
