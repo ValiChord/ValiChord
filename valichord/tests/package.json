@@ -8,7 +8,7 @@
     "test:watch": "PATH=\"$HOME/.cargo/bin:$PATH\" vitest"
   },
   "dependencies": {
-    "@holochain/client": "^0.20.2",
+    "@holochain/client": "^0.20.4",
     "@holochain/tryorama": "0.19.1",
     "@noble/ed25519": "^2.3.0"
   },
