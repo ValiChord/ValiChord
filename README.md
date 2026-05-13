@@ -70,6 +70,8 @@ cd valichord-ui && npm run dev
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
 
+**v0.5.2 (May 2026):** Holochain 0.6.1 upgrade — iroh/QUIC replaces tx5/WebRTC as the default transport. `hdk` → `0.6.1`, `hdi` → `0.7.1`, `holochain_serialized_bytes` → `0.0.57`, `@holochain/tryorama` → `0.19.1`. All 166 integration tests confirmed green on the new transport. `get_agent_activity` 4th `GetOptions` parameter added; `recv_remote_signal` double-decode removed (0.6.1 delivers payload directly); `advanced.tx5Transport` conductor config blocks removed (dead under iroh); retry wrappers updated from tx5-specific to generic network-error handling.
+
 **v0.5.1 (May 2026):** Second real-data example: `valichord_attestation/examples/inspect_ai_popularity_demo/` — v1.1 protocol end-to-end against an inspect_ai `.eval` log (popularity task, GPT-4o-mini, `match` scorer), parsed via EveryEvalEver's `InspectAIAdapter` (pinned to commit `dec1ae43`) for EvalEval Coalition schema alignment. Fixture mode runs without any download. Wind-Tunnel performance scenarios added (`valichord/wind-tunnel/`): baseline, sequential 3-validator, and 10-agent concurrent burst.
 
 **v0.5.0 (May 2026):** `valichord_attestation` Python library — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface, and probabilistic challenge-response (verifier-controlled randomness, HMAC-SHA256 seed derivation, SHA-256 counter-mode index generation). `build_bundle` accepts an explicit `samples_total` to assert intended run size, making silent sample omission directly visible in the bundle (`samples.total > samples.completed`). 142 tests, 100% line coverage. Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 via lm-evaluation-harness v0.5.0 — full v1.1 protocol end-to-end, runnable without a GPU. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
@@ -349,7 +351,7 @@ response = build_response(challenge, samples)          # holder's side
 ok = verify_response(challenge, response, bundle)      # verifier's side
 ```
 
-**Status:** 142 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
+**Status:** 183 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
 
 ```bash
 pip install -e "valichord_attestation[dev]"
