@@ -15,10 +15,10 @@ members = [
 
 [workspace.dependencies]
 valichord_coordinator_utils = { path = "coordinator_utils" }
-hdi = "=0.7.0"
-hdk = "=0.6.0"
+hdi = "=0.7.1"
+hdk = "=0.6.1"
 serde = { version = "1", features = ["derive"] }
-holochain_serialized_bytes = "=0.0.56"
+holochain_serialized_bytes = "=0.0.57"
 # getrandom 0.3 requires an explicit backend for wasm32-unknown-unknown.
 # The custom backend is activated via --cfg getrandom_backend="custom" in
 # .cargo/config.toml (wasm32 target). The coordinator zome provides the

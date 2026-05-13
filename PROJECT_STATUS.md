@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-09
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity).
+**Last updated:** 2026-05-13
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity).
 
 ---
 
@@ -74,6 +74,32 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Holochain 0.6.1 upgrade — 2026-05-13 ✓
+
+Full upgrade of the Holochain toolchain from 0.6.0 to 0.6.1. Transport switches from tx5/WebRTC to iroh/QUIC.
+
+**Binary stack upgraded:**
+- `holochain 0.6.1` — `cargo install holochain --version 0.6.1 --locked --force`
+- `hc 0.6.1` (holochain_cli) — `cargo install holochain_cli --version 0.6.1 --locked --force`
+- `kitsune2-bootstrap-srv 0.4.1` — required for iroh/QUIC peer discovery (0.3.x is protocol-incompatible)
+- `@holochain/tryorama 0.19.1` — iroh/QUIC transport; `dhtSync` signature: `(players, dnaHash, intervalMs?, timeoutMs?)`
+
+**Cargo.toml workspace pins bumped:**
+- `hdk = "=0.6.1"` (was `"=0.6.0"`)
+- `hdi = "=0.7.1"` (was `"=0.7.0"`)
+- `holochain_serialized_bytes = "=0.0.57"` (was `"=0.0.56"`)
+- `attestation_integrity/Cargo.toml` migrated from local pin to `{ workspace = true }`
+
+**Zome code changes:**
+- `reject_if_warranted` (attestation_coordinator): `get_agent_activity` now requires a 4th `GetOptions` parameter — added `GetOptions::network()`
+- Governance coordinator warrant filter: same `GetOptions::network()` 4th arg added
+- `recv_remote_signal` (attestation_coordinator): 0.6.1 conductor delivers remote signal payload directly as a msgpack map (no outer bin8 wrapper); removed the double-decode workaround; now decodes directly as `RevealOpenWire` in one step
+- `Warrant` → `SignedWarrant` type rename in `AgentActivityResponse`: handled automatically by HDK version bump (code only uses `.warrants.is_empty()`)
+
+**Kangaroo-electron prerequisite:** Holochain 0.6.1 upgrade is now ✓ done. Remaining pre-requisites: browser UI ✓, dedicated bootstrap/signal/relay servers.
+
+---
 
 ### `valichord_attestation` format v1.2 — 2026-05-09 ✓
 
@@ -295,11 +321,14 @@ Three tools from https://github.com/orgs/unytco/repositories worth knowing for V
 
 ## Key technical facts for the next session
 
-### tx5 / kitsune2 bootstrap
-Holochain 0.6.0 uses tx5/WebRTC transport. Oracle uses a local `kitsune2-bootstrap-srv`
-(pre-compiled binary in `demo/bin/`) on port 9000 — avoids dependency on the external
-`dev-test-bootstrap2.holochain.org` relay which caused intermittent peer-discovery timeouts.
-`serve.mjs` wraps `claim_study` in `_retryOnTx5()` (10 retries × 6s).
+### iroh/QUIC bootstrap (Holochain 0.6.1+)
+Holochain 0.6.1 replaced tx5/WebRTC with iroh/QUIC transport. The bootstrap server binary
+must be `kitsune2-bootstrap-srv 0.4.1` (version 0.3.x is protocol-incompatible with 0.6.1
+conductors). Tryorama 0.19.1 spawns `kitsune2-bootstrap-srv` automatically for tests.
+The `_retryOnTx5()` wrapper in `serve.mjs` may need revision for the Oracle demo — iroh
+is significantly more reliable than tx5 so retry logic may no longer be necessary.
+Oracle demo still uses a local bootstrap binary in `demo/bin/` — update to 0.4.1 before
+the next Oracle demo run.
 
 ### Per-run UUID salt
 `ai_validator.py` salts the data hash: `SHA-256(data_bytes + run_id)` where `run_id` is

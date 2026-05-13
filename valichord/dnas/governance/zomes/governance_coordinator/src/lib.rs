@@ -181,7 +181,7 @@ pub fn check_and_create_harmony_record(
         .into_iter()
         .filter(|r| {
             let author = r.action().author().clone();
-            get_agent_activity(author, ChainQueryFilter::new(), ActivityRequest::Full)
+            get_agent_activity(author, ChainQueryFilter::new(), ActivityRequest::Full, GetOptions::network())
                 .map(|a| a.warrants.is_empty())
                 .unwrap_or(true)
         })

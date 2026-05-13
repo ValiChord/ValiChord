@@ -19,16 +19,9 @@
 Run `holochain --version` at session start, then check https://github.com/holochain/holochain/releases for the latest stable releases. Handle each case:
 
 #### Case A — 0.6.1 stable available (and currently on 0.6.0)
-Perform automatically:
-  1. Install: `cargo install holochain --version 0.6.1 --locked`
-  2. In `valichord/tests/package.json` change `"@holochain/tryorama": "0.19.0"` → `"0.19.1"`
-  3. Run `cd valichord/tests && npm install`
-  4. Verify tests still pass: `pkill -f holochain; pkill -f lair-keystore; sleep 2 && cd valichord/tests && npm test`
-  5. Report outcome to user.
+**COMPLETED 2026-05-13.** ValiChord is now on 0.6.1. This case no longer applies.
 
-**Why 0.6.1 is safe to auto-upgrade:** zero API changes in zome code; tryorama 0.19.1 switches transport from WebRTC/tx5 → iroh/QUIC. `valichord/tests/package.json` has `"@holochain/tryorama": "0.19.0"` (exact pin, not `^`).
-
-**Status (2026-05-09):** 0.6.1 reported at 91% complete on the Holochain website, expected ~2026-05-16. rc.8 (2026-04-17) was the last pre-release. Trigger fires only on a stable release — rc tags do not count.
+Full upgrade details: `PROJECT_STATUS.md` → "Holochain 0.6.1 upgrade — 2026-05-13".
 
 #### Case B — 0.7.0 stable available
 Do **not** auto-upgrade. Report to user and list the breaking changes that need planning:

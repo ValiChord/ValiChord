@@ -611,6 +611,7 @@ fn reject_if_warranted(agent: &AgentPubKey) -> ExternResult<()> {
         agent.clone(),
         ChainQueryFilter::new(),
         ActivityRequest::Full,
+        GetOptions::network(),
     )?;
     if !activity.warrants.is_empty() {
         return Err(wasm_error!(WasmErrorInner::Guest(
@@ -1777,14 +1778,11 @@ fn check_all_commitments_sealed_inner(
 
 #[hdk_extern]
 pub fn recv_remote_signal(signal: ExternIO) -> ExternResult<()> {
-    // Remote signals arrive double-encoded: ExternIO.0 = bin8(payload_msgpack).
-    // Step 1: strip the outer bin8 to get the flat-struct bytes.
-    let inner_bytes: Vec<u8> = signal.decode().map_err(|e| {
-        wasm_error!(WasmErrorInner::Deserialize(e.to_string().into_bytes()))
-    })?;
-    // Step 2: decode as RevealOpenWire (plain struct) — avoids rmp-serde
-    // adjacently-tagged enum round-trip failure — then re-emit as Signal.
-    let wire: RevealOpenWire = rmp_serde::from_slice(&inner_bytes).map_err(|e| {
+    // Holochain ≥ 0.6.1 delivers the remote signal payload directly as a
+    // msgpack map — no outer bin8 wrapper — so decode once into RevealOpenWire.
+    // We still avoid Signal (adjacently-tagged enum) here because rmp-serde
+    // doesn't reliably round-trip it (see RevealOpenWire comment below).
+    let wire: RevealOpenWire = signal.decode().map_err(|e| {
         wasm_error!(WasmErrorInner::Deserialize(e.to_string().into_bytes()))
     })?;
     emit_signal(Signal::RevealOpen { request_ref: wire.request_ref })?;
