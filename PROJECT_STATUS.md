@@ -325,10 +325,11 @@ Three tools from https://github.com/orgs/unytco/repositories worth knowing for V
 Holochain 0.6.1 replaced tx5/WebRTC with iroh/QUIC transport. The bootstrap server binary
 must be `kitsune2-bootstrap-srv 0.4.1` (version 0.3.x is protocol-incompatible with 0.6.1
 conductors). Tryorama 0.19.1 spawns `kitsune2-bootstrap-srv` automatically for tests.
-The `_retryOnTx5()` wrapper in `serve.mjs` may need revision for the Oracle demo — iroh
-is significantly more reliable than tx5 so retry logic may no longer be necessary.
-Oracle demo still uses a local bootstrap binary in `demo/bin/` — update to 0.4.1 before
-the next Oracle demo run.
+`_retryOnTx5()` / `retryOnTx5` renamed to `_retryOnNetworkError` / `retryOnNetworkError`
+in `serve.mjs`, `node-lib.mjs`, `validator-node.mjs` — tx5-specific error strings removed,
+now catches generic timeout/channel-drop errors. `advanced.tx5Transport` removed from all
+three conductor YAMLs (dead config under iroh). Oracle demo bootstrap binary in `demo/bin/`
+should be updated to 0.4.1 before the next Oracle demo run.
 
 ### Per-run UUID salt
 `ai_validator.py` salts the data hash: `SHA-256(data_bytes + run_id)` where `run_id` is
@@ -369,13 +370,13 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | File | What it contains |
 |---|---|
 | `PROJECT_STATUS.md` | **This file** — current status, open work, technical facts |
-| `docs/Holochain_complete.md` | Complete Holochain build guide + tx5 timing, hc-http-gw URL format, ExternalHash JS, NetworkConfig |
+| `docs/Holochain_complete.md` | Complete Holochain build guide — iroh/QUIC NetworkConfig, hc-http-gw URL format, ExternalHash JS |
 | `demo/DECENTRALISED_DEMO.md` | Full technical guide for the decentralised demo — architecture, retry design, commit-reveal table |
 | `demo/ai_validator.py` | Python orchestrator — `--mode decentralised` calls the five node APIs |
 | `demo/docker-compose.yml` | 5-container stack definition |
 | `demo/researcher-node.mjs` | Node.js HTTP API for researcher conductor |
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
-| `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnTx5`, `loadHcClient`, `externalHashFromB64` |
+| `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
 | `backend/app.py` | Flask REST API |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
 | `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
