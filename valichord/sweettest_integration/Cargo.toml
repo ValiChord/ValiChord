@@ -24,6 +24,13 @@ publish = false
 [lib]
 name = "valichord_sweettest"
 
+# Debug builds of holochain + wasmer + cranelift generate enormous amounts of
+# DWARF data (~4 GB) that exceeds the 32 GB Codespace limit. Disabling debug
+# info shrinks the build to ~1-1.5 GB while keeping tests fully functional;
+# the only loss is file:line in backtraces.
+[profile.dev]
+debug = 0
+
 # ---------------------------------------------------------------------------
 # Runtime dependencies (also available to integration tests via the lib crate)
 # ---------------------------------------------------------------------------

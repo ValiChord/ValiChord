@@ -6,31 +6,20 @@
 
 use holochain::prelude::*;
 use holochain::sweettest::*;
-use holochain_types::prelude::YamlProperties;
 use std::path::{Path, PathBuf};
 
-use attestation_coordinator::{AttestationRevealInput, ReclaimInput, UpdateValidatorProfileInput};
-use attestation_integrity::{
-    DifficultyTier, AssessmentConfidence,
-    ResearcherRevealInput,
-    ValidatorAgentType, ValidationRequest, ValidationTier,
-};
+use attestation_integrity::{ValidatorAgentType, ValidationRequest, ValidationTier};
 pub use valichord_shared_types::{CommitmentSealedInput, ResearcherCommitmentInput};
-use governance_coordinator::ReputationUpdateInput;
-use governance_integrity::{BadgeType, GovernanceDecision, HarmonyRecord};
-use researcher_repository_coordinator::{
-    DeclareDeviationInput, LockResultInput, RegisterProtocolInput, TakeDataSnapshotInput,
-};
+use governance_integrity::GovernanceDecision;
 use researcher_repository_integrity::{
     PreRegisteredProtocol, ResearchStudy, VerifiedDataSnapshot,
 };
-use validator_workspace_coordinator::SealAttestationInput;
 use validator_workspace_integrity::{
     CompensationTier, ValidationFocus, ValidationTask,
 };
 use valichord_shared_types::{
     AgreementLevel, AttestationConfidence, AttestationOutcome, ComputationalResources,
-    CertificationTier, Discipline, MetricResult, OutcomeSummary, Severity, TimeBreakdown,
+    CertificationTier, Discipline, OutcomeSummary, Severity, TimeBreakdown,
     UndeclaredDeviation, ValidationAttestation,
 };
 

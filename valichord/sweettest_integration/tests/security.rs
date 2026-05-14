@@ -287,14 +287,14 @@ async fn s4a_reclaim_respects_min_claim_timeout_floor() {
             make_validator_profile("Oxford"),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     let claim_hash: ActionHash = setup.conductors[1]
         .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -344,14 +344,14 @@ async fn s4b_reclaim_no_floor_timeout_zero_succeeds() {
             make_validator_profile("Oxford"),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     let claim_hash: ActionHash = setup.conductors[1]
         .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 

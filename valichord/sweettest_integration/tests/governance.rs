@@ -114,24 +114,24 @@ async fn full_round_creates_harmony_record() {
         .await;
 
     // 2. Sync attestation DHT so Bob sees the request.
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // 3. Both validators commit.
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // 4. Both validators reveal.
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -168,22 +168,22 @@ async fn check_and_create_harmony_record_idempotent() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -225,22 +225,22 @@ async fn any_participant_can_finalize() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -258,7 +258,7 @@ async fn any_participant_can_finalize() {
     );
 
     // Record must be visible to Alice too after governance DHT sync.
-    await_consistency_20_s([&setup.alice.governance, &setup.bob.governance])
+    await_consistency_s(20, [&setup.alice.governance, &setup.bob.governance])
         .await
         .unwrap();
     let record: Option<Record> = setup.conductors[0]
@@ -284,17 +284,17 @@ async fn premature_finalization_returns_none() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // Only Alice commits and reveals — Bob is absent.
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -338,17 +338,17 @@ async fn force_finalize_round_with_partial_quorum() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // Only Alice commits and reveals (Bob is the absent validator).
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -481,16 +481,16 @@ async fn get_harmony_records_by_discipline_returns_record_after_round() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -499,15 +499,15 @@ async fn get_harmony_records_by_discipline_returns_record_after_round() {
     // Alice's explicit call below would otherwise miss Bob's governance write and create a
     // second HarmonyRecord.
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     // Sync governance DHT so Alice sees the HarmonyRecord created by Bob's auto-call.
-    await_consistency_20_s([&setup.alice.governance, &setup.bob.governance])
+    await_consistency_s(20, [&setup.alice.governance, &setup.bob.governance])
         .await
         .unwrap();
 
@@ -555,22 +555,22 @@ async fn get_badges_for_study_none_with_two_validators() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -620,21 +620,21 @@ async fn get_badges_by_type_bronze_with_three_validators() {
     let _: ActionHash = conductors[0]
         .call(&alice.attestation_zome(), "submit_validation_request", vr)
         .await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
     // All three commit — interleaved sync so each sees prior CommitmentAnchors.
     commit(&conductors[0], &alice, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     commit(&conductors[1], &bob, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     commit(&conductors[2], &carol, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
@@ -647,15 +647,15 @@ async fn get_badges_by_type_bronze_with_three_validators() {
     // synced governance before Alice's call, Alice would hit idempotency and the
     // badge would never be created.  Instead we let Alice create both.
     reveal(&conductors[0], &alice, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     reveal(&conductors[1], &bob, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     reveal(&conductors[2], &carol, request_ref.clone()).await;
-    await_consistency_20_s([&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
@@ -672,7 +672,7 @@ async fn get_badges_by_type_bronze_with_three_validators() {
     assert!(harmony.is_some(), "full 3-agent round should produce a HarmonyRecord");
 
     // Sync governance DHT so Alice's badge propagates to all nodes before querying.
-    await_consistency_20_s([&alice.governance, &bob.governance, &carol.governance])
+    await_consistency_s(20, [&alice.governance, &bob.governance, &carol.governance])
         .await
         .unwrap();
 
@@ -892,13 +892,13 @@ async fn gold_badge_issued_with_seven_validators() {
 
     let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
     // 60-second timeout: N=7 conductors gossip slowly on a loaded CI runner.
-    await_consistency(60, att_cells.iter().copied()).await.unwrap();
+    await_consistency(att_cells.iter().copied()).await.unwrap();
 
     // Commit phase — sequential with interleaved DHT sync so each conductor
     // sees all prior CommitmentAnchors before the phase-open check fires.
     for i in 0..N {
         commit(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency(60, att_cells.iter().copied()).await.unwrap();
+        await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
     // Reveal phase — sequential with interleaved sync. No governance sync here:
@@ -907,7 +907,7 @@ async fn gold_badge_issued_with_seven_validators() {
     // call chain. apps[0]'s explicit call below creates both.
     for i in 0..N {
         reveal(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency(60, att_cells.iter().copied()).await.unwrap();
+        await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
     // Explicit harmony + badge creation — no governance sync first so apps[0]
@@ -923,7 +923,7 @@ async fn gold_badge_issued_with_seven_validators() {
 
     // Sync governance so the badge propagates before querying.
     let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
-    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
+    await_consistency(gov_cells.iter().copied()).await.unwrap();
 
     // GoldReproducible: ExactMatch (7/7) + count=7 ≥ 7.
     let badges: Vec<Record> = conductors[0]
@@ -978,23 +978,23 @@ async fn silver_badge_issued_with_five_validators() {
 
     let att_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.attestation).collect();
     // 60-second timeout: N=5 conductors on a loaded CI runner (runs after gold).
-    await_consistency(60, att_cells.iter().copied()).await.unwrap();
+    await_consistency(att_cells.iter().copied()).await.unwrap();
 
     for i in 0..N {
         commit(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency(60, att_cells.iter().copied()).await.unwrap();
+        await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
     for i in 0..N {
         reveal(&conductors[i], &apps[i], request_ref.clone()).await;
-        await_consistency(60, att_cells.iter().copied()).await.unwrap();
+        await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
     // Sync governance cells before the explicit call so the auto-call's HarmonyRecord
     // link has propagated — this guarantees we exercise the idempotency + badge-retry
     // path (issue_badge_if_missing) rather than depending on a gossip-timing race.
     let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
-    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
+    await_consistency(gov_cells.iter().copied()).await.unwrap();
 
     let harmony: Option<ActionHash> = conductors[0]
         .call(
@@ -1006,7 +1006,7 @@ async fn silver_badge_issued_with_five_validators() {
     assert!(harmony.is_some(), "5-agent round must produce a HarmonyRecord");
 
     // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
-    await_consistency(60, gov_cells.iter().copied()).await.unwrap();
+    await_consistency(gov_cells.iter().copied()).await.unwrap();
 
     let badges: Vec<Record> = conductors[0]
         .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())

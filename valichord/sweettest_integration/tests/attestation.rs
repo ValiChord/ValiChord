@@ -5,7 +5,7 @@
 //!   properties — genesis_self_check, validate_membrane_proof, init(), and
 //!   commit-reveal hash verification all bypass when this is empty.
 //! - `min_claim_timeout_secs: 0` allows reclaim_abandoned_claim with timeout_secs=0.
-//! - All multi-agent tests use setup_two_agents() + await_consistency_20_s.
+//! - All multi-agent tests use setup_two_agents() + await_consistency_s(20, ...).
 //!
 //! Test inventory:
 //!   1.  submit_validation_request + get_validation_request + get_validation_request_for_data_hash
@@ -137,13 +137,13 @@ async fn two_commits_trigger_reveal_open_phase() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // After Alice's commit: phase still None (Bob hasn't committed yet).
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -154,7 +154,7 @@ async fn two_commits_trigger_reveal_open_phase() {
 
     // After Bob's commit: both anchors present → PhaseMarker(RevealOpen) written.
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -185,17 +185,17 @@ async fn full_commit_reveal_round() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     // Both validators commit.
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -222,7 +222,7 @@ async fn full_commit_reveal_round() {
         .await;
     assert_ne!(alice_hash, bob_hash, "Alice and Bob's attestation hashes must differ");
 
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -269,22 +269,22 @@ async fn validation_attestation_immutable_no_update_fn() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
     reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -336,16 +336,16 @@ async fn phase_marker_immutable_no_update_fn() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
     commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
     commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -410,7 +410,7 @@ async fn claim_and_release_study() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -428,7 +428,7 @@ async fn claim_and_release_study() {
         .await;
     assert_ne!(claim_hash.as_ref().len(), 0, "claim_study should return an ActionHash");
 
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -443,7 +443,7 @@ async fn claim_and_release_study() {
         .call(&setup.bob.attestation_zome(), "release_claim", request_ref.clone())
         .await;
 
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -509,7 +509,7 @@ async fn reclaim_abandoned_claim_timeout_zero() {
             make_validation_request(request_ref.clone()),
         )
         .await;
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -525,7 +525,7 @@ async fn reclaim_abandoned_claim_timeout_zero() {
         .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
         .await;
 
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -544,7 +544,7 @@ async fn reclaim_abandoned_claim_timeout_zero() {
         .await;
     assert!(reclaimed, "reclaim_abandoned_claim should return true when conditions are met");
 
-    await_consistency_20_s([&setup.alice.attestation, &setup.bob.attestation])
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
 
@@ -682,24 +682,24 @@ async fn late_joining_validator_discovers_reveal_open_via_dht_poll() {
     let _: ActionHash = conductors[0]
         .call(&carol.attestation_zome(), "submit_validation_request", make_validation_request(request_ref.clone()))
         .await;
-    await_consistency_20_s([&carol.attestation, &dave.attestation, &eve.attestation])
+    await_consistency_s(20, [&carol.attestation, &dave.attestation, &eve.attestation])
         .await
         .unwrap();
 
     // Carol and Dave commit — Eve is "offline" (not involved yet).
     commit(&conductors[0], &carol, request_ref.clone()).await;
-    await_consistency_20_s([&carol.attestation, &dave.attestation])
+    await_consistency_s(20, [&carol.attestation, &dave.attestation])
         .await
         .unwrap();
     commit(&conductors[1], &dave, request_ref.clone()).await;
     // Sync only Carol + Dave — Eve is excluded from this sync round,
     // simulating her being offline when the PhaseMarker signal fired.
-    await_consistency_20_s([&carol.attestation, &dave.attestation])
+    await_consistency_s(20, [&carol.attestation, &dave.attestation])
         .await
         .unwrap();
 
     // Now include Eve in the full sync — she learns of the PhaseMarker via DHT.
-    await_consistency_20_s([&carol.attestation, &dave.attestation, &eve.attestation])
+    await_consistency_s(20, [&carol.attestation, &dave.attestation, &eve.attestation])
         .await
         .unwrap();
 
