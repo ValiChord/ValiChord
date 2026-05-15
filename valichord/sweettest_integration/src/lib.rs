@@ -4,8 +4,6 @@
 //! `load_dnas()` returns: `[researcher_repository, validator_workspace, attestation, governance]`
 //! `setup_valichord()` exposes a `ValiChordApp` whose fields match that order.
 
-use holochain::prelude::*;
-use holochain::sweettest::*;
 use std::path::{Path, PathBuf};
 
 use attestation_integrity::{ValidatorAgentType, ValidationRequest, ValidationTier};

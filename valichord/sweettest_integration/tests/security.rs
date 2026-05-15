@@ -266,7 +266,7 @@ async fn s4a_reclaim_respects_min_claim_timeout_floor() {
     use attestation_coordinator::ReclaimInput;
 
     // Install with min_claim_timeout_secs = 86400 (one day).
-    let mut setup = setup_two_agents_custom_attestation("min_claim_timeout_secs: 86400\n").await;
+    let setup = setup_two_agents_custom_attestation("min_claim_timeout_secs: 86400\n").await;
 
     let request_ref = fake_external_hash(0x54);
 
@@ -326,7 +326,7 @@ async fn s4b_reclaim_no_floor_timeout_zero_succeeds() {
     use attestation_coordinator::ReclaimInput;
 
     // Default config: min_claim_timeout_secs=0 (dev bypass).
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x55);
 
     setup.conductors[0]

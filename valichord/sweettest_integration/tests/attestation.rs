@@ -125,7 +125,7 @@ async fn get_current_phase_none_before_commits() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_commits_trigger_reveal_open_phase() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x02);
 
     // Submit ValidationRequest so check_all_commitments_sealed_inner can
@@ -174,7 +174,7 @@ async fn two_commits_trigger_reveal_open_phase() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn full_commit_reveal_round() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0xcc);
 
     // Submit ValidationRequest.
@@ -259,7 +259,7 @@ async fn get_attestations_for_request_empty_before_reveal() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn validation_attestation_immutable_no_update_fn() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x04);
 
     let _: ActionHash = setup.conductors[0]
@@ -326,7 +326,7 @@ async fn commitment_anchor_immutable_no_update_fn() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn phase_marker_immutable_no_update_fn() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x22);
 
     let _: ActionHash = setup.conductors[0]
@@ -399,7 +399,7 @@ async fn get_validator_profile_none_when_unpublished() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn claim_and_release_study() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x50);
 
     // Alice (researcher) submits the ValidationRequest.
@@ -498,7 +498,7 @@ async fn claim_study_coi_same_institution_rejected() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn reclaim_abandoned_claim_timeout_zero() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x60);
 
     // Alice (researcher) submits the ValidationRequest.

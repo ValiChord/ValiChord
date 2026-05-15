@@ -101,7 +101,7 @@ async fn check_and_create_harmony_record_no_attestations_returns_none() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn full_round_creates_harmony_record() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x10);
 
     // 1. Submit ValidationRequest on attestation DNA (Alice submits).
@@ -158,7 +158,7 @@ async fn full_round_creates_harmony_record() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn check_and_create_harmony_record_idempotent() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x11);
 
     let _: ActionHash = setup.conductors[0]
@@ -215,7 +215,7 @@ async fn check_and_create_harmony_record_idempotent() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn any_participant_can_finalize() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x12);
 
     let _: ActionHash = setup.conductors[0]
@@ -273,7 +273,7 @@ async fn any_participant_can_finalize() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn premature_finalization_returns_none() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x13);
 
     // num_validators_required: 2 (from make_validation_request default).
@@ -327,7 +327,7 @@ async fn premature_finalization_returns_none() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn force_finalize_round_with_partial_quorum() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x20);
 
     // Submit ValidationRequest so force_finalize_round can verify the round age.
@@ -471,7 +471,7 @@ async fn get_harmony_records_by_discipline_empty_initially() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_harmony_records_by_discipline_returns_record_after_round() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x30);
 
     let _: ActionHash = setup.conductors[0]
@@ -545,7 +545,7 @@ async fn get_harmony_records_by_discipline_returns_record_after_round() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_badges_for_study_none_with_two_validators() {
-    let mut setup = setup_two_agents().await;
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x40);
 
     let _: ActionHash = setup.conductors[0]
