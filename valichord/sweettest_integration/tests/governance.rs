@@ -638,14 +638,7 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         .await
         .unwrap();
 
-    // All three reveal with interleaved sync so each sees prior attestations.
-    // No governance sync here — Alice's explicit call below must create the
-    // HarmonyRecord + badge itself.  Carol's auto-call (via submit_attestation →
-    // check_and_create_harmony_record) successfully creates the HarmonyRecord but
-    // silently skips badge creation because the 3-deep cross-DNA call chain
-    // (attestation→governance→attestation) returns None for the VR lookup.  If we
-    // synced governance before Alice's call, Alice would hit idempotency and the
-    // badge would never be created.  Instead we let Alice create both.
+    // All three reveal with interleaved attestation sync so each sees prior attestations.
     reveal(&conductors[0], &alice, request_ref.clone()).await;
     await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
@@ -659,9 +652,17 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         .await
         .unwrap();
 
-    // ExactMatch + count=3 → BronzeReproducible badge.
-    // Alice calls without a prior governance sync so she does not hit idempotency
-    // from Carol's auto-call; her call creates both HarmonyRecord and badge.
+    // Sync governance cells before the explicit call so Carol's auto-call HarmonyRecord
+    // (link + entry) has fully propagated.  This deterministically exercises the
+    // idempotency + issue_badge_if_missing path.  Without this sync, on a fast runner
+    // the RequestToHarmonyRecord *link* arrives at Alice's shard before the
+    // HarmonyRecord *entry* does; issue_badge_if_missing then returns Ok(()) silently
+    // when get(record_hash) returns None, leaving the badge absent.
+    await_consistency_s(20, [&alice.governance, &bob.governance, &carol.governance])
+        .await
+        .unwrap();
+
+    // ExactMatch + count=3 → BronzeReproducible badge via idempotency+retry path.
     let harmony: Option<ActionHash> = conductors[0]
         .call(
             &alice.governance_zome(),
@@ -671,7 +672,7 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         .await;
     assert!(harmony.is_some(), "full 3-agent round should produce a HarmonyRecord");
 
-    // Sync governance DHT so Alice's badge propagates to all nodes before querying.
+    // Sync governance DHT so the badge propagates before querying.
     await_consistency_s(20, [&alice.governance, &bob.governance, &carol.governance])
         .await
         .unwrap();
@@ -910,8 +911,10 @@ async fn gold_badge_issued_with_seven_validators() {
         await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
-    // Explicit harmony + badge creation — no governance sync first so apps[0]
-    // does not hit idempotency from the last reveal's auto-call.
+    // Explicit harmony + badge creation — no governance sync first.
+    // With 7 conductors the governance gossip from the last reveal's auto-call
+    // rarely reaches apps[0] before this call, so we typically hit the fresh-write
+    // path.  If idempotency does fire, issue_badge_if_missing handles the badge.
     let harmony: Option<ActionHash> = conductors[0]
         .call(
             &apps[0].governance_zome(),
