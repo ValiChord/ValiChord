@@ -29,7 +29,7 @@ Across every scientific discipline — computational, experimental, clinical, ha
 
 ---
 
-## 🐳 **New: Decentralised Demo — 5 Isolated Conductors (April 2026)**
+## 🐳 **Decentralised Demo — 5 Isolated Conductors**
 
 > **The full protocol now runs across genuinely isolated nodes with no shared state.**
 
@@ -45,7 +45,7 @@ python3 demo/ai_validator.py --mode decentralised
 
 ---
 
-## 🖥️ **New: Browser UI — Svelte 5 (v0.5.0, May 2026)**
+## 🖥️ **Browser UI — Svelte 5 + TypeScript**
 
 > **The full commit-reveal protocol now has a browser-based interface — no command line required.**
 
@@ -70,13 +70,13 @@ cd valichord-ui && npm run dev
 
 > **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
 
-**v0.5.2 (May 2026):** Holochain 0.6.1 upgrade — iroh/QUIC replaces tx5/WebRTC as the default transport. `hdk` → `0.6.1`, `hdi` → `0.7.1`, `holochain_serialized_bytes` → `0.0.57`, `@holochain/tryorama` → `0.19.1`. All 166 integration tests confirmed green on the new transport. `get_agent_activity` 4th `GetOptions` parameter added; `recv_remote_signal` double-decode removed (0.6.1 delivers payload directly); `advanced.tx5Transport` conductor config blocks removed (dead under iroh); retry wrappers updated from tx5-specific to generic network-error handling.
+**v0.5.21 (May 2026):** `InspectAILogAdapter` — new adapter that reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API (no pre-parsing step). `InspectEvalsAdapter` gains `eval_yaml_metadata=` parameter to fold task-level provenance from `eval.yaml` into `Bundle.meta` (arxiv, group, human baseline, floating-asset warnings). Both adapters exported from the package top level; `inspect-ai` optional dependency group added. `generate-attestation-bundle` Claude Code skill added. Tests: 183 → 259 (+76), 100% line coverage maintained.
 
-**v0.5.1 (May 2026):** Second real-data example: `valichord_attestation/examples/inspect_ai_popularity_demo/` — v1.1 protocol end-to-end against an inspect_ai `.eval` log (popularity task, GPT-4o-mini, `match` scorer), parsed via EveryEvalEver's `InspectAIAdapter` (pinned to commit `dec1ae43`) for EvalEval Coalition schema alignment. Fixture mode runs without any download. Wind-Tunnel performance scenarios added (`valichord/wind-tunnel/`): baseline, sequential 3-validator, and 10-agent concurrent burst.
+**v0.5.2 (May 2026):** Holochain 0.6.1 upgrade — iroh/QUIC replaces tx5/WebRTC as the default transport. `hdk` → `0.6.1`, `hdi` → `0.7.1`, `holochain_serialized_bytes` → `0.0.57`, `@holochain/tryorama` → `0.19.1`. All 166 integration tests confirmed green on the new transport.
 
-**v0.5.0 (May 2026):** `valichord_attestation` Python library — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface, and probabilistic challenge-response (verifier-controlled randomness, HMAC-SHA256 seed derivation, SHA-256 counter-mode index generation). `build_bundle` accepts an explicit `samples_total` to assert intended run size, making silent sample omission directly visible in the bundle (`samples.total > samples.completed`). 142 tests, 100% line coverage. Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 via lm-evaluation-harness v0.5.0 — full v1.1 protocol end-to-end, runnable without a GPU. See `valichord_attestation/` and [`valichord_attestation/spec/attestation_format_v1.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md).
+**v0.5.1 (May 2026):** Second real-data example: `valichord_attestation/examples/inspect_ai_popularity_demo/` — v1.1 protocol end-to-end against an inspect_ai `.eval` log (popularity task, GPT-4o-mini). Wind-Tunnel performance scenarios added (`valichord/wind-tunnel/`): write throughput, phase-observation latency, concurrent reveal throughput.
 
-**v0.4.4 (May 2026):** Signal handling hardened — fixed a handler leak that stacked duplicate `RevealOpen` notifications on component remount (`App.svelte`), a race condition in reveal-phase detection (`ValidatorView.svelte`), and a signal format mismatch (signals use adjacent-tag serde: `{ type: "RevealOpen", content: { ... } }`). Backend: `submit_attestation` now emits `FinalizationFailed` when the governance cross-DNA call fails after a successful attestation write, letting the UI prompt recovery via `force_finalize_round`. Two new sweettest tests verify SilverReproducible (5-conductor) and GoldReproducible (7-conductor) badge issuance end-to-end in CI.
+**v0.5.0 (May 2026):** `valichord_attestation` Python library — canonical RFC 8785 attestation bundles for AI evaluation runs, SHA-256 Merkle proofs over per-sample outputs, harness-agnostic adapter interface, and probabilistic challenge-response. Real-data demo: Mistral-7B-Instruct-v0.3 on GSM8K-100 via lm-evaluation-harness v0.5.0 — runnable without a GPU.
 
 ---
 
@@ -338,7 +338,16 @@ proof = merkle_proof(samples, index=42)   # selective disclosure
 ok = verify_faithfulness(bundle.outputs_merkle_root, 42, samples[42], proof)
 ```
 
-The format is harness-agnostic. An `AdapterBase` class and an Inspect AI stub (`valichord_attestation/adapters/inspect_evals_stub.py`) provide the adapter interface — concrete adapters map harness-native outputs to `Bundle` objects.
+The format is harness-agnostic. An `AdapterBase` class and two built-in adapters cover the main inspect_ai workflows:
+
+- **`InspectAILogAdapter`** — reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API (no pre-parsing step)
+- **`InspectEvalsAdapter`** — reads the `evaluation_report:` block from `eval.yaml`, with optional `eval_yaml_metadata=` enrichment (arxiv, human baseline, floating-asset warnings, requires_internet)
+
+```python
+from valichord_attestation import InspectAILogAdapter
+
+bundle = InspectAILogAdapter().to_bundle("logs/my_eval.eval")
+```
 
 A **probabilistic challenge-response layer** (Section 6 of the spec) adds verifier-controlled randomness on top of the Merkle structure. The verifier supplies a random nonce; challenged indices are derived from `HMAC-SHA256(nonce, bundle_hash)` + SHA-256 counter-mode, so the holder cannot predict which samples will be inspected. The response contains only hashes and proof paths — no raw sample content. With `k=60` and a 5% fabrication rate, catch probability is ~95%.
 
@@ -351,16 +360,17 @@ response = build_response(challenge, samples)          # holder's side
 ok = verify_response(challenge, response, bundle)      # verifier's side
 ```
 
-**Status:** 183 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
+**Status:** 259 tests, 100% line coverage. Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1 is a standalone format library.
 
 ```bash
 pip install -e "valichord_attestation[dev]"
+pip install "valichord_attestation[inspect-ai]"   # adds inspect_ai dependency
 pytest valichord_attestation/tests/
 
 # GSM8K demo — Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
 python valichord_attestation/examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
 
-# inspect_ai demo — GPT-4o-mini on popularity task via EEE (no GPU or download required)
+# inspect_ai demo — GPT-4o-mini on popularity task (no GPU or download required)
 python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_response_demo.py
 ```
 
