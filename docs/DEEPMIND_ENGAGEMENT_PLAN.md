@@ -1,7 +1,22 @@
 # Google DeepMind — ValiChord Engagement Plan
 
 **Created:** 2026-05-17  
-**Status:** Ready to execute — start with #1 or #5
+**Status — CAMPAIGN COMPLETE (2026-05-17)**
+
+| # | Repo | Issue | Project | Notes |
+|---|---|---|---|---|
+| 1 | dangerous-capability-evaluations | [#40](https://github.com/google-deepmind/dangerous-capability-evaluations/issues/40) | A | Safety eval independence, sealed-verdict angle |
+| 2 | concordia | [#271](https://github.com/google-deepmind/concordia/issues/271) | B→A | Model drift gap from PR #265; active thread |
+| 3 | debate | — | A | **Archived repo** — no issues possible |
+| 4 | meltingpot | [#338](https://github.com/google-deepmind/meltingpot/issues/338) | A+B | Post-hoc scenario bug hook from CHANGELOG |
+| 5 | bbeh | [#10](https://github.com/google-deepmind/bbeh/issues/10) | B | PR ready on fork; waiting for Mehran Kazemi |
+| 6 | physics-IQ-benchmark | [#46](https://github.com/google-deepmind/physics-IQ-benchmark/issues/46) | B | Filed pre-session; PR offer included |
+| 7 | long-form-factuality | [#48](https://github.com/google-deepmind/long-form-factuality/issues/48) | B | Triple-drift problem (evaluated model + rater + web search) |
+| 8 | alphaevolve_results | [#7](https://github.com/google-deepmind/alphaevolve_results/issues/7) | B→A | Deterministic numpy hook; issue #2 dispute reference |
+| 9 | funsearch | — | B | Skipped — weak hook, inactive repo (2024-02-05) |
+| 10 | graphcast | — | B | Skipped — benchmark lives in WeatherBench2 not this repo |
+
+**Waiting on:** responses from all filed issues. bbeh PR ready to push on engagement from Mehran Kazemi.
 
 Each entry has a priority, the target project (A = ValiChord proper commit-reveal protocol, B = valichord_attestation library), a specific pitch, and the exact action to take.
 
@@ -20,7 +35,7 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/dangerous-capability-evaluations  
 **Stars:** 73 | **Last updated:** 2026-05-07  
 **Project:** A (primary) + B (secondary)  
-**Action:** File an issue
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/dangerous-capability-evaluations/issues/40
 
 **What it does:** Challenge infrastructure (CTF, self-proliferation, self-reasoning tasks) for evaluating frontier model dangerous capabilities. Companion to a published paper.
 
@@ -28,16 +43,12 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 
 **Why Project A fits perfectly:** Safety capability evaluations are the highest-stakes context where "can an independent party, working blind, arrive at the same conclusion?" is exactly the question. If two teams assessing dangerous capabilities can see each other's preliminary findings, the safety signal is compromised — this is structurally identical to ValiChord's commit-reveal problem statement.
 
+**What was filed:** Issue #40 — framed as a research question about multi-team evaluation independence, mapped CTF/self-proliferation/self-reasoning challenge types to ValiChord's sealed-verdict verdicts, explained the herding/anchoring problem, referenced ValiChord as a reference implementation. Closed with a genuine question about whether independent multi-team blind evaluation has been considered.
+
+**Next step:** Wait for response. If maintainers engage, the natural follow-up is Project B (valichord_attestation bundles for evaluation run provenance) as a concrete first step.
+
 **Pitch angle:**
 > Capability evaluations are only as trustworthy as their independence. ValiChord's commit-reveal protocol means two teams evaluating the same capability challenge must each commit a sealed verdict before either sees the other's — preventing the herding effect that threatens multi-team safety evaluations. The HarmonyRecord on the DHT provides a tamper-evident permanent record of what each team found and when.
-
-**Issue structure:**
-- Title: "Multi-team evaluation independence: case for a commit-reveal coordination layer"
-- Section 1: The problem — single-team results and anchoring risk
-- Section 2: What commit-reveal would add — two teams, sealed verdicts, simultaneous reveal
-- Section 3: ValiChord as a reference implementation
-- Section 4: What this would require from the repo (no code change needed — external coordination layer)
-- Keep it short and framed as a question/proposal, not a sales pitch
 
 ---
 
@@ -46,22 +57,22 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/concordia  
 **Stars:** 1,425 | **Last updated:** 2026-05-17 (very active)  
 **Project:** A + B  
-**Action:** Issue + PR (two steps)
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/concordia/issues/271
 
 **What it does:** Generative agent simulation framework for multi-agent social experiments. Ran the NeurIPS 2024 contest where submitted agents competed.
 
-**The gap:** The NeurIPS 2024 contest evaluation pipeline was deleted in the v2.0 API overhaul (open issue #5, PR #265 unmerged). No mechanism pins the model version or outputs at contest time. "Model drift" (GPT-4o changing between runs) means scores diverge from 2024 originals even when the code is correct.
+**The gap correction:** The engagement plan originally said "issue #5" — that issue is from 2023 and is closed (link to tech report). The real reproducibility thread is issue #159 "Reproducing Concordia Contest @NeurIPS 2024" (open, maintainer `vezhnick` and `locross93` are engaged). PR #265 is by `anshjaiswal12`, currently CLA-blocked — it restores the evaluation pipeline but explicitly acknowledges "model drift" as an unresolved assumption.
 
-**Step 1 — Project B issue:** Link the reproducibility concerns to attestation. The contest produces simulation logs; a valichord_attestation bundle committed alongside each official contest run would pin model version + outputs permanently.
+**What was filed:** Issue #271 — focused on the model drift gap that PR #265 could not fix. Framed around the `content_hash` Merkle root as a way to detect whether any individual scenario/agent score drifted between two runs even if aggregate Elo matches. Asked three concrete questions: (1) do 2024 contest logs still exist for a reference hash? (2) should the script sit in PR #265 or separately? (3) what is the official per-scenario score aggregation format?
 
-**Step 2 — Project B PR:** Instrument the evaluation script to emit a `bundle.json` alongside the simulation log. Attach to the open PR #265 discussion.
+**Step 2 — Project B PR:** Instrument `run.py`'s JSON output to emit a `bundle.json` alongside each simulation run. Wait for issue #271 response before filing.
 
 **Step 3 (longer term) — Project A conversation:** Once the Project B PR is merged, the natural follow-up for the next contest edition is: "independent agent evaluators should commit sealed scores before comparing" — that's ValiChord proper.
 
 **Pitch angle:**
-> The NeurIPS 2024 contest reproducibility collapse (issue #5) happened because there was no tamper-evident record of what was run at contest time. valichord_attestation produces a two-hash bundle (bundle_hash for identity, content_hash for scientific equivalence) that could be committed alongside every official contest run, making future editions independently verifiable.
+> The NeurIPS 2024 contest reproducibility collapse happened because there was no tamper-evident record of what was run at contest time. valichord_attestation produces a two-hash bundle (bundle_hash for identity, content_hash for scientific equivalence) that could be committed alongside every official contest run, making future editions independently verifiable.
 
-**Note:** PR #265 is the live discussion thread — read it before filing anything.
+**Note:** PR #265 explicitly flags model drift as an unresolved assumption — that is the entry point. Read PR #265 and issue #159 before any follow-up.
 
 ---
 
@@ -70,7 +81,7 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/debate  
 **Stars:** 120 | **Last updated:** 2026-05-10  
 **Project:** A (philosophically deepest fit)  
-**Action:** Issue (conceptual, no code)
+**Action:** ~~Issue~~ — **REPO IS ARCHIVED (read-only). No issues possible. Skip.**
 
 **What it does:** Lean 4 formalisation of the stochastic doubly-efficient debate protocol — two AI agents compete to convince a judge, with bounded prover and verifier computation. AI safety paper.
 
@@ -90,7 +101,7 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/meltingpot  
 **Stars:** 834 | **Last updated:** 2026-05-16 (active)  
 **Project:** A (multi-party coordination) + B  
-**Action:** Issue (proposal for next contest edition)
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/meltingpot/issues/338
 
 **What it does:** Multi-agent RL benchmark (cooperation, competition, deception, trust). Ran the NeurIPS 2023 Melting Pot contest. Leaderboard accepts self-reported scores.
 
@@ -134,16 +145,21 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/physics-IQ-benchmark  
 **Stars:** 291 | **Last updated:** 2026-05-14  
 **Project:** B  
-**Action:** Issue + PR
+**Status:** Issue filed 2026-05-16 → https://github.com/google-deepmind/physics-IQ-benchmark/issues/46 (0 comments, awaiting response)
 
-**What it does:** Video generation benchmark for physical understanding. Models generate videos scored against real-world footage. Leaderboard maintained via PRs.
+**What it does:** Video generation benchmark for physical understanding. Models generate videos scored against real-world footage. Leaderboard maintained via PRs (trust-on-submit, `results/` gitignored, 18 entries as of 2026-05-17).
 
-**The gap:** Leaderboard PRs add a row with a self-reported score and a paper link. No requirement to submit per-video prediction outputs or any hash of the evaluation run.
+**The gap:** Leaderboard PRs add a markdown row with a score percentage and paper link. No structured data required. Per-scenario CSVs are gitignored and never enter the repo — submitted score floats free of any verifiable anchor.
 
-**PR plan:** Add a section to the README explaining how to generate a `bundle.json` from the Step B evaluation script outputs and include it in the leaderboard PR.
+**What was filed:** Issue #46 — detailed proposal with concrete code using valichord_attestation against the `calculate_iq_score.py` CSV output, explanation of what content_hash detects (partial submissions, score fabrication, eval code version drift), and an explicit offer to file a PR with: example bundle.json, validate_bundle.py (~20 lines), and README update. Maintainer is "Robert" (from issue greeting).
+
+**PR ready when maintainer engages:**
+- `submissions/example/bundle.json` — worked example for an existing leaderboard entry
+- `submissions/validate_bundle.py` — ~20 lines: load bundle.json, re-run score, verify hash
+- README submission instructions update
 
 **Pitch angle:**
-> Physics-IQ leaderboard entries are currently trust-on-submit. valichord_attestation generates a content_hash over all per-video predictions; including it in the leaderboard PR means any future challenger can verify they are measuring the same thing.
+> Physics-IQ leaderboard entries are currently trust-on-submit. valichord_attestation generates a content_hash over all per-scenario metrics; including it in the leaderboard PR means any future challenger can verify they are measuring the same thing — and partial submissions (cherry-picking easy scenarios) are immediately detectable.
 
 ---
 
@@ -152,7 +168,7 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 **URL:** https://github.com/google-deepmind/long-form-factuality  
 **Stars:** 684 | **Last updated:** 2026-05-12  
 **Project:** B  
-**Action:** Issue first, then PR if interest shown
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/long-form-factuality/issues/48 (low maintainer engagement pattern — mostly dependabot activity)
 
 **What it does:** LongFact prompt set + SAFE evaluator for long-form factuality in LLMs. Benchmarks OpenAI and Anthropic models.
 
@@ -171,7 +187,7 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 https://github.com/google-deepmind/alphaevolve_results (283 stars)  
 https://github.com/google-deepmind/alphaevolve_repository_of_problems (220 stars)  
 **Project:** B (trojan horse to A)  
-**Action:** Issue on `alphaevolve_results`
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/alphaevolve_results/issues/7 (6 prior issues all closed by maintainers — engaged repo)
 
 **What it does:** Results repos for AlphaEvolve, publishing mathematical discoveries as Colab notebooks with verification code.
 
