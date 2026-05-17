@@ -105,19 +105,27 @@ Each entry has a priority, the target project (A = ValiChord proper commit-revea
 
 **URL:** https://github.com/google-deepmind/bbeh  
 **Stars:** 120 | **Last updated:** 2026-05-15  
-**Project:** B (easiest win in the org)  
-**Action:** Issue then PR
+**Project:** B  
+**Status:** Issue filed 2026-05-17 → https://github.com/google-deepmind/bbeh/issues/10
 
 **What it does:** Harder replacement for BIG-Bench Hard, 4520 reasoning examples, community leaderboard.
 
-**The gap:** Leaderboard is email-based — you email scores to `mehrankazemi@google.com` and they are manually added. Zero verification that reported scores were produced by the stated model under the stated conditions.
+**The gap:** Three compounding weaknesses identified from deep repo read:
+1. Decoding parameters undocumented (temperature, top_p, max_tokens) — existing issue #9 unanswered
+2. No per-sample verification — cherry-picking (best of N runs) undetectable from aggregate scores alone
+3. No run provenance — no timestamp, no artifact linking a leaderboard row to a specific run
 
-**PR plan:**
-1. Issue: propose requiring an attestation bundle with leaderboard submissions
-2. PR: update README with submission instructions + valichord_attestation usage example (4 lines of code)
+**What was filed:** Issue #10 — framed researcher-to-researcher around the reproducibility gaps, referenced issue #9, mentioned valichord_attestation as a pointer not a pitch, explicitly made it optional ("happy to discuss what level feels appropriate"). No PR filed yet.
+
+**PR ready to go if maintainer engages:**
+- `bbeh/generate_attestation.py` — ~110 lines; reads `predictions.json`, grades using their own `evaluate_correctness()`, builds a bundle with per-task metrics + per-sample Merkle root, outputs `bundle_hash` + `content_hash`
+- `leaderboard.md` — adds a "Reproducibility" section before the table with install + usage instructions; no change to existing rows or columns
+- Fork already exists at `topeuph-ai/bbeh`, branch `add-attestation-bundle` with both files written and ready to commit
+
+**Key consideration:** Single maintainer (Mehran Kazemi), lightweight repo, one commit in git history. A cold PR adding an external library dependency before he's engaged would overstep. Wait for a response to issue #10 before pushing the branch.
 
 **Pitch angle:**
-> Leaderboard cherry-picking is a known problem in ML benchmarking. valichord_attestation's content_hash is a Merkle root over all per-sample outputs — two runs that produce the same aggregate score but differ on individual samples will have different content_hashes. This is a pip-installable addition to the existing evaluation script.
+> valichord_attestation's content_hash is a Merkle root over all per-sample outputs — two runs producing the same aggregate score but differing on any individual example will have different content_hashes. The grading calls BBEH's own evaluate_correctness() so scores match the leaderboard exactly. pip-installable, no infrastructure.
 
 ---
 
