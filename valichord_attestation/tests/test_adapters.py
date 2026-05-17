@@ -285,3 +285,116 @@ def test_result_with_empty_metrics_raises_value_error():
     adapter = InspectEvalsAdapter()
     with pytest.raises(ValueError, match="no valid metrics"):
         adapter.to_bundle(block, SAMPLES)
+
+
+# ---------------------------------------------------------------------------
+# eval_yaml_metadata enrichment
+# ---------------------------------------------------------------------------
+
+GPQA_YAML_METADATA = {
+    "title": "GPQA: Graduate-Level STEM Knowledge Challenge",
+    "description": "Challenging multiple-choice questions by domain experts.",
+    "arxiv": "https://arxiv.org/abs/2311.12022",
+    "group": "Knowledge",
+    "contributors": ["jjallaire"],
+    "version": "1-A",
+    "tasks": [
+        {
+            "name": "gpqa_diamond",
+            "dataset_samples": 198,
+            "human_baseline": {
+                "metric": "accuracy",
+                "score": 0.697,
+                "source": "https://arxiv.org/abs/2311.12022",
+            },
+        }
+    ],
+    "external_assets": [
+        {
+            "type": "direct_url",
+            "source": "https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
+            "fetch_method": "other",
+            "state": "floating",
+            "comment": "Downloaded at runtime via csv_dataset",
+        }
+    ],
+    "metadata": {"requires_internet": True},
+}
+
+
+def test_eval_yaml_metadata_arxiv_added_to_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    assert bundle.meta["paper_arxiv"] == "https://arxiv.org/abs/2311.12022"
+
+
+def test_eval_yaml_metadata_group_added_to_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    assert bundle.meta["eval_group"] == "Knowledge"
+
+
+def test_eval_yaml_metadata_human_baseline_added_to_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    hb = bundle.meta["human_baseline"]
+    assert abs(hb["score"] - 0.697) < 1e-9
+    assert hb["metric"] == "accuracy"
+    assert "source" in hb
+
+
+def test_eval_yaml_metadata_task_version_added_to_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    assert bundle.meta["task_version"] == "1-A"
+
+
+def test_eval_yaml_metadata_floating_asset_warning_in_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    warning = bundle.meta.get("dataset_reproducibility_warning", "")
+    assert "floating" in warning
+    assert "1 external asset" in warning
+
+
+def test_eval_yaml_metadata_pinned_asset_no_warning():
+    metadata = {
+        **GPQA_YAML_METADATA,
+        "external_assets": [{"type": "direct_url", "state": "pinned"}],
+    }
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=metadata)
+    assert bundle.meta is None or "dataset_reproducibility_warning" not in (bundle.meta or {})
+
+
+def test_eval_yaml_metadata_requires_internet_in_meta():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    assert bundle.meta["requires_internet"] is True
+
+
+def test_eval_yaml_metadata_none_preserves_existing_behavior():
+    adapter = InspectEvalsAdapter()
+    without = adapter.to_bundle(FULL_BLOCK, SAMPLES)
+    with_none = adapter.to_bundle(FULL_BLOCK, SAMPLES, eval_yaml_metadata=None)
+    assert without.meta == with_none.meta
+
+
+def test_eval_yaml_metadata_merges_with_existing_report_meta():
+    adapter = InspectEvalsAdapter()
+    # FULL_BLOCK has provider, run_time, run_date, eval_version from the report.
+    # GPQA_YAML_METADATA adds paper_arxiv, eval_group, task_version, human_baseline, warning.
+    bundle = adapter.to_bundle(FULL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.meta is not None
+    # Fields from evaluation_report block still present
+    assert "eval_version" in bundle.meta
+    assert "provider" in bundle.meta
+    # Fields from eval_yaml_metadata also present
+    assert "paper_arxiv" in bundle.meta
+    assert "eval_group" in bundle.meta

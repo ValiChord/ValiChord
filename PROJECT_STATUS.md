@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-13
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity).
+**Last updated:** 2026-05-15
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity). New: `InspectAILogAdapter` (reads .eval files directly), `eval_yaml_metadata` enrichment on `InspectEvalsAdapter`, `generate-attestation-bundle` Claude Code skill.
 
 ---
 
@@ -98,6 +98,40 @@ Full upgrade of the Holochain toolchain from 0.6.0 to 0.6.1. Transport switches 
 - `Warrant` → `SignedWarrant` type rename in `AgentActivityResponse`: handled automatically by HDK version bump (code only uses `.warrants.is_empty()`)
 
 **Kangaroo-electron prerequisite:** Holochain 0.6.1 upgrade is now ✓ done. Remaining pre-requisites: browser UI ✓, dedicated bootstrap/signal/relay servers.
+
+---
+
+### `valichord_attestation` InspectAILogAdapter + eval_yaml_metadata — 2026-05-15 ✓
+
+Three additions driven by analysis of the Generality-Labs/inspect-evals-template:
+
+**`InspectAILogAdapter`** — new adapter that reads inspect_ai `.eval` / `.json` log files
+directly using the inspect_ai Python API, requiring no pre-parsing step.
+
+Field mapping: `EvalSpec.model` → `model_id`, `EvalSpec.task` → `task_id`,
+`EvalSpec.created` → `generated_at`, `EvalSpec.revision.commit` → `repo_commit`
+(auto-extracted), `EvalResults.scores` → `metrics` (all scorers combined; scorer-name
+prefix on key collision), `EvalLog.samples` → `outputs_merkle_root` (per-sample dicts
+`{id, epoch, output, scores}`).
+
+Per-sample dict captures `ModelOutput.completion` + all `Score.value/answer` entries.
+`score_name=` restricts to a single scorer. `meta_extras=` merges extra provenance.
+`inspect_ai` is an optional dependency; passing a pre-loaded duck-type works without it.
+
+**`InspectEvalsAdapter.to_bundle(..., eval_yaml_metadata=)`** — optional enrichment from
+the top-level `eval.yaml` metadata block (not the `evaluation_report` block).
+Folds into `Bundle.meta`: `arxiv` → `paper_arxiv`, `group` → `eval_group`,
+`version` → `task_version`, `tasks[*].human_baseline` → `human_baseline`,
+`state: floating` external assets → `dataset_reproducibility_warning`,
+`metadata.requires_internet` → `requires_internet`.
+
+**`generate-attestation-bundle` Claude Code skill** — at `.claude/skills/generate-attestation-bundle/SKILL.md`.
+Step-by-step workflow for adding attestation as the final step after an inspect_evals
+eval report. Covers both `InspectAILogAdapter` (file path) and `InspectEvalsAdapter`
+(eval.yaml evaluation_report) paths, plus challenge-response verification.
+
+Tests: 183 → 259 (+76). 100% line coverage maintained. `inspect-ai` added as an
+optional dependency group in `pyproject.toml`.
 
 ---
 

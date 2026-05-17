@@ -52,7 +52,38 @@ Multi-result reports:
     ``EvaluationReport.results`` is a list — one entry per model/configuration.
     Use ``result_index=`` to select a single result (default: 0).  For
     multi-model comparison reports, call ``to_bundle()`` once per model.
+
+eval.yaml metadata (optional enrichment):
+    Pass the top-level ``eval.yaml`` dict (not the ``evaluation_report`` block)
+    as ``eval_yaml_metadata=`` to fold task-level provenance into Bundle.meta:
+
+    .. code-block:: yaml
+
+        title: "GPQA: ..."
+        arxiv: https://arxiv.org/abs/2311.12022
+        group: Knowledge
+        version: "1-A"                          → meta["task_version"]
+        tasks:
+          - name: gpqa_diamond
+            human_baseline:
+              metric: accuracy
+              score: 0.697
+              source: https://arxiv.org/abs/2311.12022  → meta["human_baseline"]
+        external_assets:
+          - state: floating                     → meta["dataset_reproducibility_warning"]
+        metadata:
+          requires_internet: true               → meta["requires_internet"]
+
+    ``arxiv`` → meta["paper_arxiv"]
+    ``group`` → meta["eval_group"]
+    A ``state: floating`` asset triggers a reproducibility warning in meta.
+    These fields are excluded from ``content_hash`` (same as all meta) so they
+    do not affect scientific equivalence comparison between runs.
 """
+
+from __future__ import annotations
+
+from typing import Optional
 
 from ..adapters.base import AdapterBase
 from ..builder import build_bundle
@@ -68,14 +99,25 @@ class InspectEvalsAdapter(AdapterBase):
         eval_log_samples: list[dict],
         *,
         result_index: int = 0,
+        eval_yaml_metadata: Optional[dict] = None,
     ) -> Bundle:
         """Convert an inspect_evals evaluation_report block to a Valichord Bundle.
 
         Args:
-            eval_yaml_block:  dict parsed from the ``evaluation_report:`` YAML block.
-            eval_log_samples: per-sample output dicts for the Merkle root.
-                              See ``build_bundle()`` for the expected dict shape.
-            result_index:     which ``EvaluationReportResult`` to use (default: 0).
+            eval_yaml_block:    dict parsed from the ``evaluation_report:`` YAML block.
+            eval_log_samples:   per-sample output dicts for the Merkle root.
+                                See ``build_bundle()`` for the expected dict shape.
+            result_index:       which ``EvaluationReportResult`` to use (default: 0).
+            eval_yaml_metadata: optional top-level ``eval.yaml`` dict (the full file,
+                                not the evaluation_report block).  When provided,
+                                task-level provenance fields are folded into Bundle.meta:
+                                arxiv → meta["paper_arxiv"],
+                                group → meta["eval_group"],
+                                version → meta["task_version"],
+                                tasks[*].human_baseline → meta["human_baseline"],
+                                floating external_assets → meta["dataset_reproducibility_warning"],
+                                metadata.requires_internet → meta["requires_internet"].
+                                These are excluded from content_hash (as all meta fields are).
 
         Returns:
             A Valichord Bundle ready for canonicalisation and hashing.
@@ -121,6 +163,34 @@ class InspectEvalsAdapter(AdapterBase):
             meta["run_time"] = result["time"]
         if result.get("date"):
             meta["run_date"] = result["date"]
+
+        # Optional enrichment from the top-level eval.yaml metadata block.
+        if eval_yaml_metadata:
+            if eval_yaml_metadata.get("arxiv"):
+                meta["paper_arxiv"] = str(eval_yaml_metadata["arxiv"])
+            if eval_yaml_metadata.get("group"):
+                meta["eval_group"] = str(eval_yaml_metadata["group"])
+            if eval_yaml_metadata.get("version"):
+                meta["task_version"] = str(eval_yaml_metadata["version"])
+            # Human baseline from the first task entry that declares one.
+            for task_entry in (eval_yaml_metadata.get("tasks") or []):
+                hb = task_entry.get("human_baseline")
+                if hb:
+                    meta["human_baseline"] = {
+                        k: v for k, v in hb.items() if v is not None
+                    }
+                    break
+            # Flag floating (unpinned) external assets as a reproducibility risk.
+            assets = eval_yaml_metadata.get("external_assets") or []
+            floating = [a for a in assets if a.get("state") == "floating"]
+            if floating:
+                meta["dataset_reproducibility_warning"] = (
+                    f"{len(floating)} external asset(s) use 'state: floating' "
+                    "(not pinned to a specific version — dataset contents may change)"
+                )
+            ext_meta = eval_yaml_metadata.get("metadata") or {}
+            if ext_meta.get("requires_internet") is not None:
+                meta["requires_internet"] = ext_meta["requires_internet"]
 
         return build_bundle(
             model_id=result["model"],

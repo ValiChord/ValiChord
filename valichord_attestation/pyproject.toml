@@ -17,6 +17,9 @@ dev = [
     "pytest>=7",
     "pytest-cov",
 ]
+inspect-ai = [
+    "inspect-ai>=0.3",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
