@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-15
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.1. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity). New: `InspectAILogAdapter` (reads .eval files directly), `eval_yaml_metadata` enrichment on `InspectEvalsAdapter`, `generate-attestation-bundle` Claude Code skill.
+**Last updated:** 2026-05-17
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.21. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity). `InspectAILogAdapter` (reads .eval files directly), `eval_yaml_metadata` enrichment on `InspectEvalsAdapter`, `generate-attestation-bundle` Claude Code skill. 259 valichord_attestation tests, 100% line coverage.
 
 ---
 
@@ -98,6 +98,12 @@ Full upgrade of the Holochain toolchain from 0.6.0 to 0.6.1. Transport switches 
 - `Warrant` → `SignedWarrant` type rename in `AgentActivityResponse`: handled automatically by HDK version bump (code only uses `.warrants.is_empty()`)
 
 **Kangaroo-electron prerequisite:** Holochain 0.6.1 upgrade is now ✓ done. Remaining pre-requisites: browser UI ✓, dedicated bootstrap/signal/relay servers.
+
+---
+
+### Release v0.5.21 — 2026-05-17 ✓
+
+Committed and tagged. GitHub release at `v0.5.21`. Covers `InspectAILogAdapter`, `eval_yaml_metadata` enrichment, `generate-attestation-bundle` skill, and package export plumbing. 259 valichord_attestation tests. README updated (version blurb, stale "New:" labels removed, adapters section updated).
 
 ---
 
