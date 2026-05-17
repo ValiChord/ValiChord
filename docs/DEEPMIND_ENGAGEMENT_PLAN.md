@@ -1,7 +1,7 @@
 # Google DeepMind — ValiChord Engagement Plan
 
 **Created:** 2026-05-17  
-**Status — CAMPAIGN COMPLETE (2026-05-17)**
+**Status — Phase 1 complete (2026-05-17). Phase 2: alphafold3 — approach separately, with care.**
 
 | # | Repo | Issue | Project | Notes |
 |---|---|---|---|---|
@@ -17,6 +17,8 @@
 | 10 | graphcast | — | B | Skipped — benchmark lives in WeatherBench2 not this repo |
 
 **Waiting on:** responses from all filed issues. bbeh PR ready to push on engagement from Mehran Kazemi.
+
+**Phase 2 — alphafold3:** Priority 0, approach in a dedicated session. See full entry below. Do not file in passing.
 
 Each entry has a priority, the target project (A = ValiChord proper commit-reveal protocol, B = valichord_attestation library), a specific pitch, and the exact action to take.
 
@@ -225,6 +227,65 @@ https://github.com/google-deepmind/alphaevolve_repository_of_problems (220 stars
 **The gap:** Weather model benchmark numbers (RMSE, ACC) are sensitive to dataset version and preprocessing choices. No attestation mechanism links a claimed number back to a specific model + data + evaluation run.
 
 **Tone note:** Highest-visibility repo in this list (6.6k stars, Science paper). Start with a genuine question about reproducibility practices before proposing anything. Read all open issues first.
+
+---
+
+---
+
+## Priority 0 — `alphafold3` ⚠️ APPROACH WITH EXTREME CARE
+
+**URL:** https://github.com/google-deepmind/alphafold3  
+**Stars:** 8,030 | **Last updated:** 2026-05-06 (active)  
+**Project:** A (deepest fit — pre-registration for computational predictions)  
+**Action:** NOT YET. Dedicate a full session. Draft carefully. Do not file in passing.
+
+**What it does:** AlphaFold 3 inference pipeline. Nature paper. Used in drug discovery globally. Probably the most famous scientific software in existence. Model weights are access-controlled (must request from Google).
+
+**Why this is different from every other repo:**
+- World-famous. Non-scientists have heard of it. One wrong sentence and the issue reflects badly on ValiChord permanently.
+- Single gatekeeper: `Augustin-Zidek` closes almost every issue. One shot.
+- CONTRIBUTING.md explicitly says "we do not plan to make any major changes to this repository" — they want bug fixes, not design conversations. The issue must find the crack in that wall.
+
+**The gap — and it is the strongest Project A fit we have found:**
+
+AlphaFold 3 runs `N seeds × M samples` and selects the top-ranked prediction. Given the same seed and the same model weights, the output is **fully deterministic**. This means:
+
+```
+# A lab running 10 seeds × 5 samples reports:
+"AlphaFold 3 predicts binding with pLDDT 82.3"
+
+# But the full picture might be:
+seed-1_sample-0: 71.2  seed-2_sample-0: 61.1  ...
+seed-1_sample-1: 68.9  seed-2_sample-1: 58.4  ...
+seed-1_sample-2: 82.3  ← reported
+```
+
+There is no mechanism to distinguish "ran seed 1, 5 samples, reported the top-ranked" from "ran 50 predictions and cherry-picked." The `ranking_scores.csv` records the full picture — but labs publish a pLDDT number, not a CSV. This is computational p-hacking, and it is a real and growing problem as AF3 predictions guide expensive experimental work.
+
+**This is the computational equivalent of outcome switching in clinical trials.** ValiChord's commit-reveal is the computational equivalent of pre-registration: commit a hash of the full seed-sample confidence matrix *before* experimental results are known. Retroactive cherry-picking becomes detectable.
+
+**The structural biology community is already starting to notice this problem.** Before filing, read the literature on AF3 reproducibility and pre-registration in computational biology — do not raise a point that already has a standard answer.
+
+**What the output structure gives us:**
+- `seed-<value>_sample-<n>/_summary_confidences.json` — per-sample pLDDT, ipTM, ptm, ranking score
+- `ranking_scores.csv` — full ranking across all seed-sample combinations
+- `<job>_data.json` — the input including MSA and template data (captures the exact data pipeline state)
+- Content_hash over all per-sample summary_confidences = tamper-evident fingerprint of the complete run
+
+**How to frame the issue (when the time comes):**
+- Do NOT mention ValiChord or valichord_attestation in the first issue
+- Do NOT propose changes to the repo
+- Frame as: "the structural biology community is grappling with pre-registration of computational predictions — has the AlphaFold team thought about how researchers should report which seeds and samples were run?"
+- End with two genuine questions. No offers.
+- If they engage: the natural follow-up is "here is a concrete mechanism for committing to the full run before experimental validation" — that is ValiChord proper
+
+**Pre-filing checklist:**
+- [ ] Read the AF3 paper's supplementary information on evaluation protocol
+- [ ] Search for existing literature/preprints on AF3 reproducibility and selective reporting
+- [ ] Check if this is discussed in the structural biology preprint community (bioRxiv, Nature Methods letters)
+- [ ] Read ALL 75 open issues on the repo — know the community's current concerns
+- [ ] Draft the issue, sit on it for at least one session, read it again cold
+- [ ] Show the user the draft before filing
 
 ---
 
