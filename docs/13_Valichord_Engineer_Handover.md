@@ -198,7 +198,7 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 ---
 
 ### `valichord_attestation` — Canonical AI Evaluation Attestation Format
-**Status: v0.1.0 — standalone Python library, 81 tests, 100% line coverage**
+**Status: v1.2 — standalone Python library, 259 tests, 100% line coverage**
 
 `valichord_attestation/` is a harness-agnostic Python library that produces cryptographically verifiable attestation bundles for AI evaluation runs. It applies the same commit-hash-reveal principle that ValiChord uses for scientific reproducibility to AI capability benchmarks: a published accuracy score becomes traceable to the specific run that produced it, and any individual sample can be proven to a third party without disclosing the full log.
 
@@ -209,35 +209,48 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 | Module | Purpose |
 |---|---|
 | `valichord_attestation/builder.py` | `build_bundle(model_id, task_id, raw_metrics, samples, ...)` — constructs and validates a `Bundle`, computes the Merkle root, enforces pre-rounding rules, rejects NaN/Infinity |
-| `valichord_attestation/canonical.py` | RFC 8785 (JCS) deterministic encoding; `hash_bundle(bundle)` — SHA-256 hex of the canonical encoding |
+| `valichord_attestation/canonical.py` | RFC 8785 (JCS) deterministic encoding; `hash_bundle(bundle)` — SHA-256 hex of canonical encoding; `content_hash(bundle)` — scientific equivalence hash (excludes `meta`) |
 | `valichord_attestation/merkle.py` | `merkle_root(samples)`, `merkle_proof(samples, index)`, `verify_faithfulness(root_hex, index, sample, proof)` |
-| `valichord_attestation/bundle.py` | `Bundle` Pydantic model — required and optional fields, `extra="allow"` for forwards compatibility |
+| `valichord_attestation/bundle.py` | `Bundle` dataclass — required fields + `meta: Optional[dict]`, `samples_total: Optional[int]`; `Metric` has optional `filter` field |
+| `valichord_attestation/challenge.py` | `Challenge` dataclass, `derive_seed`, `generate_indices`, `compute_challenge_hash` — verifier-controlled randomness via HMAC-SHA256 seed + SHA-256 counter-mode index PRNG |
+| `valichord_attestation/response.py` | `build_response(challenge, samples)`, `verify_response(challenge, response, bundle)` — holder proves k random samples via Merkle paths without disclosing full log |
 | `valichord_attestation/adapters/base.py` | `AdapterBase` ABC — subclass and implement `to_bundle(...)` to wrap any harness |
-| `valichord_attestation/adapters/inspect_evals_stub.py` | Stub adapter for Inspect AI — maps `EvaluationReport` fields once the upstream API stabilises |
+| `valichord_attestation/adapters/inspect_evals_stub.py` | `InspectEvalsAdapter` — reads the `evaluation_report:` block from `eval.yaml`; optional `eval_yaml_metadata=` folds task-level provenance (arxiv, group, human baseline, floating-asset warnings) into `Bundle.meta` |
+| `valichord_attestation/adapters/inspect_ai_log_adapter.py` | `InspectAILogAdapter` — reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API; `inspect-ai` is an optional dependency (`pip install "valichord_attestation[inspect-ai]"`) |
 
-**Format summary:**
+**Format summary (v1.2):**
 
-A bundle is a JSON document with required fields `format_version`, `generated_at`, `model_id`, `task_id`, `metrics`, `samples`, and `outputs_merkle_root`. Optional fields (`repo_commit`, `harness_version`, `command`) are omitted from the canonical encoding when absent. Metric values are pre-rounded to 6 decimal places before encoding; NaN, Infinity, and missing `value` keys raise `MalformedBundleError`.
+A bundle is a JSON document with required fields `format_version`, `generated_at`, `model_id`, `task_id`, `metrics`, `samples`, `outputs_merkle_root`, and `samples_completed`. Optional: `samples_total` (when > `samples_completed`, signals partial run), `meta` (free-form provenance dict — commit, harness version, command, timestamp; included in `bundle_hash`, excluded from `content_hash`). `Metric` has an optional `filter` field to disambiguate metrics with the same key from different scorer passes.
 
-The Merkle root is a SHA-256 tree over per-sample output dicts, each leaf computed as `SHA-256(JCS(sample_dict))`. The bundle hash is `SHA-256(JCS(bundle_dict))`. Both are 64-char hex strings.
+Two hashes are produced per bundle:
+- **`bundle_hash`** — `SHA-256(JCS(bundle))` — full identity hash including `meta`
+- **`content_hash`** — same encoding but with `meta` stripped — scientific equivalence hash; identical across reruns of the same eval with different provenance
 
-**What v1 does not do (non-goals):** cryptographic signing (reserved for v2), zero-knowledge disclosure proofs, integration with Holochain DNAs (bundles becoming DHT attestations is post-format-stabilisation work), concrete harness adapters (shipped separately when upstream APIs stabilise).
+The Merkle root is a SHA-256 tree over per-sample output dicts. The bundle hash and Merkle root are both 64-char hex strings.
+
+**What v1 does not do (non-goals):** cryptographic signing (reserved for v2), zero-knowledge disclosure proofs, integration with Holochain DNAs (bundles becoming DHT attestations is post-format-stabilisation work).
 
 **Running tests:**
 ```bash
 pip install -e "valichord_attestation[dev]"
+pip install "valichord_attestation[inspect-ai]"   # for InspectAILogAdapter tests
 pytest valichord_attestation/tests/ --cov=valichord_attestation
 ```
 
 **Running examples:**
 ```bash
 python valichord_attestation/examples/verify_examples.py
+
+# Real-data demos (no GPU required):
+python valichord_attestation/examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
+python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_response_demo.py
 ```
-Each example JSON contains a synthetic bundle, source samples, and a pre-computed inclusion proof. The script recomputes hash and Merkle root from scratch and confirms they match.
 
 **Full spec:** `valichord_attestation/spec/attestation_format_v1.md` — schema, encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, security considerations.
 
 **Architectural context:** the format was designed in response to Scott Simmons's review of `UKGovernmentBEIS/inspect_evals#1610`. The core feedback was that the canonical attestation spec belongs in ValiChord (the verification infrastructure), not inside each eval harness, and that the meaningful attestation is not "I have the log file" but "this reported result is faithful to the run that produced it."
+
+**Claude Code skill:** `.claude/skills/generate-attestation-bundle/` — step-by-step workflow for adding attestation as the final step after an inspect_evals eval report.
 
 ---
 
