@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "valichord-attestation"
-version = "0.1.0"
+version = "1.2.0"
 description = "Canonical attestation format for AI evaluation runs"
 requires-python = ">=3.10"
 license = "Apache-2.0"
