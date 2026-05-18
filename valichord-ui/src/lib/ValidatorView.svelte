@@ -620,6 +620,22 @@
   {:else if screen === "attest" && selectedRequestRecord}
     {@const reqEntry = entryFromRecord(selectedRequestRecord)}
     {#if reqEntry}
+      <div class="phase-strip">
+        <div class="phase-step active">
+          <span class="phase-dot">1</span>
+          <span class="phase-name">Commit</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-step">
+          <span class="phase-dot">2</span>
+          <span class="phase-name">Reveal</span>
+        </div>
+        <div class="phase-connector"></div>
+        <div class="phase-step">
+          <span class="phase-dot">3</span>
+          <span class="phase-name">Harmony</span>
+        </div>
+      </div>
       <div class="phase-label">
         <span class="phase-badge commit">Phase 1 — Commit</span>
         Your attestation will be sealed privately. You cannot change it after this step.
@@ -715,6 +731,22 @@
   <!-- ── Reveal form (public phase) ───────────────────────────────────────── -->
   {:else if screen === "reveal" && revealPrivateAttestation}
     {@const pa = revealPrivateAttestation}
+    <div class="phase-strip">
+      <div class="phase-step done">
+        <span class="phase-dot">✓</span>
+        <span class="phase-name">Commit</span>
+      </div>
+      <div class="phase-connector done"></div>
+      <div class="phase-step active">
+        <span class="phase-dot">2</span>
+        <span class="phase-name">Reveal</span>
+      </div>
+      <div class="phase-connector"></div>
+      <div class="phase-step">
+        <span class="phase-dot">3</span>
+        <span class="phase-name">Harmony</span>
+      </div>
+    </div>
     <div class="phase-label">
       <span class="phase-badge reveal">Phase 2 — Reveal</span>
       All validators have committed. Publish your attestation to the shared DHT.
@@ -781,29 +813,82 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: #1a2a1a;
-    border: 1px solid #166534;
+    background: var(--bg-reveal-banner);
+    border: 1px solid var(--border-success);
     border-radius: 8px;
     padding: 0.75rem 1rem;
     margin-bottom: 1.25rem;
     font-size: 0.9rem;
-    color: #86efac;
+    color: var(--color-success);
     flex-wrap: wrap;
   }
   .reveal-icon { font-size: 1.1rem; }
   .btn-reveal {
-    background: #166534;
-    color: #86efac;
-    border: 1px solid #16a34a;
+    background: var(--reveal-bg);
+    color: var(--color-success);
+    border: 1px solid var(--reveal-border);
     padding: 0.35rem 0.9rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 600;
+    font-family: var(--font-body);
     margin-left: auto;
     transition: background 0.15s;
   }
-  .btn-reveal:hover { background: #15803d; }
+  .btn-reveal:hover { background: var(--reveal-bg-hover); }
+
+  /* ── Phase progress strip ──────────────────────────────────────────────── */
+  .phase-strip {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.25rem;
+  }
+  .phase-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .phase-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg-inset);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .phase-name {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .phase-step.active .phase-dot {
+    border-color: var(--accent);
+    background: var(--accent-solid);
+    color: #fff;
+  }
+  .phase-step.active .phase-name { color: var(--accent-bright); }
+  .phase-step.done .phase-dot {
+    border-color: var(--border-success);
+    background: var(--bg-success-notif);
+    color: var(--color-success);
+  }
+  .phase-step.done .phase-name { color: var(--color-success); }
+  .phase-connector {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    margin: 0 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .phase-connector.done { background: var(--border-success); }
 
   /* ── Phase labels ──────────────────────────────────────────────────────── */
   .phase-label {
@@ -811,7 +896,7 @@
     align-items: center;
     gap: 0.75rem;
     font-size: 0.875rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     margin-bottom: 1.25rem;
   }
   .phase-badge {
@@ -821,14 +906,14 @@
     font-weight: 600;
     letter-spacing: 0.04em;
   }
-  .phase-badge.commit { background: #1c1f2e; color: #818cf8; }
-  .phase-badge.reveal { background: #14532d; color: #86efac; }
+  .phase-badge.commit { background: var(--tier-enhanced-bg); color: var(--indigo-text); }
+  .phase-badge.reveal { background: var(--bg-success-notif); color: var(--color-success); }
 
   /* ── Reveal card ───────────────────────────────────────────────────────── */
   .reveal-card { display: flex; flex-direction: column; gap: 1rem; }
   .sealed-summary {
-    background: #111827;
-    border: 1px solid #2d3148;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1rem;
     display: flex;
@@ -841,15 +926,15 @@
     gap: 0.75rem;
     font-size: 0.875rem;
   }
-  .summary-label { color: #6b7280; min-width: 140px; }
+  .summary-label { color: var(--text-dim); min-width: 140px; }
   .reveal-note {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-dim);
     margin: 0;
     line-height: 1.5;
   }
   .btn-reveal-submit {
-    background: #15803d;
+    background: var(--reveal-bg-hover);
     color: #fff;
     border: none;
     padding: 0.5rem 1.2rem;
@@ -857,30 +942,31 @@
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
+    font-family: var(--font-body);
     transition: background 0.15s;
   }
-  .btn-reveal-submit:hover:not(:disabled) { background: #166534; }
+  .btn-reveal-submit:hover:not(:disabled) { background: var(--reveal-bg); }
   .btn-reveal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ── Card ──────────────────────────────────────────────────────────────── */
   .card {
-    background: #1a1d27;
-    border: 1px solid #2d3148;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
   }
   .card h2 { margin: 0 0 0.75rem; font-size: 1rem; }
-  .empty { color: #6b7280; font-size: 0.875rem; }
-  .empty-hint p { margin: 0; color: #6b7280; font-size: 0.9rem; }
+  .empty { color: var(--text-dim); font-size: 0.875rem; }
+  .empty-hint p { margin: 0; color: var(--text-dim); font-size: 0.9rem; }
 
   .onboard h2 { margin: 0 0 0.5rem; }
-  .onboard p { color: #9ca3af; font-size: 0.9rem; margin: 0 0 1.25rem; }
+  .onboard p { color: var(--text-muted); font-size: 0.9rem; margin: 0 0 1.25rem; }
 
   /* ── Profile ───────────────────────────────────────────────────────────── */
   .profile-banner {
-    background: #1a1d27;
-    border: 1px solid #2d3148;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
@@ -891,14 +977,14 @@
     font-size: 0.75rem;
     padding: 0.15em 0.6em;
     border-radius: 4px;
-    background: #1e3a5f;
-    color: #93c5fd;
+    background: var(--bg-info);
+    color: var(--color-info);
   }
-  .agent-type { font-size: 0.75rem; color: #6b7280; }
+  .agent-type { font-size: 0.75rem; color: var(--text-dim); }
   .profile-disciplines { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
   .disc-chip {
-    background: #1f2937;
-    color: #d1d5db;
+    background: var(--bg-alt);
+    color: var(--text-label);
     font-size: 0.78rem;
     padding: 0.2em 0.6em;
     border-radius: 4px;
@@ -910,44 +996,44 @@
   /* ── Claims ────────────────────────────────────────────────────────────── */
   .claim-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
   .claim-item {
-    background: #111827;
-    border: 1px solid #2d3148;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.65rem 0.9rem;
     font-size: 0.875rem;
-    color: #9ca3af;
+    color: var(--text-muted);
   }
 
   /* ── Request list ──────────────────────────────────────────────────────── */
   .request-list { display: flex; flex-direction: column; gap: 1rem; }
   .request-card {
-    background: #1a1d27;
-    border: 1px solid #2d3148;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem 1.25rem;
   }
   .rcard-header { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
   .discipline-tag {
-    background: #1e3a5f;
-    color: #93c5fd;
+    background: var(--bg-info);
+    color: var(--color-info);
     font-size: 0.78rem;
     padding: 0.2em 0.6em;
     border-radius: 4px;
   }
   .tier-tag { font-size: 0.78rem; padding: 0.2em 0.6em; border-radius: 4px; }
-  .tier-basic { background: #1c2014; color: #a3e635; }
-  .tier-enhanced { background: #1c1f2e; color: #818cf8; }
-  .tier-comprehensive { background: #1c1a20; color: #e879f9; }
+  .tier-basic { background: var(--tier-basic-bg); color: var(--lime-text); }
+  .tier-enhanced { background: var(--tier-enhanced-bg); color: var(--indigo-text); }
+  .tier-comprehensive { background: var(--tier-comprehensive-bg); color: var(--purple-text); }
   .rcard-url { font-size: 0.875rem; margin-bottom: 0.5rem; }
-  .rcard-url a { color: #7c8fdb; text-decoration: none; word-break: break-all; }
+  .rcard-url a { color: var(--accent); text-decoration: none; word-break: break-all; }
   .rcard-meta {
     display: flex;
     justify-content: space-between;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-dim);
     margin-bottom: 0.5rem;
   }
-  .rcard-meta a { color: #7c8fdb; text-decoration: none; }
+  .rcard-meta a { color: var(--accent); text-decoration: none; }
   .rcard-actions { display: flex; justify-content: flex-end; }
 
   /* ── Profile form ──────────────────────────────────────────────────────── */
@@ -962,8 +1048,8 @@
     font-size: 0.875rem;
     flex-wrap: wrap;
   }
-  .dim { color: #6b7280; }
-  .attest-context a { color: #7c8fdb; text-decoration: none; word-break: break-all; }
+  .dim { color: var(--text-dim); }
+  .attest-context a { color: var(--accent); text-decoration: none; word-break: break-all; }
   .time-breakdown {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -973,28 +1059,29 @@
 
   /* ── Outcome labels ────────────────────────────────────────────────────── */
   .outcome-label { font-weight: 600; }
-  .outcome-reproduced { color: #86efac; }
-  .outcome-partiallyreproduced { color: #fde68a; }
-  .outcome-failedtoreproduce { color: #fca5a5; }
-  .outcome-unabletoassess { color: #9ca3af; }
+  .outcome-reproduced { color: var(--color-success); }
+  .outcome-partiallyreproduced { color: var(--color-warning); }
+  .outcome-failedtoreproduce { color: var(--color-error); }
+  .outcome-unabletoassess { color: var(--text-muted); }
 
   /* ── Shared controls ───────────────────────────────────────────────────── */
   .discipline-group { display: flex; flex-direction: column; gap: 0.5rem; }
   .discipline-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .disc-toggle {
-    background: #1f2937;
-    border: 1px solid #374151;
-    color: #9ca3af;
+    background: var(--bg-alt);
+    border: 1px solid var(--border-input);
+    color: var(--text-muted);
     padding: 0.3em 0.8em;
     border-radius: 20px;
     cursor: pointer;
     font-size: 0.82rem;
+    font-family: var(--font-body);
     transition: all 0.15s;
   }
-  .disc-toggle.selected { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+  .disc-toggle.selected { background: var(--bg-info); border-color: var(--border-selected); color: var(--color-info); }
 
   fieldset {
-    border: 1px solid #2d3148;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1.25rem;
     margin: 0;
@@ -1005,7 +1092,7 @@
   legend {
     padding: 0 0.5rem;
     font-size: 0.85rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
@@ -1015,29 +1102,29 @@
     flex-direction: column;
     gap: 0.3rem;
     font-size: 0.9rem;
-    color: #d1d5db;
+    color: var(--text-label);
   }
-  .label { font-size: 0.9rem; color: #d1d5db; }
+  .label { font-size: 0.9rem; color: var(--text-label); }
   .checkbox-label { flex-direction: row; align-items: center; gap: 0.4rem; }
   label input,
   label select,
   label textarea {
-    background: #111827;
-    border: 1px solid #374151;
-    color: #e2e8f0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-input);
+    color: var(--text);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.9rem;
     outline: none;
-    font-family: inherit;
+    font-family: var(--font-body);
     transition: border-color 0.15s;
   }
   label input:focus,
   label select:focus,
-  label textarea:focus { border-color: #7c8fdb; }
+  label textarea:focus { border-color: var(--accent); }
 
-  .hint { font-size: 0.78rem; color: #6b7280; }
-  .req { color: #f87171; }
+  .hint { font-size: 0.78rem; color: var(--text-dim); }
+  .req { color: var(--req); }
 
   .form-actions {
     display: flex;
@@ -1046,21 +1133,21 @@
     padding-top: 0.5rem;
   }
 
-  .mono { font-family: monospace; }
+  .mono { font-family: var(--font-mono); }
 
-  .loading-row { display: flex; align-items: center; gap: 0.75rem; color: #6b7280; padding: 2rem 0; }
+  .loading-row { display: flex; align-items: center; gap: 0.75rem; color: var(--text-dim); padding: 2rem 0; }
   .spinner {
     width: 24px;
     height: 24px;
-    border: 2px solid #2d3148;
-    border-top-color: #7c8fdb;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .btn-primary {
-    background: #4f46e5;
+    background: var(--accent-solid);
     color: #fff;
     border: none;
     padding: 0.5rem 1.2rem;
@@ -1068,19 +1155,21 @@
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 500;
+    font-family: var(--font-body);
     transition: background 0.15s;
   }
-  .btn-primary:hover:not(:disabled) { background: #4338ca; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-solid-hover); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-ghost {
     background: none;
-    border: 1px solid #374151;
-    color: #9ca3af;
+    border: 1px solid var(--border-input);
+    color: var(--text-muted);
     padding: 0.5rem 1.2rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.9rem;
+    font-family: var(--font-body);
     transition: border-color 0.15s, color 0.15s;
   }
-  .btn-ghost:hover { border-color: #7c8fdb; color: #e2e8f0; }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
 </style>

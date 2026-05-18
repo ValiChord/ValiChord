@@ -1,4 +1,69 @@
-/* Minimal reset — App.svelte handles all styling */
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base: #0f1117;
+  --bg-surface: #1a1d27;
+  --bg-inset: #111827;
+  --bg-alt: #1f2937;
+  --bg-info: #1e3a5f;
+  --bg-error: #1a0a0a;
+  --bg-success-notif: #14532d;
+  --bg-error-notif: #450a0a;
+  --bg-reveal-banner: #1a2a1a;
+
+  /* Borders */
+  --border: #2d3148;
+  --border-input: #374151;
+  --border-error: #7f1d1d;
+  --border-success: #166534;
+  --border-selected: #0d9972;
+  --border-info-notif: #1d4ed8;
+
+  /* Text */
+  --text: #e2e8f0;
+  --text-label: #d1d5db;
+  --text-muted: #9ca3af;
+  --text-dim: #6b7280;
+  --text-dimmer: #4b5563;
+
+  /* Accent / primary — teal drawn from the logo's validator-node colour */
+  --accent: #3dcfa8;
+  --accent-bright: #6de8c0;
+  --accent-solid: #0d9972;
+  --accent-solid-hover: #0b8060;
+
+  /* Semantic outcomes */
+  --color-success: #86efac;
+  --color-error: #fca5a5;
+  --color-info: #93c5fd;
+  --color-warning: #fde68a;
+  --req: #f87171;
+
+  /* Tier / discipline accents */
+  --lime-text: #a3e635;
+  --indigo-text: #818cf8;
+  --purple-text: #e879f9;
+  --tier-basic-bg: #1c2014;
+  --tier-enhanced-bg: #1c1f2e;
+  --tier-comprehensive-bg: #1c1a20;
+
+  /* Reveal / green actions */
+  --reveal-bg: #166534;
+  --reveal-bg-hover: #15803d;
+  --reveal-border: #16a34a;
+
+  /* Warn / finalize */
+  --warn-bg: #78350f;
+  --warn-bg-hover: #92400e;
+  --warn-border: #92400e;
+
+  /* Typography */
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -8,11 +73,19 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background: #0f1117;
-  color: #e2e8f0;
+  font-family: var(--font-body);
+  background: var(--bg-base);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Display font for headings */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 #app {

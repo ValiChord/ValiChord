@@ -15,4 +15,5 @@ admin_interfaces:
 network:
   bootstrap_url: https://dev-test-bootstrap2.holochain.org/
   signal_url: wss://dev-test-bootstrap2.holochain.org/
+  relay_url: https://dev-test-bootstrap2.holochain.org/
 db_sync_strategy: Resilient

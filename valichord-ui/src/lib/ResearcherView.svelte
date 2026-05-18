@@ -488,8 +488,8 @@
   }
 
   .card {
-    background: #1a1d27;
-    border: 1px solid #2d3148;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -497,16 +497,16 @@
   .card h2 {
     margin: 0 0 0.4rem;
     font-size: 1rem;
-    color: #e2e8f0;
+    color: var(--text);
   }
   .card .sub {
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 0.875rem;
     margin: 0 0 1rem;
   }
 
   .empty-hint {
-    color: #6b7280;
+    color: var(--text-dim);
     font-size: 0.9rem;
   }
   .empty-hint p {
@@ -523,8 +523,8 @@
 
   .request-card {
     margin-top: 1.25rem;
-    background: #111827;
-    border: 1px solid #2d3148;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1rem;
   }
@@ -534,8 +534,8 @@
     margin-bottom: 0.5rem;
   }
   .discipline-tag {
-    background: #1e3a5f;
-    color: #93c5fd;
+    background: var(--bg-info);
+    color: var(--color-info);
     font-size: 0.78rem;
     padding: 0.2em 0.6em;
     border-radius: 4px;
@@ -546,23 +546,23 @@
     border-radius: 4px;
   }
   .tier-basic {
-    background: #1c2014;
-    color: #a3e635;
+    background: var(--tier-basic-bg);
+    color: var(--lime-text);
   }
   .tier-enhanced {
-    background: #1c1f2e;
-    color: #818cf8;
+    background: var(--tier-enhanced-bg);
+    color: var(--indigo-text);
   }
   .tier-comprehensive {
-    background: #1c1a20;
-    color: #e879f9;
+    background: var(--tier-comprehensive-bg);
+    color: var(--purple-text);
   }
   .rcard-url {
     font-size: 0.875rem;
     margin-bottom: 0.5rem;
   }
   .rcard-url a {
-    color: #7c8fdb;
+    color: var(--accent);
     text-decoration: none;
     word-break: break-all;
   }
@@ -570,10 +570,10 @@
     display: flex;
     justify-content: space-between;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-dim);
   }
   .hash-label {
-    font-family: monospace;
+    font-family: var(--font-mono);
   }
 
   /* ── Form ──────────────────────────────────────────────────────────────── */
@@ -585,7 +585,7 @@
   }
 
   fieldset {
-    border: 1px solid #2d3148;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1.25rem;
     margin: 0;
@@ -596,7 +596,7 @@
   legend {
     padding: 0 0.5rem;
     font-size: 0.85rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
@@ -606,29 +606,30 @@
     flex-direction: column;
     gap: 0.3rem;
     font-size: 0.9rem;
-    color: #d1d5db;
+    color: var(--text-label);
   }
   label input,
   label select {
-    background: #111827;
-    border: 1px solid #374151;
-    color: #e2e8f0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-input);
+    color: var(--text);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.9rem;
+    font-family: var(--font-body);
     outline: none;
     transition: border-color 0.15s;
   }
   label input:focus,
   label select:focus {
-    border-color: #7c8fdb;
+    border-color: var(--accent);
   }
   .hint {
     font-size: 0.78rem;
-    color: #6b7280;
+    color: var(--text-dim);
   }
   .req {
-    color: #f87171;
+    color: var(--req);
   }
 
   .form-actions {
@@ -641,7 +642,7 @@
   /* ── Buttons ────────────────────────────────────────────────────────────── */
 
   .btn-primary {
-    background: #4f46e5;
+    background: var(--accent-solid);
     color: #fff;
     border: none;
     padding: 0.5rem 1.2rem;
@@ -649,10 +650,11 @@
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 500;
+    font-family: var(--font-body);
     transition: background 0.15s;
   }
   .btn-primary:hover:not(:disabled) {
-    background: #4338ca;
+    background: var(--accent-solid-hover);
   }
   .btn-primary:disabled {
     opacity: 0.5;
@@ -660,56 +662,58 @@
   }
   .btn-ghost {
     background: none;
-    border: 1px solid #374151;
-    color: #9ca3af;
+    border: 1px solid var(--border-input);
+    color: var(--text-muted);
     padding: 0.5rem 1.2rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.9rem;
+    font-family: var(--font-body);
     transition: border-color 0.15s, color 0.15s;
   }
   .btn-ghost:hover {
-    border-color: #7c8fdb;
-    color: #e2e8f0;
+    border-color: var(--accent);
+    color: var(--text);
   }
 
   .mono {
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-family: var(--font-mono);
     font-size: 0.85rem !important;
   }
 
   input[type="text"],
   input[type="url"],
   input[type="number"] {
-    background: #111827;
-    border: 1px solid #374151;
-    color: #e2e8f0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-input);
+    color: var(--text);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.9rem;
+    font-family: var(--font-body);
     outline: none;
   }
   input:focus {
-    border-color: #7c8fdb;
+    border-color: var(--accent);
   }
 
   /* ── Commit-reveal extras ──────────────────────────────────────────────── */
   label textarea {
-    background: #111827;
-    border: 1px solid #374151;
-    color: #e2e8f0;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-input);
+    color: var(--text);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.85rem;
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-family: var(--font-mono);
     outline: none;
     resize: vertical;
   }
-  label textarea:focus { border-color: #7c8fdb; }
+  label textarea:focus { border-color: var(--accent); }
 
   .locked-summary {
-    background: #111827;
-    border: 1px solid #2d3148;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1rem;
     margin-top: 0.75rem;
@@ -717,7 +721,7 @@
     flex-direction: column;
     gap: 0.5rem;
   }
-  .locked-label { font-size: 0.85rem; color: #9ca3af; margin-bottom: 0.25rem; }
+  .locked-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem; }
   .metric-row {
     display: flex;
     flex-wrap: wrap;
@@ -725,10 +729,10 @@
     gap: 0.75rem;
     font-size: 0.82rem;
     padding: 0.4rem 0;
-    border-top: 1px solid #1f2937;
+    border-top: 1px solid var(--bg-alt);
   }
-  .metric-name { font-weight: 600; color: #e2e8f0; min-width: 120px; }
-  .metric-val { color: #9ca3af; }
-  .match { color: #86efac; }
-  .mismatch { color: #fca5a5; }
+  .metric-name { font-weight: 600; color: var(--text); min-width: 120px; }
+  .metric-val { color: var(--text-muted); }
+  .match { color: var(--color-success); }
+  .mismatch { color: var(--color-error); }
 </style>

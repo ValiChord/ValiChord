@@ -1,7 +1,10 @@
 # ValiChord — User Experience Design
 
-**Version:** 1.0 — March 2026
+**Version:** 1.1 — May 2026
 **Author:** Ceri John
+
+> **Note — implementation vs design spec.**
+> This document is the design specification describing the target UX for all five personas. For the current build status of the Svelte UI (`valichord-ui/`), see the *Implementation Status* section at the end.
 
 ---
 
@@ -336,3 +339,42 @@ Each of these interfaces connects to a different DNA via the local Holochain Web
 | Governance Recorder | DNA 4 (Governance) — requires `system_coordinator_key` |
 
 The Researcher and Validator UXs are local applications distributed with the Holochain runtime (Kangaroo or p2p Shipyard). The Public Reader interface is a conventional web application hitting the HTTP Gateway. The Credential Issuer tool is a standalone signing utility. The Governance Recorder interface is a restricted web form requiring the system coordinator key.
+
+---
+
+## Implementation Status — May 2026
+
+The Svelte UI (`valichord-ui/`) is a functional v0.1 prototype covering the core Researcher and Validator flows, plus a Governance tab. It connects to a live Holochain conductor via `@holochain/client 0.20.x`.
+
+### Visual design
+
+- **Theme:** Dark navy (`#0f1117` base, `#1a1d27` surfaces), consistent with the ValiChord brand logo
+- **Accent palette:** Teal (`#3dcfa8` / `#0d9972`) drawn from the logo's validator-node colour; gold reserved for warn/finalise actions to echo the logo's connecting-line colour
+- **Typography:** DM Serif Display for headings, IBM Plex Sans for body text, JetBrains Mono for hashes and code
+- **Logo:** Displayed in the header on all three tabs (Researcher / Validator / Governance)
+
+### What is built
+
+| Persona | Screens built | Gap vs spec |
+|---|---|---|
+| **Researcher** | Hash lookup, New request form, Step 2 — Lock result, Step 3 — Reveal result | No "My submissions" list with status dots; no result screen reading from Harmony Record |
+| **Validator** | Profile setup, Browse requests (job board), Seal attestation (commit), Reveal attestation | No split-panel active workspace; no private scratchpad; no structured time-log timers; no automatic reveal (currently manual) |
+| **Governance Recorder** | HarmonyRecord list with discipline filter, Force-finalise action | No governance-decision log; no "Record a decision" form |
+| **Public Reader** | — | Not built; awaits HTTP Gateway or read-only web deployment |
+| **Credential Issuer** | — | Not built; planned as a separate signing utility |
+
+### Phase progress strip
+
+The Validator commit and reveal screens now show a horizontal three-step progress indicator — **Commit → Reveal → Harmony** — with completed steps highlighted in green (logo teal) and the active step in the primary accent colour.
+
+### What is wired to a live conductor
+
+All Researcher and Validator zome calls connect to real Holochain DNA (Attestation + Researcher Repository + Validator Workspace). The Governance tab reads from the Governance DNA. Data is real and persistent for the life of the conductor session.
+
+### Known gaps (priority order)
+
+1. Automatic reveal — the validator must manually click Reveal when notified; the spec says it should happen automatically in the background
+2. My submissions list — the researcher has no dashboard view of their past requests with status
+3. Active workspace — the split-panel working environment with time-log timers is not built
+4. Public reader / HTTP Gateway — the read-only web interface for journals, funders, and the public
+5. Credential issuer tool — the membrane-proof signing utility

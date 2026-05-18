@@ -19,13 +19,20 @@
   import ValidatorView from "./lib/ValidatorView.svelte";
   import GovernanceView from "./lib/GovernanceView.svelte";
 
-  // Holochain app port — Launcher injects via URL hash, fallback to 8888
+  // Holochain app port — Launcher injects via URL hash, dev mode uses Vite proxy.
+  // In Codespace, the page is served from a forwarded https:// URL, so ws://localhost
+  // resolves to the user's machine (not the Codespace).  Route via Vite's /hc-ws proxy
+  // instead so the WebSocket stays inside the Codespace tunnel.
   function resolveWsUrl(): string | undefined {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
     const port = params.get("APP_PORT");
     if (port) return `ws://localhost:${port}`;
-    if (import.meta.env.VITE_HC_PORT) return `ws://localhost:${import.meta.env.VITE_HC_PORT}`;
+    if (import.meta.env.VITE_HC_PORT) {
+      // Use same host/protocol as the page so the Vite proxy handles the upgrade.
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${window.location.host}/hc-ws`;
+    }
     return undefined; // let client use its default (Launcher env)
   }
 
@@ -92,8 +99,7 @@
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <header>
     <div class="brand">
-      <span class="logo">◈</span>
-      <span class="name">ValiChord</span>
+      <img src="/valichord-logo.jpeg" alt="ValiChord" class="logo-img" />
       <span class="tagline">Reproducibility Validation Protocol</span>
     </div>
     {#if $isConnected}
@@ -151,9 +157,9 @@
   }
   :global(body) {
     margin: 0;
-    font-family: "Inter", system-ui, sans-serif;
-    background: #0f1117;
-    color: #e2e8f0;
+    font-family: var(--font-body);
+    background: var(--bg-base);
+    color: var(--text);
     min-height: 100vh;
   }
 
@@ -169,8 +175,8 @@
     justify-content: space-between;
     padding: 0 2rem;
     height: 56px;
-    background: #1a1d27;
-    border-bottom: 1px solid #2d3148;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -179,21 +185,17 @@
   .brand {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
-  .logo {
-    font-size: 1.4rem;
-    color: #7c8fdb;
-  }
-  .name {
-    font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: 0.02em;
+  .logo-img {
+    height: 38px;
+    width: auto;
+    border-radius: 6px;
+    display: block;
   }
   .tagline {
     font-size: 0.72rem;
-    color: #6b7280;
-    margin-left: 0.25rem;
+    color: var(--text-dim);
   }
 
   nav {
@@ -203,20 +205,21 @@
   .tab {
     background: none;
     border: none;
-    color: #9ca3af;
+    color: var(--text-muted);
     padding: 0.35rem 0.9rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.88rem;
+    font-family: var(--font-body);
     transition: background 0.15s, color 0.15s;
   }
   .tab:hover {
-    background: #2d3148;
-    color: #e2e8f0;
+    background: var(--border);
+    color: var(--text);
   }
   .tab.active {
-    background: #2d3148;
-    color: #a5b4fc;
+    background: var(--border);
+    color: var(--accent-bright);
     font-weight: 600;
   }
 
@@ -237,19 +240,19 @@
     animation: slideIn 0.2s ease;
   }
   .notif-success {
-    background: #14532d;
-    color: #86efac;
-    border: 1px solid #166534;
+    background: var(--bg-success-notif);
+    color: var(--color-success);
+    border: 1px solid var(--border-success);
   }
   .notif-error {
-    background: #450a0a;
-    color: #fca5a5;
-    border: 1px solid #7f1d1d;
+    background: var(--bg-error-notif);
+    color: var(--color-error);
+    border: 1px solid var(--border-error);
   }
   .notif-info {
-    background: #1e3a5f;
-    color: #93c5fd;
-    border: 1px solid #1d4ed8;
+    background: var(--bg-info);
+    color: var(--color-info);
+    border: 1px solid var(--border-info-notif);
   }
   @keyframes slideIn {
     from {
@@ -277,13 +280,13 @@
     justify-content: center;
     min-height: 50vh;
     gap: 1rem;
-    color: #6b7280;
+    color: var(--text-dim);
   }
   .spinner {
     width: 36px;
     height: 36px;
-    border: 3px solid #2d3148;
-    border-top-color: #7c8fdb;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -294,26 +297,27 @@
   }
 
   .error-pane {
-    background: #1a0a0a;
-    border: 1px solid #7f1d1d;
+    background: var(--bg-error);
+    border: 1px solid var(--border-error);
     border-radius: 12px;
     padding: 2rem;
     max-width: 560px;
     margin: 4rem auto;
   }
   .error-pane h2 {
-    color: #fca5a5;
+    color: var(--color-error);
     margin: 0 0 0.75rem;
   }
   .error-pane .hint {
     font-size: 0.85rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     margin-top: 1rem;
   }
   code {
-    background: #1f2937;
+    background: var(--bg-alt);
     padding: 0.15em 0.4em;
     border-radius: 4px;
     font-size: 0.85em;
+    font-family: var(--font-mono);
   }
 </style>
