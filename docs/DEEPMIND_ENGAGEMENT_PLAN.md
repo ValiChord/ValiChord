@@ -1,7 +1,7 @@
 # Google DeepMind — ValiChord Engagement Plan
 
 **Created:** 2026-05-17  
-**Status — Phase 1 complete (2026-05-17). Phase 2: alphafold3 — approach separately, with care.**
+**Status — Phase 1 complete (2026-05-17). Phase 2: alphafold3 — filed 2026-05-17 as [#672](https://github.com/google-deepmind/alphafold3/issues/672). Waiting on Augustin-Zidek.**
 
 | # | Repo | Issue | Project | Notes |
 |---|---|---|---|---|
@@ -13,12 +13,11 @@
 | 6 | physics-IQ-benchmark | [#46](https://github.com/google-deepmind/physics-IQ-benchmark/issues/46) | B | Filed pre-session; PR offer included |
 | 7 | long-form-factuality | [#48](https://github.com/google-deepmind/long-form-factuality/issues/48) | B | Triple-drift problem (evaluated model + rater + web search) |
 | 8 | alphaevolve_results | [#7](https://github.com/google-deepmind/alphaevolve_results/issues/7) | B→A | Deterministic numpy hook; issue #2 dispute reference |
-| 9 | funsearch | — | B | Skipped — weak hook, inactive repo (2024-02-05) |
-| 10 | graphcast | — | B | Skipped — benchmark lives in WeatherBench2 not this repo |
+| 9 | alphafold3 | [#672](https://github.com/google-deepmind/alphafold3/issues/672) | B→A | Seed-selection protocol transparency; 1,000-seed AF hook; commit-reveal as pre-registration |
+| 10 | funsearch | — | B | Skipped — weak hook, inactive repo (2024-02-05) |
+| 11 | graphcast | — | B | Skipped — benchmark lives in WeatherBench2 not this repo |
 
 **Waiting on:** responses from all filed issues. bbeh PR ready to push on engagement from Mehran Kazemi.
-
-**Phase 2 — alphafold3:** Priority 0, approach in a dedicated session. See full entry below. Do not file in passing.
 
 Each entry has a priority, the target project (A = ValiChord proper commit-reveal protocol, B = valichord_attestation library), a specific pitch, and the exact action to take.
 
