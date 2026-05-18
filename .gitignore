@@ -35,3 +35,4 @@ demo/bin/
 .coverage
 valichord/tests/.hc
 .claude/scheduled_tasks.lock
+docs/DEEPMIND_ENGAGEMENT_PLAN.md
