@@ -13,6 +13,7 @@ For the full UX walkthrough, type mapping, and architecture notes see [FRONTEND.
 ### Prerequisites
 
 - Node.js 18+
+- Holochain 0.6.1 on your PATH — install via `cargo install holochain --version 0.6.1 --locked`
 - Holochain CLI (`hc`) on your PATH — install via `cargo install holochain_cli --locked`
 - `valichord/workdir/valichord.happ` built (see `valichord/tests/README.md`)
 
@@ -31,16 +32,24 @@ bash dev.sh
 
 Wait for the line `Token + signing credentials written to …env.local` before continuing.
 
+> **Note:** WASM JIT compilation on first install can take 5–10 minutes on a slow machine (4 DNAs, ~30 MB of WASM). The line above will not appear until it completes.
+
 ### Terminal 2 — UI
 
 ```bash
 cd valichord-ui
-npm run dev
+npm run dev -- --host      # --host required in Codespace / Docker
 ```
 
 Open **http://localhost:5173**.
 
-The UI connects to the conductor on `:8888`, reads the auth token and signing credentials from `.env.local` (injected by Vite at build time), and shows the Researcher dashboard.
+The UI connects to the conductor on `:8888` via the Vite WebSocket proxy (`/hc-ws`), reads the auth token and signing credentials from `.env.local` (injected by Vite at build time), and shows the Researcher dashboard.
+
+### Running in a GitHub Codespace
+
+The `--host` flag is required so Vite binds to `0.0.0.0` and the forwarded port is reachable. The UI connects to the conductor through the `/hc-ws` Vite proxy rather than directly — this is necessary because the browser page loads from the Codespace's forwarded HTTPS URL and cannot open a plain `ws://localhost` WebSocket directly.
+
+Port 5173 will be forwarded automatically by Codespace. Port 8888 does **not** need to be forwarded — the proxy keeps all conductor traffic inside the container.
 
 ### Type-check
 
@@ -99,17 +108,22 @@ Conductor data lives in `/tmp/valichord-dev-data` and is wiped each time `dev.sh
 valichord-ui/
 ├── dev.sh                  # start script (conductor + setup)
 ├── dev-conductor.yaml      # conductor config (admin :4444, in-proc lair, /tmp data)
+│                           # relay_url required for Holochain 0.6.1 iroh/QUIC transport
 ├── dev-setup.mjs           # Node.js: install app, issue token, write .env.local
-├── .env.example            # template (committed); .env.local is gitignored
+├── vite.config.ts          # Vite config; includes /hc-ws → ws://localhost:8888 WS proxy
+├── public/
+│   └── valichord-logo.jpeg # brand logo (served as static asset)
 ├── src/
+│   ├── app.css             # design tokens (CSS vars); all colours, fonts, spacing
 │   ├── main.ts
-│   ├── App.svelte          # connection bootstrap, role detection, tab nav
+│   ├── App.svelte          # connection bootstrap, role detection, tab nav, logo header
 │   └── lib/
 │       ├── holochain.ts    # AppWebsocket singleton, callZome, token/creds loading
 │       ├── store.ts        # Svelte stores (connection state, role, notifications)
 │       ├── types.ts        # TypeScript mirrors of Rust types; entryFromRecord (msgpack decode)
 │       ├── ResearcherView.svelte
-│       ├── ValidatorView.svelte
+│       ├── ValidatorView.svelte   # includes commit/reveal/harmony phase progress strip
 │       └── GovernanceView.svelte
-└── FRONTEND.md             # full UX walkthrough and architecture notes
+├── README.md               # this file — setup instructions
+└── FRONTEND.md             # what it does: UX walkthrough, visual design, architecture notes
 ```

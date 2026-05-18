@@ -1,8 +1,8 @@
 # ValiChord UI — Frontend Guide
 
-**Version:** 0.4.3 — April 2026  
-**Stack:** Svelte 5 + TypeScript + Vite  
-**Connects to:** Holochain conductor (local or Launcher) via WebSocket
+**Version:** 0.5.0 — May 2026  
+**Stack:** Svelte 5 + TypeScript + Vite 8  
+**Connects to:** Holochain 0.6.1 conductor (local or Launcher) via WebSocket
 
 ---
 
@@ -52,6 +52,40 @@ npm run build   # outputs to dist/
 ```
 
 The `dist/` folder is a static site that can be bundled into a `.webhapp` for Launcher packaging.
+
+---
+
+## Visual design
+
+### Brand
+
+The **ValiChord logo** (`public/valichord-logo.jpeg`) is displayed in the header on every tab — a dark navy card with the chord-graph mark, wordmark, and "Harmony from Dissonance" tagline.
+
+### Colour palette
+
+All colours are CSS custom properties defined in `src/app.css`. Key tokens:
+
+| Token | Value | Meaning |
+|---|---|---|
+| `--accent` | `#3dcfa8` | Teal — drawn from the logo's validator-node colour; used for links, focus rings, active tabs |
+| `--accent-bright` | `#6de8c0` | Bright teal — active nav labels |
+| `--accent-solid` | `#0d9972` | Dark teal — primary button backgrounds |
+| `--warn-bg` | `#78350f` | Amber — finalise/destructive actions; echoes the logo's gold connecting lines |
+| `--color-success` | `#86efac` | Green — reproduced outcomes, sealed phase |
+| `--color-error` | `#fca5a5` | Coral — errors; mirrors the logo's researcher-node colour |
+| `--bg-base` | `#0f1117` | Deep navy — page background |
+
+### Typography
+
+Loaded via Google Fonts (see `index.html`):
+
+- **DM Serif Display** — `h1`, `h2` headings
+- **IBM Plex Sans** — body text, form inputs, buttons
+- **JetBrains Mono** — hashes, hex strings, JSON textareas
+
+### Phase progress strip (Validator)
+
+The Validator commit and reveal screens show a horizontal **Commit → Reveal → Harmony** progress strip. Completed steps render with green (teal) styling; the active step uses the primary accent; future steps are dimmed. Implemented with plain CSS — no animation library.
 
 ---
 
@@ -223,6 +257,24 @@ This is a last-resort function. Use only after the `round_timeout_secs` DNA prop
 ---
 
 ## Architecture notes for developers
+
+### WebSocket connection and the Vite proxy
+
+In local dev the conductor's app interface listens on `ws://localhost:8888`. In a Codespace (or any setup where the UI is served from a forwarded HTTPS URL), the browser cannot open a plain `ws://` connection — it resolves `localhost` to the user's machine, not the Codespace.
+
+The fix is a Vite dev-server WebSocket proxy (`vite.config.ts`):
+
+```
+browser  →  wss://<codespace>/hc-ws  →  Vite proxy  →  ws://localhost:8888
+```
+
+`App.svelte`'s `resolveWsUrl()` detects that `VITE_HC_PORT` is set and returns `wss://<page-host>/hc-ws` instead of `ws://localhost:8888`. The conductor is never exposed to the outside network.
+
+In Holochain Launcher, `APP_PORT` is injected via the URL hash and `resolveWsUrl()` returns `ws://localhost:<port>` as before — the proxy is not involved.
+
+### Holochain 0.6.1 — `relay_url` required
+
+Holochain 0.6.1 switched from tx5/WebRTC to iroh/QUIC transport. The `NetworkConfig` YAML now requires a `relay_url` field (a non-null URL string). `dev-conductor.yaml` sets it to the Holochain dev relay server. Running without it causes the conductor to crash with `ENXIO` during network initialisation.
 
 ### Zome name map
 
