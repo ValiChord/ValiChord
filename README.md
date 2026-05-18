@@ -5,7 +5,7 @@
 **An Immune System for Trust: Distributed Integrity Infrastructure for Independent Verification**
 
 [![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/Status-Integration_Ready-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
+[![Status](https://img.shields.io/badge/Status-Browser_Tested-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-166_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
@@ -68,9 +68,9 @@ cd valichord-ui && npm run dev
 
 **[Full UX walkthrough and setup guide →](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md)**
 
-> **Status note:** the UI is end-to-end verified via Node.js scripts that share the same code path as the Svelte components. A full manual browser walkthrough has not yet been completed — that is the one remaining step before this section graduates from "integration-ready" to "browser-tested".
-
 **v0.5.21 (May 2026):** `InspectAILogAdapter` — new adapter that reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API (no pre-parsing step). `InspectEvalsAdapter` gains `eval_yaml_metadata=` parameter to fold task-level provenance from `eval.yaml` into `Bundle.meta` (arxiv, group, human baseline, floating-asset warnings). Both adapters exported from the package top level; `inspect-ai` optional dependency group added. `generate-attestation-bundle` Claude Code skill added. Tests: 183 → 259 (+76), 100% line coverage maintained.
+
+**v0.5.3 (May 2026):** Browser UI confirmed working — full manual walkthrough completed in the browser against a live conductor. Holochain 0.6.1 compatibility fixes: `dev-conductor.yaml` now includes the `relay_url` field required by the iroh/QUIC transport (conductor crashed with `ENXIO` without it); Vite dev server gains a `/hc-ws` WebSocket proxy so the UI works from a forwarded HTTPS URL (Codespace, Docker) without exposing the conductor port. Visual refresh: ValiChord logo in header, teal accent palette drawn from the logo's validator-node colour, phase progress strip (Commit → Reveal → Harmony) on the Validator screens.
 
 **v0.5.2 (May 2026):** Holochain 0.6.1 upgrade — iroh/QUIC replaces tx5/WebRTC as the default transport. `hdk` → `0.6.1`, `hdi` → `0.7.1`, `holochain_serialized_bytes` → `0.0.57`, `@holochain/tryorama` → `0.19.1`. All 166 integration tests confirmed green on the new transport.
 
@@ -479,7 +479,7 @@ npm test
 
 > **Running the demo:** See [`demo/DECENTRALISED_DEMO.md`](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md) for full instructions.
 
-> **Browser UI:** A Svelte 5 + TypeScript UI (`valichord-ui/`) is complete and end-to-end tested against a live conductor. `bash dev.sh` starts a local conductor and writes the auth token; `npm run dev` serves the UI. See [`valichord-ui/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/README.md) for the quick start and [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) for the full UX walkthrough.
+> **Browser UI:** A Svelte 5 + TypeScript UI (`valichord-ui/`) is browser-tested against a live Holochain 0.6.1 conductor. `bash dev.sh` starts the conductor and writes the auth token; `npm run dev -- --host` serves the UI. See [`valichord-ui/README.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/README.md) for the quick start and [`valichord-ui/FRONTEND.md`](https://github.com/topeuph-ai/ValiChord/blob/main/valichord-ui/FRONTEND.md) for the full UX walkthrough.
 
 ---
 
@@ -488,7 +488,7 @@ npm test
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation — how long it takes, what makes it difficult, what it costs. | **Seeking funding / may be superseded by direct project engagement.** |
-| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI complete (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
+| **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI browser-tested on Holochain 0.6.1 (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
 Probabilistic challenge-response is shipped (`valichord_attestation` v0.5.0). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
