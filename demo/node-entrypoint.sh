@@ -40,7 +40,7 @@ cd "$SCRIPT_DIR"
 echo "$PASSPHRASE" | RUST_LOG="warn,holochain_conductor=info,holochain_p2p=warn,kitsune_p2p=warn" \
     holochain --config-path "$CONFIG_OUT" --piped \
     2>&1 | tee /tmp/conductor.log &
-CONDUCTOR_PID=${PIPESTATUS[0]}
+CONDUCTOR_PID=$!
 
 echo "  Conductor PID $CONDUCTOR_PID — logs: /tmp/conductor.log (also streamed above)"
 
