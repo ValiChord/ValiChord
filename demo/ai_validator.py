@@ -562,8 +562,21 @@ def display_result(result: dict):
 
     # ── Shareable viewer URL ────────────────────────────────────────────────────
     # In decentralised mode the public API is the researcher node.
+    # If running on a server (localhost), detect the public IP so the URL is
+    # shareable externally. VALICHORD_PUBLIC_IP overrides auto-detection.
     is_decentralised = result.get('_decentralised', False)
-    public_base = RESEARCHER_URL if is_decentralised else PUBLIC_URL
+    if is_decentralised and 'localhost' in RESEARCHER_URL:
+        public_ip = os.environ.get('VALICHORD_PUBLIC_IP', '')
+        if not public_ip:
+            try:
+                req = urllib.request.Request(
+                    'https://ifconfig.me', headers={'User-Agent': 'curl/7.0'})
+                public_ip = urllib.request.urlopen(req, timeout=3).read().decode().strip()
+            except Exception:
+                public_ip = ''
+        public_base = RESEARCHER_URL.replace('localhost', public_ip) if public_ip else RESEARCHER_URL
+    else:
+        public_base = RESEARCHER_URL if is_decentralised else PUBLIC_URL
 
     lookup_hash = external_hash_b64 or harmony_hash
     if lookup_hash:
