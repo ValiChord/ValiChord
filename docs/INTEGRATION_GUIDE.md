@@ -36,7 +36,7 @@ The machine-readable OpenAPI spec is at `GET /openapi.yaml`.
 | Environment | URL |
 |-------------|-----|
 | Local / dev | `http://localhost:5000` |
-| Codespace demo (sleeps when inactive) | `https://improved-space-couscous-5gjwpp546jrg27p5q-5000.app.github.dev` |
+| Production (Render) | Contact the ValiChord team for the current deployment URL |
 
 ---
 
@@ -73,8 +73,7 @@ curl -X POST /validate \
 
 ### Validator mode — replication attestation
 
-You have actually run the research code (e.g. using Feynman's `/replicate`)
-and are submitting your genuine verdict. Include `validator_outcome` and
+You have actually run the research code and are submitting your genuine verdict. Include `validator_outcome` and
 `validator_notes`. The HarmonyRecord will reflect what you found when you ran
 it — `validator_attested` will be `true`.
 
