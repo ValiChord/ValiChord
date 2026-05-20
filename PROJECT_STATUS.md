@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-17
-**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.21. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with two real-data demos (Mistral/GSM8K + inspect_ai popularity). `InspectAILogAdapter` (reads .eval files directly), `eval_yaml_metadata` enrichment on `InspectEvalsAdapter`, `generate-attestation-bundle` Claude Code skill. 259 valichord_attestation tests, 100% line coverage.
+**Last updated:** 2026-05-20
+**Phase:** Full protocol running end-to-end on Oracle. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.21. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
 
@@ -74,6 +74,16 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### `PiSessionAdapter` + `ValiChordLogger` for lm-evaluation-harness — 2026-05-20 ✓
+
+**PiSessionAdapter** (`valichord_attestation/adapters/pi_session_adapter.py`) — reads pi coding agent session v3 JSONL files and converts them to canonical Valichord bundles. Resolves the active branch via parentId walk (mirrors `_buildIndex()`), applies compaction filtering (`firstKeptEntryId`), extracts 8 metrics (turns, tool calls, error rate, tokens, cost, compaction count, stop reason), and builds a full Merkle tree over all branch entries. 67 tests, 99% coverage.
+
+**ValiChordLogger** (`topeuph-ai/lm-evaluation-harness`, fork) — optional logger for lm-evaluation-harness following the `wandb`/`trackio` pattern. Hooks into `post_init` → `log_eval_result` → `log_eval_samples`, builds a `valichord_attestation` bundle (Merkle tree over per-sample `filtered_resps`, stable SHA-256 commitment via RFC 8785), and saves it alongside the `results_*.json` artifact. Wired via `--valichord_args output_path=./results` CLI flag and `pip install lm_eval[valichord]` optional extra. 28 tests, all mocked (no GPU/network required in CI).
+
+**Engagement:** comment posted on [EleutherAI/lm-evaluation-harness#3752](https://github.com/EleutherAI/lm-evaluation-harness/pull/3752) asking if a companion PR is welcome. FazeelUsmani (PR author) previously engaged positively on that thread when v1.2 shipped.
+
+---
 
 ### falsify-cookbook Pattern 13 merged — 2026-05-20 ✓
 
