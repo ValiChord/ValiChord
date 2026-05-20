@@ -17,5 +17,6 @@ admin_interfaces:
 network:
   bootstrap_url: __BOOTSTRAP_URL__
   signal_url: __SIGNAL_URL__
+  relay_url: __SIGNAL_URL__
 db_sync_strategy: Fast
 db_max_readers: 4
