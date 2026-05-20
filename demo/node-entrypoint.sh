@@ -48,13 +48,23 @@ echo "  Conductor PID $CONDUCTOR_PID — logs: /tmp/conductor.log"
 
 # ── Wait for admin port ────────────────────────────────────────────────────────
 echo -n "  Waiting for admin port $ADMIN_PORT"
+CONDUCTOR_READY=false
 for i in $(seq 1 120); do
     if bash -c "echo > /dev/tcp/localhost/$ADMIN_PORT" 2>/dev/null; then
         echo " ready."
+        CONDUCTOR_READY=true
         break
     fi
     sleep 1; echo -n "."
 done
+
+if [ "$CONDUCTOR_READY" = false ]; then
+    echo ""
+    echo "=== CONDUCTOR FAILED TO START — dumping log ==="
+    cat /tmp/conductor.log
+    echo "=== END CONDUCTOR LOG ==="
+    exit 1
+fi
 
 # ── Install happ on this conductor ────────────────────────────────────────────
 ADMIN_PORT="$ADMIN_PORT" \
