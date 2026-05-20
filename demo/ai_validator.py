@@ -202,7 +202,14 @@ Reply with ONLY a JSON object — no markdown, no explanation:
         """Parse and validate the JSON verdict; raise ValueError with a
         descriptive message on any problem (fed back into the next attempt)."""
         # Strip common LLM decoration before parsing
-        text = raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+        text = raw.strip()
+        for prefix in ('```json', '```'):
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+                break
+        if text.endswith('```'):
+            text = text[:-3]
+        text = text.strip()
         verdict = json.loads(text)
         missing = _REQUIRED_KEYS - verdict.keys()
         if missing:
