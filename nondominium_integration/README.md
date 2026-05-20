@@ -80,15 +80,13 @@ Neither project needs to build cross-DNA call infrastructure — Nondominium's h
 
 ## Version alignment
 
-Both projects target the same Holochain release:
-
 | Dependency | ValiChord | Nondominium |
 |---|---|---|
-| `hdk` | `0.6` | `0.6.0` |
-| `hdi` | `0.7` | `0.6.x` |
-| Test framework | Tryorama + Vitest | Tryorama + Vitest |
+| `hdk` | `=0.6.1` | `^0.6.0` |
+| `hdi` | `=0.7.1` | `^0.6.x` |
+| Test framework | Sweettest + Tryorama/Vitest | Sweettest (primary; Tryorama deprecated in fork) |
 
-No version upgrades required on either side to begin integration work.
+Compatible — same minor version. No upgrades required to begin integration work.
 
 **Note (April 2026):** Nondominium has no `DnaProperties` struct and `dna.yaml` has `properties: ~`.
 Any integration configuration (e.g. ValiChord callback URL or contract address) cannot live in
@@ -231,13 +229,19 @@ See Decision 4 below.
 
 ### Decision 4 — Flowsta as shared identity layer
 
-Should both systems assume validators use Flowsta Vault, making `IsSamePersonEntry` resolution the standard path for cross-system attribution? Or should Flowsta be optional, with a manual key-mapping fallback?
+**Updated May 2026:** Nondominium's new **Lobby DNA** (PR #103) changes this picture. `GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey` for each NDO a validator belongs to. This is Nondominium's own MVP bridge for cross-DHT identity — without Flowsta.
 
-**Option A — Flowsta required for cross-system validators.** Integration code assumes the Flowsta Identity DNA is available. Key resolution is automated. Validators who don't use Flowsta Vault must register the same keypair in both systems manually.
+This means: if a validator's ValiChord key and their NDO key are both registered in the same Nondominium Group, the mapping already exists in the Group DHT. The integration layer can query `GroupMembership.ndo_pubkey_map` to resolve the ValiChord key → NDO key for PPR attribution.
 
-**Option B — Flowsta optional.** Integration maintains a separate key-mapping table in one or both systems. Flowsta resolution is used when available, manual fallback otherwise.
+Flowsta remains relevant for validators using **different devices** for ValiChord and Nondominium (different physical keypairs), where the Group DHT mapping would not exist. For single-device validators it may be unnecessary.
 
-Option A is cleaner and avoids duplicating Flowsta's work. Option B is more permissive but adds maintenance surface. The decision hinges on whether both teams are willing to make Flowsta Vault a prerequisite for validators who participate in both systems.
+**Option A — Use Lobby DNA GroupMembership as the MVP bridge.** Query `ndo_pubkey_map` at attribution time. Flowsta optional and post-MVP. Validators register the same key in both systems or join a shared Nondominium Group.
+
+**Option B — Flowsta required for cross-system validators.** `IsSamePersonEntry` resolution is the standard path. Automated, device-agnostic. Validators who don't use Flowsta must register the same keypair in both systems manually.
+
+**Option C — Flowsta optional with GroupMembership fallback.** Try GroupMembership first; fall back to Flowsta if keys differ; fall back to manual table if neither available.
+
+Option A unblocks the MVP integration without a Flowsta dependency. Option B is cleanest long-term for multi-device validators. Option C is most permissive but adds complexity.
 
 ---
 
@@ -259,4 +263,4 @@ ValiChord is also designed to remain independent: usable outside any single ecos
 
 ---
 
-*This document was written after reading both codebases. All function names, entry types, and zome references correspond to the current state of each repository as of March 2026.*
+*Written March 2026 after reading both codebases. Updated May 2026: version table corrected (ValiChord now 0.6.1), Decision 4 updated for Nondominium Lobby DNA (PR #103) and GroupMembership identity bridge. All function names, entry types, and zome references verified against `dev` branch of https://github.com/Sensorica/nondominium as of May 2026.*

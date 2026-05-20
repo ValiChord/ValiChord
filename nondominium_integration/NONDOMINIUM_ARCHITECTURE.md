@@ -7,21 +7,24 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 
 ## Overview
 
-Single DNA (`nondominium`) with three paired integrity/coordinator zomes plus one utility coordinator.
-HDK `0.6.0` / HDI `0.6.x` — identical to ValiChord. Tests use Tryorama + Vitest.
+Two DNAs as of May 2026: `nondominium` (core) + `lobby` (cross-NDO federation, added PR #103).
+HDK `^0.6.0` / HDI `0.6.x`. Tests: Sweettest (Rust, primary) — Tryorama/Vitest tests deprecated in the fork.
 
 ```
 nondominium.happ
-└── nondominium (DNA)
-    ├── zome_person       — agent identity, roles, private data, capability grants, device management
-    ├── zome_resource     — resource specs and economic resources (ValueFlows)
-    ├── zome_gouvernance  — validation, economic events, commitments, PPRs
-    └── misc              — coordinator only; single ping() function (test/debug scaffold)
+├── nondominium (DNA)
+│   ├── zome_person       — agent identity, roles, private data, capability grants, device management
+│   ├── zome_resource     — resource specs, NDO Layer 0 identity, economic resources (ValueFlows)
+│   ├── zome_gouvernance  — validation, economic events, commitments, PPRs
+│   └── misc              — coordinator only; single ping() function (test/debug scaffold)
+└── lobby (DNA)           — cross-NDO discovery and agent federation (see Lobby DNA section below)
 ```
 
-A `nondominium_utils` crate at `crates/utils/` provides shared error types (`ResourceError`,
-`GovernanceError`, `PersonError`) and cross-zome call helpers (`call_governance_zome`,
-`call_person_zome`) used by all three coordinator zomes.
+**Shared crates (May 2026):**
+- `crates/shared/` (`nondominium_shared`) — `LifecycleStage`, `PropertyRegime`, `ResourceNature` types + shared error types + path helpers. The resource integrity zome re-exports these; refer to `nondominium_shared::types` when reading the source.
+- `packages/shared-types/` — TypeScript mirrors (lobby, person, resource, governance, PPR types).
+
+A `nondominium_utils` crate at `crates/utils/` provides cross-zome call helpers (`call_governance_zome`, `call_person_zome`) used by all three coordinator zomes.
 
 ---
 
@@ -280,6 +283,33 @@ data as sovereign. No conflict; they cover different lifecycle moments.
 
 ---
 
+## Lobby DNA (added May 2026)
+
+A new second DNA providing a global cross-NDO discovery and federation layer. Agents have one `LobbyAgentProfile` visible across all communities; separate NDO-specific `Person` entries (in `zome_person`) remain sovereign to each NDO DHT.
+
+### Entry types
+| Entry | Key fields |
+|---|---|
+| `LobbyAgentProfile` | handle, avatar_url, bio — cross-NDO public face keyed to `lobby_pubkey` |
+| `NdoAnnouncement` | NDO discovery record — links a lobby_pubkey to an announced NDO |
+
+### Three-layer identity model
+
+```
+Lobby DHT               Group DHT                    NDO DHT
+────────────────────    ─────────────────────────    ────────────────────
+LobbyAgentProfile       GroupMembership              Person (zome_person)
+lobby_pubkey  ────────→ ndo_pubkey_map          ───→ (key that authored
+(handle, avatar, bio)   [{ndo_dna_hash,               Person entry)
+                          ndo_pubkey}]
+```
+
+`GroupMembership.ndo_pubkey_map` is the **MVP identity bridge**: it records `lobby_pubkey → ndo_pubkey` for each NDO a validator belongs to, enabling cross-DHT key resolution without Flowsta. See Decision 4 in `README.md` — this changes the Flowsta picture.
+
+Moss/The Weave integration is optional (post-MVP). Unyt RAVE integration is also post-MVP. The DNA runs fully standalone.
+
+---
+
 ## Build and test
 
 ```bash
@@ -309,4 +339,4 @@ Flowsta remains the cleanest path for cross-system attribution.
 
 ---
 
-*Last updated: April 2026. Re-read against the `dev` branch of https://github.com/topeuph-ai/nondominium (ValiChord fork) and https://github.com/Sensorica/nondominium (upstream).*
+*Last updated: May 2026. Re-read against the `dev` branch of https://github.com/Sensorica/nondominium (upstream). Key additions since April 2026: Lobby DNA (PR #103), `crates/shared/` types crate, `packages/shared-types/` TypeScript package, zome_gouvernance split into multiple source files (API unchanged), Sweettest suite added for NDO Layer 0.*

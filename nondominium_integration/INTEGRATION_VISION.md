@@ -151,9 +151,9 @@ ValiChord knows validators by their ValiChord device `AgentPubKey`. Nondominium 
 
 **Within ValiChord** (implemented, 2026-03-25): `AgentIdentityAttestation` — both device keys jointly sign a canonical 78-byte payload (sorted pubkeys). `get_linked_agents()` resolves any key to all linked alternates. Reputation continuity is maintained across device rotation.
 
-**Across systems** (Decision 4, pending): Flowsta Vault's `IsSamePersonEntry` provides cross-system resolution. When `log_economic_event(VfAction::Work, provider: X)` fires, X must be the validator's NDO key. Flowsta provides the lookup: ValiChord key → linked keys → match against NDO Person records → use matched NDO key as provider.
+**Within Nondominium** (implemented, May 2026): The new Lobby DNA provides a three-layer identity model. `GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey` per NDO for every validator in a Group. This is the MVP bridge for cross-DHT identity within Nondominium — without Flowsta.
 
-Without Flowsta, the integration must either assume same-device registration across both systems, or maintain a manual mapping table.
+**Across systems** (Decision 4, updated): When `log_economic_event(VfAction::Work, provider: X)` fires, X must be the validator's NDO key. The Lobby DNA's `GroupMembership.ndo_pubkey_map` can resolve this if both the ValiChord key and the NDO key are registered in a shared Nondominium Group — the likely case for single-device validators. Flowsta Vault's `IsSamePersonEntry` remains the cleanest path for multi-device validators where keys differ across systems. See Decision 4 in `README.md` for the three options.
 
 ---
 
