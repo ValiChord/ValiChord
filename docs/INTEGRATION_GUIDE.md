@@ -365,3 +365,4 @@ See `valichord_attestation/README.md` for the full API and
 - **`valichord_attestation` library:** `valichord_attestation/README.md`
 - **4-DNA architecture:** `docs/7_ValiChord_4-DNA_architecture_technical.md`
 - **How a validation round works:** `docs/15_How_a_Validation_Round_Works.md`
+- **falsify-cookbook Pattern 13** — end-to-end worked example stacking PRML pre-registration + `valichord_attestation` + ValiChord commit-reveal: https://github.com/studio-11-co/falsify-cookbook/blob/main/patterns/13-commit-reveal-validation.md
