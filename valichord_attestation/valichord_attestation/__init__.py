@@ -1,5 +1,6 @@
 from .adapters.inspect_ai_log_adapter import InspectAILogAdapter
 from .adapters.inspect_evals_stub import InspectEvalsAdapter
+from .adapters.pi_session_adapter import PiSessionAdapter
 from .bundle import Bundle, Metric, MalformedBundleError
 from .builder import build_bundle
 from .canonical import bundle_to_dict, canonicalise, content_hash, hash_bundle, pre_round
@@ -31,4 +32,5 @@ __all__ = [
     "verify_response",
     "InspectAILogAdapter",
     "InspectEvalsAdapter",
+    "PiSessionAdapter",
 ]
