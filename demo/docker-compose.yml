@@ -1,7 +1,7 @@
 # ValiChord Decentralised Demo — Docker Compose
 #
 # Runs 5 fully isolated conductors (1 researcher + 3 validators + 1 bootstrap
-# server) that communicate ONLY through the shared DHT via WebRTC/tx5.  Each
+# server) that communicate ONLY through the shared DHT via iroh/QUIC.  Each
 # conductor has its own keypair and its own keystore — this is the closest a
 # single-machine setup can get to a real multi-party deployment.
 # Each conductor loads only the DNAs it needs (researcher.happ / validator.happ)
@@ -34,12 +34,13 @@ version: '3.9'
 
 # ── Shared bootstrap / SBD server ──────────────────────────────────────────────
 # kitsune2-bootstrap-srv handles both bootstrap peer discovery (HTTP) and
-# WebRTC SBD signalling (WebSocket) on the same port.
+# iroh/QUIC signalling on the same port.
 # All 5 conductors point at this service; it never touches the DHT itself.
 
 services:
   bootstrap:
     image: debian:bookworm-slim
+    restart: unless-stopped
     volumes:
       - ./bin/kitsune2-bootstrap-srv:/kitsune2-bootstrap-srv:ro
     command:
@@ -60,6 +61,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.node
+    restart: unless-stopped
     environment:
       ROLE:         researcher
       BOOTSTRAP_URL: http://bootstrap:9000
@@ -85,6 +87,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.node
+    restart: unless-stopped
     environment:
       ROLE:         validator
       BOOTSTRAP_URL: http://bootstrap:9000
@@ -106,6 +109,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.node
+    restart: unless-stopped
     environment:
       ROLE:         validator
       BOOTSTRAP_URL: http://bootstrap:9000
@@ -127,6 +131,7 @@ services:
     build:
       context: ..
       dockerfile: demo/Dockerfile.node
+    restart: unless-stopped
     environment:
       ROLE:         validator
       BOOTSTRAP_URL: http://bootstrap:9000

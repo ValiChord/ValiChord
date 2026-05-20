@@ -10,7 +10,7 @@
 # No manual setup required — docker compose up --build handles everything.
 # Requires: Docker, Docker Compose, and ANTHROPIC_API_KEY in the environment.
 
-ARG HOLOCHAIN_VERSION=0.6.0
+ARG HOLOCHAIN_VERSION=0.6.1
 ARG HOLOCHAIN_URL=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}/holochain-x86_64-unknown-linux-gnu
 
 FROM node:20-bookworm-slim

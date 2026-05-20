@@ -10,7 +10,7 @@
 set -euo pipefail
 
 echo "=== ValiChord Oracle Setup ==="
-echo "This will install Node.js 20, Python 3 deps, Rust, and Holochain 0.6.0."
+echo "This will install Node.js 20, Python 3 deps, Rust, and Holochain 0.6.1."
 echo "Estimated time: 20-40 minutes."
 echo ""
 
@@ -46,12 +46,18 @@ fi
 source "$HOME/.cargo/env"
 echo "  Rust: $(rustc --version)"
 
-# ── Holochain 0.6.0 ──────────────────────────────────────────────────────────
-echo "[5/6] Installing Holochain 0.6.0 (this takes 15-30 min)…"
-if ! holochain --version 2>/dev/null | grep -q "0.6.0"; then
-    cargo install holochain --version 0.6.0 --locked
+# ── Holochain 0.6.1 ──────────────────────────────────────────────────────────
+echo "[5/6] Installing Holochain 0.6.1 (this takes 15-30 min)…"
+if ! holochain --version 2>/dev/null | grep -q "0.6.1"; then
+    cargo install holochain --version 0.6.1 --locked
 fi
 echo "  Holochain: $(holochain --version)"
+
+echo "[5b/6] Installing kitsune2-bootstrap-srv 0.4.1…"
+if ! kitsune2-bootstrap-srv --version 2>/dev/null | grep -q "0.4.1"; then
+    cargo install kitsune2_bootstrap_srv --version 0.4.1 --locked
+fi
+echo "  kitsune2-bootstrap-srv: $(kitsune2-bootstrap-srv --version)"
 
 # ── Node deps for demo ────────────────────────────────────────────────────────
 echo "[6/6] Installing Node dependencies for demo…"

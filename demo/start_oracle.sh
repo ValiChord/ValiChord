@@ -39,7 +39,7 @@ fi
 
 # ── Start local kitsune2 bootstrap/SBD server ─────────────────────────────────
 # Runs locally on port 9000 — conductor-config.yaml points here.
-# Avoids Oracle-specific WebRTC/tx5 failures against the external relay.
+# Avoids relying on external relay — conductors peer via local iroh/QUIC bootstrap.
 echo "[0/3] Starting local kitsune2 bootstrap server on port 9000…"
 BOOTSTRAP_BIN="$SCRIPT_DIR/bin/kitsune2-bootstrap-srv"
 if [ ! -x "$BOOTSTRAP_BIN" ]; then
