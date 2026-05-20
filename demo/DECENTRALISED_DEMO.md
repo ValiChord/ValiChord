@@ -5,9 +5,11 @@
 
 ## What this demo is
 
-A fully automated, end-to-end run of the ValiChord commit-reveal protocol across **four completely isolated Holochain conductors** — one researcher and three validators — plus a separate kitsune2 bootstrap/DHT server, all running in separate Docker containers with no shared memory and no shared filesystem.
+A fully automated, end-to-end run of the ValiChord commit-reveal protocol across **4 completely isolated Holochain conductors** — one researcher and three validators — running as separate Docker containers alongside a kitsune2 bootstrap server, with no shared memory and no shared filesystem.
 
 **This is the closest a single-machine setup can get to a real multi-party deployment.** Each container generates its own keypair at startup, writes to its own SQLite conductor database, and communicates with the others exclusively through the DHT — exactly as researcher and validators would on separate machines in production.
+
+**A permanent instance of this stack runs on Oracle Cloud (132.145.34.27)** with `restart: unless-stopped`, surviving reboots automatically. See [Running on Oracle](#running-on-oracle) below.
 
 What happens when you run it:
 
@@ -113,13 +115,58 @@ ai_validator.py --mode decentralised
 ## Requirements
 
 - Docker and Docker Compose
-- Python 3.9+
-- An Anthropic API key (`claude-opus-4-6` or better)
+- Python 3.8+
+- An Anthropic API key (`claude-sonnet-4-6` or better)
 - Linux x86_64 (the Holochain binary is downloaded automatically)
+
+> **Ubuntu 20.04:** the docker-compose-plugin is not in the default apt repos. Use `sudo apt-get install docker-compose` or download the standalone binary from GitHub releases and place it at `/usr/local/bin/docker-compose`.
 
 ---
 
-## Run it
+## Running on Oracle
+
+A permanent instance of the full 5-container stack runs on Oracle Cloud. The containers start automatically on VM boot (`restart: unless-stopped`). To run the demo against it without any local Docker setup:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+python3 demo/ai_validator.py --mode decentralised
+```
+
+The shareable HarmonyRecord URL in the output will automatically use the public IP (`http://132.145.34.27:3001/record?hash=...`). Port 3001 must be open in the Oracle Security List for external access to that URL.
+
+**To set up Oracle from scratch** (already done; documented for reference):
+
+```bash
+# On Oracle VM (Ubuntu 20.04):
+sudo apt-get update
+sudo apt-get install -y docker.io
+sudo usermod -aG docker ubuntu
+# Log out and back in
+
+# Install docker-compose (standalone binary, v2.x)
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64" \
+  -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Clone and start (first run takes ~5 min for Holochain binary download)
+git clone https://github.com/topeuph-ai/ValiChord.git
+cd ValiChord
+export ANTHROPIC_API_KEY=sk-ant-...
+sudo docker-compose -f demo/docker-compose.yml up --build -d
+
+# Check all 4 node APIs are up:
+until [ "$(sudo docker-compose -f demo/docker-compose.yml logs 2>/dev/null | grep -c 'node API →')" -ge 4 ]; do sleep 3; done && echo "Ready"
+```
+
+Persist the API key for unattended restarts: `echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc`
+
+---
+
+## Run it locally
 
 ```bash
 git clone https://github.com/topeuph-ai/ValiChord.git
@@ -222,7 +269,8 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://localhost:3001/record?hash=uhC8k…
+  http://132.145.34.27:3001/record?hash=uhC8k…   ← public IP when run on Oracle
+  http://localhost:3001/record?hash=uhC8k…        ← when run locally
 
   Verifying record is readable…
   Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
@@ -363,4 +411,4 @@ cd ..
 docker compose -f demo/docker-compose.yml up --build -d
 ```
 
-Requires: `cargo`, `wasm32-unknown-unknown` target, and `hc` CLI (`cargo install holochain_cli --version 0.6.0 --locked`).
+Requires: `cargo`, `wasm32-unknown-unknown` target, and `hc` CLI (`cargo install holochain_cli --version 0.6.1 --locked`).

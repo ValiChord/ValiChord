@@ -24,9 +24,9 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Decentralised demo | **Working end-to-end** | 4 isolated Docker conductors (researcher + 3 validators) communicating only via DHT — `docker compose up` + `python3 demo/ai_validator.py --mode decentralised` |
+| Decentralised demo | **Permanently live on Oracle** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server (132.145.34.27); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. Oracle: containers already up. |
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
-| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON |
+| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://132.145.34.27:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
 | valichord-ui (Svelte/TS frontend) | **Working end-to-end** | Full UI for all three roles (researcher, validator, governance). Wired to a live local conductor: `bash dev.sh` starts conductor + installs app + writes auth token; `npm run dev` serves at `:5173`. `submit_validation_request` → DHT → `get_validation_request_for_data_hash` verified. See `valichord-ui/README.md` and `FRONTEND.md`. |
 
@@ -34,12 +34,23 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 
 ## How the demo runs end-to-end
 
-Five Docker containers — researcher + 3 validators + kitsune2 bootstrap server — each with their own Holochain conductor, keystore, and SQLite database. The only communication between containers is the DHT.
+Five Docker containers — researcher + 3 validators + kitsune2 bootstrap server — each with their own Holochain conductor, keystore, and SQLite database. The only communication between containers is the DHT. **Neither the researcher nor any validator can see each other's results before committing.** Validators do not know what other validators concluded. The researcher cannot know what validators will say. The commit-reveal protocol enforces this structurally — not by policy.
 
+**Run locally:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 docker compose -f demo/docker-compose.yml up --build -d
 until [ "$(docker compose -f demo/docker-compose.yml logs 2>/dev/null | grep -c 'node API →')" -ge 4 ]; do sleep 3; done && echo "Ready"
+python3 demo/ai_validator.py --mode decentralised
+```
+
+**Run against Oracle (already running — no Docker setup needed):**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
@@ -58,7 +69,7 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://localhost:3001/record?hash=uhC8k…
+  http://132.145.34.27:3001/record?hash=uhC8k…
 
   Verifying record is readable…
   Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
@@ -349,17 +360,20 @@ Full browser UI connected to a real Holochain conductor for the first time.
 ## What is NOT done yet
 
 ### 1. `ANTHROPIC_API_KEY` persistent on Oracle — HIGH, 2 min fix
-Currently must be manually exported each SSH session. Blocks unattended demo runs.
+The containers have `restart: unless-stopped` so they survive Oracle VM reboots. But the API key is passed from the host environment — if Oracle reboots and the key isn't in `~/.bashrc`, the researcher container starts without it and Claude calls fail. Fix:
 ```bash
-# SSH into Oracle and add to ~/.bashrc:
+# SSH into Oracle and run:
 echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
 ```
 
-### 2. ~~Feynman PR #23~~ — CLOSED
+### 2. Port 3001 in Oracle Security List — needed for shareable URLs
+The shareable HarmonyRecord URL (`http://132.145.34.27:3001/record?hash=…`) only works from outside Oracle if port 3001 is open in the Oracle Cloud Security List. This is separate from the OS firewall. Navigate to: Oracle Console → Networking → Virtual Cloud Networks → your VCN → Security Lists → Add Ingress Rule → Protocol: TCP, Destination port: 3001, Source: 0.0.0.0/0.
+
+### 3. ~~Feynman PR #23~~ — CLOSED
 Feynman is no longer operational (April 2026). AI validator functionality has been rebuilt
 directly against the Claude API (`demo/ai_validator.py`). No further Feynman integration work.
 
-### 3. Rate limiting — LOW
+### 4. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
 
 ---

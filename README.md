@@ -31,17 +31,28 @@ Across every scientific discipline — computational, experimental, clinical, ha
 
 ## 🐳 **Decentralised Demo — 5 Isolated Conductors**
 
-> **The full protocol now runs across genuinely isolated nodes with no shared state.**
+> **The full protocol runs across genuinely isolated nodes with no shared state — permanently live on Oracle Cloud.**
 
-Five Docker containers — one researcher, three validators, one kitsune2 bootstrap server — each run their own Holochain conductor with their own keypair and their own SQLite database. The only communication channel is the DHT. This is the closest a single-machine setup can get to a real multi-party deployment.
+Five Docker containers — one researcher, three validators, one kitsune2 bootstrap server — each run their own Holochain conductor with their own keypair and their own SQLite database. The only communication channel is the DHT. **The validators are completely unaware of each other's verdicts. The researcher is completely unaware of what validators will conclude.** The commit-reveal protocol enforces this structurally, not by policy.
 
+**Option A — Run against the live Oracle instance (no Docker needed):**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+python3 demo/ai_validator.py --mode decentralised
+```
+
+**Option B — Run locally:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 docker compose -f demo/docker-compose.yml up --build -d
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-**[Decentralised demo guide →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
+**[Full technical guide — architecture, commit-reveal table, Oracle setup →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
 
 ---
 
