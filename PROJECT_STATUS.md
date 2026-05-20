@@ -75,6 +75,33 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### falsify-cookbook Pattern 13 merged — 2026-05-20 ✓
+
+ValiChord is now officially referenced in the [falsify-cookbook](https://github.com/studio-11-co/falsify-cookbook) as Pattern 13 — co-authored with Cüneyt Öztürk (Studio 11).
+
+**PR:** [studio-11-co/falsify-cookbook#3](https://github.com/studio-11-co/falsify-cookbook/pull/3) — merged, reviewed and approved by sk8ordie84 (Cüneyt).
+
+**What the pattern covers:**
+
+Three-layer stack for AI evaluation independence attestation:
+
+| Layer | Tool | What it commits |
+|---|---|---|
+| Pre-registration | PRML / falsify | metric, comparator, threshold, dataset hash, seed |
+| Eval attestation | valichord_attestation | Merkle root over per-sample outputs |
+| Independence attestation | ValiChord | blind multi-party verdicts; HarmonyRecord on public DHT |
+
+Pattern 13 fills the gap Pattern 11 (Sigstore) leaves open: Sigstore proves *who* ran the eval and *when*; ValiChord proves validators couldn't coordinate post-hoc. The pattern explicitly cross-references Pattern 10's auditor-layer gap (v0.3 roadmap: centralised consortium registry) as the structural problem ValiChord's DHT solves.
+
+**Honest about limits (documented in the pattern):**
+- Validator withdrawal: commitment is visible on DHT but protocol can't compel reveal
+- Validators don't yet commit to their own reproduction bundle hash (planned extension)
+- Integration is manual today — no single command wires all three layers
+
+**Strategic significance:** ValiChord is now a named, documented component of the falsify/PRML ecosystem. The `attestation_uri` field (P-02) pointing to a HarmonyRecord URL is the concrete integration hook. Future: automate the handoff between `valichord_attestation` and the Holochain protocol.
+
+---
+
 ### Holochain 0.6.1 upgrade — 2026-05-13 ✓
 
 Full upgrade of the Holochain toolchain from 0.6.0 to 0.6.1. Transport switches from tx5/WebRTC to iroh/QUIC.
