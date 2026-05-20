@@ -39,12 +39,10 @@ sed -e "s|__BOOTSTRAP_URL__|$BOOTSTRAP_URL|g" \
 cd "$SCRIPT_DIR"
 echo "$PASSPHRASE" | RUST_LOG="warn,holochain_conductor=info,holochain_p2p=warn,kitsune_p2p=warn" \
     holochain --config-path "$CONFIG_OUT" --piped \
-    > /tmp/conductor.log 2>&1 &
-CONDUCTOR_PID=$!
+    2>&1 | tee /tmp/conductor.log &
+CONDUCTOR_PID=${PIPESTATUS[0]}
 
-# Write exit code to file when conductor dies (for post-mortem debugging).
-( wait $CONDUCTOR_PID; echo "conductor exited: code=$? pid=$CONDUCTOR_PID" >> /tmp/conductor.log ) &
-echo "  Conductor PID $CONDUCTOR_PID — logs: /tmp/conductor.log"
+echo "  Conductor PID $CONDUCTOR_PID — logs: /tmp/conductor.log (also streamed above)"
 
 # ── Wait for admin port ────────────────────────────────────────────────────────
 echo -n "  Waiting for admin port $ADMIN_PORT"
