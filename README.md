@@ -22,13 +22,6 @@ Across every scientific discipline — computational, experimental, clinical, ha
 
 ---
 
-## 🎬 **[▶ Watch the demo on YouTube](https://www.youtube.com/watch?v=DinSdR-U114&feature=youtu.be)**
-**3 AI validators + researcher commit blind, reveal simultaneously — both sides hash-verified on the live Holochain network. Permanent public record. No auth required.**
-
-**[Full technical walkthrough →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
-
----
-
 ## 🐳 **Decentralised Demo — 5 Isolated Conductors**
 
 > **The full protocol runs across genuinely isolated nodes with no shared state — permanently live on Oracle Cloud.**
@@ -53,6 +46,9 @@ python3 demo/ai_validator.py --mode decentralised
 ```
 
 **[Full technical guide — architecture, commit-reveal table, Oracle setup →](https://github.com/topeuph-ai/ValiChord/blob/main/demo/DECENTRALISED_DEMO.md)**
+
+## 🎬 **[▶ Watch the demo on YouTube](https://www.youtube.com/watch?v=DinSdR-U114&feature=youtu.be)**
+**3 AI validators + researcher commit blind, reveal simultaneously — both sides hash-verified on the live Holochain network. Permanent public record. No auth required.**
 
 ---
 
