@@ -28,7 +28,14 @@ Across every scientific discipline — computational, experimental, clinical, ha
 
 Five Docker containers — one researcher, three validators, one kitsune2 bootstrap server — each run their own Holochain conductor with their own keypair and their own SQLite database. The only communication channel is the DHT. **The validators are completely unaware of each other's verdicts. The researcher is completely unaware of what validators will conclude.** The commit-reveal protocol enforces this structurally, not by policy.
 
-**Option A — Run against the live Oracle instance (no Docker needed):**
+**Option A — SSH into Oracle and run (simplest — no env vars needed):**
+```bash
+ssh -i path/to/ssh-key.key ubuntu@132.145.34.27
+# then on the server:
+cd ValiChord && git pull && python3 demo/ai_validator.py --mode decentralised
+```
+
+**Option A (remote) — Run against Oracle from your own machine:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
