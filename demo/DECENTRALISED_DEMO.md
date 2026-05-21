@@ -125,7 +125,31 @@ ai_validator.py --mode decentralised
 
 ## Running on Oracle
 
-A permanent instance of the full 5-container stack runs on Oracle Cloud. The containers start automatically on VM boot (`restart: unless-stopped`). To run the demo against it without any local Docker setup:
+A permanent instance of the full 5-container stack runs on Oracle Cloud. The containers start automatically on VM boot (`restart: unless-stopped`).
+
+### Recommended: SSH into Oracle and run from there
+
+This is the simplest approach — the API key and node URLs are already configured on the server.
+
+**From Windows PowerShell (or any SSH client):**
+```powershell
+ssh -i "path\to\ssh-key-2026-04-13.key" ubuntu@132.145.34.27
+```
+
+> **Note:** The Oracle username is `ubuntu`, not `opc`.
+
+Once connected:
+```bash
+cd ValiChord
+git pull          # pick up any updates
+python3 demo/ai_validator.py --mode decentralised
+```
+
+No environment variables needed — `ANTHROPIC_API_KEY` is already in `~/.bashrc` on the server, and the node URLs default to localhost.
+
+### Alternative: run remotely from your own machine
+
+Set the node URLs to point at Oracle and provide your API key:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -220,13 +244,12 @@ python3 demo/ai_validator.py --mode decentralised
 
 [3/7] Forming 3 independent verdicts via Claude…
 ────────────────────────────────────────────────────────────
-  Calling Claude (validator 1/3)… Reproduced — High confidence
-  Calling Claude (validator 2/3)… Reproduced — High confidence
-  Calling Claude (validator 3/3)… Reproduced — High confidence
+  Calling Claude (validator 1/3)… verdict sealed.
+  Calling Claude (validator 2/3)… verdict sealed.
+  Calling Claude (validator 3/3)… verdict sealed.
 
-  Validator 1: Reproduced (High) — The actual output exactly matches the expected output.
-  Validator 2: Reproduced (High) — All three metrics match the claimed values precisely.
-  Validator 3: Reproduced (High) — The code reproduces the reported results exactly.
+  3 verdicts sealed. Validators will commit blind to the DHT.
+  Actual verdicts are hidden until the phase gate opens and all parties reveal.
 
 [4/7] Running decentralised commit-reveal protocol…
 ────────────────────────────────────────────────────────────
@@ -245,9 +268,9 @@ python3 demo/ai_validator.py --mode decentralised
   (4) Validator 3 committing blind…
   (5) Polling phase gate… RevealOpen (after N polls).
   (6a) Researcher revealing metrics (SHA-256 verified on-chain)…
-  (6b) Validator 1 revealing attestation…
-  (6b) Validator 2 revealing attestation…
-  (6b) Validator 3 revealing attestation…
+  (6b) Validator 1 breaking seal… Reproduced (High) — The actual output exactly matches the expected output.
+  (6b) Validator 2 breaking seal… Reproduced (High) — All three metrics match the claimed values precisely.
+  (6b) Validator 3 breaking seal… Reproduced (High) — The code reproduces the reported results exactly.
   (7)  Creating HarmonyRecord on Governance DHT…
 
 [5/7] All commitments sealed and revealed.
