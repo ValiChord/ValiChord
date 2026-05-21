@@ -307,6 +307,10 @@ python3 demo/ai_validator.py --mode decentralised
 
 Total wall time is approximately 4–5 minutes. The majority is DHT gossip wait time.
 
+When you open the shareable URL in a browser, you see the live HarmonyRecord returned directly from the Holochain node:
+
+![HarmonyRecord in browser](../Images/harmony-record-screenshot.png)
+
 ---
 
 ## Tear down

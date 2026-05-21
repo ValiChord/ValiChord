@@ -63,6 +63,10 @@ That URL returns a permanent record — a **HarmonyRecord** — containing:
 
 Anyone in the world can read it. Nobody can edit it. The researcher cannot retroactively claim they meant different numbers. The validators cannot retroactively claim they agreed when they didn't.
 
+![HarmonyRecord as seen in a browser](../Images/harmony-record-screenshot.png)
+
+*The HarmonyRecord as it appears when you open the shareable URL in a browser — outcome, agreement level, discipline, and validator count. Permanent and publicly readable by anyone, no login required.*
+
 ---
 
 ## What "Reproduced" means
