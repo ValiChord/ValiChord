@@ -267,12 +267,12 @@ Reply with ONLY a JSON object — no markdown, no explanation:
         if verdict is None:
             die(f'Claude (validator {i + 1}) failed to return valid JSON after '
                 f'{MAX_ATTEMPTS} attempts. Last response:\n{last_raw}')
-        print(f'{verdict["outcome"]} — {verdict["confidence"]} confidence')
+        print('verdict sealed.')
         verdicts.append(verdict)
 
     print()
-    for i, v in enumerate(verdicts, 1):
-        print(f'  Validator {i}: {v["outcome"]} ({v["confidence"]}) — {v["reasoning"]}')
+    print(f'  {n} verdicts sealed. Validators will commit blind to the DHT.')
+    print('  Actual verdicts are hidden until the phase gate opens and all parties reveal.')
     return verdicts
 
 # ── Decentralised protocol helpers ───────────────────────────────────────────
@@ -421,9 +421,10 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
     researcher_reveal_hash = reveal_resp.get('researcher_reveal_hash')
 
     # (6b) Validators reveal — staggered to avoid concurrent DHT write spikes.
-    for i, vurl in enumerate(validator_urls):
-        print(f'  (6b) Validator {i + 1} revealing attestation…')
+    for i, (vurl, verdict) in enumerate(zip(validator_urls, verdicts)):
+        print(f'  (6b) Validator {i + 1} breaking seal…', end=' ', flush=True)
         _node_post(f'{vurl}/reveal', {'external_hash_b64': external_hash_b64})
+        print(f'{verdict["outcome"]} ({verdict["confidence"]}) — {verdict["reasoning"]}')
         if i < len(validator_urls) - 1:
             time.sleep(15)
 

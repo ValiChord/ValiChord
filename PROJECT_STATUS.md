@@ -359,12 +359,8 @@ Full browser UI connected to a real Holochain conductor for the first time.
 
 ## What is NOT done yet
 
-### 1. `ANTHROPIC_API_KEY` persistent on Oracle — HIGH, 2 min fix
-The containers have `restart: unless-stopped` so they survive Oracle VM reboots. But the API key is passed from the host environment — if Oracle reboots and the key isn't in `~/.bashrc`, the researcher container starts without it and Claude calls fail. Fix:
-```bash
-# SSH into Oracle and run:
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
-```
+### ~~1. `ANTHROPIC_API_KEY` persistent on Oracle~~ — DONE (2026-05-21)
+Added to `~/.bashrc` on Oracle. Survives reboots.
 
 ### 2. Port 3001 in Oracle Security List — needed for shareable URLs
 The shareable HarmonyRecord URL (`http://132.145.34.27:3001/record?hash=…`) only works from outside Oracle if port 3001 is open in the Oracle Cloud Security List. This is separate from the OS firewall. Navigate to: Oracle Console → Networking → Virtual Cloud Networks → your VCN → Security Lists → Add Ingress Rule → Protocol: TCP, Destination port: 3001, Source: 0.0.0.0/0.
