@@ -593,7 +593,10 @@ def display_result(result: dict):
                 viewer_url, headers={'User-Agent': 'ValiChord-Demo/1.0'})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 record_body = json.loads(resp.read())
-            print(f'  Record confirmed. Outcome: {record_body.get("outcome")}  '
+            outcome = record_body.get("outcome", {})
+            if isinstance(outcome, dict):
+                outcome = outcome.get("type", outcome)
+            print(f'  Record confirmed. Outcome: {outcome}  '
                   f'Agreement: {record_body.get("agreement_level")}  '
                   f'Validators: {record_body.get("validator_count")}')
         except urllib.error.HTTPError as e:
