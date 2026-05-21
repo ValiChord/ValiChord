@@ -20,6 +20,7 @@ What happens when you run it:
 - A **phase gate** on the Holochain network opens automatically when all three commitment anchors are confirmed — no manual trigger, no trusted coordinator.
 - **Both sides reveal, both cryptographically verified.** The researcher's `reveal_researcher_result` recomputes `SHA-256(msgpack(metrics) || nonce)` and checks it against the hash committed at submission. Each validator's `submit_attestation` recomputes `SHA-256(msgpack(attestation) || nonce)` and verifies it against the `CommitmentAnchor.commitment_hash` written at seal time.
 - A **HarmonyRecord** is written to the public Governance DHT by one of the validators. It is immediately readable via the researcher node's HTTP API.
+- At the end of the run, the demo prints a **shareable URL** — e.g. `http://132.145.34.27:3001/record?hash=uhC8k…`. Anyone can open that link in a browser and read the permanent outcome: who validated it, what they concluded, and at what agreement level. No login, no account, no auth required. The record cannot be altered or deleted.
 
 ---
 
@@ -292,8 +293,8 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://132.145.34.27:3001/record?hash=uhC8k…   ← public IP when run on Oracle
-  http://localhost:3001/record?hash=uhC8k…        ← when run locally
+  http://132.145.34.27:3001/record?hash=uhC8k…   ← open in any browser, no auth required
+  http://localhost:3001/record?hash=uhC8k…        ← when run locally (not publicly accessible)
 
   Verifying record is readable…
   Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
