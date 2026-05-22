@@ -211,3 +211,14 @@ def test_run_protocol_phase_timeout_raises():
         with patch('time.sleep'):
             with pytest.raises(RuntimeError, match='Phase gate did not open'):
                 demo_runner.run_protocol('deadbeef' * 8, [], _THREE_REPRODUCED, job)
+    assert job['step'] == 5  # commits completed, step 6 not reached
+
+
+def test_run_protocol_null_harmony_hash_raises():
+    responses = dict(_ORACLE_RESPONSES)
+    responses['/create-harmony-record'] = {'harmony_record_hash': None}
+    job = {'step': 4}
+    with patch('urllib.request.urlopen', side_effect=_make_urlopen_mock(responses)):
+        with patch('time.sleep'):
+            with pytest.raises(RuntimeError, match='HarmonyRecord was not written'):
+                demo_runner.run_protocol('deadbeef' * 8, [], _THREE_REPRODUCED, job)

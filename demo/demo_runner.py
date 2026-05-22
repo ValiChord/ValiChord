@@ -210,7 +210,7 @@ def run_protocol(data_hash: str, metrics: list, verdicts: list, job: dict) -> di
     phase_url = f'{RESEARCHER_URL}/phase?hash={urllib.parse.quote(external_hash_b64)}'
     for _ in range(120):
         phase_resp = _node_get(phase_url)
-        if phase_resp.get('phase') is not None:
+        if phase_resp.get('phase') == 'RevealOpen':
             break
         time.sleep(2)
     else:
@@ -232,6 +232,12 @@ def run_protocol(data_hash: str, metrics: list, verdicts: list, job: dict) -> di
         'external_hash_b64': external_hash_b64,
     })
     harmony_record_hash = harmony_resp.get('harmony_record_hash')
+    if not harmony_record_hash:
+        raise RuntimeError(
+            f'HarmonyRecord was not written to the DHT after all gossip retries '
+            f'(external_hash={external_hash_b64[:20]}…). '
+            f'The commit-reveal round completed but the record is not yet retrievable.'
+        )
 
     outcomes = [v['outcome'] for v in verdicts]
     n_reproduced = outcomes.count('Reproduced')
@@ -258,7 +264,7 @@ def run_protocol(data_hash: str, metrics: list, verdicts: list, job: dict) -> di
         'agreement_level':        agreement_level,
         'validator_count':        3,
         'researcher_reveal_hash': researcher_reveal_hash,
-        'record_url':             f'http://132.145.34.27:3001/record?hash={urllib.parse.quote(external_hash_b64)}',
+        'record_url':             f'{RESEARCHER_URL}/record?hash={urllib.parse.quote(external_hash_b64)}',
         'validator_verdicts': [
             {
                 'validator':  i + 1,
