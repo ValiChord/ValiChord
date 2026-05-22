@@ -115,6 +115,14 @@
         {/each}
       </nav>
     {/if}
+    <a
+      class="demo-link"
+      href="https://valichord-demo.onrender.com/demo"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      ✦ Live Demo
+    </a>
   </header>
 
   <!-- ── Notifications ──────────────────────────────────────────────────── -->
@@ -196,6 +204,23 @@
   .tagline {
     font-size: 0.72rem;
     color: var(--text-dim);
+  }
+
+  .demo-link {
+    margin-left: auto;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-bright);
+    text-decoration: none;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .demo-link:hover {
+    background: var(--accent);
+    color: #fff;
   }
 
   nav {

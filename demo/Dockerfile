@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY demo/app.py demo/demo_runner.py /app/demo/
 COPY demo/synthetic_study/ /app/demo/synthetic_study/
+COPY demo/static/ /app/demo/static/
 
 RUN useradd --no-create-home --shell /bin/false appuser
 USER appuser

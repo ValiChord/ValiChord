@@ -104,9 +104,10 @@ _DEMO_HTML = """<!DOCTYPE html>
 :root{--bg:#07070f;--surface:#0b0b18;--border:#141424;--text:#c8c4bc;--dim:#6b6880;--accent:#4a90d9;--green:#4caf50;--yellow:#ffc107;--r:14px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;height:56px;display:flex;align-items:center;gap:1rem}
-header a{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none}
-header a:hover{color:var(--text)}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;height:64px;display:flex;align-items:center;gap:1rem}
+header a.gh{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none}
+header a.gh:hover{color:var(--text)}
+.logo-img{height:44px;width:auto;border-radius:6px;display:block}
 .tag{font-size:.72rem;color:var(--dim)}
 main{max-width:720px;margin:3rem auto;padding:0 1.5rem}
 h1{font-family:'Newsreader',Georgia,serif;font-size:2rem;margin-bottom:.5rem}
@@ -146,9 +147,9 @@ li.active{color:var(--text)} li.done{color:var(--text)}
 </head>
 <body>
 <header>
-  <strong>ValiChord</strong>
+  <img src="/static/valichord-logo.jpeg" alt="ValiChord" class="logo-img" />
   <span class="tag">Reproducibility Validation Protocol</span>
-  <a href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source code →</a>
+  <a class="gh" href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source code →</a>
 </header>
 <main>
   <h1>Live Demo</h1>
