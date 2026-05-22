@@ -2,12 +2,13 @@ use hdk::prelude::*;
 use std::collections::HashSet;
 use valichord_coordinator_utils::{call_other_role_opt, records_for_links};
 use governance_integrity::{
-    BadgeType, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
+    DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
     ReproducibilityBadge, ValidatorReputation,
 };
 use valichord_shared_types::{
-    AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidationAttestation,
-    ValidatorAgentType, ValidatorType, derive_agreement_level, derive_majority_outcome, discipline_tag,
+    AttestationOutcome, BadgeType, CertificationTier, Discipline,
+    ValidationAttestation, ValidatorAgentType, ValidatorType,
+    derive_agreement_level, derive_majority_outcome, evaluate_badge, discipline_tag,
 };
 
 // ---------------------------------------------------------------------------
@@ -641,38 +642,6 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
         .typed(LinkTypes::DisciplinePath)?;
     path.ensure()?;
     path.path_entry_hash()
-}
-
-/// Return a BadgeType if the agreement level and raw validator count meet the
-/// badge thresholds.  Mirrors `badge_ceiling` in `governance_integrity` exactly,
-/// so integrity validation and coordinator issuance always agree.
-///
-/// `FailedReproduction` requires the same minimum quorum (3) as `BronzeReproducible` —
-/// a single validator submitting `UnableToAssess` cannot permanently brand a study.
-fn evaluate_badge(agreement: &AgreementLevel, validator_count: usize) -> Option<BadgeType> {
-    match agreement {
-        AgreementLevel::ExactMatch if validator_count >= 7 => {
-            Some(BadgeType::GoldReproducible)
-        }
-        AgreementLevel::ExactMatch | AgreementLevel::WithinTolerance
-            if validator_count >= 5 =>
-        {
-            Some(BadgeType::SilverReproducible)
-        }
-        AgreementLevel::ExactMatch
-        | AgreementLevel::WithinTolerance
-        | AgreementLevel::DirectionalMatch
-            if validator_count >= 3 =>
-        {
-            Some(BadgeType::BronzeReproducible)
-        }
-        AgreementLevel::Divergent | AgreementLevel::UnableToAssess
-            if validator_count >= 3 =>
-        {
-            Some(BadgeType::FailedReproduction)
-        }
-        _ => None,
-    }
 }
 
 /// Issue a badge for `request_ref` if no badge link exists yet.

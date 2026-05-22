@@ -362,8 +362,8 @@ Full browser UI connected to a real Holochain conductor for the first time.
 ### ~~1. `ANTHROPIC_API_KEY` persistent on Oracle~~ — DONE (2026-05-21)
 Added to `~/.bashrc` on Oracle. Survives reboots.
 
-### 2. Port 3001 in Oracle Security List — needed for shareable URLs
-The shareable HarmonyRecord URL (`http://132.145.34.27:3001/record?hash=…`) only works from outside Oracle if port 3001 is open in the Oracle Cloud Security List. This is separate from the OS firewall. Navigate to: Oracle Console → Networking → Virtual Cloud Networks → your VCN → Security Lists → Add Ingress Rule → Protocol: TCP, Destination port: 3001, Source: 0.0.0.0/0.
+### ~~2. Port 3001 in Oracle Security List~~ — DONE
+Port 3001 is open and responding (`{"status":"ok","role":"researcher"}` confirmed from outside Oracle). Shareable HarmonyRecord URLs work.
 
 ### 3. ~~Feynman PR #23~~ — CLOSED
 Feynman is no longer operational (April 2026). AI validator functionality has been rebuilt

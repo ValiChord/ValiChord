@@ -1,5 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{AgreementLevel, AttestationOutcome, CertificationTier, Discipline, ValidatorAgentType};
+use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorAgentType};
 
 // ---------------------------------------------------------------------------
 // DNA Properties — one key, baked into the DNA hash.
@@ -133,14 +133,6 @@ pub struct ReproducibilityBadge {
     pub badge_type:         BadgeType,
     /// ActionHash of the HarmonyRecord that triggered this badge.
     pub harmony_record_ref: ActionHash,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BadgeType {
-    GoldReproducible,
-    SilverReproducible,
-    BronzeReproducible,
-    FailedReproduction,
 }
 
 /// Governance vote outcome — every decision is logged immutably.
@@ -502,7 +494,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
 
 // ---------------------------------------------------------------------------
-// Badge-type derivation — mirrored in governance_coordinator::evaluate_badge.
+// Badge-type derivation — mirrors evaluate_badge in valichord_shared_types.
 // Kept here so the integrity zome can enforce badge-tier rules network-wide.
 // Any change to tier thresholds MUST be applied to both functions identically.
 // ---------------------------------------------------------------------------

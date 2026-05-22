@@ -489,6 +489,64 @@ pub fn derive_agreement_level(attestations: &[ValidationAttestation]) -> Agreeme
 }
 
 // ---------------------------------------------------------------------------
+// Badge type and derivation
+// ---------------------------------------------------------------------------
+
+/// Reproducibility badge tier.
+///
+/// Defined here (not in governance_integrity) so `evaluate_badge` can be a
+/// pure function in shared_types and unit-tested without a conductor.
+/// `governance_integrity` imports this type for use in `ReproducibilityBadge`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BadgeType {
+    GoldReproducible,
+    SilverReproducible,
+    BronzeReproducible,
+    FailedReproduction,
+}
+
+/// Return the badge type warranted by the given agreement level and raw
+/// validator count, or `None` if no threshold is met.
+///
+/// Thresholds (raw validator count, not tier-qualified):
+///   Gold:   ExactMatch + ≥7 validators
+///   Silver: ExactMatch | WithinTolerance + ≥5 validators
+///   Bronze: ExactMatch | WithinTolerance | DirectionalMatch + ≥3 validators
+///   Failed: Divergent | UnableToAssess + ≥3 validators
+///
+/// `FailedReproduction` requires the same minimum quorum (3) as Bronze —
+/// a single validator submitting `UnableToAssess` cannot permanently brand a
+/// study as failed.
+///
+/// The integrity zome's `badge_ceiling` enforces this same logic on-chain so
+/// validators can verify badge-tier correctness without trusting the issuer.
+pub fn evaluate_badge(agreement: &AgreementLevel, validator_count: usize) -> Option<BadgeType> {
+    match agreement {
+        AgreementLevel::ExactMatch if validator_count >= 7 => {
+            Some(BadgeType::GoldReproducible)
+        }
+        AgreementLevel::ExactMatch | AgreementLevel::WithinTolerance
+            if validator_count >= 5 =>
+        {
+            Some(BadgeType::SilverReproducible)
+        }
+        AgreementLevel::ExactMatch
+        | AgreementLevel::WithinTolerance
+        | AgreementLevel::DirectionalMatch
+            if validator_count >= 3 =>
+        {
+            Some(BadgeType::BronzeReproducible)
+        }
+        AgreementLevel::Divergent | AgreementLevel::UnableToAssess
+            if validator_count >= 3 =>
+        {
+            Some(BadgeType::FailedReproduction)
+        }
+        _ => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests — run with `cargo test -p valichord_shared_types`
 // No Holochain conductor or WASM required.
 // ---------------------------------------------------------------------------
@@ -640,5 +698,72 @@ mod tests {
         let mut atts = vec![att(AttestationOutcome::Reproduced); 1];
         atts.extend(vec![att(AttestationOutcome::FailedToReproduce { details: String::new() }); 4]);
         assert_eq!(derive_agreement_level(&atts), AgreementLevel::Divergent);
+    }
+
+    // --- evaluate_badge ---
+
+    #[test]
+    fn badge_gold_exact_match_seven_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::ExactMatch, 7), Some(BadgeType::GoldReproducible));
+    }
+
+    #[test]
+    fn badge_gold_exact_match_more_than_seven() {
+        assert_eq!(evaluate_badge(&AgreementLevel::ExactMatch, 10), Some(BadgeType::GoldReproducible));
+    }
+
+    #[test]
+    fn badge_silver_exact_match_five_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::ExactMatch, 5), Some(BadgeType::SilverReproducible));
+    }
+
+    #[test]
+    fn badge_silver_within_tolerance_five_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::WithinTolerance, 5), Some(BadgeType::SilverReproducible));
+    }
+
+    #[test]
+    fn badge_within_tolerance_does_not_reach_gold() {
+        assert_eq!(evaluate_badge(&AgreementLevel::WithinTolerance, 7), Some(BadgeType::SilverReproducible));
+    }
+
+    #[test]
+    fn badge_bronze_exact_match_three_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::ExactMatch, 3), Some(BadgeType::BronzeReproducible));
+    }
+
+    #[test]
+    fn badge_bronze_within_tolerance_three_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::WithinTolerance, 3), Some(BadgeType::BronzeReproducible));
+    }
+
+    #[test]
+    fn badge_bronze_directional_match_three_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::DirectionalMatch, 3), Some(BadgeType::BronzeReproducible));
+    }
+
+    #[test]
+    fn badge_failed_divergent_three_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::Divergent, 3), Some(BadgeType::FailedReproduction));
+    }
+
+    #[test]
+    fn badge_failed_unable_to_assess_three_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::UnableToAssess, 3), Some(BadgeType::FailedReproduction));
+    }
+
+    #[test]
+    fn badge_none_below_quorum_exact_match_two_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::ExactMatch, 2), None);
+    }
+
+    #[test]
+    fn badge_none_below_quorum_divergent_two_validators() {
+        assert_eq!(evaluate_badge(&AgreementLevel::Divergent, 2), None);
+    }
+
+    #[test]
+    fn badge_none_directional_match_below_quorum() {
+        assert_eq!(evaluate_badge(&AgreementLevel::DirectionalMatch, 2), None);
     }
 }
