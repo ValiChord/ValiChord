@@ -105,15 +105,23 @@ _DEMO_HTML = """<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;height:56px;display:flex;align-items:center;gap:1rem}
+header a{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none}
+header a:hover{color:var(--text)}
 .tag{font-size:.72rem;color:var(--dim)}
 main{max-width:720px;margin:3rem auto;padding:0 1.5rem}
 h1{font-family:'Newsreader',Georgia,serif;font-size:2rem;margin-bottom:.5rem}
 .lead{color:var(--dim);margin-bottom:2rem;line-height:1.6;font-size:.95rem}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1.5rem}
 .card h2{font-size:1rem;margin-bottom:.75rem}
-.card p{color:var(--dim);font-size:.875rem;line-height:1.6}
+.card p{color:var(--dim);font-size:.875rem;line-height:1.6;margin-bottom:.5rem}
+.card p:last-child{margin-bottom:0}
+.steps-explainer{list-style:none;margin:.5rem 0}
+.steps-explainer li{color:var(--dim);font-size:.85rem;line-height:1.6;padding:.2rem 0 .2rem 1.2rem;position:relative}
+.steps-explainer li::before{content:'→';position:absolute;left:0;color:var(--accent)}
 .btn{background:var(--accent);color:#fff;border:none;padding:.65rem 1.5rem;border-radius:8px;cursor:pointer;font-size:.9rem;font-family:inherit;margin-top:1rem}
 .btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-family:inherit;margin-top:.75rem}
+.btn-ghost:hover{border-color:var(--accent);color:var(--text)}
 .steps{list-style:none;margin-top:1rem}
 .steps li{display:flex;align-items:center;gap:.75rem;padding:.4rem 0;font-size:.875rem;color:var(--dim)}
 .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
@@ -126,8 +134,12 @@ li.active{color:var(--text)} li.done{color:var(--text)}
 .detail{font-size:.8rem;color:var(--dim);margin-top:.2rem}
 .verdicts{margin-top:.6rem}
 .vrow{font-size:.8rem;color:var(--dim);padding:.15rem 0}
-.share{margin-top:.75rem}
-.share a{color:var(--accent);font-size:.8rem;word-break:break-all}
+.share{margin-top:.75rem;font-size:.8rem;color:var(--dim)}
+.share a{color:var(--accent);word-break:break-all}
+.verify-section{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.verify-section p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-bottom:.5rem}
+.curl-cmd{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;font-family:monospace;font-size:.75rem;color:#a0c8ff;word-break:break-all;margin:.5rem 0}
+.raw-json{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.75rem;font-family:monospace;font-size:.75rem;color:var(--text);white-space:pre-wrap;word-break:break-all;margin-top:.5rem;display:none}
 .err{background:#1a0a0a;border:1px solid #5c2020;border-radius:10px;padding:1rem;margin-top:1rem;color:#e57373;font-size:.875rem}
 .busy{color:var(--yellow);font-size:.85rem;margin-top:.6rem}
 </style>
@@ -136,16 +148,29 @@ li.active{color:var(--text)} li.done{color:var(--text)}
 <header>
   <strong>ValiChord</strong>
   <span class="tag">Reproducibility Validation Protocol</span>
+  <a href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source code →</a>
 </header>
 <main>
   <h1>Live Demo</h1>
-  <p class="lead">Run the full ValiChord commit-reveal protocol live. A synthetic study is submitted, three independent AI validators each commit a blind verdict to a distributed hash table, all parties reveal simultaneously, and a tamper-evident HarmonyRecord is written. Neither the researcher nor any validator can alter their claim after the protocol begins.</p>
+  <p class="lead">Can an independent party arrive at the same result as the researcher — without anyone being able to change their answer after seeing others'? ValiChord answers that with a commit-reveal protocol running on a peer-to-peer network.</p>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ul class="steps-explainer">
+      <li><strong>Commit (blind phase):</strong> The researcher executes the study code and hashes the result. Three validators independently do the same and each post a cryptographic commitment to a distributed hash table — without seeing each other's result.</li>
+      <li><strong>Reveal:</strong> All parties reveal simultaneously. The network verifies each reveal matches its prior commitment. No one can revise their verdict after seeing others'.</li>
+      <li><strong>HarmonyRecord:</strong> A permanent, content-addressed record of the outcome is written to the DHT. The hash in the URL below is unique to this run and retrievable from any node on the network.</li>
+    </ul>
+    <p style="margin-top:.75rem">The two-minute runtime is real network time — DHT gossip delays, four separate HTTP roundtrips to Oracle nodes, and three Claude Haiku API calls. It is not a timer.</p>
+  </div>
+
   <div class="card">
     <h2>Study: Temperature–Species Richness</h2>
     <p>Linear regression across 20 sampling sites. Claims: slope ≈ 2.4086, R² ≈ 0.9991. Validators reproduce the computation independently and commit their verdict before seeing each other's result.</p>
     <button class="btn" id="runBtn" onclick="startDemo()">Run Protocol (~2 min)</button>
     <div id="busyMsg" class="busy" style="display:none"></div>
   </div>
+
   <div class="card" id="progressCard" style="display:none">
     <h2>Protocol progress</h2>
     <ul class="steps">
@@ -199,14 +224,29 @@ function setSteps(cur,done){
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function showResult(r){
   const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${escHtml(String(v.validator))}: ${escHtml(v.outcome)} (${escHtml(v.confidence)}) — ${escHtml(v.reasoning)}</div>`).join('');
-  const shareUrl=r.record_url||'';
-  const shareHtml=shareUrl?`<div class="share">Permanent record: <a href="${escHtml(shareUrl)}" target="_blank">${escHtml(shareUrl)}</a></div>`:'';
+  const shareUrl=escHtml(r.record_url||'');
+  const hashB64=encodeURIComponent(r.external_hash_b64||'');
   document.getElementById('resultArea').innerHTML=`<div class="result-box">
     <div class="outcome">${escHtml(r.outcome)} — ${escHtml(r.agreement_level)}</div>
     <div class="detail">${escHtml(String(r.validator_count))}/3 validators · ComputationalBiology</div>
     <div class="verdicts">${rows}</div>
-    ${shareHtml}
+    ${shareUrl?`<div class="share">Permanent record: <a href="${shareUrl}" target="_blank">${shareUrl}</a></div>`:''}
+    <div class="verify-section">
+      <p><strong>Is this real, or just an animation?</strong> The hash above is unique to this run — generated by the Holochain DHT on the Oracle node, not by this page. Fetch it yourself from any machine:</p>
+      <div class="curl-cmd" id="curlCmd">${shareUrl?'curl \''+shareUrl+'\'':''}</div>
+      ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('${hashB64}')">Fetch raw record from Oracle →</button>`:''}
+      <pre class="raw-json" id="rawJson"></pre>
+    </div>
   </div>`;
+}
+function fetchRaw(hashB64){
+  const pre=document.getElementById('rawJson');
+  pre.style.display='block';
+  pre.textContent='Fetching…';
+  fetch('/demo/record/'+hashB64)
+    .then(r=>r.json())
+    .then(d=>{pre.textContent=JSON.stringify(d,null,2);})
+    .catch(e=>{pre.textContent='Error: '+e.message;});
 }
 function showErr(msg){const d=document.createElement('div');d.className='err';d.textContent=msg;document.getElementById('resultArea').replaceChildren(d);}
 </script>
