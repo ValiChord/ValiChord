@@ -3,9 +3,16 @@ services:
     name: valichord-demo
     runtime: docker
     dockerfilePath: ./demo/Dockerfile
-    # Build context is the repo root so COPY can reach both demo/ and valichord/workdir/
     dockerContext: .
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: VALICHORD_RESEARCHER_URL
+        value: http://132.145.34.27:3001
+      - key: VALICHORD_VALIDATOR_1_URL
+        value: http://132.145.34.27:3002
+      - key: VALICHORD_VALIDATOR_2_URL
+        value: http://132.145.34.27:3003
+      - key: VALICHORD_VALIDATOR_3_URL
+        value: http://132.145.34.27:3004
