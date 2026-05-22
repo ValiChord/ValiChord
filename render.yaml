@@ -6,8 +6,6 @@ services:
     dockerContext: .
     healthCheckPath: /health
     envVars:
-      - key: ANTHROPIC_API_KEY
-        sync: false
       - key: VALICHORD_RESEARCHER_URL
         value: http://132.145.34.27:3001
       - key: VALICHORD_VALIDATOR_1_URL
