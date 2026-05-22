@@ -56,7 +56,8 @@ def demo_result(job_id):
 @app.route('/demo/record/<path:hash_b64>')
 def demo_record(hash_b64):
     import demo_runner
-    url = f'{demo_runner.RESEARCHER_URL}/record?hash={urllib.parse.quote(hash_b64)}'
+    decoded = urllib.parse.unquote(hash_b64)
+    url = f'{demo_runner.RESEARCHER_URL}/record?hash={urllib.parse.quote(decoded)}'
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             return Response(resp.read(), mimetype='application/json')
@@ -195,17 +196,19 @@ function setSteps(cur,done){
     else{li.className='';dot.className='dot';}
   }
 }
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function showResult(r){
-  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${v.validator}: ${v.outcome} (${v.confidence}) — ${v.reasoning}</div>`).join('');
+  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${escHtml(String(v.validator))}: ${escHtml(v.outcome)} (${escHtml(v.confidence)}) — ${escHtml(v.reasoning)}</div>`).join('');
   const shareUrl=r.record_url||'';
+  const shareHtml=shareUrl?`<div class="share">Permanent record: <a href="${escHtml(shareUrl)}" target="_blank">${escHtml(shareUrl)}</a></div>`:'';
   document.getElementById('resultArea').innerHTML=`<div class="result-box">
-    <div class="outcome">${r.outcome} — ${r.agreement_level}</div>
-    <div class="detail">${r.validator_count}/3 validators · ComputationalBiology</div>
+    <div class="outcome">${escHtml(r.outcome)} — ${escHtml(r.agreement_level)}</div>
+    <div class="detail">${escHtml(String(r.validator_count))}/3 validators · ComputationalBiology</div>
     <div class="verdicts">${rows}</div>
-    ${shareUrl?`<div class="share">Permanent record: <a href="${shareUrl}" target="_blank">${shareUrl}</a></div>`:''}
+    ${shareHtml}
   </div>`;
 }
-function showErr(msg){document.getElementById('resultArea').innerHTML=`<div class="err">${msg}</div>`;}
+function showErr(msg){const d=document.createElement('div');d.className='err';d.textContent=msg;document.getElementById('resultArea').replaceChildren(d);}
 </script>
 </body>
 </html>"""

@@ -37,7 +37,7 @@ def test_demo_page_returns_html(client):
 
 
 def test_demo_run_returns_202_and_job_id(client):
-    with patch('threading.Thread') as mock_thread:
+    with patch('app.threading.Thread') as mock_thread:
         mock_thread.return_value = MagicMock()
         r = client.post('/demo/run')
     assert r.status_code == 202
@@ -86,3 +86,13 @@ def test_demo_record_returns_502_on_network_error(client):
     with patch('urllib.request.urlopen', side_effect=OSError('unreachable')):
         r = client.get('/demo/record/uhC8kABC123%3D%3D')
     assert r.status_code == 502
+
+
+def test_run_job_clears_lock_on_error():
+    demo_app._jobs['j'] = {'step': 0, 'status': 'running', 'result': None, 'error': None}
+    demo_app._demo_running = True
+    with patch('demo_runner.load_study', side_effect=RuntimeError('boom')):
+        demo_app._run_job('j')
+    assert demo_app._demo_running is False
+    assert demo_app._jobs['j']['status'] == 'error'
+    assert 'boom' in demo_app._jobs['j']['error']
