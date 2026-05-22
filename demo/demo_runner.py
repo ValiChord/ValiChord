@@ -126,11 +126,11 @@ Reply with ONLY a JSON object — no markdown, no explanation:
 
     verdicts = []
     for i in range(3):
-        messages = [{'role': 'user', 'content': prompt}]
+        messages: list = [{'role': 'user', 'content': prompt}]
         last_raw = ''
         for attempt in range(5):
             msg = client.messages.create(model=MODEL, max_tokens=256, messages=messages)
-            last_raw = msg.content[0].text.strip()
+            last_raw = getattr(msg.content[0], 'text', '').strip()
             try:
                 verdicts.append(_parse_verdict(last_raw))
                 break
@@ -221,7 +221,7 @@ def run_protocol(data_hash: str, metrics: list, verdicts: list, job: dict) -> di
     })
     researcher_reveal_hash = reveal_resp.get('researcher_reveal_hash')
 
-    for i, (vurl, _verdict) in enumerate(zip(VALIDATOR_URLS, verdicts)):
+    for i, (vurl, _) in enumerate(zip(VALIDATOR_URLS, verdicts)):
         _node_post(f'{vurl}/reveal', {'external_hash_b64': external_hash_b64})
         if i < len(VALIDATOR_URLS) - 1:
             time.sleep(15)
