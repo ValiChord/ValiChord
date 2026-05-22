@@ -1,6 +1,8 @@
 # ValiChord Decentralised Demo — 4 Isolated Conductors
 ### Technical guide for developers
 
+> **Quickest way to see the protocol:** open [valichord-demo.onrender.com/demo](https://valichord-demo.onrender.com/demo) in a browser — one click, no setup. The page runs the full commit-reveal protocol on the live Oracle nodes and explains each step as it happens. See [DEMO_WEBSITE.md](DEMO_WEBSITE.md) for the technical details of that interface.
+
 ---
 
 ## What this demo is
