@@ -18,10 +18,7 @@ _demo_running = False
 
 @app.route('/health')
 def health():
-    import os
-    key = os.environ.get('ANTHROPIC_API_KEY', '')
-    env_keys = sorted(k for k in os.environ if not k.startswith('PATH'))
-    return jsonify({'status': 'ok', 'api_key_set': bool(key), 'api_key_prefix': key[:12] if key else None, 'env_keys': env_keys})
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/demo')
