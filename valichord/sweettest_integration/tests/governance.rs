@@ -36,8 +36,8 @@
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
-use governance_integrity::{BadgeType, ValidatorReputation};
-use valichord_shared_types::{AttestationOutcome, CertificationTier, Discipline, ValidatorType};
+use governance_integrity::ValidatorReputation;
+use valichord_shared_types::{AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorType};
 
 // ---------------------------------------------------------------------------
 // Internal helpers — shared attestation round setup
