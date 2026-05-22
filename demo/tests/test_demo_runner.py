@@ -96,3 +96,118 @@ def test_parse_verdict_missing_key():
     raw = '{"outcome": "Reproduced", "reasoning": "ok"}'
     with pytest.raises(ValueError, match='Missing required keys'):
         demo_runner._parse_verdict(raw)
+
+
+from unittest.mock import patch, MagicMock
+import json as _json
+
+
+# ── form_verdicts ─────────────────────────────────────────────────────────────
+
+def test_form_verdicts_calls_claude_three_times():
+    good_text = '{"outcome":"Reproduced","confidence":"High","reasoning":"All matched."}'
+    mock_msg = MagicMock()
+    mock_msg.content = [MagicMock(text=good_text)]
+    with patch('anthropic.Anthropic') as MockClient:
+        instance = MockClient.return_value
+        instance.messages.create.return_value = mock_msg
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            verdicts = demo_runner.form_verdicts('readme', 'output')
+    assert len(verdicts) == 3
+    assert instance.messages.create.call_count == 3
+    assert all(v['outcome'] == 'Reproduced' for v in verdicts)
+
+
+def test_form_verdicts_retries_on_invalid_json():
+    bad_msg = MagicMock()
+    bad_msg.content = [MagicMock(text='not json at all')]
+    good_msg = MagicMock()
+    good_msg.content = [MagicMock(text='{"outcome":"Reproduced","confidence":"High","reasoning":"ok"}')]
+    # Each validator: first call is bad, second is good  → 2 calls × 3 validators = 6 total
+    with patch('anthropic.Anthropic') as MockClient:
+        instance = MockClient.return_value
+        instance.messages.create.side_effect = [bad_msg, good_msg] * 3
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            verdicts = demo_runner.form_verdicts('readme', 'output')
+    assert len(verdicts) == 3
+
+
+def test_form_verdicts_raises_without_api_key():
+    env_copy = {k: v for k, v in os.environ.items() if k != 'ANTHROPIC_API_KEY'}
+    with patch.dict(os.environ, env_copy, clear=True):
+        with pytest.raises(RuntimeError, match='ANTHROPIC_API_KEY'):
+            demo_runner.form_verdicts('readme', 'output')
+
+
+# ── run_protocol ──────────────────────────────────────────────────────────────
+
+def _make_urlopen_mock(responses: dict):
+    """Returns a urlopen side_effect that dispatches by URL substring."""
+    def fake_urlopen(req, timeout=30):
+        url = req.full_url if hasattr(req, 'full_url') else str(req)
+        for pattern, body in responses.items():
+            if pattern in url:
+                m = MagicMock()
+                m.read.return_value = _json.dumps(body).encode()
+                m.__enter__ = lambda s: s
+                m.__exit__ = MagicMock(return_value=False)
+                return m
+        raise RuntimeError(f'No mock for URL: {url}')
+    return fake_urlopen
+
+
+_ORACLE_RESPONSES = {
+    '/lock-result':           {'external_hash_b64': 'uhC8kABC123=='},
+    '/submit-request':        {'ok': True},
+    '/commit':                {'ok': True},
+    '/phase':                 {'phase': 'RevealOpen'},
+    '/reveal':                {'researcher_reveal_hash': 'uhCkkREV456=='},
+    '/create-harmony-record': {'harmony_record_hash': 'uhCEkHRM789=='},
+}
+
+_THREE_REPRODUCED = [
+    {'outcome': 'Reproduced', 'confidence': 'High',   'reasoning': 'slope matched'},
+    {'outcome': 'Reproduced', 'confidence': 'High',   'reasoning': 'r2 matched'},
+    {'outcome': 'Reproduced', 'confidence': 'Medium', 'reasoning': 'within tolerance'},
+]
+
+
+def test_run_protocol_happy_path():
+    job = {'step': 4}
+    metrics = [{'metric_name': 'slope', 'produced_value': '2.4086',
+                'expected_value': '2.4086', 'within_tolerance': True}]
+    with patch('urllib.request.urlopen', side_effect=_make_urlopen_mock(_ORACLE_RESPONSES)):
+        with patch('time.sleep'):
+            result = demo_runner.run_protocol('deadbeef' * 8, metrics, _THREE_REPRODUCED, job)
+    assert result['outcome'] == 'Reproduced'
+    assert result['agreement_level'] == 'ExactMatch'
+    assert result['harmony_record_hash'] == 'uhCEkHRM789=='
+    assert result['validator_count'] == 3
+    assert len(result['validator_verdicts']) == 3
+    assert 'record_url' in result
+    assert job['step'] == 6  # run_protocol advances to 5 and 6; caller sets 7
+
+
+def test_run_protocol_failed_reproduction():
+    verdicts = [
+        {'outcome': 'FailedToReproduce', 'confidence': 'High',   'reasoning': 'mismatch'},
+        {'outcome': 'FailedToReproduce', 'confidence': 'High',   'reasoning': 'mismatch'},
+        {'outcome': 'Reproduced',        'confidence': 'Medium', 'reasoning': 'ok'},
+    ]
+    job = {'step': 4}
+    with patch('urllib.request.urlopen', side_effect=_make_urlopen_mock(_ORACLE_RESPONSES)):
+        with patch('time.sleep'):
+            result = demo_runner.run_protocol('deadbeef' * 8, [], verdicts, job)
+    assert result['outcome'] == 'FailedToReproduce'
+    # rate = (0+1)/3 = 0.33 → n_reproduced+n_partial > 0 → Divergent
+    assert result['agreement_level'] == 'Divergent'
+
+
+def test_run_protocol_phase_timeout_raises():
+    responses = dict(_ORACLE_RESPONSES)
+    responses['/phase'] = {'phase': None}  # never opens
+    job = {'step': 4}
+    with patch('urllib.request.urlopen', side_effect=_make_urlopen_mock(responses)):
+        with patch('time.sleep'):
+            with pytest.raises(RuntimeError, match='Phase gate did not open'):
+                demo_runner.run_protocol('deadbeef' * 8, [], _THREE_REPRODUCED, job)
