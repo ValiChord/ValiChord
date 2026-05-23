@@ -14,7 +14,7 @@ The page includes a skeptic-proof section at the end: the HarmonyRecord hash is 
 
 ## What the demo runs
 
-The study is a linear regression across 20 climate sampling sites, implemented from scratch in pure Python with no libraries. The researcher claims slope ≈ 2.4086, intercept ≈ 3.1, R² ≈ 0.9991.
+The study is a linear regression across 20 climate sampling sites, implemented from scratch in pure Python with no libraries. The researcher claims slope ≈ 2.4086, intercept ≈ 1.1742, R² ≈ 0.9991.
 
 Three Claude Haiku agents act as independent validators. Each reads the study README and execution output and forms a reproducibility verdict — without seeing each other's response. The verdicts are committed blind to the DHT before any reveal happens.
 
