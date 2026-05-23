@@ -137,13 +137,28 @@ Ideation → Specification → Development → Prototype → Stable → Distribu
 The `NdoToTransitionEvent` link type already anticipates this: a link from the NDO action hash
 to a triggering `EconomicEvent` (or, in the ValiChord case, the `HarmonyRecord` action hash).
 
-**Custodian constraint on `update_resource_state()`:** The coordinator currently enforces that
-only the resource's custodian can call `update_resource_state()`. ValiChord's governance DNA
-is not the custodian, so it cannot drive the transition directly. Resolution options:
-- Governance pathway: add a `validate_and_activate_resource()` function gated by a
-  `ValidationReceipt` rather than custodianship (design decision before integration code)
-- Application layer: after `HarmonyRecord` is produced, notify the researcher (custodian) to
-  call `update_resource_state()` themselves, passing the `HarmonyRecord` hash as evidence
+**Custodian constraint on `update_resource_state()` — resolved (May 2026):** NDO confirmed they
+will not add a new governance-gated pathway. The custodian gate stays intact. Integration uses
+capability slots instead:
+
+- After ValiChord produces the `HarmonyRecord`, the researcher (custodian) writes a capability
+  slot link to NDO's DHT: base = `EconomicResource` / `NondominiumIdentity` hash, target =
+  `HarmonyRecord` ActionHash, tag = `{agreement_level, validator_count}` as compact msgpack.
+  `AgreementLevel` has no serde tag attribute in ValiChord — it serialises as a plain string
+  (`"ExactMatch"`, `"WithinTolerance"`, etc.), so NDO can check it without importing ValiChord
+  types.
+- NDO adds a `GovernanceRuleType::ExternalValidation` variant. When a resource is in
+  `PendingValidation`, this rule specifies the required slot type and consensus threshold.
+- The researcher calls `update_resource_state()` as normal. The governance rule checks that a
+  matching slot link with threshold-meeting tag data is present — if yes, the transition proceeds.
+
+**DHT locality constraint:** `get(action_hash)` in an NDO zome searches NDO's DHT, not
+ValiChord's governance DHT — they are separate peer networks. The slot tag carries everything
+NDO needs for the threshold check without a cross-network fetch. For full record verification,
+NDO can call `get_harmony_record_by_hash(action_hash)` via `OtherCell` on a same-conductor
+ValiChord governance cell — both functions are `Unrestricted` and require no capability secret.
+`get_harmony_record(ExternalHash)` takes the data hash (ValiChord's `request_ref`);
+`get_harmony_record_by_hash(ActionHash)` takes the direct record hash from the slot link target.
 
 ### Key functions
 - `create_ndo(NdoInput)` — creates a `NondominiumIdentity` (Layer 0 anchor)
@@ -339,4 +354,4 @@ Flowsta remains the cleanest path for cross-system attribution.
 
 ---
 
-*Last updated: May 2026. Re-read against the `dev` branch of https://github.com/Sensorica/nondominium (upstream). Key additions since April 2026: Lobby DNA (PR #103), `crates/shared/` types crate, `packages/shared-types/` TypeScript package, zome_gouvernance split into multiple source files (API unchanged), Sweettest suite added for NDO Layer 0.*
+*Last updated: May 2026. Re-read against the `dev` branch of https://github.com/Sensorica/nondominium (upstream). Key additions since April 2026: Lobby DNA (PR #103), `crates/shared/` types crate, `packages/shared-types/` TypeScript package, zome_gouvernance split into multiple source files (API unchanged), Sweettest suite added for NDO Layer 0. Custodian constraint section updated to reflect confirmed capability slot approach (NDO team, May 2026); DHT locality constraint documented; `get_harmony_record_by_hash` added to ValiChord governance coordinator.*

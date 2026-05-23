@@ -30,6 +30,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     // their own conductor (same-agent cross-DNA call from the attestation cell).
     for fn_name in &[
         "get_harmony_record",
+        "get_harmony_record_by_hash",
         "get_harmony_records_by_discipline",
         "get_validator_reputation",
         "get_badges_for_study",
@@ -495,6 +496,18 @@ pub fn get_harmony_record(
         }
         None => Ok(None),
     }
+}
+
+/// Fetch a HarmonyRecord directly by its ActionHash.
+///
+/// Complement to `get_harmony_record` (which looks up by request_ref / data hash).
+/// Useful when a caller already holds the ActionHash — e.g. from a capability slot
+/// link target — and wants to verify the record content without a path lookup.
+#[hdk_extern]
+pub fn get_harmony_record_by_hash(
+    action_hash: ActionHash,
+) -> ExternResult<Option<Record>> {
+    get(action_hash, GetOptions::network())
 }
 
 /// Return all HarmonyRecords indexed under a discipline path.

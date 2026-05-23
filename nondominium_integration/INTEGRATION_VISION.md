@@ -89,19 +89,42 @@ When the last validator reveals, `check_and_create_harmony_record()` fires:
 
 ### Act 4 — Resource Activation (Nondominium)
 
-ValiChord's governance DNA calls back into Nondominium:
+ValiChord's governance DNA operates only within ValiChord's governance DHT — it cannot write
+to NDO's DHT directly. The activation path goes through the researcher (custodian), who is a
+participant on both DHTs.
+
+The researcher observes the completed `HarmonyRecord` in their ValiChord client (or is notified
+by the UI). They perform two steps:
+
+**Step 4a — Write the capability slot link [NDO]**
 
 ```
-zome_gouvernance::create_validation_receipt()
-→ ValidationReceipt per validator, linked to resource_hash
+write_valichord_slot({
+    resource_hash:        <NDO EconomicResource / NondominiumIdentity hash>,
+    harmony_record_hash:  <ValiChord HarmonyRecord ActionHash>,
+    request_ref:          <ValiChord ExternalHash — the SHA-256 data hash>,
+    agreement_level:      "ExactMatch",   // plain string — AgreementLevel has no serde tag
+    validator_count:      3,
+})
+→ creates link: base = resource_hash, target = harmony_record_hash,
+               tag = {agreement_level, validator_count} as msgpack
+```
 
-zome_gouvernance::create_resource_validation()
-→ ResourceValidation { status: "approved", validators_required, current_validator_count }
+**Step 4b — Transition resource state [NDO]**
 
+```
 zome_resource::update_resource_state({ resource_hash, new_state: Active })
+→ NDO GovernanceRuleType::ExternalValidation checks the slot tag against its threshold
+→ threshold met → ResourceState: PendingValidation → Active
+→ NondominiumIdentity lifecycle advanced via update_lifecycle_stage() if required
+   (NdoToTransitionEvent link points to the HarmonyRecord ActionHash)
 ```
 
-The resource transitions from `PendingValidation` to `Active`. The `HarmonyRecord` and `ReproducibilityBadge` hashes are stored as links from the `ResourceValidation` entry — the validation trail is queryable on-chain.
+NDO's `ResourceValidation` entry is not used — the `HarmonyRecord` is the authoritative record.
+The full audit trail (HarmonyRecord → each ValidationAttestation → each CommitmentAnchor) is
+permanently queryable on ValiChord's governance and attestation DHTs. For callers who want to
+verify the full record, `get_harmony_record_by_hash(ActionHash)` on ValiChord's governance
+coordinator returns the complete entry; both governance read functions are `Unrestricted`.
 
 ### Act 5 — Validator Attribution (Nondominium PPR System)
 
@@ -157,14 +180,15 @@ ValiChord knows validators by their ValiChord device `AgentPubKey`. Nondominium 
 
 ---
 
-## The Four Open Decisions
+## Decisions — resolved and open
 
-| # | Question | Option A | Option B | Stakes |
-|---|---|---|---|---|
-| 1 | Who owns validation state? | ValiChord feeds NDO's `ResourceValidation` (simpler) | HarmonyRecord is canonical; NDO queries it (no duplication) | Data architecture |
-| 2 | Membrane proofs vs NDO roles | Valid ValiChord credential auto-triggers `promote_agent_with_validation()` | Independent enrollment in each system | Trust architecture |
-| 3 | Who creates the NDO resource? | Researcher creates in NDO first, gives hash to ValiChord | ValiChord creates it via cross-app call | UX and coupling |
-| 4 | Flowsta as shared identity layer | Required for cross-system validators | Optional with manual key-mapping fallback | Identity and attribution |
+| # | Question | Resolution / Status |
+|---|---|---|
+| 1 | Who owns validation state? | ✓ **Resolved (May 2026):** `HarmonyRecord` is canonical. NDO governance rules check a capability slot link + tag. `ResourceValidation` not used. |
+| 5 | Who drives the state transition? | ✓ **Resolved (May 2026):** Custodian gate stays intact. Researcher writes slot link from NDO agent context, then calls existing `update_resource_state()`. NDO adds `GovernanceRuleType::ExternalValidation`. Open sub-question: slot-writing function location (`zome_resource` vs `zome_gouvernance`). |
+| 2 | Membrane proofs vs NDO roles | Open: auto-promote on ValiChord credential vs independent enrollment |
+| 3 | Who creates the NDO resource? | Open: researcher-first in NDO (Option A, less coupling) vs ValiChord cross-app call (Option B) |
+| 4 | Cross-system identity | Open: NDO Lobby `GroupMembership` as MVP bridge (Option A) vs Flowsta required (Option B) vs both with fallback (Option C) |
 
 **Deployment note:** ValiChord's `round_timeout_secs` is a DNA property (default 604800 s / 7 days). Rounds that have not reached full quorum within this window can be force-finalised by `force_finalize_round()` on the governance DNA. Sensorica should decide at deployment time whether 7 days is appropriate for their validation workflows — it is set in `governance/dna.yaml` and baked into the DNA hash, so changing it requires a new DNA.
 

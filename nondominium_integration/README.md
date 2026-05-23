@@ -116,13 +116,14 @@ No NDO action at this stage.
 After all commits are present, each validator reveals **[VC]** `attestation::submit_attestation()`
 Protocol verifies `SHA-256(attestation || nonce) == CommitmentAnchor.commitment_hash` before accepting
 
-**Step 5 — Harmony Record → NDO**
-ValiChord governance DNA produces the consensus outcome **[VC]** `governance::finalize_harmony_record()`
-Result written into Nondominium **[NDO]** `zome_gouvernance::create_validation_receipt()` per validator
-Resource state transitioned **[NDO]** `zome_resource::update_resource_state()` → `Active`
-NDO `NondominiumIdentity` lifecycle advanced **[NDO]** `zome_resource::update_lifecycle_stage()` (e.g. `Prototype` → `Stable`), with `NdoToTransitionEvent` link pointing to the `HarmonyRecord` hash
+**Step 5 — Harmony Record → NDO slot → state transition**
+ValiChord governance DNA produces the consensus outcome **[VC]** `governance::check_and_create_harmony_record()`
+Researcher observes the completed `HarmonyRecord` in their ValiChord client
+Researcher writes a capability slot link to NDO's DHT **[NDO]** — base: resource hash, target: `HarmonyRecord` ActionHash, tag: `{agreement_level, validator_count}` as msgpack
+Researcher calls `update_resource_state()` as normal **[NDO]** — NDO's `GovernanceRuleType::ExternalValidation` rule checks the slot tag and permits the transition → `Active`
+NDO `NondominiumIdentity` lifecycle advanced **[NDO]** `zome_resource::update_lifecycle_stage()` (e.g. `Prototype` → `Stable`), with `NdoToTransitionEvent` link pointing to the `HarmonyRecord` ActionHash
 
-> **Constraint (April 2026):** `update_resource_state()` is custodian-gated — only the resource custodian can call it. ValiChord's governance DNA is not the custodian. See Decision 5 below.
+> **Architecture (May 2026):** ValiChord's governance DNA participates only in ValiChord's governance DHT — it cannot write to NDO's DHT directly. The slot link is written by the researcher from their NDO agent context. The researcher is already the one calling `update_resource_state()`, so this adds one preceding step. See Decision 5 below.
 
 **Step 6 — Validator contributions logged**
 For each validator **[NDO]** `zome_gouvernance::log_economic_event(VfAction::Work)` → PPRs issued automatically
@@ -130,19 +131,27 @@ Validators receive contribution attribution in Nondominium's reputation system f
 
 ---
 
-## Three design decisions before any code
+## Design decisions
 
-These are open questions. They need agreement between both teams before integration coding begins.
+Decisions 1 and 5 are resolved by agreement with the NDO team (May 2026). Decisions 2, 3, and 4 remain open.
 
-### Decision 1 — Ownership of validation state
+### Decision 1 — Ownership of validation state ✓ RESOLVED: Option B
 
-Nondominium has a `ResourceValidation` entry with `required_validators`, `current_validators`, and `status`. ValiChord has `ValidationRequest` with its own multi-validator tracking.
+**Option B confirmed (May 2026):** ValiChord's `HarmonyRecord` is the authoritative record.
+NDO's `ResourceValidation` entry is not used for ValiChord-validated resources. Instead, NDO's
+governance rules check for a capability slot link from the resource hash to a `HarmonyRecord`
+ActionHash, with the slot tag encoding `agreement_level` and `validator_count`. The governance
+rule verifies the tag data meets the configured threshold — no ValiChord Rust crate dependency
+needed, since `AgreementLevel` serialises as a plain string in msgpack.
 
-**Option A:** ValiChord's commit-reveal runs autonomously. On completion, it writes the outcome into Nondominium's `ResourceValidation.status`. NDO is the authoritative state; ValiChord feeds it.
-
-**Option B:** ValiChord's `HarmonyRecord` is the authoritative record. Nondominium's `ResourceValidation` is not used for ValiChord-validated resources. NDO governance rules check for a linked `HarmonyRecord` instead.
-
-Option A is simpler to implement. Option B avoids duplication but requires Nondominium's governance rules to understand ValiChord entry types.
+**DHT locality note:** `get(action_hash)` in an NDO zome will not find a ValiChord
+`HarmonyRecord` — they are on separate DHT networks. Threshold verification uses the slot tag.
+Full record verification (validator identities, discipline, full outcome) uses
+`get_harmony_record_by_hash(ActionHash)` via `OtherCell` on a same-conductor ValiChord
+governance cell — both ValiChord read functions are `Unrestricted` and require no capability
+secret. Note: `get_harmony_record(ExternalHash)` takes ValiChord's `request_ref` (data hash);
+`get_harmony_record_by_hash(ActionHash)` takes the record hash directly from the slot link
+target.
 
 ### Decision 2 — Membrane proofs and NDO roles
 
@@ -162,32 +171,25 @@ Who creates the `EconomicResource` in Nondominium?
 
 Option A requires less integration code and preserves NDO as the canonical resource registry. Option B gives researchers a unified workflow but tightly couples the two systems at creation time.
 
-### Decision 5 — Who is authorised to transition resource state?
+### Decision 5 — Who is authorised to transition resource state? ✓ RESOLVED: capability slot approach
 
-`update_resource_state()` in the fork is currently custodian-gated: only the agent holding custody of
-the `EconomicResource` can drive it from `PendingValidation` to `Active`. ValiChord's governance DNA
-is not the custodian, so it cannot call this directly.
+**Resolved (May 2026):** NDO confirmed they will not add a new `validate_and_activate_resource()`
+function. The custodian gate stays intact. The integration uses capability slots instead.
 
-> **Architecture update (April 2026):** The earlier ValiChord design had a `harmony_record_creator_key`
-> DNA property that identified a single trusted agent as the HarmonyRecord author. That key has been
-> removed. `HarmonyRecord` creation is now **participatory** — any validator who participated in the
-> round may call `check_and_create_harmony_record` and trigger finalisation. This changes Option A
-> slightly: the integration layer can no longer rely on a single fixed agent to call
-> `validate_and_activate_resource()`; it must accept calls from any member of `participating_validators`.
+**Confirmed approach:**
+- NDO adds a `GovernanceRuleType::ExternalValidation` variant. When a resource is in
+  `PendingValidation`, this rule specifies the required slot type (`valichord_harmony_record`),
+  minimum validator count, and required agreement level.
+- After ValiChord produces the `HarmonyRecord`, the researcher (custodian) writes a capability
+  slot link to NDO's DHT from their NDO agent context: base = resource hash, target = `HarmonyRecord`
+  ActionHash, tag = `{agreement_level, validator_count}` encoded as msgpack.
+- The researcher then calls the existing `update_resource_state()`. The governance rule checks
+  the slot: if a link with threshold-meeting tag data exists, the transition to `Active` proceeds.
+  The custodian gate is unchanged — sovereignty over the transition stays with the researcher.
 
-**Option A:** Add a governance-authorised pathway — a new `validate_and_activate_resource()` function
-that accepts a `HarmonyRecord` action hash instead of requiring custodianship. The integration layer
-calls this from any participating validator; the function verifies the referenced `HarmonyRecord`
-(and that the caller is in `participating_validators`) before transitioning state.
-
-**Option B:** Keep the custodian gate. After ValiChord produces the `HarmonyRecord`, the researcher
-(who is the custodian) is notified and calls `update_resource_state()` themselves, passing the
-`HarmonyRecord` hash as the triggering event reference. ValiChord triggers the notification;
-the transition remains a human (or Feynman) action.
-
-Option A is a tighter integration but requires a new Nondominium function and a multi-caller trust
-decision (any participating validator, not a single fixed key). Option B is looser but keeps NDO's
-custodian model intact and avoids coupling the two DNAs at the Rust level.
+**Open sub-question (still to confirm with NDO):** where does the slot-writing function live —
+`zome_resource` (alongside the state transition logic) or `zome_gouvernance` (alongside the
+validation machinery)?
 
 ---
 
@@ -263,4 +265,4 @@ ValiChord is also designed to remain independent: usable outside any single ecos
 
 ---
 
-*Written March 2026 after reading both codebases. Updated May 2026: version table corrected (ValiChord now 0.6.1), Decision 4 updated for Nondominium Lobby DNA (PR #103) and GroupMembership identity bridge. All function names, entry types, and zome references verified against `dev` branch of https://github.com/Sensorica/nondominium as of May 2026.*
+*Written March 2026 after reading both codebases. Updated May 2026: version table corrected (ValiChord now 0.6.1), Decision 4 updated for Nondominium Lobby DNA (PR #103) and GroupMembership identity bridge. Decisions 1 and 5 marked resolved following NDO team response (May 2026): capability slot approach confirmed, custodian gate preserved. Integration path Step 5 rewritten to reflect slot-based activation. DHT locality constraint documented.*
