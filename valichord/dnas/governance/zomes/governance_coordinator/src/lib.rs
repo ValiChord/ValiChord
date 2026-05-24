@@ -168,7 +168,7 @@ pub fn check_and_create_harmony_record(
             Some(n) => n,
             None => return Ok(None), // Cannot determine quorum — abort conservatively.
         };
-    if (attestation_records.len() as u8) < min_validators {
+    if attestation_records.len() < min_validators as usize {
         return Ok(None);
     }
 
@@ -190,7 +190,7 @@ pub fn check_and_create_harmony_record(
                 .unwrap_or(true)
         })
         .collect();
-    if (attestation_records.len() as u8) < min_validators {
+    if attestation_records.len() < min_validators as usize {
         return Ok(None); // Not enough unwarranted attestations to meet quorum.
     }
 
@@ -359,7 +359,9 @@ fn write_harmony_record(
             discipline_opt = Some(a.discipline.clone());
         }
     }
-    let discipline = discipline_opt.unwrap_or_else(|| Discipline::Other("unknown".into()));
+    let discipline = discipline_opt.ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+        "write_harmony_record called with zero attestations — cannot derive discipline".into()
+    )))?;
 
     // Look up each validator's declared agent type — parallel to participating_validators.
     // Wasm-level errors (host failure, decode error) propagate and fail the entire write —
@@ -403,12 +405,18 @@ fn write_harmony_record(
         }
     }
 
-    // Automatic reputation update — only runs in dev/test mode (system_coordinator_key
-    // is empty). In production the validate() gate on ValidatorReputation requires
-    // system_coordinator_key authorship, so these calls would silently fail.
-    // Explicit reputation updates go through update_validator_reputation().
+    // Automatic reputation update — runs in two cases:
+    //   (a) dev/test mode (system_coordinator_key is empty), or
+    //   (b) this cell IS the system coordinator — validate() accepts it and the
+    //       auto-update runs as a side-effect of write_harmony_record.
+    // In production deployments where a separate reputation service writes updates
+    // via update_validator_reputation(), this block is skipped (the current agent is
+    // not the coordinator) and the explicit update path is used instead.
     let coord_props = DnaProperties::try_from_dna_properties()?;
-    if coord_props.system_coordinator_key.is_empty() {
+    let current_agent_str = agent_info()?.agent_initial_pubkey.to_string();
+    if coord_props.system_coordinator_key.is_empty()
+        || current_agent_str == coord_props.system_coordinator_key
+    {
         // Use participating_validators + attestations (both sorted from pairs) so the
         // validator key and their assessment data are always aligned after the sort.
         // attestation_records is in original gossip order and would mismatch after sort.
@@ -958,51 +966,18 @@ fn sweep_timed_out_rounds(schedule: Option<Schedule>) -> Option<Schedule> {
         return hourly;
     }
 
-    // Step 1: query attestation for each known named discipline.
-    //
-    // WHY not derive disciplines from get_all_governance_decisions():
-    //   get_all_governance_decisions returns GovernanceDecision entries (governance
-    //   votes), not HarmonyRecord entries — decoding them as HarmonyRecord always
-    //   returns Ok(None) and disciplines would be permanently empty.  Using a static
-    //   list of the known named variants is simpler, requires no new link type, and
-    //   produces correct results: for disciplines with no attestations yet,
-    //   get_attestations_for_discipline returns [] and no work is done.
-    //
-    // Limitation: studies submitted under Discipline::Other(String) are not covered
-    // by this sweep.  Adding a global HarmonyRecord index (Phase 1) would close
-    // this gap without enumerating disciplines at all.
-    let disciplines = vec![
-        Discipline::ComputationalBiology,
-        Discipline::ClimateScience,
-        Discipline::SocialScience,
-        Discipline::Economics,
-        Discipline::Psychology,
-        Discipline::Neuroscience,
-        Discipline::MachineLearning,
-    ];
+    // Step 1: fetch all known study request_refs from the global PendingStudiesPath
+    // index.  This index is written by submit_validation_request for every study
+    // regardless of discipline, so Discipline::Other studies are now covered.
+    let request_refs: Vec<ExternalHash> = match call_attestation_zome_opt(
+        "get_pending_request_refs",
+        (),
+    ) {
+        Ok(Some(refs)) => refs,
+        _ => return hourly, // attestation cell not ready — skip this tick
+    };
 
-    // Step 2: for each discipline, collect unique request_refs from attestation records.
-    let mut seen_refs: HashSet<Vec<u8>> = HashSet::new();
-    let mut request_refs: Vec<ExternalHash> = Vec::new();
-    for discipline in disciplines {
-        let records: Vec<Record> = match call_attestation_zome_opt(
-            "get_attestations_for_discipline",
-            discipline,
-        ) {
-            Ok(Some(r)) => r,
-            _ => continue,
-        };
-        for record in records {
-            if let Ok(Some(att)) = record.entry().to_app_option::<ValidationAttestation>() {
-                let key = att.request_ref.get_raw_32().to_vec();
-                if seen_refs.insert(key) {
-                    request_refs.push(att.request_ref);
-                }
-            }
-        }
-    }
-
-    // Step 3: attempt finalization for each candidate study.
+    // Step 2: attempt finalization for each candidate study.
     // force_finalize_round is idempotent (returns Ok(None) for already-done or
     // not-yet-timed-out studies) and handles all precondition checks internally.
     for request_ref in request_refs {

@@ -261,13 +261,18 @@ pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash
         request_ref:            input.request_ref,
         result_commitment_hash: commitment_hash,
     };
-    let _ = call(
+    let response = call(
         CallTargetCell::OtherRole("attestation".into()),
         ZomeName::from("attestation_coordinator"),
         FunctionName::from("publish_researcher_commitment"),
         None,
         commitment_input,
     )?;
+    if !matches!(response, ZomeCallResponse::Ok(_)) {
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "publish_researcher_commitment cross-DNA call failed: {response}"
+        ))));
+    }
 
     Ok(locked_hash)
 }

@@ -271,8 +271,12 @@ pub struct ResearcherReveal {
 #[hdk_entry_helper]
 #[derive(Clone)]
 pub struct PhaseMarker {
-    pub request_ref: ExternalHash,
-    pub phase:       ValidationPhase,
+    pub request_ref:           ExternalHash,
+    pub phase:                 ValidationPhase,
+    /// ActionHash of the CommitmentAnchor written by the validator who detected quorum.
+    /// Inductive validation chain: PhaseMarker → CommitmentAnchor → ValidationRequest.
+    /// Prevents any agent from forging a RevealOpen signal without having committed.
+    pub commitment_anchor_hash: ActionHash,
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +390,13 @@ pub enum LinkTypes {
     /// Tag = claim_hash raw bytes (39 bytes).
     /// Allows get_my_claimed_studies to fetch all releases for an agent in one call.
     ValidatorToRelease,
+    /// Global pending-studies index.
+    /// Base: "requests.pending" path anchor.
+    /// Target: ValidationRequest ActionHash.
+    /// Tag: request_ref (ExternalHash) raw 39 bytes.
+    /// Covers all disciplines including Discipline::Other so sweep_timed_out_rounds
+    /// can finalize any stuck round regardless of discipline.
+    PendingStudiesPath,
 }
 
 // ---------------------------------------------------------------------------
@@ -848,6 +859,60 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ValidatorToRelease links are immutable — \
              release records cannot be retracted".into(),
         )),
+
+        // --- PhaseMarker create: verify it was written by a committed validator ------
+        //
+        // Inductive validation chain: PhaseMarker → CommitmentAnchor → ValidationRequest.
+        // The commitment_anchor_hash must point to a real CommitmentAnchor whose
+        // `validator` field matches the PhaseMarker's action author.  This prevents
+        // any agent from forging a RevealOpen signal: you must have already committed
+        // (i.e. have a CommitmentAnchor on the DHT naming you as validator) before
+        // you can write the PhaseMarker that opens the reveal window.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::PhaseMarker(ref marker),
+            action,
+        }) => {
+            let anchor_record = must_get_valid_record(marker.commitment_anchor_hash.clone())?;
+            let maybe_anchor: Option<CommitmentAnchor> = handle_error!(anchor_record.entry().to_app_option());
+            let anchor = match maybe_anchor {
+                Some(a) => a,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker.commitment_anchor_hash does not point to a CommitmentAnchor".into()
+                )),
+            };
+            if anchor.validator != action.author {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker author must be the validator named in the referenced \
+                     CommitmentAnchor — only a committed validator may open the reveal phase".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- StudyClaimRelease create: verify it points to the claimer's own claim ----
+        //
+        // Prevents a validator from forging a release of another validator's claim and
+        // thereby freeing a study slot for a colluder.  The release author must match
+        // the original StudyClaim author.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::StudyClaimRelease(ref release),
+            action,
+        }) => {
+            let claim_record = must_get_valid_record(release.claim_hash.clone())?;
+            let maybe_claim: Option<StudyClaim> = handle_error!(claim_record.entry().to_app_option());
+            if maybe_claim.is_none() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "StudyClaimRelease.claim_hash does not point to a StudyClaim".into()
+                ));
+            }
+            if action.author != *claim_record.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "StudyClaimRelease author must match the StudyClaim author — \
+                     only the validator who claimed the study may release it".into()
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
 
         // --- Membrane proof — format check (after network join) ---
         //

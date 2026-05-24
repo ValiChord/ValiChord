@@ -44,6 +44,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_researcher_reveal",
         "get_validator_agent_type",
         "get_linked_agents",
+        "get_pending_request_refs",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -187,6 +188,20 @@ pub fn submit_validation_request(
         (),
     )?;
 
+    // Global pending index — covers all disciplines including Discipline::Other so
+    // sweep_timed_out_rounds can finalise any stuck round.
+    // Tag = request_ref raw 39 bytes so get_pending_request_refs can decode directly.
+    let pending_path = Path::from("requests.pending")
+        .typed(LinkTypes::PendingStudiesPath)?;
+    pending_path.ensure()?;
+    let pending_tag = LinkTag::new(data_hash.get_raw_39().to_vec());
+    create_link(
+        pending_path.path_entry_hash()?,
+        request_hash.clone(),
+        LinkTypes::PendingStudiesPath,
+        pending_tag,
+    )?;
+
     Ok(request_hash)
 }
 
@@ -223,6 +238,7 @@ pub struct AttestationRevealInput {
 #[hdk_extern]
 pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     let mut attestation = input.attestation;
     let disc_tag = attestation.discipline_tag();
     let request_ref = attestation.request_ref.clone();
@@ -742,7 +758,7 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<Option<ActionHash>
     )?;
     let released: HashSet<ActionHash> = release_links
         .iter()
-        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::try_from_raw_39(l.tag.0.clone()).ok()).flatten())
         .collect();
 
     let claim_links = get_links(
@@ -864,7 +880,7 @@ pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Rec
     )?;
     let released: HashSet<ActionHash> = release_links
         .iter()
-        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::try_from_raw_39(l.tag.0.clone()).ok()).flatten())
         .collect();
 
     let claim_links = get_links(
@@ -895,7 +911,7 @@ pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
     )?;
     let released: HashSet<ActionHash> = release_links
         .iter()
-        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone())))
+        .filter_map(|l| (l.tag.0.len() == 39).then(|| ActionHash::try_from_raw_39(l.tag.0.clone()).ok()).flatten())
         .collect();
 
     let claim_links = get_links(
@@ -1098,7 +1114,24 @@ pub fn get_validators_for_institution(institution: String) -> ExternResult<Vec<R
         LinkQuery::try_new(inst_path.path_entry_hash()?, LinkTypes::InstitutionPath)?,
         GetStrategy::Network,
     )?;
-    records_for_links(links)
+    // Deduplicate by agent — keep only the latest profile per author (same pattern as
+    // get_validators_for_discipline). Multiple links accumulate when a validator updates
+    // their profile without the old link being removed.
+    let all_records = records_for_links(links)?;
+    let mut latest_by_agent: std::collections::HashMap<AgentPubKey, Record> =
+        std::collections::HashMap::new();
+    for record in all_records {
+        let author = record.action().author().clone();
+        let ts = record.action().timestamp();
+        let is_newer = latest_by_agent
+            .get(&author)
+            .map(|existing| ts > existing.action().timestamp())
+            .unwrap_or(true);
+        if is_newer {
+            latest_by_agent.insert(author, record);
+        }
+    }
+    Ok(latest_by_agent.into_values().collect())
 }
 
 /// Return all ValidationAttestation records for a given discipline.
@@ -1138,6 +1171,36 @@ pub fn get_pending_requests_for_discipline(
         GetStrategy::Network,
     )?;
     records_for_links(links)
+}
+
+/// Return the ExternalHash (data_hash / request_ref) for every study that has
+/// ever been submitted, regardless of discipline.
+///
+/// The PendingStudiesPath index is written by `submit_validation_request` under
+/// a global "requests.pending" path anchor — link tag = request_ref raw 39 bytes.
+/// Used by `sweep_timed_out_rounds` in the governance DNA to cover studies
+/// submitted under `Discipline::Other` (which is not in the static discipline list).
+#[hdk_extern]
+pub fn get_pending_request_refs(_: ()) -> ExternResult<Vec<ExternalHash>> {
+    let path = Path::from("requests.pending")
+        .typed(LinkTypes::PendingStudiesPath)?;
+    let links = get_links(
+        LinkQuery::try_new(path.path_entry_hash()?, LinkTypes::PendingStudiesPath)?,
+        GetStrategy::Network,
+    )?;
+    let mut seen: HashSet<Vec<u8>> = HashSet::new();
+    let mut refs = Vec::new();
+    for link in links {
+        if link.tag.0.len() == 39 {
+            if let Ok(hash) = ExternalHash::try_from_raw_39(link.tag.0.clone()) {
+                let key = hash.get_raw_32().to_vec();
+                if seen.insert(key) {
+                    refs.push(hash);
+                }
+            }
+        }
+    }
+    Ok(refs)
 }
 
 #[hdk_extern]
@@ -1260,7 +1323,7 @@ pub fn notify_commitment_sealed(
         let released: HashSet<ActionHash> = release_links
             .iter()
             .filter_map(|l| {
-                (l.tag.0.len() == 39).then(|| ActionHash::from_raw_39(l.tag.0.clone()))
+                (l.tag.0.len() == 39).then(|| ActionHash::try_from_raw_39(l.tag.0.clone()).ok()).flatten()
             })
             .collect();
 
@@ -1337,7 +1400,7 @@ pub fn notify_commitment_sealed(
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
-    create_link(commit_anchor, anchor_hash, LinkTypes::RequestToCommitment, ())?;
+    create_link(commit_anchor, anchor_hash.clone(), LinkTypes::RequestToCommitment, ())?;
 
     // Step 3: check if all validators have now committed.
     // Use check_all_commitments_sealed_inner which reads the per-study
@@ -1367,8 +1430,9 @@ pub fn notify_commitment_sealed(
         // one PhaseMarker link per study must account for this.
         if existing_phase.is_empty() {
             let marker = PhaseMarker {
-                request_ref: request_ref.clone(),
-                phase:       ValidationPhase::RevealOpen,
+                request_ref:            request_ref.clone(),
+                phase:                  ValidationPhase::RevealOpen,
+                commitment_anchor_hash: anchor_hash.clone(),
             };
             let marker_hash = create_entry(EntryTypes::PhaseMarker(marker))?;
             create_link(
@@ -1466,6 +1530,8 @@ pub fn get_current_phase(
 pub fn publish_researcher_commitment(
     input: ResearcherCommitmentInput,
 ) -> ExternResult<ActionHash> {
+    let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     // Idempotency guard: only one commitment may be published per study.
     // A second call would allow the researcher to change their locked prediction
     // after validators have already started work, breaking the commit-reveal
@@ -1494,7 +1560,7 @@ pub fn publish_researcher_commitment(
     {
         let props = DnaProperties::try_from_dna_properties()?;
         if !props.authorized_joining_certificate_issuer.is_empty() {
-            let caller = agent_info()?.agent_initial_pubkey;
+            let caller = agent.clone();
             let study_path = Path::from(format!("study.{}", input.request_ref))
                 .typed(LinkTypes::StudyToValidation)?;
             let vr_links = get_links(
@@ -1587,6 +1653,8 @@ pub fn get_researcher_commitment(
 pub fn reveal_researcher_result(
     input: ResearcherRevealInput,
 ) -> ExternResult<ActionHash> {
+    let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     // Idempotency guard: only one reveal may be published per study.
     // A second call would create a duplicate ResearcherReveal entry and an
     // additional RequestToResearcherReveal link, making get_researcher_reveal
@@ -1619,7 +1687,7 @@ pub fn reveal_researcher_result(
     {
         let reveal_props = DnaProperties::try_from_dna_properties()?;
         if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
-            let caller = agent_info()?.agent_initial_pubkey;
+            let caller = agent.clone();
             let study_path = Path::from(format!("study.{}", input.request_ref))
                 .typed(LinkTypes::StudyToValidation)?;
             // VR was written at study submission (minutes ago) — Local is safe.
