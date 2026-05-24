@@ -142,7 +142,9 @@ pub fn check_and_create_harmony_record(
         // submit_attestation (Holochain prevents reentrant same-cell calls).
         // This retry runs from a direct governance call where DNA 3 is free, so it succeeds.
         if let Some(ref h) = existing_hash {
-            let _ = issue_badge_if_missing(&request_ref, h);
+            if let Err(e) = issue_badge_if_missing(&request_ref, h) {
+                warn!("check_and_create_harmony_record: badge retry failed: {e}");
+            }
         }
         return Ok(existing_hash);
     }
@@ -392,12 +394,13 @@ fn write_harmony_record(
     create_link(anchor_key, record_hash.clone(), LinkTypes::RequestToHarmonyRecord, ())?;
     create_link(disc_anchor, record_hash.clone(), LinkTypes::DisciplinePath, ())?;
 
-    // Issue badge.  Delegates to try_issue_badge, which no-ops silently if the
-    // researcher's identity cannot be resolved (3-hop reentrant call failure in the
-    // auto-call path).  The idempotency return path in check_and_create_harmony_record
-    // retries via issue_badge_if_missing when the badge is still absent.
+    // Issue badge.  May fail on the auto-call path (submit_attestation → governance →
+    // attestation) due to Holochain's reentrant-cell block.  The idempotency retry in
+    // check_and_create_harmony_record calls issue_badge_if_missing to repair.
     if let Some(badge_type) = evaluate_badge(&agreement_level, validator_count) {
-        let _ = try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type);
+        if let Err(e) = try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type) {
+            warn!("write_harmony_record: badge deferred (reentrant call — will retry via issue_badge_if_missing): {e}");
+        }
     }
 
     // Automatic reputation update — only runs in dev/test mode (system_coordinator_key
@@ -657,11 +660,20 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
     path.path_entry_hash()
 }
 
-/// Issue a badge for `request_ref` if no badge link exists yet.
+/// Issue a badge for `request_ref` if no complete badge exists yet.
 ///
-/// No-ops silently if: a badge already exists, the HarmonyRecord can't be fetched,
-/// the quorum doesn't meet any badge threshold, or researcher identity is unknown.
-/// Errors from DHT writes (create_entry, create_link) propagate so callers can log them.
+/// Handles two edge-case failure modes left by a prior try_issue_badge call:
+///
+/// • Partial badge (StudyToBadge link exists, BadgePath link missing): repairs the
+///   BadgePath link in-place — no new badge entry is created, so nothing is duplicated.
+///   This can happen if try_issue_badge committed the first link but then the conductor
+///   crashed or the DHT write for the second link was rejected.
+///
+/// • Missing badge (no StudyToBadge link): full creation via try_issue_badge with one
+///   retry on transient cross-DNA call failure (Err return from try_issue_badge).
+///
+/// No-ops when: the HarmonyRecord can't be fetched, the quorum doesn't meet any badge
+/// threshold, or the ValidationRequest genuinely doesn't exist.
 fn issue_badge_if_missing(
     request_ref: &ExternalHash,
     record_hash: &ActionHash,
@@ -671,6 +683,27 @@ fn issue_badge_if_missing(
         GetStrategy::Network,
     )?;
     if !badge_links.is_empty() {
+        // StudyToBadge exists — verify BadgePath was also written.
+        // It can be absent if try_issue_badge was interrupted after the first create_link.
+        if let Some(badge_hash) = badge_links[0].target.clone().into_action_hash() {
+            if let Some(badge_record) = get(badge_hash.clone(), GetOptions::network())? {
+                if let Ok(Some(badge)) = badge_record.entry().to_app_option::<ReproducibilityBadge>() {
+                    let type_anchor = badge_type_anchor(&badge.badge_type)?;
+                    let path_links = get_links(
+                        LinkQuery::try_new(type_anchor.clone(), LinkTypes::BadgePath)?,
+                        GetStrategy::Network,
+                    )?;
+                    let already_indexed = path_links.iter().any(|l| {
+                        l.target.clone().into_action_hash()
+                            .map(|h| h == badge_hash)
+                            .unwrap_or(false)
+                    });
+                    if !already_indexed {
+                        create_link(type_anchor, badge_hash, LinkTypes::BadgePath, ())?;
+                    }
+                }
+            }
+        }
         return Ok(());
     }
     let Some(record) = get(record_hash.clone(), GetOptions::network())? else {
@@ -689,29 +722,41 @@ fn issue_badge_if_missing(
     let Some(badge_type) = evaluate_badge(&harmony.agreement_level, validator_count) else {
         return Ok(());
     };
-    try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type)
+    // Retry once — try_issue_badge returns Err on transient cross-DNA failure (cell
+    // busy on first attempt), Ok(()) when the ValidationRequest genuinely doesn't exist.
+    let result = try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type.clone());
+    if result.is_err() {
+        return try_issue_badge(request_ref.clone(), record_hash.clone(), badge_type);
+    }
+    result
 }
 
 /// Write a ReproducibilityBadge entry and its two index links.
 ///
-/// Returns Ok(()) silently if the researcher's identity cannot be resolved via
-/// the attestation DNA — mis-attributing a badge to a validator pubkey is worse
-/// than skipping issuance.
+/// Returns Err if the attestation cross-DNA call itself failed (transient — the caller
+/// can retry).  Returns Ok(()) when the call succeeded but no ValidationRequest was
+/// found (permanent — retrying would loop forever).
+/// Mis-attributing a badge to a validator pubkey is worse than skipping issuance.
 fn try_issue_badge(
     request_ref: ExternalHash,
     record_hash: ActionHash,
     badge_type: BadgeType,
 ) -> ExternResult<()> {
-    let maybe_researcher: Option<AgentPubKey> = call_attestation_zome_opt::<_, Option<Record>>(
+    // call_attestation_zome_opt wraps call_other_role_opt which returns Ok(None) on any
+    // ZomeCallResponse non-Ok (Unauthorized, Error, etc.) and Ok(Some(v)) on success.
+    // Distinguish the two Ok cases so callers can retry on transient failures.
+    let issued_to: AgentPubKey = match call_attestation_zome_opt::<_, Option<Record>>(
         "get_validation_request_for_data_hash",
         request_ref.clone(),
-    )
-    .ok()
-    .flatten()
-    .flatten()
-    .map(|r| r.action().author().clone());
-    let Some(issued_to) = maybe_researcher else {
-        return Ok(());
+    )? {
+        // Cross-DNA call returned no result — cell busy (reentrant call) or not yet init.
+        None => return Err(wasm_error!(WasmErrorInner::Guest(
+            "try_issue_badge: attestation cross-call returned no result \
+             (cell busy or not yet initialised)".to_string()
+        ))),
+        // Call succeeded but no ValidationRequest exists — cannot attribute badge.
+        Some(None) => return Ok(()),
+        Some(Some(record)) => record.action().author().clone(),
     };
     let type_anchor = badge_type_anchor(&badge_type)?;
     let badge = ReproducibilityBadge {
