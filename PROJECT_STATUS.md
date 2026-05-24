@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-22
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. v0.5.21. Holochain 0.6.1 upgrade complete (hdk/hdi/holo_hash/holochain_serialized_bytes all bumped; iroh/QUIC transport; full test suite green). `valichord_attestation` now at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
+**Last updated:** 2026-05-24
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.4** — security hardening sweep: warrant gates, integrity validation gaps, TypeScript serde fix, 6 new sweettest tests (attestation tests 16–20, governance test 17). Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
 
@@ -86,6 +86,33 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Release v0.5.4 — security hardening sweep — 2026-05-24 ✓
+
+**Warrant gate coverage (attestation_coordinator):** Four coordinator entry points that previously let warranted (banned) agents write state are now closed — `submit_validation_request`, `publish_validator_profile`, `assess_difficulty`, `link_agent_identity`. All call `reject_if_warranted(&agent)?` at the start of the handler, matching the existing pattern on `notify_commitment_sealed`, `submit_attestation`, and `claim_study`.
+
+**Integrity validation gaps (attestation_integrity + governance_integrity):** Two entry types had no `validate()` coverage:
+- `ResearcherResultCommitment` — `result_commitment_hash` must be exactly 32 bytes (SHA-256). A malformed hash would permanently block the researcher's reveal with no visible error.
+- `HarmonyRecord` — `validator_types` (position-parallel to `participating_validators`) must be empty or the same length. A length mismatch causes out-of-bounds panics in UI lookups. The field is `#[serde(default)]` for backwards-compat with pre-existing records.
+
+**TypeScript serde fix (valichord-ui/src/lib/types.ts):** `BadgeType` used wrong string names (`"Gold"`, `"Silver"`, `"Bronze"`, `"Failed"`). Rust serialises to `"GoldReproducible"`, `"SilverReproducible"`, `"BronzeReproducible"`, `"FailedReproduction"`. `get_badges_by_type` calls from the UI now match DHT records.
+
+**Earlier fixes (also in this release):** claim release authorisation (only original claimant or study submitter may release); warrant filter in `get_all_validators`; cross-DNA error handling in `call_attestation_zome_opt`; timeout cast safety in `reclaim_abandoned_claim`; atomic badge issuance hardening in governance.
+
+**New sweettest tests:**
+
+| File | # | Test | What it covers |
+|---|---|---|---|
+| `attestation.rs` | 16 | `update_validator_profile_merges_fields` | `Some` fields overwrite, `None` fields preserved |
+| `attestation.rs` | 17 | `check_all_commitments_sealed_lifecycle` | false before quorum, true after both validators commit |
+| `attestation.rs` | 18 | `get_researcher_reveal_none_then_some` | `None` before reveal, `Some(Record)` after |
+| `attestation.rs` | 19 | `revoke_agent_identity_link_removes_from_linked_agents` | deleted entry filtered from `get_linked_agents` |
+| `attestation.rs` | 20 | `get_my_claimed_studies_filtered_by_release` | released claim excluded from `Vec<Record>` result |
+| `governance.rs` | 17 | `get_pending_request_refs_includes_other_discipline_studies` | `Discipline::Other("custom")` study appears in refs; `force_finalize_round` works end-to-end |
+
+Total sweettest coverage: **20 attestation + 17 governance** tests.
+
+---
 
 ### Public web demo live on Render — 2026-05-22 ✓
 
