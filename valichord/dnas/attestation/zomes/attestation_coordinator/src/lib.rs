@@ -982,7 +982,10 @@ pub fn reclaim_abandoned_claim(input: ReclaimInput) -> ExternResult<bool> {
         input.timeout_secs
     };
 
-    if elapsed_secs < effective_timeout_secs as i64 {
+    // Compare in u64 to avoid wrap-around: casting a large u64 timeout to i64 would
+    // produce a negative value, making positive elapsed always >= it and bypassing
+    // the floor (u64::MAX as i64 == -1 — always "timed out").
+    if (elapsed_secs.max(0) as u64) < effective_timeout_secs {
         return Ok(false); // Too recent — reclamation not yet permitted.
     }
 

@@ -889,26 +889,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- StudyClaimRelease create: verify it points to the claimer's own claim ----
+        // --- StudyClaimRelease create: verify claim_hash points to a real StudyClaim ----
         //
-        // Prevents a validator from forging a release of another validator's claim and
-        // thereby freeing a study slot for a colluder.  The release author must match
-        // the original StudyClaim author.
+        // Only a structural check: confirms the referenced claim exists and is a
+        // StudyClaim.  Author authorisation is intentionally NOT enforced here because
+        // two distinct code paths write StudyClaimRelease entries:
+        //   (1) release_claim   — the validator releasing their own claim (author == claim author)
+        //   (2) reclaim_abandoned_claim — a third party freeing a slot after timeout (author ≠ claim author)
+        // The integrity zome cannot evaluate the timeout, so the timeout + non-attestation
+        // guards in the coordinator are the appropriate authorisation layer for path (2).
+        // This follows the AgentIdentityAttestation delete arm pattern: structural validity
+        // in the integrity zome, authorisation logic in the coordinator.
         FlatOp::StoreEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::StudyClaimRelease(ref release),
-            action,
+            ..
         }) => {
             let claim_record = must_get_valid_record(release.claim_hash.clone())?;
             let maybe_claim: Option<StudyClaim> = handle_error!(claim_record.entry().to_app_option());
             if maybe_claim.is_none() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "StudyClaimRelease.claim_hash does not point to a StudyClaim".into()
-                ));
-            }
-            if action.author != *claim_record.action().author() {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "StudyClaimRelease author must match the StudyClaim author — \
-                     only the validator who claimed the study may release it".into()
                 ));
             }
             Ok(ValidateCallbackResult::Valid)

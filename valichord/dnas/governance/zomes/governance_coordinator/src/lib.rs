@@ -307,6 +307,27 @@ pub fn force_finalize_round(
         None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
     }
 
+    // Filter out attestations from warranted agents — mirrors the same guard in
+    // check_and_create_harmony_record (lines 184-195).  Without this, a validator
+    // who received a warrant after claiming would still contribute to the immutable
+    // HarmonyRecord on the timeout path, skewing outcome/agreement_level and
+    // inflating validator_count for badge evaluation.
+    // unwrap_or(true) — include on activity-check failure — same rationale as the
+    // normal path: a transient network failure is less harmful than permanently
+    // excluding a legitimate validator from an already-reduced-quorum record.
+    let attestation_records: Vec<Record> = attestation_records
+        .into_iter()
+        .filter(|r| {
+            let author = r.action().author().clone();
+            get_agent_activity(author, ChainQueryFilter::new(), ActivityRequest::Full, GetOptions::network())
+                .map(|a| a.warrants.is_empty())
+                .unwrap_or(true)
+        })
+        .collect();
+    if (attestation_records.len() as u32) < min_required {
+        return Ok(None); // Not enough unwarranted attestations to meet the threshold.
+    }
+
     // 4-7. Assemble and write with whatever attestations are present.
     let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
     Ok(Some(hash))
