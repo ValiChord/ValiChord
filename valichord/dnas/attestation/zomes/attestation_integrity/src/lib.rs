@@ -889,6 +889,24 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
+        // --- ResearcherResultCommitment create: enforce 32-byte hash length --------------
+        //
+        // Matches the CommitmentAnchor.commitment_hash constraint: both are SHA-256 hashes
+        // and must be exactly 32 bytes.  A short or empty hash would be accepted by the
+        // coordinator but could never be matched at reveal time, permanently blocking the
+        // researcher's reveal without any visible error.
+        FlatOp::StoreEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ResearcherResultCommitment(ref c),
+            ..
+        }) => {
+            if c.result_commitment_hash.len() != 32 {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ResearcherResultCommitment.result_commitment_hash must be exactly 32 bytes (SHA-256)".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
         // --- StudyClaimRelease create: verify claim_hash points to a real StudyClaim ----
         //
         // Only a structural check: confirms the referenced claim exists and is a

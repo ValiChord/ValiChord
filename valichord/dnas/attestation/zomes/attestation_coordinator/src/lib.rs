@@ -144,6 +144,8 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
 pub fn submit_validation_request(
     request: ValidationRequest,
 ) -> ExternResult<ActionHash> {
+    let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     let discipline = request.discipline.clone();
     let data_hash  = request.data_hash.clone();
 
@@ -352,6 +354,7 @@ pub fn publish_validator_profile(
     profile: ValidatorProfile,
 ) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&agent)?;
     // Extract fields before profile is consumed by create_entry.
     let disciplines = profile.disciplines.clone();
     let institution = profile.institution.clone();
@@ -516,6 +519,7 @@ pub fn assess_difficulty(
     // difficulty estimate, affecting which validators choose to claim the study.
     // link.author is set by the DHT host — no entry fetch needed.
     let caller = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&caller)?;
     let existing = get_links(
         LinkQuery::try_new(input.request_ref.clone(), LinkTypes::DifficultyPath)?,
         GetStrategy::Network,
@@ -2066,6 +2070,7 @@ pub struct LinkAgentIdentityInput {
 #[hdk_extern]
 pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<ActionHash> {
     let caller = agent_info()?.agent_initial_pubkey;
+    reject_if_warranted(&caller)?;
 
     if caller == input.other_agent {
         return Err(wasm_error!(WasmErrorInner::Guest(

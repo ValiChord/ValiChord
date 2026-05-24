@@ -23,10 +23,16 @@
 //!  13.  link_agent_identity — self-link rejected (new)
 //!  14.  get_linked_agents returns empty when no identity links exist (new)
 //!  15.  DHT-poll phase transition (late-joining validator discovers RevealOpen)
+//!  16.  update_validator_profile — merged fields overwrite, unchanged fields preserved (new)
+//!  17.  check_all_commitments_sealed — false before quorum, true after (new)
+//!  18.  get_researcher_reveal — None before reveal, Some after (new)
+//!  19.  revoke_agent_identity_link — live entry deleted, get_linked_agents returns empty (new)
+//!  20.  get_my_claimed_studies — own claims visible, filtered by release (new)
 
 use valichord_sweettest::*;
-use attestation_integrity::{AssessmentConfidence, DifficultyTier};
-use attestation_coordinator::{AssessDifficultyInput, LinkAgentIdentityInput, ReclaimInput};
+use attestation_integrity::{AssessmentConfidence, DifficultyTier, ResearcherRevealInput, StudyClaim};
+use attestation_coordinator::{AssessDifficultyInput, LinkAgentIdentityInput, ReclaimInput, UpdateValidatorProfileInput};
+use valichord_shared_types::Discipline;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -711,5 +717,345 @@ async fn late_joining_validator_discovers_reveal_open_via_dht_poll() {
         phase.as_deref(),
         Some("RevealOpen"),
         "late-joining validator should discover RevealOpen by polling the DHT"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 16. update_validator_profile — merged fields, unchanged fields preserved (new)
+// ---------------------------------------------------------------------------
+//
+// update_validator_profile fetches the current profile and merges supplied
+// Some fields on top, leaving None fields unchanged.  Tests:
+//   a. Fields supplied as Some are updated.
+//   b. Fields supplied as None (not in UpdateValidatorProfileInput) are kept.
+//   c. certification_tier is NOT editable via this function (always preserved).
+
+#[tokio::test(flavor = "multi_thread")]
+async fn update_validator_profile_merges_fields() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.attestation_zome();
+    let agent = app.attestation.agent_pubkey().clone();
+
+    // Publish initial profile.
+    conductor
+        .call::<_, ActionHash>(&zome, "publish_validator_profile", make_validator_profile("Initial Lab"))
+        .await;
+
+    // Update only the institution — other fields should be preserved.
+    let _: ActionHash = conductor
+        .call(
+            &zome,
+            "update_validator_profile",
+            attestation_coordinator::UpdateValidatorProfileInput {
+                institution:          Some("Updated Lab".into()),
+                disciplines:          None,
+                available:            None,
+                max_concurrent_tasks: None,
+                orcid:                None,
+                agent_type:           None,
+                person_key:           None,
+            },
+        )
+        .await;
+
+    let record: Option<Record> = conductor.call(&zome, "get_validator_profile", agent).await;
+    let profile: ValidatorProfile = record
+        .expect("profile must exist after update")
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(profile.institution, "Updated Lab", "institution should be updated");
+    // disciplines was None in the update — preserved from original profile.
+    assert_eq!(
+        profile.disciplines,
+        vec![Discipline::ComputationalBiology],
+        "disciplines should be preserved when not supplied"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 17. check_all_commitments_sealed — false before quorum, true after (new)
+// ---------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn check_all_commitments_sealed_lifecycle() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0xa0);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Before any commits: not sealed.
+    let before: bool = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "check_all_commitments_sealed", request_ref.clone())
+        .await;
+    assert!(!before, "should not be sealed before any commitments");
+
+    // After Alice commits only: still not sealed (need 2).
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let after_one: bool = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "check_all_commitments_sealed", request_ref.clone())
+        .await;
+    assert!(!after_one, "should not be sealed with only one of two commitments");
+
+    // After Bob commits: both committed → sealed.
+    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let after_two: bool = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "check_all_commitments_sealed", request_ref.clone())
+        .await;
+    assert!(after_two, "should be sealed once both validators have committed");
+}
+
+// ---------------------------------------------------------------------------
+// 18. get_researcher_reveal — None before reveal, Some after (new)
+// ---------------------------------------------------------------------------
+//
+// The researcher calls reveal_researcher_result after all validators have
+// committed.  Metrics + nonce are supplied in the input; the coordinator
+// verifies SHA-256(msgpack(metrics) || nonce) == result_commitment_hash before
+// writing the ResearcherReveal entry to the DHT.
+//
+// Dev bypass (authorized_joining_certificate_issuer: ""): commitment hash
+// verification is skipped when nonce is empty, so we can use fake metrics.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_researcher_reveal_none_then_some() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0xa1);
+
+    // Submit the study and lock the researcher's result (with empty nonce bypass).
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+
+    // Publish researcher commitment before validators commit.
+    use valichord_shared_types::ResearcherCommitmentInput;
+    let _: () = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "publish_researcher_commitment",
+            ResearcherCommitmentInput {
+                request_ref:            request_ref.clone(),
+                result_commitment_hash: vec![0u8; 32],
+            },
+        )
+        .await;
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Before reveal: None.
+    let before: Option<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_researcher_reveal", request_ref.clone())
+        .await;
+    assert!(before.is_none(), "researcher reveal should be None before reveal_researcher_result");
+
+    // Both validators commit and reveal so the reveal window is open.
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Researcher reveals (dev bypass: empty nonce skips hash verification).
+    let _: () = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "reveal_researcher_result",
+            ResearcherRevealInput {
+                request_ref: request_ref.clone(),
+                metrics:     vec![],
+                nonce:       vec![],
+            },
+        )
+        .await;
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // After reveal: Some.
+    let after: Option<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_researcher_reveal", request_ref)
+        .await;
+    assert!(after.is_some(), "get_researcher_reveal should return the record after reveal");
+}
+
+// ---------------------------------------------------------------------------
+// 19. revoke_agent_identity_link — entry deleted, get_linked_agents empty (new)
+// ---------------------------------------------------------------------------
+//
+// Two agents sign a cross-device identity attestation.  Either named agent
+// may revoke it by calling revoke_agent_identity_link.  After revocation the
+// entry's delete record is present in DHT details, so get_linked_agents
+// (which filters on rd.deletes.is_empty()) returns nothing.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn revoke_agent_identity_link_removes_from_linked_agents() {
+    let setup = setup_two_agents().await;
+
+    // Each agent signs the canonical 78-byte payload for the prospective link.
+    let alice_sig: Signature = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "sign_for_identity_link",
+            setup.bob.attestation.agent_pubkey().clone(),
+        )
+        .await;
+    let bob_sig: Signature = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "sign_for_identity_link",
+            setup.alice.attestation.agent_pubkey().clone(),
+        )
+        .await;
+
+    // Alice writes the attestation (she is the caller — agent_a or agent_b by lex order).
+    let att_hash: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "link_agent_identity",
+            LinkAgentIdentityInput {
+                other_agent:     setup.bob.attestation.agent_pubkey().clone(),
+                my_signature:    alice_sig,
+                other_signature: bob_sig,
+            },
+        )
+        .await;
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Alice should see the link.
+    let linked: Vec<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_linked_agents", ())
+        .await;
+    assert_eq!(linked.len(), 1, "Alice should see one identity link after creation");
+
+    // Alice revokes it.
+    let _: ActionHash = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "revoke_agent_identity_link", att_hash)
+        .await;
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // After revocation get_linked_agents filters deleted entries → empty.
+    let after: Vec<Record> = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "get_linked_agents", ())
+        .await;
+    assert_eq!(after.len(), 0, "get_linked_agents should return empty after revocation");
+}
+
+// ---------------------------------------------------------------------------
+// 20. get_my_claimed_studies — own claims visible, filtered by release (new)
+// ---------------------------------------------------------------------------
+//
+// get_my_claimed_studies returns StudyClaim Records for studies Bob has
+// actively claimed.  Released claims are filtered out using the same
+// release-link mechanism as get_claims_for_request.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_my_claimed_studies_filtered_by_release() {
+    let setup = setup_two_agents().await;
+
+    let ref_a = fake_external_hash(0xa2);
+    let ref_b = fake_external_hash(0xa3);
+
+    // Alice submits two studies.
+    for ref_ in [ref_a.clone(), ref_b.clone()] {
+        setup.conductors[0]
+            .call::<_, ActionHash>(
+                &setup.alice.attestation_zome(),
+                "submit_validation_request",
+                make_validation_request(ref_),
+            )
+            .await;
+    }
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob publishes a profile and claims both studies.
+    setup.conductors[1]
+        .call::<_, ActionHash>(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    for ref_ in [ref_a.clone(), ref_b.clone()] {
+        setup.conductors[1]
+            .call::<_, ActionHash>(&setup.bob.attestation_zome(), "claim_study", ref_)
+            .await;
+    }
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Both studies should appear in Bob's claimed list.
+    let claimed: Vec<Record> = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "get_my_claimed_studies", ())
+        .await;
+    assert_eq!(claimed.len(), 2, "Bob should see both claimed studies");
+
+    // Bob releases study A.
+    let _: () = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "release_claim", ref_a.clone())
+        .await;
+
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Only study B should remain.
+    let after_release: Vec<Record> = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "get_my_claimed_studies", ())
+        .await;
+    assert_eq!(after_release.len(), 1, "released study A should not appear in claimed list");
+    let remaining: StudyClaim = after_release[0]
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        remaining.request_ref.get_raw_32(),
+        ref_b.get_raw_32(),
+        "remaining claimed study should be study B"
     );
 }

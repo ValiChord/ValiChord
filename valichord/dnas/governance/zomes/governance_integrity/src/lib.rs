@@ -252,6 +252,17 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      each validator pubkey may appear at most once".into(),
                 ));
             }
+            // Parallel array length check: validator_types is serde(default) → empty vec
+            // for old entries.  When present it must align with participating_validators so
+            // position-based lookups in the UI can't panic or silently return the wrong type.
+            if !record.validator_types.is_empty()
+                && record.validator_types.len() != record.participating_validators.len()
+            {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "HarmonyRecord.validator_types must be empty or have the same length as \
+                     participating_validators".into(),
+                ));
+            }
             // Minimum quorum from DNA properties.
             let props = DnaProperties::try_from_dna_properties()?;
             let min_required = if props.min_attestations_for_finalization == 0 {

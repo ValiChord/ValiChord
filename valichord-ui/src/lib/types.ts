@@ -209,7 +209,11 @@ export interface HarmonyRecord {
 
 // ── BadgeType ─────────────────────────────────────────────────────────────────
 
-export type BadgeType = "Gold" | "Silver" | "Bronze" | "Failed";
+export type BadgeType =
+  | "GoldReproducible"
+  | "SilverReproducible"
+  | "BronzeReproducible"
+  | "FailedReproduction";
 
 // ── Researcher repository types ───────────────────────────────────────────────
 
