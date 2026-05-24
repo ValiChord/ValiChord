@@ -18,8 +18,8 @@ The three validators still work independently — they still can't see each othe
 
 ## Prerequisites before starting
 
-1. **CMA API access** — the `managed-agents-2026-04-01` beta must be enabled on the Anthropic account. Check at platform.claude.ai or ask Anthropic support.
-2. **Tokens** — CMA sessions are more expensive than single API calls (multi-turn, tool use). Budget ~$1–2 per full demo run with 3 validators.
+1. **CMA API access** — the `managed-agents-2026-04-01` beta must be enabled on the Anthropic account. Check at platform.claude.ai or ask Anthropic support. **Run the Step 1 access check first. If it fails, stop — nothing else works without it.**
+2. **Set a budget ceiling** — CMA sessions cost ~$1–2 per demo run (multi-turn, tool use). For a public demo, set a monthly ceiling of ~$20 (≈10–15 runs). Set billing alerts in the Anthropic console at $20 and $50. Also add a run counter in the code that falls back to simple mode when the estimated monthly spend exceeds the ceiling.
 3. **The demo stack** — Oracle nodes must be running (they're on `restart: unless-stopped`, so they should be up).
 
 ---
@@ -51,21 +51,26 @@ This replaces the orchestration logic in `ai_validator.py` but calls the exact s
 ### The 3 validator agents
 
 Each gets a system prompt like:
-> "You are an independent scientific reproducibility evaluator. You will be given a study and asked whether you can reproduce the result. Search for the methodology, check the claim, run the numbers. Do not submit your verdict until you are confident. You cannot see what other validators conclude."
+> "You are an independent scientific reproducibility evaluator. You will be given a study and asked whether you can reproduce the result. Check the methodology, verify the claim, run the numbers. You have 3 minutes and a maximum of 3 web searches. Do not submit your verdict until you are confident. You cannot see what other validators conclude."
 
 Each gets these tools:
-- `web_search` — to look up methods, check cited papers
+- `web_search` — limited to 3 calls per session, for methodology lookup only
 - `seal_attestation(verdict, confidence, notes)` — custom tool that calls `validator-node.mjs`
 - `submit_reveal()` — custom tool that fires once the reveal phase opens
+
+**Time limit:** 3 minutes (180 seconds) per validator session. If a session exceeds this, fall back to a simple one-shot verdict and log the timeout.
+
+**Note on environment isolation:** Validators share one CMA environment — this is fine and is how Anthropic's own multi-agent cookbook works. Isolation between validators is at the session/context level (each session has its own conversation history). ValiChord's validators don't use the shared file system at all — they call external HTTP endpoints — so there is nothing to leak between them.
 
 ### The quality rubric (Outcomes API)
 
 Before a validator's verdict counts, an automated grader checks:
 - Did it state a clear Reproduced / NotReproduced / Partial decision?
 - Did it give a confidence level?
-- Did it explain its reasoning (not just "looks fine")?
+- Did it explain its reasoning (at least 2 sentences)?
+- Did it call `seal_attestation`?
 
-If not, the validator is sent back to do more work.
+If not, the validator is sent back to do more work. Also handle the separate case where the agent produces malformed tool arguments — retry once, then fall back to simple mode.
 
 ---
 
@@ -187,6 +192,53 @@ client.beta.sessions.events.send(
     }],
 )
 ```
+
+### Step 5.5 — Add rate limiting + spend tracking to `app.py`
+
+The public demo needs two guards:
+
+```python
+# In app.py — add alongside the existing _demo_running lock
+
+import time
+from collections import defaultdict
+
+_ip_last_run = defaultdict(float)   # ip → timestamp of last CMA run
+_cma_run_count = 0                  # estimate-based spend tracking
+CMA_RUN_COST_ESTIMATE = 1.50        # dollars per run
+CMA_MONTHLY_BUDGET = 20.00
+
+def cma_allowed(ip: str) -> tuple[bool, str]:
+    now = time.time()
+    if now - _ip_last_run[ip] < 3600:
+        return False, "CMA mode is limited to once per hour per visitor. Try again later."
+    estimated_spend = _cma_run_count * CMA_RUN_COST_ESTIMATE
+    if estimated_spend >= CMA_MONTHLY_BUDGET:
+        return False, "CMA mode has reached its monthly demo budget. Standard mode is still available."
+    return True, ""
+```
+
+When CMA is rate-limited or budget-capped, the endpoint returns a clear user-facing message and falls back to standard mode automatically.
+
+**Note:** Spend tracking is estimate-based (run count × fixed cost). The Anthropic API does not expose per-request cost in real time.
+
+### Step 5.75 — Add session observability logging
+
+Log the following for every CMA run (to stdout / Render logs):
+
+```python
+{
+  "cma_run_id": run_id,
+  "validator": 1,           # 1, 2, or 3
+  "session_id": session.id,
+  "duration_s": elapsed,
+  "tool_calls": n_tool_calls,
+  "verdict": verdict,
+  "estimated_cost_usd": token_count * cost_per_token,
+}
+```
+
+This gives visibility into runtime, cost, and tool usage per validator without needing an admin UI.
 
 ### Step 6 — Test end-to-end
 ```bash
