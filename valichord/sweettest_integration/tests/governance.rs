@@ -33,6 +33,7 @@
 //!  14.  AI validator tier does not advance through completed rounds
 //!  15.  GoldReproducible badge — 7 validators, all Reproduced (ExactMatch)
 //!  16.  SilverReproducible badge — 5 validators, all Reproduced (ExactMatch)
+//!  17.  get_pending_request_refs — empty initially, then covers Discipline::Other (new)
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
@@ -1029,5 +1030,117 @@ async fn silver_badge_issued_with_five_validators() {
     assert!(
         !by_type.is_empty(),
         "get_badges_by_type(SilverReproducible) should return the issued badge"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 17. get_pending_request_refs — empty initially, Discipline::Other covered (new)
+// ---------------------------------------------------------------------------
+//
+// submit_validation_request writes a PendingStudiesPath link tagged with the
+// data_hash raw bytes regardless of discipline.  get_pending_request_refs
+// reads that global index and returns all pending ExternalHashes.
+//
+// Before this change, sweep_timed_out_rounds iterated a static list of named
+// disciplines and never processed Discipline::Other studies.  The fix routes
+// the sweep through get_pending_request_refs, which covers all disciplines.
+//
+// This test verifies:
+//   a. Empty before any submissions.
+//   b. Both a ComputationalBiology and a Discipline::Other("custom") study
+//      appear after submission — no discipline is excluded from the index.
+//   c. force_finalize_round succeeds for the Discipline::Other study, proving
+//      the governance sweep path covers it end-to-end.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_pending_request_refs_includes_other_discipline_studies() {
+    let setup = setup_two_agents().await;
+
+    // a. Empty before any submissions.
+    let initial: Vec<ExternalHash> = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "get_pending_request_refs",
+            (),
+        )
+        .await;
+    assert!(
+        initial.is_empty(),
+        "get_pending_request_refs should return empty before any submissions"
+    );
+
+    // Submit a named-discipline (ComputationalBiology) request.
+    let ref_bio = fake_external_hash(0x70);
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(ref_bio.clone()),
+        )
+        .await;
+
+    // Submit a Discipline::Other("custom") request — the previously-unindexed gap.
+    let ref_other = fake_external_hash(0x71);
+    let mut vr_other = make_validation_request(ref_other.clone());
+    vr_other.discipline = Discipline::Other("custom".into());
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            vr_other,
+        )
+        .await;
+
+    // Sync attestation DHT so the Network-mode query in get_pending_request_refs
+    // sees both PendingStudiesPath links written by Alice.
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // b. Both hashes appear in the index, regardless of discipline.
+    let refs: Vec<ExternalHash> = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "get_pending_request_refs",
+            (),
+        )
+        .await;
+    assert_eq!(
+        refs.len(),
+        2,
+        "get_pending_request_refs should return both submitted studies"
+    );
+    let raw_refs: Vec<Vec<u8>> = refs.iter().map(|h| h.get_raw_32().to_vec()).collect();
+    assert!(
+        raw_refs.contains(&ref_bio.get_raw_32().to_vec()),
+        "ComputationalBiology study should appear in pending refs"
+    );
+    assert!(
+        raw_refs.contains(&ref_other.get_raw_32().to_vec()),
+        "Discipline::Other study should appear in pending refs"
+    );
+
+    // c. force_finalize_round succeeds for the Discipline::Other study.
+    //    Alice commits and reveals; round_timeout_secs=0 so the age check passes,
+    //    and min_attestations_for_finalization=0 → treated as 1 → 1 attestation suffices.
+    commit(&setup.conductors[0], &setup.alice, ref_other.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    reveal(&setup.conductors[0], &setup.alice, ref_other.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let forced: Option<ActionHash> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "force_finalize_round",
+            ref_other.clone(),
+        )
+        .await;
+    assert!(
+        forced.is_some(),
+        "force_finalize_round should create a HarmonyRecord for a Discipline::Other study"
     );
 }
