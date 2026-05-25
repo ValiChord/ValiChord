@@ -18,8 +18,9 @@ use validator_workspace_integrity::{
 use valichord_shared_types::{
     AgreementLevel, AttestationConfidence, AttestationOutcome, ComputationalResources,
     CertificationTier, Discipline, OutcomeSummary, Severity, TimeBreakdown,
-    UndeclaredDeviation, ValidationAttestation,
+    UndeclaredDeviation,
 };
+pub use valichord_shared_types::ValidationAttestation;
 
 // Re-export commonly used types so tests only need `use valichord_sweettest::*`
 pub use attestation_coordinator::AttestationRevealInput as RevealInput;

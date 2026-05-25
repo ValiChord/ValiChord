@@ -852,7 +852,7 @@ async fn get_researcher_reveal_none_then_some() {
 
     // Publish researcher commitment before validators commit.
     use valichord_shared_types::ResearcherCommitmentInput;
-    let _: () = setup.conductors[0]
+    let _: ActionHash = setup.conductors[0]
         .call(
             &setup.alice.attestation_zome(),
             "publish_researcher_commitment",
