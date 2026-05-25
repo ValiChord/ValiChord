@@ -10,10 +10,10 @@
 
 These must happen before submitting, in this order:
 
-1. **Incorporate a UK Ltd company FIRST** — Companies House, £12, 24 hours online
+1. **Incorporate a UK Ltd company FIRST** — Companies House, £100 via gov.uk (24 hours), or cheaper via formation agents (Rapid Formations, 1st Formations etc. file via software route — search for current pricing)
    - Do this before anything else — submitting as an incorporated entity carries significantly more credibility with evaluators than applying as a natural person
    - The company name becomes the applicant on the proposal and the PIC registration
-   - Takes 24 hours. There is no reason to delay this.
+   - **If you cannot afford incorporation now:** register as a sole trader with HMRC (free, instant) and get your PIC as a natural person — this does not block the short proposal, and you can incorporate and update your PIC before the full proposal stage
 
 2. **Register the company on the EU Funding & Tenders Portal** → https://ec.europa.eu/info/funding-tenders/opportunities/portal/
    - Register as a **legal entity (SME)**, not a natural person
@@ -323,7 +323,7 @@ These are the known weaknesses in this draft. They need honest answers, not spin
 
 | Gap | Priority | Plan |
 |---|---|---|
-| Not yet incorporated | **DO THIS FIRST** | Incorporate UK Ltd, £12, 24 hours at Companies House — before anything else |
+| Not yet incorporated | **DO THIS FIRST** | Incorporate UK Ltd — £100 via gov.uk, or cheaper via formation agents. If cost is a barrier: sole trader registration (free via HMRC) allows PIC registration and short proposal submission as a natural person; incorporate before full proposal stage. |
 | TRL framing | **Critical** | Use TRL 5-6 (current) → TRL 8 (funded destination). Live demo = TRL 5 evidence, not completion claim. |
 | Co-financing (30% = ~€1.07M) | **Critical** | Pilot revenues + UK seed round leveraging EIC grant + Innovate UK co-investment. Needs firm LOIs by full proposal stage. |
 | Letters of Intent | **High** | Approach: (1) AISI/inspect_ai team, (2) a UK university research office, (3) a CRO or journal. These are warm relationships — ask now. |
