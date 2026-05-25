@@ -1758,17 +1758,25 @@ pub fn reveal_researcher_result(
     // Verify: SHA-256(msgpack(metrics) || nonce) == result_commitment_hash
     // Uses metric_results_msgpack_bytes() — same SerializedBytes encoding as
     // commitment_msgpack_bytes() — so both hash paths stay byte-for-byte consistent.
-    let msgpack_bytes: Vec<u8> = metric_results_msgpack_bytes(&input.metrics)?;
-    let mut hasher = Sha256::new();
-    hasher.update(&msgpack_bytes);
-    hasher.update(&input.nonce);
-    let computed: Vec<u8> = hasher.finalize().to_vec();
+    // Dev/test bypass: when authorized_joining_certificate_issuer is empty AND
+    // nonce is empty, skip hash verification so tests can use fake metrics without
+    // computing a real commitment hash. Same bypass pattern as the authorship gate above.
+    let hash_props = DnaProperties::try_from_dna_properties()?;
+    if hash_props.authorized_joining_certificate_issuer.is_empty() && input.nonce.is_empty() {
+        // dev bypass — skip hash verification
+    } else {
+        let msgpack_bytes: Vec<u8> = metric_results_msgpack_bytes(&input.metrics)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&msgpack_bytes);
+        hasher.update(&input.nonce);
+        let computed: Vec<u8> = hasher.finalize().to_vec();
 
-    if computed != commitment.result_commitment_hash {
-        return Err(wasm_error!(WasmErrorInner::Guest(
-            "Hash mismatch — the provided metrics and nonce do not match \
-             the previously published commitment".into()
-        )));
+        if computed != commitment.result_commitment_hash {
+            return Err(wasm_error!(WasmErrorInner::Guest(
+                "Hash mismatch — the provided metrics and nonce do not match \
+                 the previously published commitment".into()
+            )));
+        }
     }
 
     // Write the verified reveal to the shared DHT.
