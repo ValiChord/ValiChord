@@ -890,7 +890,7 @@ async fn get_researcher_reveal_none_then_some() {
         .unwrap();
 
     // Researcher reveals (dev bypass: empty nonce skips hash verification).
-    let _: () = setup.conductors[0]
+    let _: ActionHash = setup.conductors[0]
         .call(
             &setup.alice.attestation_zome(),
             "reveal_researcher_result",

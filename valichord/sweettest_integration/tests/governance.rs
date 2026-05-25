@@ -912,10 +912,12 @@ async fn gold_badge_issued_with_seven_validators() {
         await_consistency(att_cells.iter().copied()).await.unwrap();
     }
 
-    // Explicit harmony + badge creation — no governance sync first.
-    // With 7 conductors the governance gossip from the last reveal's auto-call
-    // rarely reaches apps[0] before this call, so we typically hit the fresh-write
-    // path.  If idempotency does fire, issue_badge_if_missing handles the badge.
+    // Sync governance first so check_and_create_harmony_record takes the
+    // idempotency path and issue_badge_if_missing reliably issues the badge
+    // (same pattern as the silver badge test).
+    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    await_consistency(gov_cells.iter().copied()).await.unwrap();
+
     let harmony: Option<ActionHash> = conductors[0]
         .call(
             &apps[0].governance_zome(),
@@ -925,8 +927,7 @@ async fn gold_badge_issued_with_seven_validators() {
         .await;
     assert!(harmony.is_some(), "7-agent round must produce a HarmonyRecord");
 
-    // Sync governance so the badge propagates before querying.
-    let gov_cells: Vec<&SweetCell> = apps.iter().map(|a| &a.governance).collect();
+    // Sync again so the badge propagates before querying.
     await_consistency(gov_cells.iter().copied()).await.unwrap();
 
     // GoldReproducible: ExactMatch (7/7) + count=7 ≥ 7.
@@ -1127,7 +1128,21 @@ async fn get_pending_request_refs_includes_other_discipline_studies() {
     await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
-    reveal(&setup.conductors[0], &setup.alice, ref_other.clone()).await;
+    // Must use the same discipline as the request (Other("custom")); the generic
+    // `reveal` helper hardcodes ComputationalBiology which now fails validation.
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_attestation",
+            RevealInput {
+                attestation: ValidationAttestation {
+                    discipline: Discipline::Other("custom".into()),
+                    ..make_validation_attestation(ref_other.clone())
+                },
+                nonce: vec![],
+            },
+        )
+        .await;
     await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
         .await
         .unwrap();
