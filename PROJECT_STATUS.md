@@ -416,6 +416,20 @@ API keys are in. No per-key rate limiting yet.
 
 ---
 
+## New Codespace setup (2026-05-26)
+
+Run this from the terminal — installs everything in one go (~25 min):
+```bash
+cd /workspaces/ValiChord && bash setup_holochain.sh
+```
+Installs: Claude Code, Rust, Holochain 0.6.1, hc CLI, kitsune2-bootstrap-srv, holochain-dev skill, compiles all 4 DNA zomes and packs the hApp.
+
+Then inside Claude Code chat: `/plugin install superpowers`
+
+Skill files are committed to `skills/holochain-dev/` in the repo — the setup script copies them to `~/.claude/skills/holochain-dev/`.
+
+---
+
 ## Installed tools and skills (2026-04-24)
 
 ### holochain/ai-tools — `holochain-dev` Claude Code skill
