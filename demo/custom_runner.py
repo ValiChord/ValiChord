@@ -11,11 +11,18 @@ import urllib.parse
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os
+
 import anthropic
 
-from ai_validator_cma import (
-    _node_post, _node_get, RESEARCHER_URL, VALIDATOR_URLS, BETAS, MODEL_CMA,
-)
+from ai_validator_cma import _node_post, _node_get, BETAS, MODEL_CMA
+
+RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://132.145.34.27:3001")
+VALIDATOR_URLS = [
+    os.environ.get("VALICHORD_VALIDATOR_1_URL", "http://132.145.34.27:3002"),
+    os.environ.get("VALICHORD_VALIDATOR_2_URL", "http://132.145.34.27:3003"),
+    os.environ.get("VALICHORD_VALIDATOR_3_URL", "http://132.145.34.27:3004"),
+]
 
 log = logging.getLogger(__name__)
 
