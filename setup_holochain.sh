@@ -1,7 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "=== ValiChord Holochain Setup ==="
+echo "=== ValiChord Codespace Setup ==="
+
+# Install Claude Code
+echo "Installing Claude Code..."
+npm install -g @anthropic-ai/claude-code
+echo "Claude Code: $(claude --version)"
 
 # Install Rust if not present
 if ! command -v cargo &>/dev/null && [ ! -f "$HOME/.cargo/bin/cargo" ]; then
