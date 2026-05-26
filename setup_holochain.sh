@@ -44,3 +44,7 @@ echo ""
 echo "=== Done! ==="
 holochain --version
 hc --version
+echo ""
+echo "One more step: open Claude Code and type this in the chat:"
+echo "  /plugin install superpowers"
+echo "That reinstalls the superpowers skills (TDD, debugging, planning etc)."
