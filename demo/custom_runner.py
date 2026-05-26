@@ -167,7 +167,7 @@ def _run_cma_claim_session(
         "reasoning":  v.get("reasoning", ""),
     }
 
-    _node_post(f"{validator_url}/commit", {
+    commit_payload = {
         "external_hash_b64": external_hash_b64,
         "verdict": {
             "outcome":    verdict["outcome"],
@@ -181,7 +181,19 @@ def _run_cma_claim_session(
             "within_tolerance": True,
         }],
         "discipline": discipline,
-    })
+    }
+    # Retry if the ValidationRequest hasn't propagated to this validator's DHT node yet.
+    # Parallel CMA sessions can finish research faster than the 20s gossip window.
+    for attempt in range(6):
+        try:
+            _node_post(f"{validator_url}/commit", commit_payload)
+            break
+        except RuntimeError as exc:
+            if "No ValidationRequest found" in str(exc) and attempt < 5:
+                log.info(f"Validator {idx} commit attempt {attempt + 1} waiting for DHT propagation (15s)")
+                time.sleep(15)
+            else:
+                raise
 
     # CPython GIL makes this increment safe across threads for simple int values
     job["validators_committed"] = job.get("validators_committed", 0) + 1
@@ -280,7 +292,7 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
         "num_validators_required": 3,
     })
 
-    time.sleep(20)  # let ValidationRequest propagate via DHT gossip
+    time.sleep(30)  # let ValidationRequest propagate via DHT gossip
 
     job["phase"]               = "committing"
     job["validators_committed"] = 0
