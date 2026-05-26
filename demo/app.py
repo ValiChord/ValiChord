@@ -289,8 +289,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;height:64px;display:flex;align-items:center;gap:1rem}
 .logo-img{height:40px;width:auto;border-radius:6px}
 .tag{font-size:.72rem;color:var(--dim);letter-spacing:.04em}
-header a.gh{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none;padding:.3rem .7rem;border:1px solid var(--border);border-radius:6px;transition:all .2s}
+header a.gh{color:var(--dim);font-size:.8rem;text-decoration:none;padding:.3rem .7rem;border:1px solid var(--border);border-radius:6px;transition:all .2s}
 header a.gh:hover{border-color:var(--accent);color:var(--text)}
+.holo-link{margin-left:auto;display:flex;flex-direction:column;align-items:center;gap:.1rem;text-decoration:none;padding:.2rem .5rem;border-radius:6px;transition:opacity .2s;flex-shrink:0}
+.holo-link:hover{opacity:.75}
+.holo-built{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.09em}
+.holo-logo{height:22px;width:auto}
 main{max-width:680px;margin:0 auto;padding:3rem 1.5rem 5rem}
 .hero{margin-bottom:2.5rem}
 .hero h1{font-family:'Newsreader',Georgia,serif;font-size:2.2rem;font-weight:600;line-height:1.2;margin-bottom:.8rem;letter-spacing:-.01em}
@@ -367,6 +371,10 @@ details[open]>summary::after{transform:rotate(90deg)}
 <header>
   <img src="/static/valichord-logo.jpeg" alt="ValiChord" class="logo-img">
   <span class="tag">Reproducibility Validation Protocol</span>
+  <a class="holo-link" href="https://www.holochain.org" target="_blank">
+    <span class="holo-built">Built on</span>
+    <img src="/static/holochain-logo.png" alt="Holochain" class="holo-logo">
+  </a>
   <a class="gh" href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source →</a>
 </header>
 <main>
@@ -432,11 +440,11 @@ details[open]>summary::after{transform:rotate(90deg)}
   </details>
 
   <details>
-    <summary>Why can't this be done on a blockchain?</summary>
+    <summary>Why Holochain — and not a blockchain?</summary>
     <div class="expand-body">
-      <p>It could be, technically. But blockchains bottleneck all state changes through <strong>global consensus</strong> — every node validates every transaction. That makes them slow (seconds to minutes per confirmation), expensive (gas fees, token economies), and dependent on a financial infrastructure to pay the validators.</p>
-      <p>ValiChord runs on <strong>Holochain</strong> — architecturally different. It's agent-centric: every participant maintains their own cryptographically signed source chain, and shared state lives in a DHT where each node holds and validates only a slice of the whole. There are no miners. No tokens. No gas fees. No global ledger that must synchronise before you can write a record. <strong>Holochain scales with users</strong> — the more participants, the more resilient the network — rather than being bottlenecked by them.</p>
-      <p>The result: the same cryptographic guarantees, without the cost, latency, or energy penalties. And no dependency on the price of a coin.</p>
+      <p>ValiChord is built on <strong>Holochain</strong> — a peer-to-peer framework that gives us cryptographic integrity without the baggage of a blockchain. On a blockchain, every state change must be validated by every node through global consensus: slow, expensive, and dependent on a token economy to pay the validators. Gas fees. Coin prices. Miners. None of that belongs in a scientific validation protocol.</p>
+      <p>Holochain is different by design. It's <strong>agent-centric</strong>: every participant maintains their own cryptographically signed source chain, and shared state lives in a DHT (distributed hash table) where each node holds and validates only a slice of the whole. There is no global ledger. No miners. No tokens. <strong>The network scales with its users</strong> — the more participants, the more resilient it becomes — rather than being bottlenecked by them.</p>
+      <p>The Oracle DHT nodes you see during a run are live Holochain conductors. The HarmonyRecord hash they produce is content-addressed, tamper-evident, and independently fetchable — the same cryptographic guarantees as a blockchain, at a fraction of the cost and latency.</p>
     </div>
   </details>
 
