@@ -4,7 +4,7 @@ WORKDIR /app
 COPY demo/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY demo/app.py demo/demo_runner.py /app/demo/
+COPY demo/app.py demo/demo_runner.py demo/custom_runner.py demo/ai_validator_cma.py /app/demo/
 COPY demo/synthetic_study/ /app/demo/synthetic_study/
 COPY demo/static/ /app/demo/static/
 
