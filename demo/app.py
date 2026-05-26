@@ -1,19 +1,43 @@
 """ValiChord demo website — Flask server."""
 import os
 import threading
+import time
 import urllib.parse
 import urllib.request
 import uuid
+from collections import defaultdict
 
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
 _jobs: dict = {}
-_demo_lock = threading.Lock()
+_demo_lock    = threading.Lock()
 _demo_running = False
+
+# Rate limiting — only applied when the user provides no key (server key is used)
+_ip_last_run      = defaultdict(float)
+_cma_run_count    = 0
+_cma_run_lock     = threading.Lock()
+CMA_COST_ESTIMATE = 1.50   # dollars per CMA run
+CMA_MONTHLY_BUDGET = 20.00
+
+
+def _server_api_key() -> str:
+    return os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPICAPIKEY", "")
+
+
+def _cma_rate_check(ip: str) -> tuple[bool, str]:
+    """Returns (allowed, reason). Only called when using the server key."""
+    now = time.time()
+    if now - _ip_last_run[ip] < 3600:
+        return False, "CMA mode is limited to once per hour per visitor. Try again later or bring your own API key."
+    with _cma_run_lock:
+        if _cma_run_count * CMA_COST_ESTIMATE >= CMA_MONTHLY_BUDGET:
+            return False, "CMA mode has reached its monthly demo budget. Standard mode is still available."
+    return True, ""
 
 
 @app.route('/health')
@@ -28,21 +52,42 @@ def demo_page():
 
 @app.route('/demo/run', methods=['POST'])
 def demo_run():
-    global _demo_running
+    global _demo_running, _cma_run_count
+
+    # Optional user-provided key and model
+    body       = request.get_json(silent=True) or {}
+    user_key   = (body.get("user_api_key") or "").strip()
+    user_model = (body.get("user_model")   or "").strip()
+
+    # If no user key, use server key + rate limiting
+    using_server_key = not user_key
+    if using_server_key:
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+        allowed, reason = _cma_rate_check(ip)
+        if not allowed:
+            return jsonify({"status": "rate_limited", "message": reason}), 429
+        _ip_last_run[ip] = time.time()
+        with _cma_run_lock:
+            _cma_run_count += 1
+
     with _demo_lock:
         if _demo_running:
             return jsonify({
-                'status': 'busy',
-                'message': 'Demo in progress — check back in ~2 minutes',
+                "status":  "busy",
+                "message": "Demo in progress — check back in ~2 minutes",
             }), 409
         _demo_running = True
 
     job_id = str(uuid.uuid4())
-    _jobs[job_id] = {'step': 0, 'status': 'running', 'result': None, 'error': None}
+    _jobs[job_id] = {"step": 0, "status": "running", "result": None, "error": None}
 
-    t = threading.Thread(target=_run_job, args=(job_id,), daemon=True)
+    t = threading.Thread(
+        target=_run_job,
+        args=(job_id, user_key, user_model),
+        daemon=True,
+    )
     t.start()
-    return jsonify({'job_id': job_id}), 202
+    return jsonify({"job_id": job_id}), 202
 
 
 @app.route('/demo/result/<job_id>')
@@ -65,31 +110,48 @@ def demo_record(hash_b64):
         return jsonify({'error': str(e)}), 502
 
 
-def _run_job(job_id: str):
+def _run_job(job_id: str, user_key: str = "", user_model: str = ""):
     global _demo_running
     job = _jobs[job_id]
     try:
         import demo_runner
+        import ai_validator_cma
 
-        job['step'] = 1
+        job["step"] = 1
         readme, data_hash, _ = demo_runner.load_study()
 
-        job['step'] = 2
-        output = demo_runner.execute_study()
+        job["step"] = 2
+        output  = demo_runner.execute_study()
         metrics = demo_runner.parse_metrics(output)
 
-        job['step'] = 3
-        verdicts = demo_runner.form_verdicts(readme, output)
+        # Resolve key and routing
+        api_key  = user_key or _server_api_key()
+        key_type = ai_validator_cma.detect_key_type(api_key)
+        model    = user_model or ai_validator_cma.default_model_for(key_type)
 
-        job['step'] = 4
-        result = demo_runner.run_protocol(data_hash, metrics, verdicts, job)
+        if key_type == "anthropic":
+            # Full CMA mode — agents research the study then commit to DHT
+            result = ai_validator_cma.run_protocol_cma(
+                data_hash, metrics, readme, output, job, api_key,
+            )
+        elif key_type in ("openai", "google", "groq", "unknown") and api_key:
+            # Simple one-shot mode via litellm
+            result = ai_validator_cma.run_protocol_simple(
+                data_hash, metrics, readme, output, job, api_key, model,
+            )
+        else:
+            # No usable key — fall back to existing demo_runner (also needs Anthropic key)
+            job["step"] = 3
+            verdicts = demo_runner.form_verdicts(readme, output)
+            job["step"] = 4
+            result = demo_runner.run_protocol(data_hash, metrics, verdicts, job)
 
-        job['step'] = 7
-        job['status'] = 'done'
-        job['result'] = result
+        job["step"]   = 7
+        job["status"] = "done"
+        job["result"] = result
     except Exception as e:
-        job['status'] = 'error'
-        job['error'] = str(e)
+        job["status"] = "error"
+        job["error"]  = str(e)
     finally:
         _demo_running = False
 
@@ -168,6 +230,14 @@ li.active{color:var(--text)} li.done{color:var(--text)}
   <div class="card">
     <h2>Study: Temperature–Species Richness</h2>
     <p>Linear regression across 20 sampling sites. Claims: slope ≈ 2.4086, R² ≈ 0.9991. Validators reproduce the computation independently and commit their verdict before seeing each other's result.</p>
+    <p style="margin-top:.75rem">Validators use Claude Haiku by default (3 minutes to research, no web search limit). Bring your own key and the cost runs against your account — not the demo budget.</p>
+    <div style="margin-top:1rem">
+      <label style="display:block;font-size:.8rem;color:var(--dim);margin-bottom:.3rem">Your API key (optional — any provider)</label>
+      <input id="userKey" type="password" placeholder="sk-ant-… or sk-proj-… or AIzaSy… or gsk_…" style="width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.5rem .75rem;color:var(--text);font-size:.85rem;font-family:monospace">
+      <label style="display:block;font-size:.8rem;color:var(--dim);margin:.6rem 0 .3rem">Model hint (optional — for non-Anthropic keys)</label>
+      <input id="userModel" type="text" placeholder="e.g. openai/gpt-4o  or  gemini/gemini-1.5-pro" style="width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.5rem .75rem;color:var(--text);font-size:.85rem;font-family:monospace">
+      <p style="font-size:.75rem;color:var(--dim);margin-top:.4rem">Your key is sent over HTTPS, used only for this run, and never logged or stored.</p>
+    </div>
     <button class="btn" id="runBtn" onclick="startDemo()">Run Protocol (~2 min)</button>
     <div id="busyMsg" class="busy" style="display:none"></div>
   </div>
@@ -196,8 +266,12 @@ function startDemo(){
   pc.style.display='block';
   document.getElementById('resultArea').innerHTML='';
   for(let i=1;i<=7;i++){const li=document.getElementById('s'+i);li.className='';li.querySelector('.dot').className='dot';}
-  fetch('/demo/run',{method:'POST'}).then(r=>r.json()).then(d=>{
-    if(d.status==='busy'){
+  const body={
+    user_api_key:(document.getElementById('userKey').value||'').trim(),
+    user_model:(document.getElementById('userModel').value||'').trim(),
+  };
+  fetch('/demo/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).then(d=>{
+    if(d.status==='busy'||d.status==='rate_limited'){
       document.getElementById('busyMsg').textContent=d.message;
       document.getElementById('busyMsg').style.display='block';
       btn.disabled=false;pc.style.display='none';return;

@@ -10,16 +10,37 @@
 
 ## In plain English
 
-Right now each AI validator reads the study once and gives an immediate verdict. With CMA, each validator becomes a proper agent that can search the web, run code, go back and forth, and won't submit its verdict until it's done a thorough job. There's also a built-in quality check that rejects shallow verdicts.
+Right now each AI validator reads the study once and gives an immediate verdict. With CMA, each validator becomes a proper agent that can search the web, go back and forth, and won't submit its verdict until it's done a thorough job.
 
 The three validators still work independently — they still can't see each other's answers. The Holochain protocol still enforces all the trust guarantees. CMA just makes the validators much smarter.
 
 ---
 
+## User-provided API keys
+
+To protect the demo budget, users can bring their own API key. The key is sent over HTTPS, used only for that run, and never logged or stored.
+
+**Behaviour by key type:**
+
+| Key format | Provider | Mode |
+|---|---|---|
+| `sk-ant-...` | Anthropic | Full CMA mode — agents, web search, quality check |
+| `sk-proj-...` or `sk-...` | OpenAI | Simple one-shot mode via litellm |
+| `AIzaSy...` | Google Gemini | Simple one-shot mode via litellm |
+| `gsk_...` | Groq | Simple one-shot mode via litellm |
+| anything else | Unknown | Attempted as OpenAI-compatible via litellm |
+| nothing provided | — | Server's key, Anthropic CMA, with per-IP rate limiting |
+
+**Simple one-shot mode** means the validator still gets the full 5-step analysis prompt and gives a reasoned verdict — it just doesn't do live web searches or the iterative quality check. The Holochain commit-reveal protocol is identical either way.
+
+**UI change:** The demo page gets an optional "Your API key" text field and a "Provider / model" hint line (e.g. `openai/gpt-4o`, `gemini/gemini-1.5-pro`). Both are optional — leaving them blank uses the server's key.
+
+---
+
 ## Prerequisites before starting
 
-1. **CMA API access** — the `managed-agents-2026-04-01` beta must be enabled on the Anthropic account. Check at platform.claude.ai or ask Anthropic support. **Run the Step 1 access check first. If it fails, stop — nothing else works without it.**
-2. **Set a budget ceiling** — CMA sessions cost ~$1–2 per demo run (multi-turn, tool use). For a public demo, set a monthly ceiling of ~$20 (≈10–15 runs). Set billing alerts in the Anthropic console at $20 and $50. Also add a run counter in the code that falls back to simple mode when the estimated monthly spend exceeds the ceiling.
+1. **CMA API access** — the `managed-agents-2026-04-01` beta must be enabled on the Anthropic account. ✓ Confirmed working.
+2. **litellm** — add to `demo/requirements.txt` for non-Anthropic key support.
 3. **The demo stack** — Oracle nodes must be running (they're on `restart: unless-stopped`, so they should be up).
 
 ---
@@ -33,44 +54,66 @@ This replaces the orchestration logic in `ai_validator.py` but calls the exact s
 **Structure:**
 
 ```
-1. Set up 3 validator agents (done once, agents are reusable)
-2. Create a shared sandbox environment
-3. For each demo run:
-   a. Researcher submits study to Holochain (same as now)
-   b. Spin up 3 validator sessions IN PARALLEL — each gets its own context
-   c. Each validator session:
-      - Reads the study
-      - Searches web / checks methodology / analyses the claim
-      - Quality check rejects it if the analysis is too shallow
-      - Calls seal_attestation tool → hits validator-node.mjs → commits to DHT
-   d. Wait for Holochain to open the reveal phase
-   e. Each validator reveals
-   f. HarmonyRecord lands on DHT — done
+1. Check key type → decide CMA mode or simple mode
+2. Researcher submits study to Holochain (same as now)
+3. Spin up 3 validator sessions IN PARALLEL — each gets its own context
+4. Each validator session:
+   a. Reads the study
+   b. (CMA only) Searches web to verify methodology
+   c. Writes verdict to scratchpad file
+   d. (CMA only) Quality check reviews scratchpad — rejects if reasoning is shallow
+   e. Once quality check passes, calls seal_attestation → hits validator-node.mjs → commits to DHT
+5. Wait for Holochain to open the reveal phase
+6. Each validator reveals
+7. HarmonyRecord lands on DHT — done
 ```
 
-### The 3 validator agents
+### The validator system prompt
 
-Each gets a system prompt like:
-> "You are an independent scientific reproducibility evaluator. You will be given a study and asked whether you can reproduce the result. Check the methodology, verify the claim, run the numbers. You have 3 minutes and a maximum of 3 web searches. Do not submit your verdict until you are confident. You cannot see what other validators conclude."
+Each validator gets this prompt, regardless of mode:
 
-Each gets these tools:
-- `web_search` — limited to 3 calls per session, for methodology lookup only
-- `seal_attestation(verdict, confidence, notes)` — custom tool that calls `validator-node.mjs`
-- `submit_reveal()` — custom tool that fires once the reveal phase opens
+```
+You are an independent scientific reproducibility evaluator. Your job is to assess
+whether a research result can be independently reproduced.
 
-**Time limit:** 3 minutes (180 seconds) per validator session. If a session exceeds this, fall back to a simple one-shot verdict and log the timeout.
+Work through these steps in order:
+1. Read the claim being made and identify exactly what result is asserted.
+2. Identify what would need to be true for that result to hold — the key assumptions
+   and dependencies.
+3. Check whether the methodology described is capable of producing that result. Look
+   for gaps, ambiguities, or steps that couldn't be replicated without missing information.
+4. Search for any known issues with the methodology, dataset, or statistical approach.
+5. Based on steps 1–4, reach a verdict: Reproduced, PartiallyReproduced, or
+   NotReproduced. State your confidence (High / Medium / Low) and explain your
+   reasoning in at least 3 sentences, showing your working.
 
-**Note on environment isolation:** Validators share one CMA environment — this is fine and is how Anthropic's own multi-agent cookbook works. Isolation between validators is at the session/context level (each session has its own conversation history). ValiChord's validators don't use the shared file system at all — they call external HTTP endpoints — so there is nothing to leak between them.
+You cannot see what the other validators conclude. Do not submit your verdict until
+you are confident.
+```
 
-### The quality rubric (Outcomes API)
+### The quality check (CMA mode only)
 
-Before a validator's verdict counts, an automated grader checks:
-- Did it state a clear Reproduced / NotReproduced / Partial decision?
-- Did it give a confidence level?
-- Did it explain its reasoning (at least 2 sentences)?
-- Did it call `seal_attestation`?
+Before calling `seal_attestation`, the agent writes its draft verdict to `/mnt/session/verdict.md`. An independent grader then checks that file. This keeps the quality check separate from the irreversible DHT write — the agent can revise its verdict file as many times as needed, but `seal_attestation` is only called once the grader is satisfied.
 
-If not, the validator is sent back to do more work. Also handle the separate case where the agent produces malformed tool arguments — retry once, then fall back to simple mode.
+Rubric the grader checks:
+- Does it state a clear verdict (Reproduced / PartiallyReproduced / NotReproduced)?
+- Does it give a confidence level (High / Medium / Low)?
+- Does it explain the reasoning in at least 3 sentences showing actual analysis?
+- Does it identify at least one specific thing it checked (a method, a dataset, a statistic)?
+
+If any of these fail, the grader sends the agent back to revise the verdict file. Once all pass, the agent calls `seal_attestation`.
+
+### Tool execution — how seal_attestation works
+
+`seal_attestation` is a custom tool that the agent calls but the Python code actually executes. The flow:
+
+1. Agent decides it's ready, calls `seal_attestation(verdict, confidence, notes)`
+2. Python code intercepts this in the event stream
+3. Python calls the validator-node.mjs HTTP endpoint (same as current code)
+4. Python sends the result back to the agent session
+5. Agent receives confirmation and finishes
+
+This is why the quality check runs before the seal — once Python sends that HTTP call to validator-node.mjs, it's written to the DHT and cannot be undone.
 
 ---
 
@@ -80,169 +123,142 @@ If not, the validator is sent back to do more work. Also handle the separate cas
 |---|---|---|
 | `demo/ai_validator_cma.py` | **Create new** | New orchestrator using CMA |
 | `demo/ai_validator.py` | **Leave alone** | Kept as fallback |
-| `demo/app.py` | **Small change** | Add `?mode=cma` query param to use new validator |
-| `demo/requirements.txt` | **Small change** | `anthropic` version must be ≥ the CMA beta release |
+| `demo/app.py` | **Small change** | Add API key field + `?mode=cma` param |
+| `demo/requirements.txt` | **Small change** | Add `litellm`; `anthropic` already present |
+| `demo/templates/demo.html` | **Small change** | Add optional API key + model hint fields |
 
 ---
 
-## Step-by-step for the session
-
-When picking this up, run these steps in order:
-
-### Step 1 — Check CMA access
-```python
-import anthropic
-client = anthropic.Anthropic()
-# Try creating a test agent
-agent = client.beta.agents.create(
-    name="test",
-    model="claude-haiku-4-5-20251001",
-    system="test",
-    betas=["managed-agents-2026-04-01"]
-)
-print(agent.id)  # Should print an agent ID, not raise an error
-```
-If this raises a 403 or beta-not-enabled error, stop — CMA access isn't live on the account yet.
-
-### Step 2 — Study the CMA cookbooks
-The two key notebooks are already cloned at `/tmp/claude-cookbooks/` (or re-clone):
-```bash
-git clone --depth 1 https://github.com/anthropics/claude-cookbooks /tmp/claude-cookbooks
-```
-Read:
-- `managed_agents/CMA_coordinate_specialist_team.ipynb` — the multiagent coordinator pattern
-- `managed_agents/CMA_verify_with_outcome_grader.ipynb` — the Outcomes/rubric quality gate
-
-### Step 3 — Write `ai_validator_cma.py`
-
-Key API shapes to use (from the cookbooks):
+## Correct API shapes (from cookbook verification)
 
 ```python
 BETAS = ["managed-agents-2026-04-01"]
 
-# Create environment (once per run)
+# Create environment
 env = client.beta.environments.create(
     name="valichord-run",
     config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
-    betas=BETAS,
 )
 
-# Create a validator agent (once, reusable across runs)
+# Create a validator agent
 validator = client.beta.agents.create(
     name="validator-1",
-    model="claude-haiku-4-5-20251001",  # Haiku is fast and cheap for validators
+    model="claude-haiku-4-5-20251001",
     system=VALIDATOR_SYSTEM_PROMPT,
-    tools=[web_search_tool, seal_attestation_tool, submit_reveal_tool],
+    tools=[
+        {
+            "type": "agent_toolset_20260401",
+            "configs": [{"name": "web_search"}, {"name": "web_fetch"},
+                        {"name": "read"}, {"name": "write"}],
+        },
+        # Custom tool — executed client-side
+        {
+            "name": "seal_attestation",
+            "description": "Submit your reproducibility verdict. Call this only after your verdict file has been approved.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "verdict":    {"type": "string", "enum": ["Reproduced", "NotReproduced", "PartiallyReproduced"]},
+                    "confidence": {"type": "string", "enum": ["High", "Medium", "Low"]},
+                    "notes":      {"type": "string"},
+                },
+                "required": ["verdict", "confidence", "notes"],
+            },
+        },
+    ],
     betas=BETAS,
 )
 
-# Start a session for this validator
+# Create session — NOTE: agent= dict, not agent_id=
 session = client.beta.sessions.create(
-    agent_id=validator.id,
+    agent={"type": "agent", "id": validator.id, "version": validator.version},
     environment_id=env.id,
     betas=BETAS,
 )
 
-# Send the study to the validator
-client.beta.sessions.events.send(
-    session.id,
-    betas=BETAS,
-    events=[{"type": "user.message", "content": study_prompt}],
-)
-
-# Stream until idle (verdict submitted)
-with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
-    for event in stream:
-        # handle tool calls, messages, completion
-        pass
-```
-
-The `seal_attestation_tool` is a custom tool whose handler calls:
-```python
-requests.post(f"{validator_url}/seal_attestation", json={
-    "task_hash": task_hash,
-    "verdict": verdict,      # "Reproduced" / "NotReproduced" / "PartiallyReproduced"
-    "confidence": confidence, # "High" / "Medium" / "Low"
-    "notes": notes,
-})
-```
-This is the same HTTP call `ai_validator.py` already makes — just now the AI decides when to make it.
-
-### Step 4 — Run 3 validators in parallel
-
-Use Python's `concurrent.futures.ThreadPoolExecutor` (same pattern as current code) to run all 3 validator sessions simultaneously.
-
-### Step 5 — Wire the Outcomes rubric
-
-```python
+# Define outcome — NOTE: rubric is a dict, not a plain string
 client.beta.sessions.events.send(
     session.id,
     betas=BETAS,
     events=[{
         "type": "user.define_outcome",
-        "description": "A complete reproducibility verdict for the study",
-        "rubric": """
-        The verdict must:
-        1. State clearly: Reproduced, NotReproduced, or PartiallyReproduced
-        2. Give a confidence level: High, Medium, or Low
-        3. Explain the methodology check (at least 2 sentences)
-        4. Have called seal_attestation before finishing
-        Reject if any of these are missing.
-        """
+        "description": "A complete, reasoned reproducibility verdict written to /mnt/session/verdict.md",
+        "rubric": {"type": "text", "content": QUALITY_RUBRIC},
+        "max_iterations": 3,
     }],
 )
+
+# Stream events — handle custom tool calls client-side
+with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
+    for ev in stream:
+        if ev.type == "agent.tool_use" and ev.name == "seal_attestation":
+            result = call_validator_node(validator_url, task_hash, ev.input)
+            client.beta.sessions.events.send(
+                session.id, betas=BETAS,
+                events=[{"type": "agent.tool_result", "tool_use_id": ev.id, "content": result}],
+            )
+        elif ev.type == "session.status_idle":
+            break
 ```
 
-### Step 5.5 — Add rate limiting + spend tracking to `app.py`
+---
 
-The public demo needs two guards:
+## Rate limiting (server key only)
+
+When no user key is provided, the server's key is used with these guards:
 
 ```python
-# In app.py — add alongside the existing _demo_running lock
-
 import time
 from collections import defaultdict
 
-_ip_last_run = defaultdict(float)   # ip → timestamp of last CMA run
-_cma_run_count = 0                  # estimate-based spend tracking
-CMA_RUN_COST_ESTIMATE = 1.50        # dollars per run
-CMA_MONTHLY_BUDGET = 20.00
+_ip_last_run   = defaultdict(float)
+_cma_run_count = 0
+CMA_RUN_COST_ESTIMATE = 1.50   # dollars per run
+CMA_MONTHLY_BUDGET    = 20.00
 
 def cma_allowed(ip: str) -> tuple[bool, str]:
     now = time.time()
     if now - _ip_last_run[ip] < 3600:
-        return False, "CMA mode is limited to once per hour per visitor. Try again later."
-    estimated_spend = _cma_run_count * CMA_RUN_COST_ESTIMATE
-    if estimated_spend >= CMA_MONTHLY_BUDGET:
+        return False, "CMA mode is limited to once per hour per visitor."
+    if _cma_run_count * CMA_RUN_COST_ESTIMATE >= CMA_MONTHLY_BUDGET:
         return False, "CMA mode has reached its monthly demo budget. Standard mode is still available."
     return True, ""
 ```
 
-When CMA is rate-limited or budget-capped, the endpoint returns a clear user-facing message and falls back to standard mode automatically.
+Rate limiting is skipped when the user provides their own key.
 
-**Note:** Spend tracking is estimate-based (run count × fixed cost). The Anthropic API does not expose per-request cost in real time.
+---
 
-### Step 5.75 — Add session observability logging
+## Observability logging
 
-Log the following for every CMA run (to stdout / Render logs):
+Log the following for every CMA run (stdout → Render logs):
 
 ```python
 {
-  "cma_run_id": run_id,
-  "validator": 1,           # 1, 2, or 3
-  "session_id": session.id,
-  "duration_s": elapsed,
-  "tool_calls": n_tool_calls,
-  "verdict": verdict,
-  "estimated_cost_usd": token_count * cost_per_token,
+  "cma_run_id":          run_id,
+  "validator":           1,        # 1, 2, or 3
+  "session_id":          session.id,
+  "duration_s":          elapsed,
+  "tool_calls":          n_tool_calls,
+  "verdict":             verdict,
+  "quality_iterations":  n_grader_passes,
+  "user_key":            bool,     # True/False — never log the key itself
 }
 ```
 
-This gives visibility into runtime, cost, and tool usage per validator without needing an admin UI.
+---
 
-### Step 6 — Test end-to-end
+## Step-by-step for the session
+
+1. ~~Check CMA access~~ — ✓ confirmed working
+2. ~~Read cookbooks~~ — ✓ done; API shapes corrected above
+3. Write `ai_validator_cma.py`
+4. Update `app.py` — add key field, mode param, rate limiting
+5. Update `demo.html` — add optional key + model hint fields
+6. Test end-to-end against Oracle nodes
+
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPICAPIKEY=sk-ant-...
 export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
 export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
 export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
@@ -254,10 +270,10 @@ python3 demo/ai_validator_cma.py --mode decentralised
 
 ## What success looks like
 
-Same output as the current demo — 7 steps, HarmonyRecord hash, shareable URL — but with richer per-validator notes in the output showing the actual analysis each validator did, not just "Reproduced (High)".
+Same output as the current demo — 7 steps, HarmonyRecord hash, shareable URL — but with richer per-validator notes showing the actual analysis each validator did.
 
 ---
 
-## If CMA isn't available yet
+## If CMA isn't available
 
-The current `ai_validator.py` stays working. Nothing breaks. Pick this up whenever the tokens and beta access are ready.
+The current `ai_validator.py` stays working. Nothing breaks.

@@ -66,7 +66,16 @@ const server = createServer(async (req, res) => {
       const hashBytes = externalHashFromB64(body.external_hash_b64);
       const disc      = body.discipline ?? { type: 'ComputationalBiology' };
       const verdict   = body.verdict;
-      const outcome   = { type: verdict.outcome };
+      // AttestationOutcome uses adjacent-tag serde. Only Reproduced is a unit
+      // variant. All others are struct variants that require a content field.
+      const details = verdict.reasoning || 'See validator notes';
+      const outcome = verdict.outcome === 'Reproduced'
+        ? { type: 'Reproduced' }
+        : verdict.outcome === 'PartiallyReproduced'
+          ? { type: 'PartiallyReproduced', content: { details } }
+          : verdict.outcome === 'FailedToReproduce'
+            ? { type: 'FailedToReproduce', content: { details } }
+            : { type: 'UnableToAssess', content: { reason: details } };
       const conf      = verdict.confidence;
       const agreementLevel = {
         Reproduced:          'ExactMatch',
