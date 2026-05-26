@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-24
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.4** — security hardening sweep: warrant gates, integrity validation gaps, TypeScript serde fix, 6 new sweettest tests (attestation tests 16–20, governance test 17). Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
+**Last updated:** 2026-05-26
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.5** — CMA upgrade: AI validators now use Claude Managed Agents (multi-step analysis, web search); users can bring their own API key (Anthropic/OpenAI/Google/Groq); rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
 
@@ -86,6 +86,34 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Release v0.5.5 — CMA validator upgrade — 2026-05-26 ✓
+
+AI validators upgraded from one-shot Claude calls to **Claude Managed Agents** (CMA). Each validator now runs as a proper agent that searches the web, reasons step-by-step, and writes its verdict to a file — all before committing to the DHT.
+
+**New file: `demo/ai_validator_cma.py`** — replaces `ai_validator.py` as the orchestrator for CMA and simple (non-Anthropic) modes. Key features:
+- 3 validator agents run **in parallel**, each in their own CMA environment + session
+- Each agent uses `web_search`, `web_fetch`, `write` tools to do real research before verdicting
+- Verdict written to `/mnt/session/verdict.json`; Python reads from event log after `session.status_idle`
+- **User API key support**: user can provide any provider key — `sk-ant-` → CMA mode; `sk-proj-`/`sk-` → OpenAI via litellm; `AIzaSy` → Google; `gsk_` → Groq
+- **Rate limiting** on server key: 1 run/hour per IP, $20/month cap
+- **`AttestationOutcome` serde fix** in `validator-node.mjs`: struct variants (`PartiallyReproduced`, `FailedToReproduce`, `UnableToAssess`) now correctly serialised with `content: { details }` field — previously caused 502 crashes
+
+**`demo/app.py`** updated: accepts `user_api_key` + `user_model` in POST body; routes to CMA/simple/original mode based on key type.
+
+**Run against Oracle:**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+python3 demo/ai_validator_cma.py --mode decentralised
+```
+
+Verified end-to-end: 3 validators (36s/6 calls, 88s/17 calls, 123s/32 calls), all Reproduced (High), HarmonyRecord written to Oracle DHT.
+
+---
 
 ### Release v0.5.4 — security hardening sweep — 2026-05-24 ✓
 
