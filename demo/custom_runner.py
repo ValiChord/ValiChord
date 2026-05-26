@@ -236,6 +236,38 @@ def _run_cma_claim_session(
     return verdict
 
 
+_DISCIPLINE_PROMPT = """\
+Classify the following hypothesis or question into an academic discipline.
+
+HYPOTHESIS: {claim}
+
+Reply with ONLY valid JSON — no markdown fences, no explanation:
+{{
+  "discipline": "2-4 word discipline name (e.g. Social Psychology, Behavioural Economics, Exercise Science)"
+}}"""
+
+
+def classify_discipline(claim: str, api_key: str) -> dict:
+    """Return a Discipline struct for the DHT — {"type": "Other", "content": "<name>"}."""
+    client = anthropic.Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model=MODEL_CMA,
+        max_tokens=64,
+        messages=[{"role": "user", "content": _DISCIPLINE_PROMPT.format(claim=claim)}],
+    )
+    text = resp.content[0].text.strip()
+    for fence in ("```json", "```"):
+        if text.startswith(fence):
+            text = text[len(fence):]
+    if text.endswith("```"):
+        text = text[:-3]
+    try:
+        name = json.loads(text.strip()).get("discipline", "General Science")
+    except Exception:
+        name = "General Science"
+    return {"type": "Other", "content": name}
+
+
 def compare_answers(
     claim: str,
     user_answer: str,
@@ -311,7 +343,7 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
     external_hash_b64 = lock_resp["external_hash_b64"]
     job["external_hash_b64"] = external_hash_b64
 
-    disc = {"type": "ComputationalBiology"}
+    disc = classify_discipline(claim, api_key)
     _node_post(f"{RESEARCHER_URL}/submit-request", {
         "external_hash_b64":       external_hash_b64,
         "discipline":              disc,
