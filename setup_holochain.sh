@@ -41,7 +41,19 @@ cp -r "$(dirname "$0")/skills/holochain-dev" ~/.claude/skills/
 echo "Skill installed."
 
 echo ""
-echo "=== Done! ==="
+echo "=== Holochain tools installed. Building ValiChord DNAs (~5-10 min)... ==="
+
+cd "$(dirname "$0")/valichord"
+cargo build --target wasm32-unknown-unknown --release
+
+hc dna pack dnas/attestation           -o workdir/attestation.dna
+hc dna pack dnas/researcher_repository -o workdir/researcher_repository.dna
+hc dna pack dnas/validator_workspace   -o workdir/validator_workspace.dna
+hc dna pack dnas/governance            -o workdir/governance.dna
+hc app pack .                          -o workdir/valichord.happ
+
+echo ""
+echo "=== All done! ==="
 holochain --version
 hc --version
 echo ""
