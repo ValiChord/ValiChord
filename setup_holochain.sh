@@ -34,6 +34,12 @@ if ! grep -q '.cargo/bin' ~/.bashrc; then
     echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
 fi
 
+# Install holochain-dev Claude Code skill
+echo "Installing holochain-dev skill..."
+mkdir -p ~/.claude/skills
+cp -r "$(dirname "$0")/skills/holochain-dev" ~/.claude/skills/
+echo "Skill installed."
+
 echo ""
 echo "=== Done! ==="
 holochain --version
