@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
 **Last updated:** 2026-05-26
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.5** — CMA upgrade: AI validators now use Claude Managed Agents (multi-step analysis, web search); users can bring their own API key (Anthropic/OpenAI/Google/Groq); rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.6** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
 
@@ -25,7 +25,7 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
 | Decentralised demo | **Permanently live on Oracle** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server (132.145.34.27); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. Oracle: containers already up. |
-| Public web demo | **Live on Render** | Flask app at `valichord-demo.onrender.com/demo`. One-click browser interface — click Run Protocol, watch 7-step progress bar, get a permanent shareable HarmonyRecord URL with a skeptic-proof `curl` verify command. Single worker + in-memory job dict; one run at a time (409 if busy). |
+| Public web demo | **Live on Render** | Flask app at `valichord-demo.onrender.com/demo`. **Two demos on one page:** (1) *Your Hypothesis* — user enters any claim + their own sealed answer + Anthropic key; 3 CMA validators research it blind in parallel; user clicks a pulsing green Reveal button once all 3 commit; adjudicator Claude call compares answers; HarmonyRecord written to DHT. (2) *Free Demo* — pre-loaded ecology study, server pays, once/day per IP. No tabs — linear scroll layout with five expandable accordion explainers (how it works, why remarkable, why Holochain not blockchain, why not central server, why disagreement is fine). Holochain logo in header. |
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
 | HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://132.145.34.27:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
@@ -86,6 +86,23 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Release v0.5.6 — Demo website redesign + discipline classification — 2026-05-26 ✓
+
+**Discipline classification:** `classify_discipline(claim, api_key)` added to `demo/custom_runner.py`. A short Haiku call at the start of `start_commit_phase` classifies the hypothesis into an academic discipline (e.g. "Social Psychology", "Exercise Science") and returns `{"type": "Other", "content": "<name>"}` for the DHT. Replaces the hardcoded `{"type": "ComputationalBiology"}` that appeared on every HarmonyRecord regardless of subject matter.
+
+**Demo website redesign (`demo/app.py`):**
+- **No tabs** — linear scroll layout replaces the Free/Your Hypothesis tab bar
+- **Your Hypothesis is the primary hero section** — full-width card with gradient border at the top of the page
+- **Five expandable accordions** (`<details>`/`<summary>`) between the two demos explain the protocol, why it's remarkable, why Holochain and not a blockchain, why a central server lacks the trust layer, and why validator disagreement is a feature not a failure
+- **Free demo** demoted to a secondary section below a visual `— Free demo — no API key needed —` divider
+- **Holochain logo** (`demo/static/holochain-logo.png`) added to the header as a "Built on / [logo]" badge linking to holochain.org
+- **Google Fonts** — DM Sans + Newsreader loaded from fonts.googleapis.com
+- **Copy** — hero tagline, accordion text, and the blockchain explainer all give Holochain explicit credit and explain the agent-centric DHT architecture
+
+**`demo/DEMO_WEBSITE.md`** fully rewritten: covers both demos, CMA 5-step system prompt, two-phase protocol, `classify_discipline`, `compare_answers`, request flow, result schema, rate limiting, UI design, updated files table, and Holochain credit.
+
+---
 
 ### Release v0.5.5 — CMA validator upgrade — 2026-05-26 ✓
 
