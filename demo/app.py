@@ -278,191 +278,215 @@ _DEMO_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ValiChord — Live Demo</title>
+<title>ValiChord — Reproducibility Validation Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#07070f;--surface:#0b0b18;--border:#141424;--text:#c8c4bc;--dim:#6b6880;--accent:#4a90d9;--green:#4caf50;--yellow:#ffc107;--red:#e57373;--r:14px}
+:root{--bg:#07070f;--surface:#0b0b18;--surface2:#0e0e1c;--border:#141424;--border2:#1e1e30;--text:#c8c4bc;--dim:#6b6880;--accent:#4a90d9;--green:#4caf50;--yellow:#ffc107;--red:#e57373;--r:12px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;height:64px;display:flex;align-items:center;gap:1rem}
-header a.gh{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none}
-header a.gh:hover{color:var(--text)}
-.logo-img{height:44px;width:auto;border-radius:6px;display:block}
-.tag{font-size:.72rem;color:var(--dim)}
-main{max-width:720px;margin:3rem auto;padding:0 1.5rem}
-h1{font-family:'Newsreader',Georgia,serif;font-size:2rem;margin-bottom:.5rem}
-.lead{color:var(--dim);margin-bottom:2rem;line-height:1.6;font-size:.95rem}
-/* Tabs */
-.tabs{display:flex;gap:.5rem;margin-bottom:1.5rem}
-.tab-btn{background:var(--surface);border:1px solid var(--border);color:var(--dim);padding:.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:.875rem;font-family:inherit;transition:all .2s}
-.tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
-/* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1.5rem}
-.card h2{font-size:1rem;margin-bottom:.75rem}
-.card p{color:var(--dim);font-size:.875rem;line-height:1.6;margin-bottom:.5rem}
+.logo-img{height:40px;width:auto;border-radius:6px}
+.tag{font-size:.72rem;color:var(--dim);letter-spacing:.04em}
+header a.gh{color:var(--dim);font-size:.8rem;margin-left:auto;text-decoration:none;padding:.3rem .7rem;border:1px solid var(--border);border-radius:6px;transition:all .2s}
+header a.gh:hover{border-color:var(--accent);color:var(--text)}
+main{max-width:680px;margin:0 auto;padding:3rem 1.5rem 5rem}
+.hero{margin-bottom:2.5rem}
+.hero h1{font-family:'Newsreader',Georgia,serif;font-size:2.2rem;font-weight:600;line-height:1.2;margin-bottom:.8rem;letter-spacing:-.01em}
+.hero-lead{color:var(--dim);line-height:1.75;font-size:.95rem;max-width:580px}
+.hero-lead em{color:var(--text);font-style:normal}
+.section-label{display:flex;align-items:center;gap:.7rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin-bottom:.8rem;font-weight:600}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border2)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1rem}
+.card-primary{border-color:var(--border2);background:linear-gradient(155deg,#0c0c20 0%,var(--surface) 60%)}
+.card h2{font-size:1rem;font-weight:600;margin-bottom:.55rem}
+.card p{color:var(--dim);font-size:.875rem;line-height:1.65;margin-bottom:.5rem}
 .card p:last-child{margin-bottom:0}
-.steps-explainer{list-style:none;margin:.5rem 0}
-.steps-explainer li{color:var(--dim);font-size:.85rem;line-height:1.6;padding:.2rem 0 .2rem 1.2rem;position:relative}
-.steps-explainer li::before{content:'→';position:absolute;left:0;color:var(--accent)}
-/* Buttons */
-.btn{background:var(--accent);color:#fff;border:none;padding:.65rem 1.5rem;border-radius:8px;cursor:pointer;font-size:.9rem;font-family:inherit;margin-top:1rem;transition:background .2s}
-.btn:disabled{opacity:.35;cursor:not-allowed;animation:none!important}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-family:inherit;margin-top:.75rem}
+.btn{background:var(--accent);color:#fff;border:none;padding:.65rem 1.4rem;border-radius:8px;cursor:pointer;font-size:.875rem;font-family:inherit;font-weight:500;transition:all .2s;display:inline-block;margin-top:1.1rem}
+.btn:hover:not(:disabled){background:#5a9fe8}
+.btn:disabled{opacity:.3;cursor:not-allowed;animation:none!important}
+.btn-muted{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+.btn-muted:hover:not(:disabled){border-color:var(--accent);background:var(--surface2)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-family:inherit;transition:all .2s;margin-top:.5rem}
 .btn-ghost:hover{border-color:var(--accent);color:var(--text)}
-/* Free demo progress */
+.field-label{display:block;font-size:.78rem;color:var(--dim);margin:.9rem 0 .3rem;letter-spacing:.02em}
+textarea,input[type=password]{width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;color:var(--text);font-size:.85rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .2s}
+textarea:focus,input[type=password]:focus{border-color:var(--accent)}
+textarea{min-height:76px}
+.key-note,.rate-note{font-size:.75rem;color:var(--dim);margin-top:.35rem;line-height:1.55}
 .steps{list-style:none;margin-top:1rem}
-.steps li{display:flex;align-items:center;gap:.75rem;padding:.4rem 0;font-size:.875rem;color:var(--dim)}
-.dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
-li.active .dot{border-color:var(--accent);background:var(--accent);animation:pulse 1s infinite}
+.steps li{display:flex;align-items:center;gap:.75rem;padding:.35rem 0;font-size:.875rem;color:var(--dim)}
+.dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
+li.active .dot{border-color:var(--accent);background:var(--accent);animation:pulse 1.2s infinite}
 li.done .dot{border-color:var(--green);background:var(--green)}
 li.active,li.done{color:var(--text)}
-/* Custom demo form */
-.field-label{display:block;font-size:.8rem;color:var(--dim);margin:.85rem 0 .3rem}
-textarea,input[type=password]{width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.55rem .75rem;color:var(--text);font-size:.85rem;font-family:inherit;resize:vertical;outline:none}
-textarea:focus,input[type=password]:focus{border-color:var(--accent)}
-textarea{min-height:80px}
-.key-note{font-size:.75rem;color:var(--dim);margin-top:.3rem}
-.rate-note{font-size:.75rem;color:var(--dim);margin-top:.3rem}
-/* Custom demo commit progress */
-.commit-row{display:flex;align-items:center;gap:.75rem;padding:.4rem 0;font-size:.875rem;color:var(--dim)}
+.commit-row{display:flex;align-items:center;gap:.75rem;padding:.35rem 0;font-size:.875rem;color:var(--dim)}
 .commit-row.done{color:var(--text)}
-.vdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
-.vdot.active{border-color:var(--accent);background:var(--accent);animation:pulse 1s infinite}
+.vdot{width:13px;height:13px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
+.vdot.active{border-color:var(--accent);background:var(--accent);animation:pulse 1.2s infinite}
 .vdot.done{border-color:var(--green);background:var(--green)}
-.reveal-prompt{font-size:.875rem;color:var(--green);margin:.75rem 0 .25rem;font-weight:500}
-/* Reveal button ready state */
+.reveal-prompt{font-size:.875rem;color:var(--green);margin:.9rem 0 .25rem;font-weight:500;line-height:1.55}
 @keyframes readyPulse{0%,100%{box-shadow:0 0 0 0 rgba(76,175,80,.75)}50%{box-shadow:0 0 0 14px rgba(76,175,80,0)}}
 .btn-ready{background:var(--green)!important;animation:readyPulse 1.2s ease-in-out infinite}
-/* Results */
-.result-box{background:var(--bg);border:1px solid var(--green);border-radius:10px;padding:1rem 1.25rem;margin-top:1rem}
-.outcome{font-size:1.1rem;font-weight:600;color:var(--green)}
-.detail{font-size:.8rem;color:var(--dim);margin-top:.2rem}
-.comparison-summary{font-size:.875rem;color:var(--text);margin:.6rem 0;line-height:1.5}
+.result-box{background:var(--bg);border:1px solid var(--green);border-radius:10px;padding:1.1rem 1.25rem;margin-top:1rem}
+.outcome{font-size:1.05rem;font-weight:600;color:var(--green)}
+.detail{font-size:.78rem;color:var(--dim);margin-top:.2rem}
+.comparison-summary{font-size:.875rem;color:var(--text);margin:.65rem 0;line-height:1.6}
 .verdicts{margin-top:.6rem}
-.vrow{font-size:.8rem;color:var(--dim);padding:.2rem 0}
-.researcher-reveal{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;margin:.6rem 0;font-size:.8rem;color:var(--text);line-height:1.5}
-.researcher-reveal strong{color:var(--dim);display:block;margin-bottom:.25rem;font-size:.75rem}
-.share{margin-top:.75rem;font-size:.8rem;color:var(--dim)}
+.vrow{font-size:.78rem;color:var(--dim);padding:.2rem 0;line-height:1.55}
+.researcher-reveal{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.65rem .9rem;margin:.6rem 0;font-size:.82rem;color:var(--text);line-height:1.55}
+.researcher-reveal strong{color:var(--dim);display:block;margin-bottom:.3rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em}
+.share{margin-top:.75rem;font-size:.78rem;color:var(--dim)}
 .share a{color:var(--accent);word-break:break-all}
-.verify-section{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
-.verify-section p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-bottom:.5rem}
-.curl-cmd{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;font-family:monospace;font-size:.75rem;color:#a0c8ff;word-break:break-all;margin:.5rem 0}
-.raw-json{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.75rem;font-family:monospace;font-size:.75rem;color:var(--text);white-space:pre-wrap;word-break:break-all;margin-top:.5rem;display:none}
-.err{background:#1a0a0a;border:1px solid #5c2020;border-radius:10px;padding:1rem;margin-top:1rem;color:var(--red);font-size:.875rem}
-.busy{color:var(--yellow);font-size:.85rem;margin-top:.6rem}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.verify-section{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--border)}
+.verify-section p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-bottom:.4rem}
+.curl-cmd{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.5rem .8rem;font-family:monospace;font-size:.72rem;color:#a0c8ff;word-break:break-all;margin:.4rem 0}
+.raw-json{background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.75rem;font-family:monospace;font-size:.72rem;color:var(--text);white-space:pre-wrap;word-break:break-all;margin-top:.5rem;display:none}
+.err{background:#1a0a0a;border:1px solid #5c2020;border-radius:10px;padding:.9rem 1rem;margin-top:.75rem;color:var(--red);font-size:.85rem;line-height:1.5}
+.busy{color:var(--yellow);font-size:.82rem;margin-top:.5rem;line-height:1.5}
+/* accordion */
+.explainers{margin:2rem 0}
+details{border:1px solid var(--border);border-radius:var(--r);margin-bottom:.45rem;background:var(--surface);overflow:hidden}
+summary{padding:.85rem 1.2rem;cursor:pointer;font-size:.88rem;font-weight:500;list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'▸';color:var(--dim);transition:transform .2s;font-size:.82rem;margin-left:.75rem;flex-shrink:0}
+details[open]>summary{color:var(--accent)}
+details[open]>summary::after{transform:rotate(90deg)}
+.expand-body{padding:.1rem 1.2rem 1.1rem;border-top:1px solid var(--border)}
+.expand-body p{color:var(--dim);font-size:.875rem;line-height:1.72;margin-top:.65rem}
+.expand-body strong{color:var(--text);font-weight:500}
+.expand-body em{color:var(--text);font-style:normal;font-weight:500}
+/* section divider */
+.section-divider{display:flex;align-items:center;gap:1rem;margin:2.5rem 0 1.25rem;color:var(--dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em}
+.section-divider::before,.section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
 <body>
 <header>
-  <img src="/static/valichord-logo.jpeg" alt="ValiChord" class="logo-img" />
+  <img src="/static/valichord-logo.jpeg" alt="ValiChord" class="logo-img">
   <span class="tag">Reproducibility Validation Protocol</span>
-  <a class="gh" href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source code →</a>
+  <a class="gh" href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source →</a>
 </header>
 <main>
-  <h1>Live Demo</h1>
-  <p class="lead">Can an independent party arrive at the same result as the researcher — without anyone being able to change their answer after seeing others'? ValiChord answers that with a commit-reveal protocol on a peer-to-peer network.</p>
 
-  <div class="card">
-    <h2>How it works</h2>
-    <ul class="steps-explainer">
-      <li><strong>Commit (blind):</strong> Every party hashes and seals their verdict before anyone reveals. No one can see each other's result during this phase.</li>
-      <li><strong>Reveal:</strong> All parties reveal simultaneously. The network verifies each reveal matches its prior commitment hash. No last-mover advantage is possible.</li>
-      <li><strong>HarmonyRecord:</strong> A permanent, content-addressed record is written to the DHT. The hash is unique to the run and independently fetchable from any node.</li>
-    </ul>
+<div class="hero">
+  <h1>Prove it. Independently.</h1>
+  <p class="hero-lead">ValiChord asks one question: <em>can an independent party arrive at the same result as the researcher — without anyone being able to change their answer after seeing others'?</em> State a hypothesis, seal your answer, and watch three AI validators research it blind. The reveal is yours to trigger.</p>
+</div>
+
+<!-- ── Your Hypothesis — PRIMARY ─────────────────────────────────────────── -->
+<div class="section-label">Your Hypothesis</div>
+
+<div class="card card-primary" id="customInputCard">
+  <h2>State a hypothesis. Seal your answer. Let the validators run.</h2>
+  <p>Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
+
+  <label class="field-label">Hypothesis or claim</label>
+  <textarea id="customClaim" rows="3" placeholder="e.g. Regular aerobic exercise reduces resting heart rate in healthy adults" oninput="checkCustomReady()"></textarea>
+
+  <label class="field-label">Your answer <span style="font-weight:400;color:var(--dim)">(sealed before validators start — they cannot see this)</span></label>
+  <textarea id="customAnswer" rows="4" placeholder="State your position and reasoning. This is hashed and committed to the DHT before the validators begin." oninput="checkCustomReady()"></textarea>
+
+  <label class="field-label">Your Anthropic API key</label>
+  <input id="customKey" type="password" placeholder="sk-ant-…" oninput="checkCustomReady()">
+  <p class="key-note">Runs 3 Claude validators with live web search and multi-step reasoning. Estimated cost: $0.50–1.50. Sent over HTTPS, used only for this run, never stored.</p>
+
+  <button class="btn" id="customSubmitBtn" onclick="startCustomDemo()" disabled>Seal my answer and start validation</button>
+  <div id="customBusyMsg" class="busy" style="display:none"></div>
+</div>
+
+<div class="card" id="customProgressCard" style="display:none">
+  <h2>Commit phase — blind</h2>
+  <div class="commit-row done" id="researcherCommitRow">
+    <span class="vdot done"></span> Your answer sealed on DHT
   </div>
+  <div class="commit-row" id="v1row"><span class="vdot active" id="cv1"></span><span id="v1label">Validator 1 researching…</span></div>
+  <div class="commit-row" id="v2row"><span class="vdot" id="cv2"></span><span id="v2label">Validator 2 waiting…</span></div>
+  <div class="commit-row" id="v3row"><span class="vdot" id="cv3"></span><span id="v3label">Validator 3 waiting…</span></div>
+  <p class="reveal-prompt" id="revealPrompt" style="display:none">All 3 validators have committed. No one can change their verdict now.<br>Click below to unseal your answer.</p>
+  <button class="btn" id="revealBtn" disabled onclick="triggerReveal()">Reveal my answer</button>
+  <div id="customResultArea"></div>
+</div>
 
-  <div class="tabs">
-    <button class="tab-btn active" id="tab-free" onclick="showTab('free')">Free Demo</button>
-    <button class="tab-btn" id="tab-custom" onclick="showTab('custom')">Your Hypothesis</button>
-  </div>
+<!-- ── Explainers ─────────────────────────────────────────────────────────── -->
+<div class="explainers">
 
-  <!-- ── Free demo ─────────────────────────────────────────────────────────── -->
-  <div id="section-free">
-    <div class="card">
-      <h2>Study: Temperature–Species Richness</h2>
-      <p>Linear regression across 20 sampling sites. The researcher claims slope ≈ 2.4086, R² ≈ 0.9991. Three AI validators independently reproduce the computation and commit their verdicts blind before anyone reveals.</p>
-      <p class="rate-note">Free · uses the server's API key · limited to once per visitor per day</p>
-      <button class="btn" id="runBtn" onclick="startDemo()">Run Protocol (~2 min)</button>
-      <div id="busyMsg" class="busy" style="display:none"></div>
+  <details>
+    <summary>How does ValiChord work?</summary>
+    <div class="expand-body">
+      <p>ValiChord runs a <strong>commit-reveal protocol</strong> across a peer-to-peer network. Every party — the researcher and each validator — cryptographically hashes and seals their verdict <em>before</em> anyone reveals anything. These sealed commitments are stored on the Oracle DHT: a distributed hash table where no single node is in charge.</p>
+      <p>Once all commitments are on the network, you trigger the reveal phase. Each reveal is verified against its prior hash — making it <strong>mathematically impossible</strong> to change your answer after seeing anyone else's. No last-mover advantage. No institutional pressure that could nudge a result retroactively. The final HarmonyRecord is written to the DHT with a permanent, content-addressed hash you can fetch from any node, independently of this website.</p>
+      <p>What you get is not just a verdict — it's <strong>proof of the process</strong>. The record shows who committed what, and in what order. That's what makes it trustworthy.</p>
     </div>
+  </details>
 
-    <div class="card" id="progressCard" style="display:none">
-      <h2>Protocol progress</h2>
-      <ul class="steps">
-        <li id="s1"><span class="dot"></span>Loading study deposit</li>
-        <li id="s2"><span class="dot"></span>Executing study code</li>
-        <li id="s3"><span class="dot"></span>Forming 3 independent verdicts</li>
-        <li id="s4"><span class="dot"></span>Committing to DHT — blind phase</li>
-        <li id="s5"><span class="dot"></span>All commitments sealed</li>
-        <li id="s6"><span class="dot"></span>Researcher + validators revealed</li>
-        <li id="s7"><span class="dot"></span>HarmonyRecord written</li>
-      </ul>
-      <div id="resultArea"></div>
+  <details>
+    <summary>Why is this remarkable?</summary>
+    <div class="expand-body">
+      <p>Science has a reproducibility problem. Studies are retracted. P-values are gamed. Validators who know each other's findings adjust their conclusions — consciously or not. The current system asks you to trust individuals, institutions, and journals. ValiChord replaces that trust with <strong>cryptographic proof</strong>.</p>
+      <p>The commit-reveal structure means no party can see anyone else's verdict before committing their own. There is no mechanism — technically, not just procedurally — by which a result can be adjusted after the fact. The hash on the DHT is as permanent and tamper-evident as the laws of mathematics allow.</p>
+      <p>This applies far beyond AI benchmarking. Clinical trials. Economic forecasts. Environmental impact assessments. Policy research. Anywhere a verdict can be corrupted by seeing other verdicts first, ValiChord provides a layer of integrity that didn't previously exist at scale.</p>
     </div>
-  </div>
+  </details>
 
-  <!-- ── Custom demo ───────────────────────────────────────────────────────── -->
-  <div id="section-custom" style="display:none">
-    <div class="card" id="customInputCard">
-      <h2>State your hypothesis</h2>
-      <p>Enter any factual, evaluable claim. Three AI validators will independently research it with web search and commit their verdicts blind — without seeing your answer or each other's. You control the reveal.</p>
-
-      <label class="field-label">Hypothesis or claim</label>
-      <textarea id="customClaim" rows="3" placeholder="e.g. Regular aerobic exercise reduces resting heart rate in healthy adults" oninput="checkCustomReady()"></textarea>
-
-      <label class="field-label">Your answer <span style="color:var(--dim);font-weight:400">(sealed as a commitment before validators start)</span></label>
-      <textarea id="customAnswer" rows="4" placeholder="State your position and reasoning. This is hashed and committed to the DHT before the validators begin — they cannot see it until you click Reveal." oninput="checkCustomReady()"></textarea>
-
-      <label class="field-label">Your Anthropic API key</label>
-      <input id="customKey" type="password" placeholder="sk-ant-…" oninput="checkCustomReady()">
-      <p class="key-note">CMA validators (web search, multi-step reasoning). Charges go to your account (~$0.50–1.50 per run). Your key is sent over HTTPS, used only for this run, and never stored.</p>
-
-      <button class="btn" id="customSubmitBtn" onclick="startCustomDemo()" disabled>
-        Seal my answer and start validation
-      </button>
-      <div id="customBusyMsg" class="busy" style="display:none"></div>
+  <details>
+    <summary>Why can't this be done on a blockchain?</summary>
+    <div class="expand-body">
+      <p>It could be, technically. But blockchains bottleneck all state changes through <strong>global consensus</strong> — every node validates every transaction. That makes them slow (seconds to minutes per confirmation), expensive (gas fees, token economies), and dependent on a financial infrastructure to pay the validators.</p>
+      <p>ValiChord runs on <strong>Holochain</strong> — architecturally different. It's agent-centric: every participant maintains their own cryptographically signed source chain, and shared state lives in a DHT where each node holds and validates only a slice of the whole. There are no miners. No tokens. No gas fees. No global ledger that must synchronise before you can write a record. <strong>Holochain scales with users</strong> — the more participants, the more resilient the network — rather than being bottlenecked by them.</p>
+      <p>The result: the same cryptographic guarantees, without the cost, latency, or energy penalties. And no dependency on the price of a coin.</p>
     </div>
+  </details>
 
-    <div class="card" id="customProgressCard" style="display:none">
-      <h2>Commit phase</h2>
-
-      <div class="commit-row done" id="researcherCommitRow">
-        <span class="vdot done"></span> Your answer sealed on DHT
-      </div>
-      <div class="commit-row" id="v1row">
-        <span class="vdot active" id="cv1"></span>
-        <span id="v1label">Validator 1 researching…</span>
-      </div>
-      <div class="commit-row" id="v2row">
-        <span class="vdot" id="cv2"></span>
-        <span id="v2label">Validator 2 waiting…</span>
-      </div>
-      <div class="commit-row" id="v3row">
-        <span class="vdot" id="cv3"></span>
-        <span id="v3label">Validator 3 waiting…</span>
-      </div>
-
-      <p class="reveal-prompt" id="revealPrompt" style="display:none">
-        All 3 validators have committed. No one can change their verdict now. Click to reveal your answer.
-      </p>
-      <button class="btn" id="revealBtn" disabled onclick="triggerReveal()">
-        Reveal my answer
-      </button>
-
-      <div id="customResultArea"></div>
+  <details>
+    <summary>Why not just use a central server?</summary>
+    <div class="expand-body">
+      <p>A central server can lie. Not because it necessarily would — but because it <em>could</em>, and you have no way to prove otherwise. The server owns the timestamps, the commitment records, and the reveal log. It can be hacked, subpoenaed, or pressured by the institution whose research it's validating.</p>
+      <p>ValiChord stores commitments across a distributed network of independent nodes. The hash you receive after a run is <strong>independently fetchable from any node</strong> — it doesn't route through this website at all. You can verify it yourself with a single <code style="color:#a0c8ff;font-size:.85em">curl</code> command, from your own machine, right now. No login, no account, no trust in us required.</p>
+      <p>That's the trust layer a centralised system structurally cannot offer: <strong>the ability to verify without asking permission</strong>. The record's integrity doesn't depend on whether anyone at the top is honest.</p>
     </div>
-  </div>
+  </details>
+
+  <details>
+    <summary>What if the validators disagree?</summary>
+    <div class="expand-body">
+      <p>That <em>is</em> the result. ValiChord doesn't determine who is <strong>right</strong> — it determines whether the process was <strong>honest</strong>.</p>
+      <p>If three independent validators reach different conclusions, the hypothesis is genuinely contested. Some claims depend on interpretation, the sources you weight most heavily, or the methodology you apply. That's not a bug — it's information. A "Divergent" or "PartiallyReproduced" result is the most honest answer science can give when the evidence is mixed. Anyone claiming uniform certainty probably hasn't looked hard enough.</p>
+      <p>The protocol's integrity comes from the fact that every party committed their verdict <em>before</em> seeing anyone else's — not from achieving consensus. <strong>Disagreement, honestly reached and cryptographically sealed, is more scientifically valuable than agreement quietly negotiated after the fact.</strong></p>
+    </div>
+  </details>
+
+</div>
+
+<!-- ── Free demo — secondary ──────────────────────────────────────────────── -->
+<div class="section-divider">Free demo — no API key needed</div>
+
+<div class="card" id="section-free">
+  <h2>Study: Temperature–Species Richness</h2>
+  <p>A pre-loaded synthetic ecology study. Linear regression across 20 sampling sites — the researcher claims slope ≈ 2.4086, R² ≈ 0.9991. Three AI validators independently reproduce the computation and commit their verdicts blind before anyone reveals. Runs on the server's key at no cost to you.</p>
+  <p class="rate-note">Free · once per visitor per day · uses the server's Anthropic key (~$0.10/run)</p>
+  <button class="btn btn-muted" id="runBtn" onclick="startDemo()">Run Protocol (~2 min)</button>
+  <div id="busyMsg" class="busy" style="display:none"></div>
+</div>
+
+<div class="card" id="progressCard" style="display:none">
+  <h2>Protocol progress</h2>
+  <ul class="steps">
+    <li id="s1"><span class="dot"></span>Loading study deposit</li>
+    <li id="s2"><span class="dot"></span>Executing study code</li>
+    <li id="s3"><span class="dot"></span>Forming 3 independent verdicts</li>
+    <li id="s4"><span class="dot"></span>Committing to DHT — blind phase</li>
+    <li id="s5"><span class="dot"></span>All commitments sealed</li>
+    <li id="s6"><span class="dot"></span>Researcher + validators revealed</li>
+    <li id="s7"><span class="dot"></span>HarmonyRecord written</li>
+  </ul>
+  <div id="resultArea"></div>
+</div>
 
 </main>
 <script>
-// ── Tab switching ─────────────────────────────────────────────────────────────
-function showTab(t) {
-  ['free','custom'].forEach(id => {
-    document.getElementById('tab-'+id).classList.toggle('active', id===t);
-    document.getElementById('section-'+id).style.display = id===t ? 'block' : 'none';
-  });
-}
-
 // ── Free demo ─────────────────────────────────────────────────────────────────
 let poll=null;
 function startDemo(){
@@ -501,198 +525,134 @@ function setSteps(cur,done){
 }
 
 // ── Custom demo ───────────────────────────────────────────────────────────────
-let customPoll=null, customJobId=null;
-
+let customPoll=null,customJobId=null;
 function checkCustomReady(){
   const ok=document.getElementById('customClaim').value.trim()
          &&document.getElementById('customAnswer').value.trim()
          &&document.getElementById('customKey').value.trim().startsWith('sk-ant-');
   document.getElementById('customSubmitBtn').disabled=!ok;
 }
-
 function startCustomDemo(){
-  const claim  = document.getElementById('customClaim').value.trim();
-  const answer = document.getElementById('customAnswer').value.trim();
-  const key    = document.getElementById('customKey').value.trim();
-
+  const claim=document.getElementById('customClaim').value.trim();
+  const answer=document.getElementById('customAnswer').value.trim();
+  const key=document.getElementById('customKey').value.trim();
   document.getElementById('customSubmitBtn').disabled=true;
   document.getElementById('customBusyMsg').style.display='none';
   document.getElementById('customInputCard').style.opacity='.5';
-
   const pc=document.getElementById('customProgressCard');
   pc.style.display='block';
   document.getElementById('customResultArea').innerHTML='';
-
-  // Reset validator dots
   setCustomDots(0);
   document.getElementById('revealPrompt').style.display='none';
   const rb=document.getElementById('revealBtn');
-  rb.disabled=true; rb.classList.remove('btn-ready'); rb.textContent='Reveal my answer';
-
-  fetch('/demo/custom/run',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({claim,user_answer:answer,user_api_key:key}),
-  }).then(r=>r.json()).then(d=>{
-    if(d.status==='busy'){
-      document.getElementById('customBusyMsg').textContent=d.message;
-      document.getElementById('customBusyMsg').style.display='block';
+  rb.disabled=true;rb.classList.remove('btn-ready');rb.textContent='Reveal my answer';
+  fetch('/demo/custom/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claim,user_answer:answer,user_api_key:key})})
+    .then(r=>r.json()).then(d=>{
+      if(d.status==='busy'){
+        document.getElementById('customBusyMsg').textContent=d.message;
+        document.getElementById('customBusyMsg').style.display='block';
+        document.getElementById('customSubmitBtn').disabled=false;
+        document.getElementById('customInputCard').style.opacity='1';
+        pc.style.display='none';return;
+      }
+      if(d.error||!d.job_id){
+        showErr('customResultArea',d.error||'Failed to start: '+JSON.stringify(d));
+        document.getElementById('customSubmitBtn').disabled=false;
+        document.getElementById('customInputCard').style.opacity='1';return;
+      }
+      customJobId=d.job_id;
+      customPoll=setInterval(()=>pollCustom(d.job_id),2000);
+    }).catch(e=>{
+      showErr('customResultArea','Network error: '+e.message);
       document.getElementById('customSubmitBtn').disabled=false;
       document.getElementById('customInputCard').style.opacity='1';
-      pc.style.display='none'; return;
-    }
-    if(d.error||!d.job_id){
-      showErr('customResultArea',d.error||'Failed to start: '+JSON.stringify(d));
-      document.getElementById('customSubmitBtn').disabled=false;
-      document.getElementById('customInputCard').style.opacity='1';
-      return;
-    }
-    customJobId=d.job_id;
-    customPoll=setInterval(()=>pollCustom(d.job_id),2000);
-  }).catch(e=>{
-    showErr('customResultArea','Network error: '+e.message);
-    document.getElementById('customSubmitBtn').disabled=false;
-    document.getElementById('customInputCard').style.opacity='1';
-  });
+    });
 }
-
 function pollCustom(id){
   fetch('/demo/custom/result/'+id).then(r=>r.json()).then(j=>{
     setCustomDots(j.validators_committed||0);
-
-    if(j.phase==='awaiting_reveal'){
-      clearInterval(customPoll);
-      enableRevealBtn();
-    } else if(j.phase==='revealing'){
-      // Keep UI in "revealing" state while the background thread works
-    } else if(j.status==='done'){
-      clearInterval(customPoll);
-      showCustomResult(j.result);
+    if(j.phase==='awaiting_reveal'){clearInterval(customPoll);enableRevealBtn();}
+    else if(j.phase==='revealing'){}
+    else if(j.status==='done'){
+      clearInterval(customPoll);showCustomResult(j.result);
       document.getElementById('customInputCard').style.opacity='1';
       document.getElementById('customSubmitBtn').disabled=false;
     } else if(j.status==='error'){
-      clearInterval(customPoll);
-      showErr('customResultArea',j.error||'Unknown error');
+      clearInterval(customPoll);showErr('customResultArea',j.error||'Unknown error');
       document.getElementById('customInputCard').style.opacity='1';
       document.getElementById('customSubmitBtn').disabled=false;
     }
   }).catch(e=>console.error('custom poll:',e));
 }
-
 function setCustomDots(count){
   const labels=['Validator 1','Validator 2','Validator 3'];
   for(let i=1;i<=3;i++){
-    const dot=document.getElementById('cv'+i);
-    const row=document.getElementById('v'+i+'row');
-    const lbl=document.getElementById('v'+i+'label');
-    if(i<=count){
-      dot.className='vdot done'; row.className='commit-row done';
-      lbl.textContent=labels[i-1]+' committed ✓';
-    } else if(i===count+1){
-      dot.className='vdot active'; row.className='commit-row';
-      lbl.textContent=labels[i-1]+' researching…';
-    } else {
-      dot.className='vdot'; row.className='commit-row';
-      lbl.textContent=labels[i-1]+' waiting…';
-    }
+    const dot=document.getElementById('cv'+i),row=document.getElementById('v'+i+'row'),lbl=document.getElementById('v'+i+'label');
+    if(i<=count){dot.className='vdot done';row.className='commit-row done';lbl.textContent=labels[i-1]+' committed ✓';}
+    else if(i===count+1){dot.className='vdot active';row.className='commit-row';lbl.textContent=labels[i-1]+' researching…';}
+    else{dot.className='vdot';row.className='commit-row';lbl.textContent=labels[i-1]+' waiting…';}
   }
 }
-
 function enableRevealBtn(){
   setCustomDots(3);
   document.getElementById('revealPrompt').style.display='block';
   const btn=document.getElementById('revealBtn');
-  btn.disabled=false;
-  btn.classList.add('btn-ready');
+  btn.disabled=false;btn.classList.add('btn-ready');
 }
-
 function triggerReveal(){
   const btn=document.getElementById('revealBtn');
-  btn.disabled=true;
-  btn.classList.remove('btn-ready');
-  btn.textContent='Revealing…';
+  btn.disabled=true;btn.classList.remove('btn-ready');btn.textContent='Revealing…';
   document.getElementById('revealPrompt').style.display='none';
-
   fetch('/demo/custom/reveal/'+customJobId,{method:'POST'})
-    .then(r=>r.json())
-    .then(d=>{
+    .then(r=>r.json()).then(d=>{
       if(d.error){showErr('customResultArea',d.error);return;}
       customPoll=setInterval(()=>pollCustom(customJobId),2000);
-    })
-    .catch(e=>showErr('customResultArea','Network error: '+e.message));
+    }).catch(e=>showErr('customResultArea','Network error: '+e.message));
 }
 
-// ── Result rendering ──────────────────────────────────────────────────────────
+// ── Results ───────────────────────────────────────────────────────────────────
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-
-const OUTCOME_LABEL={
-  'Reproduced':         'Aligned with validators',
-  'PartiallyReproduced':'Partially aligned',
-  'NotReproduced':      'Diverged from validators',
-  'FailedToReproduce':  'Failed to reproduce',
-  'UnableToAssess':     'Unable to assess',
-};
-
+const OUTCOME_LABEL={'Reproduced':'Aligned with validators','PartiallyReproduced':'Partially aligned','NotReproduced':'Diverged from validators','FailedToReproduce':'Failed to reproduce','UnableToAssess':'Unable to assess'};
 function showFreeResult(r){
-  const rows=(r.validator_verdicts||[]).map(v=>
-    `<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`
-  ).join('');
-  const shareUrl=esc(r.record_url||'');
-  const curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'';
-  const hashB64=encodeURIComponent(r.external_hash_b64||'');
+  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`).join('');
+  const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
   document.getElementById('resultArea').innerHTML=`<div class="result-box">
     <div class="outcome">${esc(r.outcome)} — ${esc(r.agreement_level)}</div>
-    <div class="detail">${esc(r.validator_count)}/3 validators · ComputationalBiology</div>
+    <div class="detail">${esc(r.validator_count)}/3 validators · Temperature–Species Richness</div>
     <div class="verdicts">${rows}</div>
     ${shareUrl?`<div class="share">Permanent record: <a href="${shareUrl}" target="_blank">${shareUrl}</a></div>`:''}
     <div class="verify-section">
-      <p><strong>Is this real?</strong> The hash is unique to this run — generated on the Oracle DHT, not by this page. Fetch it yourself:</p>
+      <p><strong>Is this real?</strong> The hash lives on the Oracle DHT — not generated by this page. Fetch it yourself from any node:</p>
       ${curlCmd?`<div class="curl-cmd">${esc(curlCmd)}</div>`:''}
       ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('resultArea','${hashB64}')">Fetch raw record from Oracle →</button>`:''}
       <pre class="raw-json" id="rawJson"></pre>
-    </div>
-  </div>`;
+    </div></div>`;
 }
-
 function showCustomResult(r){
-  const rows=(r.validator_verdicts||[]).map(v=>
-    `<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`
-  ).join('');
-  const shareUrl=esc(r.record_url||'');
-  const curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'';
-  const hashB64=encodeURIComponent(r.external_hash_b64||'');
+  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`).join('');
+  const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
   const outcomeLabel=OUTCOME_LABEL[r.outcome]||esc(r.outcome);
   document.getElementById('customResultArea').innerHTML=`<div class="result-box">
     <div class="outcome">${outcomeLabel} — ${esc(r.agreement_level)}</div>
     <div class="detail">${esc(r.validator_count)}/3 validators · your hypothesis</div>
     ${r.comparison_summary?`<div class="comparison-summary">${esc(r.comparison_summary)}</div>`:''}
-    <div class="researcher-reveal">
-      <strong>Your sealed answer (revealed now):</strong>
-      ${esc(r.researcher_answer||'')}
-    </div>
+    <div class="researcher-reveal"><strong>Your sealed answer (revealed now)</strong>${esc(r.researcher_answer||'')}</div>
     <div class="verdicts">${rows}</div>
     ${shareUrl?`<div class="share">Permanent record: <a href="${shareUrl}" target="_blank">${shareUrl}</a></div>`:''}
     <div class="verify-section">
-      <p><strong>Is this real?</strong> Your answer hash was committed to the Oracle DHT before the validators started. The record is independently fetchable:</p>
+      <p><strong>Is this real?</strong> Your answer hash was committed to the Oracle DHT before the validators started. Independently fetchable from any node:</p>
       ${curlCmd?`<div class="curl-cmd">${esc(curlCmd)}</div>`:''}
       ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('customResultArea','${hashB64}')">Fetch raw record from Oracle →</button>`:''}
       <pre class="raw-json" id="customRawJson"></pre>
-    </div>
-  </div>`;
+    </div></div>`;
 }
-
 function fetchRaw(areaId,hashB64){
-  const jsonId=areaId==='resultArea'?'rawJson':'customRawJson';
-  const pre=document.getElementById(jsonId);
-  pre.style.display='block'; pre.textContent='Fetching…';
-  fetch('/demo/record/'+hashB64).then(r=>r.json())
-    .then(d=>{pre.textContent=JSON.stringify(d,null,2);})
-    .catch(e=>{pre.textContent='Error: '+e.message;});
+  const jsonId=areaId==='resultArea'?'rawJson':'customRawJson',pre=document.getElementById(jsonId);
+  pre.style.display='block';pre.textContent='Fetching…';
+  fetch('/demo/record/'+hashB64).then(r=>r.json()).then(d=>{pre.textContent=JSON.stringify(d,null,2);}).catch(e=>{pre.textContent='Error: '+e.message;});
 }
-
 function showErr(areaId,msg){
-  const d=document.createElement('div');
-  d.className='err'; d.textContent=msg;
+  const d=document.createElement('div');d.className='err';d.textContent=msg;
   document.getElementById(areaId).replaceChildren(d);
 }
 </script>
