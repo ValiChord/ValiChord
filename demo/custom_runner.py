@@ -126,24 +126,50 @@ def _run_cma_claim_session(
             elif ev.type == "session.status_idle":
                 break
 
-    # Reconstruct verdict.json from event log (handles write + subsequent edit calls)
-    verdict_content = ""
-    for ev in client.beta.sessions.events.list(session.id, limit=1000, betas=BETAS):
-        if ev.type == "agent.tool_use":
-            if ev.name == "write" and "verdict.json" in ev.input.get("file_path", ""):
-                verdict_content = ev.input.get("content", "")
-            elif ev.name == "edit" and "verdict.json" in ev.input.get("file_path", ""):
-                verdict_content = verdict_content.replace(
-                    ev.input.get("old_string", ""),
-                    ev.input.get("new_string", ""),
-                    1,
-                )
+    def _extract_verdict(session_id):
+        """Reconstruct verdict.json content from event log. Tolerates any path containing 'verdict'."""
+        content = ""
+        for ev in client.beta.sessions.events.list(session_id, limit=1000, betas=BETAS):
+            if ev.type == "agent.tool_use":
+                path = ev.input.get("file_path", "").lower()
+                if ev.name == "write" and "verdict" in path:
+                    content = ev.input.get("content", "")
+                elif ev.name == "edit" and "verdict" in path:
+                    content = content.replace(
+                        ev.input.get("old_string", ""),
+                        ev.input.get("new_string", ""),
+                        1,
+                    )
+        return content
+
+    verdict_content = _extract_verdict(session.id)
+
+    # If the agent went idle without writing the verdict, send one reminder and stream again.
+    if not verdict_content:
+        log.info(f"Validator {idx} idle without verdict after {n_tool_calls} tool calls — sending reminder")
+        client.beta.sessions.events.send(
+            session.id,
+            betas=BETAS,
+            events=[{"type": "user.message", "content": [{"type": "text", "text": (
+                "You have not written your verdict yet. "
+                "Based on your research so far, write your verdict now to /mnt/session/verdict.json. "
+                "Use the exact format specified: outcome, confidence, reasoning. "
+                "If the evidence is genuinely mixed or unclear, use PartiallyReproduced with Low confidence."
+            )}]}],
+        )
+        with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
+            for ev in stream:
+                if ev.type == "agent.tool_use":
+                    n_tool_calls += 1
+                elif ev.type == "session.status_idle":
+                    break
+        verdict_content = _extract_verdict(session.id)
 
     elapsed = time.time() - t0
 
     if not verdict_content:
         raise RuntimeError(
-            f"Validator {idx} ended without writing verdict.json "
+            f"Validator {idx} ended without writing verdict.json after reminder "
             f"(tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
         )
 
