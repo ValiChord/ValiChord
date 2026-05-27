@@ -522,6 +522,35 @@ These are not bugs — they are deliberate Phase 0 boundaries that affect how ex
 
 ---
 
+## Data Locality Modes
+
+The blind commit-reveal protocol, phase transitions, and Harmony Record are identical in both modes. Only where the dataset lives changes. The mode is set at submission and cannot be changed after the commitment is posted.
+
+### GDPR Mode (default)
+
+The researcher's dataset stays in DNA 1 (Researcher Repository). `VerifiedDataSnapshot.data_hash` (SHA-256 of the dataset) is passed to DNA 3 as `ValidationRequest.data_hash`. The data never enters any shared DHT.
+
+Third parties can independently audit the entire process — the hash chain, phase transitions, attestations, and Harmony Record are all on the DNA 3 and DNA 4 DHTs. They cannot re-verify the underlying data without access to the researcher's private DNA.
+
+**Required for:** patient data, clinical trial data, or any dataset with GDPR or data-sharing restrictions.
+
+### Open Audit Mode
+
+The researcher generates an X25519 keypair for the study. At submission, the dataset is encrypted using Holochain's native `x_salsa20_poly1305_encrypt` (X25519 key exchange + XSalsa20-Poly1305 AEAD) and stored on the DNA 3 DHT as an `EncryptedDataset` entry. The commitment hash is computed from the plaintext as before — encryption does not affect the protocol.
+
+After reveal, the researcher publishes the X25519 private key. This travels as a new field on `ResearcherReveal` (or as a separate `DatasetDecryptionKey` entry linked to the request).
+
+Any third party can now independently verify: retrieve `EncryptedDataset` from DHT → decrypt with the published key → SHA-256 the plaintext → compare against `ValidationRequest.data_hash`. The Harmony Record is fully self-verifying without trusting ValiChord or the researcher's private system.
+
+**Key management:** The X25519 keypair is generated per-study (not the agent's signing key). The private half is held in DNA 1 alongside the `VerifiedDataSnapshot`; the public half is included in `ValidationRequest` so the ciphertext can be associated with the right key. At reveal, the private half is published.
+
+**Constraints:**
+- The decryption key, once published in the Harmony Record, is irrevocable. Open audit mode is a permanent commitment to post-reveal public access.
+- GDPR-sensitive datasets must use GDPR mode regardless of researcher preference — publishing a decryption key permanently defeats erasure rights.
+- `EncryptedDataset` entry type, X25519 key generation in DNA 1, decryption key field on `ResearcherReveal`, and submission-time mode selector are Phase 1 work.
+
+---
+
 ## Known Gaps and TODOs
 
 | Item | Location | Notes |
@@ -530,6 +559,7 @@ These are not bugs — they are deliberate Phase 0 boundaries that affect how ex
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
 | GoldReproducible badge (7 validators) | sweettest governance test 15 | **Passes** (`gold_badge_issued_with_seven_validators`, in-process conductors, CI-safe). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
+| Open audit mode | DNA 1, DNA 3 | Architecture defined (see Data Locality Modes section). `EncryptedDataset` entry type, X25519 keypair generation in DNA 1, decryption key field on `ResearcherReveal`, and submission-time mode selector are Phase 1 work |
 | Multi-device identity / agent linking | DNA 3 `ValidatorProfile`, DNA 4 `ValidatorReputation` | **Partially addressed (March 2026):** Both structs now carry `person_key: Option<AgentPubKey>` (`#[serde(default)]`, backwards-compatible). When a cross-device identity system (Flowsta `IsSamePersonEntry`, Deepkey) links a validator's keys to a canonical person, this field carries that stable key — preventing reputation loss on device rotation. The field is `None` for all existing records; population and aggregation logic are Phase 1 work. Full resolution (querying `IsSamePersonEntry` links, deduplicating `CommitmentAnchor` counts by person, COI checks across linked keys) remains deferred. See `nondominium_integration/NONDOMINIUM_ARCHITECTURE.md` for Flowsta context. |
 
 ---
