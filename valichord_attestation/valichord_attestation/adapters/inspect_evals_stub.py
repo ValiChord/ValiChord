@@ -3,8 +3,8 @@
 Converts the ``evaluation_report`` block from an inspect_evals ``eval.yaml``
 register entry, paired with per-sample output dicts, into a Valichord Bundle.
 
-Schema reference (stable as of UKGovernmentBEIS/inspect_evals PR #1575,
-confirmed unchanged through PRs #1604 and #1636):
+Schema reference (UKGovernmentBEIS/inspect_evals ``src/inspect_evals/metadata.py``,
+current as of 2026-05-27):
 
 .. code-block:: yaml
 
@@ -26,12 +26,13 @@ confirmed unchanged through PRs #1604 and #1636):
 
 Field mapping (inspect_evals → Valichord Bundle):
 
-    EvaluationReport.commit     → Bundle.repo_commit
-    EvaluationReport.command    → Bundle.command
-    EvaluationReport.timestamp  → Bundle.generated_at
-    EvaluationReportResult.model   → Bundle.model_id
-    EvaluationReportResult.task    → Bundle.task_id  (None → "overall")
-    EvaluationReportResult.metrics → Bundle.metrics  (key/value pairs, verbatim)
+    EvaluationReport.commit            → Bundle.repo_commit
+    EvaluationReport.command           → Bundle.command
+    EvaluationReport.timestamp         → Bundle.generated_at
+    EvaluationReportResult.model       → Bundle.model_id
+    EvaluationReportResult.task        → Bundle.task_id  (None → "overall")
+    EvaluationReportResult.metrics     → Bundle.metrics  (key/value pairs, verbatim)
+    TaskMetadata.dataset_samples       → Bundle.samples_total  (see eval.yaml metadata)
 
 Valichord additions (no upstream equivalent):
     Bundle.outputs_merkle_root ← merkle_root() over eval_log_samples
@@ -55,7 +56,8 @@ Multi-result reports:
 
 eval.yaml metadata (optional enrichment):
     Pass the top-level ``eval.yaml`` dict (not the ``evaluation_report`` block)
-    as ``eval_yaml_metadata=`` to fold task-level provenance into Bundle.meta:
+    as ``eval_yaml_metadata=`` to fold task-level provenance into Bundle.meta
+    and to set ``Bundle.samples_total``:
 
     .. code-block:: yaml
 
@@ -65,6 +67,7 @@ eval.yaml metadata (optional enrichment):
         version: "1-A"                          → meta["task_version"]
         tasks:
           - name: gpqa_diamond
+            dataset_samples: 198                → Bundle.samples_total
             human_baseline:
               metric: accuracy
               score: 0.697
@@ -77,8 +80,14 @@ eval.yaml metadata (optional enrichment):
     ``arxiv`` → meta["paper_arxiv"]
     ``group`` → meta["eval_group"]
     A ``state: floating`` asset triggers a reproducibility warning in meta.
-    These fields are excluded from ``content_hash`` (same as all meta) so they
-    do not affect scientific equivalence comparison between runs.
+
+    Task matching for ``dataset_samples``: when ``result.task`` is set, the
+    entry in ``tasks`` whose ``name`` matches is used; when ``result.task`` is
+    absent and there is exactly one task entry, that entry is used.  If no
+    match is found, ``samples_total`` defaults to ``len(eval_log_samples)``.
+
+    All meta fields are excluded from ``content_hash`` so they do not affect
+    scientific equivalence comparison between runs.
 """
 
 from __future__ import annotations
@@ -165,6 +174,7 @@ class InspectEvalsAdapter(AdapterBase):
             meta["run_date"] = result["date"]
 
         # Optional enrichment from the top-level eval.yaml metadata block.
+        samples_total: Optional[int] = None
         if eval_yaml_metadata:
             if eval_yaml_metadata.get("arxiv"):
                 meta["paper_arxiv"] = str(eval_yaml_metadata["arxiv"])
@@ -172,14 +182,35 @@ class InspectEvalsAdapter(AdapterBase):
                 meta["eval_group"] = str(eval_yaml_metadata["group"])
             if eval_yaml_metadata.get("version"):
                 meta["task_version"] = str(eval_yaml_metadata["version"])
-            # Human baseline from the first task entry that declares one.
-            for task_entry in (eval_yaml_metadata.get("tasks") or []):
-                hb = task_entry.get("human_baseline")
+            # Human baseline and dataset_samples from the matching task entry.
+            task_entries = eval_yaml_metadata.get("tasks") or []
+            result_task = result.get("task")
+            matched_task: Optional[dict] = None
+            if result_task:
+                for te in task_entries:
+                    if te.get("name") == result_task:
+                        matched_task = te
+                        break
+            elif len(task_entries) == 1:
+                matched_task = task_entries[0]
+            if matched_task is not None:
+                ds = matched_task.get("dataset_samples")
+                if ds is not None:
+                    samples_total = int(ds)
+                hb = matched_task.get("human_baseline")
                 if hb:
                     meta["human_baseline"] = {
                         k: v for k, v in hb.items() if v is not None
                     }
-                    break
+            elif not result_task:
+                # No single task to match; fall back to first entry with human_baseline.
+                for te in task_entries:
+                    hb = te.get("human_baseline")
+                    if hb:
+                        meta["human_baseline"] = {
+                            k: v for k, v in hb.items() if v is not None
+                        }
+                        break
             # Flag floating (unpinned) external assets as a reproducibility risk.
             assets = eval_yaml_metadata.get("external_assets") or []
             floating = [a for a in assets if a.get("state") == "floating"]
@@ -197,6 +228,7 @@ class InspectEvalsAdapter(AdapterBase):
             task_id=result.get("task") or "overall",
             raw_metrics=raw_metrics,
             samples=eval_log_samples,
+            samples_total=samples_total,
             repo_commit=eval_yaml_block.get("commit"),
             command=eval_yaml_block.get("command"),
             generated_at=eval_yaml_block.get("timestamp"),

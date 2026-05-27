@@ -398,3 +398,50 @@ def test_eval_yaml_metadata_merges_with_existing_report_meta():
     # Fields from eval_yaml_metadata also present
     assert "paper_arxiv" in bundle.meta
     assert "eval_group" in bundle.meta
+
+
+# ---------------------------------------------------------------------------
+# dataset_samples → samples_total
+# ---------------------------------------------------------------------------
+
+def test_dataset_samples_sets_samples_total_single_task():
+    # GPQA_YAML_METADATA has one task with dataset_samples=198; SAMPLES has 2.
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=GPQA_YAML_METADATA)
+    assert bundle.samples_total == 198
+    assert bundle.samples_completed == 2
+
+
+def test_dataset_samples_matched_by_task_name():
+    # FULL_BLOCK result[0] has task="arc_easy"; metadata declares dataset_samples for it.
+    metadata = {
+        "tasks": [
+            {"name": "arc_easy", "dataset_samples": 1119},
+            {"name": "arc_challenge", "dataset_samples": 299},
+        ]
+    }
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(FULL_BLOCK, SAMPLES, eval_yaml_metadata=metadata)
+    assert bundle.samples_total == 1119
+
+
+def test_dataset_samples_no_match_falls_back_to_len_samples():
+    # result[0] has task="arc_easy"; metadata has no matching task entry.
+    metadata = {"tasks": [{"name": "something_else", "dataset_samples": 500}]}
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(FULL_BLOCK, SAMPLES, eval_yaml_metadata=metadata)
+    assert bundle.samples_total == len(SAMPLES)
+
+
+def test_dataset_samples_absent_field_falls_back_to_len_samples():
+    # Task entry exists but declares no dataset_samples.
+    metadata = {"tasks": [{"name": "gpqa_diamond"}]}
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES, eval_yaml_metadata=metadata)
+    assert bundle.samples_total == len(SAMPLES)
+
+
+def test_dataset_samples_without_eval_yaml_metadata_falls_back_to_len_samples():
+    adapter = InspectEvalsAdapter()
+    bundle = adapter.to_bundle(MINIMAL_BLOCK, SAMPLES)
+    assert bundle.samples_total == len(SAMPLES)
