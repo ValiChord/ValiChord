@@ -7,7 +7,7 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 
 ## Overview
 
-Two DNAs as of May 2026: `nondominium` (core) + `lobby` (cross-NDO federation, added PR #103).
+Three DNAs as of May 2026: `nondominium` (core) + `lobby` (cross-NDO federation, added PR #103) + `group` (per-group coordination DHT, added PR #107).
 HDK `^0.6.0` / HDI `0.6.x`. Tests: Sweettest (Rust, primary) — Tryorama/Vitest tests deprecated in the fork.
 
 ```
@@ -17,8 +17,11 @@ nondominium.happ
 │   ├── zome_resource     — resource specs, NDO Layer 0 identity, economic resources (ValueFlows)
 │   ├── zome_gouvernance  — validation, economic events, commitments, PPRs
 │   └── misc              — coordinator only; single ping() function (test/debug scaffold)
-└── lobby (DNA)           — cross-NDO discovery and agent federation (see Lobby DNA section below)
+├── lobby (DNA)           — cross-group discovery and federation (see Lobby DNA section below)
+└── group (DNA)           — per-group coordination; provisioned as a cloned cell per group (see Group DNA section below)
 ```
+
+**Hierarchy (PR #107):** Lobby → Groups → NDOs. The Lobby DHT is now the registry for group cells, not NDOs directly. NDOs are discovered through their host group cell.
 
 **Shared crates (May 2026):**
 - `crates/shared/` (`nondominium_shared`) — `LifecycleStage`, `PropertyRegime`, `ResourceNature` types + shared error types + path helpers. The resource integrity zome re-exports these; refer to `nondominium_shared::types` when reading the source.
@@ -192,7 +195,7 @@ This is the exact gap ValiChord fills. Still confirmed as of April 2026 in the t
 | Entry | Key fields |
 |---|---|
 | `ValidationReceipt` | validator, validated_item, validation_type, approved, notes, validated_at |
-| `ResourceValidation` | resource, validation_scheme, required_validators, current_validators (u32), status, created_at, updated_at |
+| `ResourceValidation` | resource, validation_scheme, required_validators, current_validators (u32), status (`ResourceValidationStatus` enum: `Pending`/`Approved`/`Rejected`), created_at, updated_at |
 | `EconomicEvent` | action (VfAction), provider, receiver, resource_inventoried_as, event_time |
 | `Commitment` | action, provider, receiver, due_date, committed_at |
 | `Claim` | fulfills, fulfilled_by, claimed_at |
@@ -298,30 +301,62 @@ data as sovereign. No conflict; they cover different lifecycle moments.
 
 ---
 
-## Lobby DNA (added May 2026)
+## Lobby DNA (added May 2026, updated PR #107)
 
-A new second DNA providing a global cross-NDO discovery and federation layer. Agents have one `LobbyAgentProfile` visible across all communities; separate NDO-specific `Person` entries (in `zome_person`) remain sovereign to each NDO DHT.
+A global cross-community discovery and federation layer. Agents have one `LobbyAgentProfile` visible across all communities; separate NDO-specific `Person` entries (in `zome_person`) remain sovereign to each NDO DHT.
+
+**PR #107 change:** `NdoAnnouncement` is gone. The Lobby DHT now registers group cells, not NDOs directly. Use `GroupAnnouncement` for discovery.
 
 ### Entry types
 | Entry | Key fields |
 |---|---|
-| `LobbyAgentProfile` | handle, avatar_url, bio — cross-NDO public face keyed to `lobby_pubkey` |
-| `NdoAnnouncement` | NDO discovery record — links a lobby_pubkey to an announced NDO |
+| `LobbyAgentProfile` | handle, avatar_url, bio — cross-community public face keyed to `lobby_pubkey` |
+| `GroupAnnouncement` | `group_name`, `group_dna_hash` (DnaHash — stable CellId key), `network_seed`, `description`, `registered_by` (AgentPubKey, must equal action.author). Immutable after creation. |
+
+Link types: `AllLobbyAgents` (Path → LobbyAgentProfile), `AllGroupAnnouncements` (Path("lobby.groups") → GroupAnnouncement), `AgentToGroupAnnouncements` (AgentPubKey → GroupAnnouncement).
+
+**Key functions (lobby coordinator):** `announce_group`, `get_all_group_announcements`, `get_group_announcement_by_dna_hash`, `get_my_group_announcements`.
 
 ### Three-layer identity model
 
 ```
-Lobby DHT               Group DHT                    NDO DHT
-────────────────────    ─────────────────────────    ────────────────────
-LobbyAgentProfile       GroupMembership              Person (zome_person)
-lobby_pubkey  ────────→ ndo_pubkey_map          ───→ (key that authored
-(handle, avatar, bio)   [{ndo_dna_hash,               Person entry)
-                          ndo_pubkey}]
+Lobby DHT                    Group DHT              NDO DHT
+─────────────────────────    ──────────────────     ────────────────────
+LobbyAgentProfile            GroupProfile           Person (zome_person)
+GroupAnnouncement  ────────→ GroupMembership   ───→ (key that authored
+(group_dna_hash)             (group_hash,           Person entry)
+                              role)
 ```
 
-`GroupMembership.ndo_pubkey_map` is the **MVP identity bridge**: it records `lobby_pubkey → ndo_pubkey` for each NDO a validator belongs to, enabling cross-DHT key resolution without Flowsta. See Decision 4 in `README.md` — this changes the Flowsta picture.
+Cross-DHT key resolution (lobby_pubkey → ndo_pubkey) is not yet implemented in the Group DNA `GroupMembership` struct — it only carries `group_hash` and `role`. Full cross-system identity attribution remains post-MVP; Flowsta is still the intended path for that.
 
 Moss/The Weave integration is optional (post-MVP). Unyt RAVE integration is also post-MVP. The DNA runs fully standalone.
+
+---
+
+## Group DNA (added PR #107)
+
+Per-group coordination layer. Each group runs as its own **cloned cell** (separate DHT, same DNA template), provisioned via `clone_cell` with `clone_limit: 64` in `happ.yaml`. Groups are announced via `GroupAnnouncement` on the Lobby DHT.
+
+### Entry types
+| Entry | Key fields |
+|---|---|
+| `GroupProfile` | `name` (non-empty, max 100 chars), `description` (optional). Identity and timestamp from action header. |
+| `GroupMembership` | `group_hash` (ActionHash), `role` (optional String). Joining agent is the action author. |
+| `WorkLog` | `group_hash`, `description` (non-empty), `hours` (f32, must be > 0). Author and timestamp from action header. |
+| `SoftLink` | `group_hash`, `target_ndo_hash` (ActionHash), `description` (optional). Planning-only link from group to NDO — does NOT generate PPRs or EconomicEvents (ADR-GROUP-04). |
+
+### Link types
+`AllGroups` (Anchor → GroupProfile), `GroupUpdates` (GroupProfile → GroupProfile), `GroupToMembers` (GroupProfile → GroupMembership), `MemberToGroups` (AgentPubKey → GroupProfile), `GroupToWorkLogs` (GroupProfile → WorkLog), `AgentToWorkLogs` (AgentPubKey → WorkLog), `GroupToSoftLinks` (GroupProfile → SoftLink).
+
+### Key functions
+- `create_group`, `get_group`, `get_my_group`, `update_group` (NotAuthor guard)
+- `join_group` (AlreadyMember guard), `leave_group`, `get_group_members`, `is_member`
+- `log_work`, `get_work_logs`, `get_my_work_logs`, `delete_work_log` (NotAuthor guard)
+- `create_soft_link`, `get_soft_links`, `delete_soft_link` (NotAuthor guard), `init`
+
+### Integration note
+`SoftLink` is the planning-level connection between a Group and the NDOs it hosts. For ValiChord integration, the capability slot link approach (see zome_resource integration section) targets the `EconomicResource` / `NondominiumIdentity` hash — this is in the NDO DHT and unaffected by the Group DNA addition. Groups are a discovery and coordination layer; ValiChord writes into the NDO layer.
 
 ---
 
@@ -354,4 +389,4 @@ Flowsta remains the cleanest path for cross-system attribution.
 
 ---
 
-*Last updated: May 2026. Re-read against the `dev` branch of https://github.com/Sensorica/nondominium (upstream). Key additions since April 2026: Lobby DNA (PR #103), `crates/shared/` types crate, `packages/shared-types/` TypeScript package, zome_gouvernance split into multiple source files (API unchanged), Sweettest suite added for NDO Layer 0. Custodian constraint section updated to reflect confirmed capability slot approach (NDO team, May 2026); DHT locality constraint documented; `get_harmony_record_by_hash` added to ValiChord governance coordinator.*
+*Last updated: 2026-05-27. Re-read against main branch of https://github.com/Sensorica/nondominium (9 commits since previous review). Key additions in this update: Group DNA (PR #107) — per-group cloned cell, `SoftLink` (Lobby → Groups → NDOs hierarchy); `NdoAnnouncement` replaced by `GroupAnnouncement` in Lobby DNA; `ResourceValidationStatus` typed as enum (`Pending`/`Approved`/`Rejected`) in zome_gouvernance; `GroupMembership.ndo_pubkey_map` noted as not yet implemented. Cross-zome call to `validate_new_resource` still commented out (TODO wording only changed).*
