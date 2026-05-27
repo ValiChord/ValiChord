@@ -134,6 +134,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Sweettest compiles native holochain (~15 GB target dir). Runners only
+      # have ~14 GB free by default, so remove pre-installed tools we don't use.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
       # ── Rust toolchain (same pin as the workspace) ──────────────────────────
       - name: Install Rust (stable + wasm32 target)
         run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
