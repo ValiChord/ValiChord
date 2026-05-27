@@ -20,6 +20,9 @@ dev = [
 inspect-ai = [
     "inspect-ai>=0.3",
 ]
+wandb = [
+    "wandb>=0.13",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
