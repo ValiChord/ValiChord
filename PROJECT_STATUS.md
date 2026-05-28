@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-05-28
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.6** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
@@ -86,6 +86,18 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Three minor correctness fixes — 2026-05-28 ✓
+
+Identified by an independent code review (Claude Opus 4.8).
+
+- **Researcher msgpack call site** (`researcher_repository_coordinator/src/lib.rs`): `lock_researcher_result` now hashes metrics via the shared `metric_results_msgpack_bytes()` helper, matching the reveal-side verification path exactly. Previously used an inline `rmps::to_vec_named` call — identical bytes today, but a latent drift risk if the encoding ever changed. Unused `rmp_serde` import removed.
+- **Python agreement level bug** (`demo/ai_validator.py`): `ExactMatch` threshold now uses `full_rate` (Reproduced-only count / total), matching `shared_types::derive_agreement_level`. Previously used the combined reproduced+partial rate for all tiers, which would display `ExactMatch` for an all-`PartiallyReproduced` round where the chain record correctly holds `WithinTolerance`. Display-only (the on-chain `HarmonyRecord` is authoritative), but now accurate.
+- **Model ID** (`demo/ai_validator.py`): non-CMA validator path updated from `claude-opus-4-6` to `claude-opus-4-7`.
+
+Also posted the wandb GitHub issue ([Feature]: Independent run attestation) — no responses yet as of 2026-05-28.
+
+---
 
 ### Release v0.5.6 — Demo website redesign + discipline classification — 2026-05-26 ✓
 
