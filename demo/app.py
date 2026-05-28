@@ -422,10 +422,11 @@ details[open]>summary::after{transform:rotate(90deg)}
 <div class="explainers">
 
   <details>
-    <summary>How does ValiChord work?</summary>
+    <summary>How does this ValiChord demo work?</summary>
     <div class="expand-body">
       <p>The mathematical engine at ValiChord's core is a <strong>commit-reveal protocol</strong> — a cryptographic primitive invented by Manuel Blum in 1981 to solve a deceptively simple problem: how can two people who don't trust each other flip a fair coin over a telephone? One person hashes their guess and shares the hash; the coin is flipped; then they reveal their guess. Neither can change their mind after seeing the outcome. ValiChord takes that primitive — invented for flipping coins — and turns it into a mirror for institutional truth.</p>
-      <p>Every party — the researcher and each validator — cryptographically hashes and seals their verdict <em>before</em> anyone reveals anything. These commitments are stored on the Oracle DHT: a distributed hash table where no single node is in charge. Once all commitments are on the network, you trigger the reveal phase. Each reveal is verified against its prior hash — making it <strong>mathematically impossible</strong> to change your answer after seeing anyone else's. No last-mover advantage. No institutional pressure that could nudge a result retroactively.</p>
+      <p>Every party — the researcher and each validator — cryptographically hashes and seals their verdict <em>before</em> anyone reveals anything. These commitments are stored on a Holochain DHT: a distributed hash table where no single node is in charge. Once all commitments are on the network, you trigger the reveal phase. Each reveal is verified against its prior hash — making it <strong>mathematically impossible</strong> to change your answer after seeing anyone else's. No last-mover advantage. No institutional pressure that could nudge a result retroactively.</p>
+      <p>In this demo, the Holochain conductors run on a dedicated server so you don't need to install anything. In the full protocol, every participant runs their own conductor — the network is entirely peer-to-peer with no central infrastructure at all.</p>
       <p>The final HarmonyRecord is written to the DHT with a permanent, content-addressed hash you can fetch from any node, independently of this website. What you get is not just a verdict — it's <strong>proof of the process</strong>. The record shows who committed what, and in what order. That's what makes it trustworthy.</p>
     </div>
   </details>
