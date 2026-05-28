@@ -3,9 +3,8 @@ use researcher_repository_integrity::{
     DeclaredDeviation, EntryTypes, LinkTypes, LockedResult, PreRegisteredProtocol, ResearchStudy,
     VerifiedDataSnapshot,
 };
-use valichord_shared_types::{MetricResult, ResearcherCommitmentInput, UndeclaredDeviation};
+use valichord_shared_types::{MetricResult, ResearcherCommitmentInput, UndeclaredDeviation, metric_results_msgpack_bytes};
 use sha2::{Sha256, Digest};
-use rmp_serde as rmps;
 
 // ---------------------------------------------------------------------------
 // No init() needed.
@@ -232,8 +231,7 @@ pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash
     let nonce: Vec<u8> = random_bytes(32)?.to_vec();
 
     // 2. Commitment hash: SHA-256(msgpack(metrics) || nonce).
-    let msgpack_bytes: Vec<u8> = rmps::to_vec_named(&input.metrics)
-        .map_err(|e| wasm_error!(WasmErrorInner::Guest(e.to_string())))?;
+    let msgpack_bytes: Vec<u8> = metric_results_msgpack_bytes(&input.metrics)?;
     let mut hasher = Sha256::new();
     hasher.update(&msgpack_bytes);
     hasher.update(&nonce);

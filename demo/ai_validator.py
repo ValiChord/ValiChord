@@ -247,7 +247,7 @@ Reply with ONLY a JSON object — no markdown, no explanation:
                     ),
                 })
             message = client.messages.create(
-                model='claude-opus-4-6',
+                model='claude-opus-4-7',
                 max_tokens=256,
                 messages=messages,
             )
@@ -436,14 +436,17 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
     harmony_record_hash = harmony_resp.get('harmony_record_hash')
 
     # Derive majority outcome + agreement level from the 3 verdicts.
-    outcomes    = [v['outcome'] for v in verdicts]
+    # Logic mirrors shared_types::derive_agreement_level: ExactMatch uses
+    # full_rate (Reproduced only); lower tiers use any_rate (Reproduced + Partial).
+    outcomes     = [v['outcome'] for v in verdicts]
     n_reproduced = outcomes.count('Reproduced')
     n_partial    = outcomes.count('PartiallyReproduced')
-    rate         = (n_reproduced + n_partial) / len(outcomes)
+    full_rate    = n_reproduced / len(outcomes)
+    any_rate     = (n_reproduced + n_partial) / len(outcomes)
     agreement_level = (
-        'ExactMatch'       if rate >= 0.90 else
-        'WithinTolerance'  if rate >= 0.70 else
-        'DirectionalMatch' if rate >= 0.50 else
+        'ExactMatch'       if full_rate >= 0.90 else
+        'WithinTolerance'  if any_rate  >= 0.70 else
+        'DirectionalMatch' if any_rate  >= 0.50 else
         'Divergent'        if n_reproduced + n_partial > 0 else
         'UnableToAssess'
     )
