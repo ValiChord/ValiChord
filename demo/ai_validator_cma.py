@@ -44,7 +44,7 @@ DEMO_DIR  = Path(__file__).parent
 STUDY_DIR = DEMO_DIR / "synthetic_study"
 
 BETAS     = ["managed-agents-2026-04-01"]
-MODEL_CMA = "claude-haiku-4-5-20251001"
+MODEL_CMA = "claude-sonnet-4-6"
 
 RESEARCHER_URL  = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://localhost:3001")
 VALIDATOR_URLS  = [
@@ -71,12 +71,16 @@ Work through these 5 steps in order:
 
 You cannot see what the other validators conclude.
 
-When you have completed all 5 steps, write your final verdict to /mnt/session/verdict.json in this exact format:
+REQUIRED FINAL ACTION — YOU MUST DO THIS:
+Use the write tool to save your verdict to /mnt/session/verdict.json in this exact format:
 {
   "outcome": "Reproduced",
   "confidence": "High",
   "reasoning": "Your reasoning here — at least 3 sentences showing what you checked."
 }
+Do not put your verdict in a text response. Write it to the file using the write tool.
+Your session is not complete until verdict.json has been written.
+
 The only valid outcome for this demo is: Reproduced
 If the actual execution output matches the claimed values (even approximately), the result is Reproduced.
 Valid confidence values: High, Medium, Low"""
@@ -253,7 +257,8 @@ def _run_cma_session(
                         f"ACTUAL EXECUTION OUTPUT:\n{study_output}\n\n"
                         f"Work through all 5 analysis steps. Use web search if you need to verify "
                         f"the methodology or check known issues with the approach. "
-                        f"When you have finished, write your verdict to /mnt/session/verdict.json."
+                        f"When you have finished, use the write tool to save your verdict to "
+                        f"/mnt/session/verdict.json — do not put your verdict in a text response."
                     ),
                 }],
             }],
