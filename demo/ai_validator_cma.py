@@ -227,86 +227,109 @@ def _run_cma_session(
         betas=BETAS,
     )
 
-    session = client.beta.sessions.create(
-        agent={"type": "agent", "id": agent.id, "version": agent.version},
-        environment_id=env.id,
-        betas=BETAS,
-    )
-
-    client.beta.sessions.events.send(
-        session.id,
-        betas=BETAS,
-        events=[{
-            "type": "user.message",
-            "content": [{
-                "type": "text",
-                "text": (
-                    f"You are Validator {idx} in a 3-validator independent review. "
-                    f"You cannot see the other validators' conclusions.\n\n"
-                    f"STUDY BRIEF:\n{readme}\n\n"
-                    f"ACTUAL EXECUTION OUTPUT:\n{study_output}\n\n"
-                    f"Work through all 5 analysis steps. Use web search if you need to verify "
-                    f"the methodology or check known issues with the approach. "
-                    f"When you have finished, write your verdict to /mnt/session/verdict.json."
-                ),
-            }],
-        }],
-    )
-
-    n_tool_calls = 0
+    MAX_ATTEMPTS = 2
+    last_error   = ""
     t0           = time.time()
-    last_write   = {}  # tracks most recent write call per file path
+    v = reasoning = None  # set inside loop; referenced in log after break
 
-    with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
-        for ev in stream:
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        session = client.beta.sessions.create(
+            agent={"type": "agent", "id": agent.id, "version": agent.version},
+            environment_id=env.id,
+            betas=BETAS,
+        )
+
+        client.beta.sessions.events.send(
+            session.id,
+            betas=BETAS,
+            events=[{
+                "type": "user.message",
+                "content": [{
+                    "type": "text",
+                    "text": (
+                        f"You are Validator {idx} in a 3-validator independent review. "
+                        f"You cannot see the other validators' conclusions.\n\n"
+                        f"STUDY BRIEF:\n{readme}\n\n"
+                        f"ACTUAL EXECUTION OUTPUT:\n{study_output}\n\n"
+                        f"Work through all 5 analysis steps. Use web search if you need to verify "
+                        f"the methodology or check known issues with the approach. "
+                        f"When you have finished, write your verdict to /mnt/session/verdict.json."
+                    ),
+                }],
+            }],
+        )
+
+        n_tool_calls = 0
+
+        with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
+            for ev in stream:
+                if ev.type == "agent.tool_use":
+                    n_tool_calls += 1
+                elif ev.type == "session.status_idle":
+                    break
+
+        # Reconstruct verdict.json from event log (handles write + edit sequences)
+        verdict_content = ""
+        for ev in client.beta.sessions.events.list(session.id, limit=1000, betas=BETAS):
             if ev.type == "agent.tool_use":
-                n_tool_calls += 1
-            elif ev.type == "session.status_idle":
-                break
+                if ev.name == "write" and "verdict.json" in ev.input.get("file_path", ""):
+                    verdict_content = ev.input.get("content", "")
+                elif ev.name == "edit" and "verdict.json" in ev.input.get("file_path", ""):
+                    verdict_content = verdict_content.replace(
+                        ev.input.get("old_string", ""),
+                        ev.input.get("new_string", ""),
+                        1,
+                    )
 
-    # Reconstruct verdict.json from event log (handles write + edit sequences)
-    verdict_content = ""
-    for ev in client.beta.sessions.events.list(session.id, limit=1000, betas=BETAS):
-        if ev.type == "agent.tool_use":
-            if ev.name == "write" and "verdict.json" in ev.input.get("file_path", ""):
-                verdict_content = ev.input.get("content", "")
-            elif ev.name == "edit" and "verdict.json" in ev.input.get("file_path", ""):
-                verdict_content = verdict_content.replace(
-                    ev.input.get("old_string", ""),
-                    ev.input.get("new_string", ""),
-                    1,
-                )
+        elapsed = time.time() - t0
 
-    elapsed = time.time() - t0
+        if not verdict_content:
+            last_error = (
+                f"Validator {idx} CMA session ended without writing verdict.json "
+                f"(attempt={attempt}/{MAX_ATTEMPTS}, tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
+            )
+            log.warning(last_error + (" — retrying" if attempt < MAX_ATTEMPTS else ""))
+            continue
 
-    if not verdict_content:
-        raise RuntimeError(
-            f"Validator {idx} CMA session ended without writing verdict.json "
-            f"(tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
-        )
+        # Parse the verdict
+        raw = verdict_content.strip()
+        for fence in ("```json", "```"):
+            if raw.startswith(fence):
+                raw = raw[len(fence):]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
 
-    # Parse and validate the verdict
-    raw = verdict_content.strip()
-    for fence in ("```json", "```"):
-        if raw.startswith(fence):
-            raw = raw[len(fence):]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    raw = raw.strip()
+        try:
+            v = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            last_error = (
+                f"Validator {idx} verdict.json is not valid JSON "
+                f"(attempt={attempt}/{MAX_ATTEMPTS}): {exc}"
+            )
+            log.warning(last_error + (" — retrying" if attempt < MAX_ATTEMPTS else ""))
+            continue
 
-    v = json.loads(raw)
-    if v.get("outcome") != "Reproduced":
-        raise RuntimeError(f"Validator {idx} wrote unexpected outcome: {v.get('outcome')!r}")
-    if v.get("confidence") not in {"High", "Medium", "Low"}:
-        raise RuntimeError(f"Validator {idx} wrote invalid confidence: {v.get('confidence')!r}")
+        # Validate fields — hard errors, not retried
+        if v.get("outcome") != "Reproduced":
+            raise RuntimeError(f"Validator {idx} wrote unexpected outcome: {v.get('outcome')!r}")
+        if v.get("confidence") not in {"High", "Medium", "Low"}:
+            raise RuntimeError(f"Validator {idx} wrote invalid confidence: {v.get('confidence')!r}")
 
-    reasoning = v.get("reasoning", "")
-    sentences = [s.strip() for s in re.split(r"[.!?]", reasoning) if len(s.strip()) > 15]
-    if len(sentences) < 3:
-        raise RuntimeError(
-            f"Validator {idx} reasoning too brief ({len(sentences)} sentences). "
-            f"Content: {reasoning[:200]}"
-        )
+        reasoning = v.get("reasoning", "")
+        sentences = [s.strip() for s in re.split(r"[.!?]", reasoning) if len(s.strip()) > 15]
+        if len(sentences) < 3:
+            last_error = (
+                f"Validator {idx} reasoning too brief "
+                f"({len(sentences)} sentences, attempt={attempt}/{MAX_ATTEMPTS}). "
+                f"Content: {reasoning[:200]}"
+            )
+            log.warning(last_error + (" — retrying" if attempt < MAX_ATTEMPTS else ""))
+            continue
+
+        break  # verdict is good
+    else:
+        raise RuntimeError(last_error)
 
     verdict = {
         "outcome":    v["outcome"],
