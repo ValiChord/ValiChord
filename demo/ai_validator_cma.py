@@ -146,6 +146,20 @@ def _node_get(url: str, timeout: int = 30) -> dict:
     except OSError as e:
         raise RuntimeError(f"Cannot reach {url}: {e}")
 
+
+def _reveal_with_retry(url: str, payload: dict, max_attempts: int = 3) -> dict:
+    """POST to a /reveal endpoint, retrying up to max_attempts times on transient errors."""
+    last_exc: Exception = RuntimeError("no attempts made")
+    for attempt in range(max_attempts):
+        try:
+            return _node_post(url, payload)
+        except RuntimeError as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                log.warning(f"Reveal to {url} attempt {attempt + 1} failed: {exc} — retrying in 5s")
+                time.sleep(5)
+    raise last_exc
+
 # ── Study helpers (same as demo_runner) ───────────────────────────────────────
 
 def load_study():
@@ -490,7 +504,7 @@ def _finish_protocol(
     researcher_reveal_hash = reveal_resp.get("researcher_reveal_hash")
 
     for i, vurl in enumerate(VALIDATOR_URLS):
-        _node_post(f"{vurl}/reveal", {"external_hash_b64": external_hash_b64})
+        _reveal_with_retry(f"{vurl}/reveal", {"external_hash_b64": external_hash_b64})
         if i < len(VALIDATOR_URLS) - 1:
             time.sleep(15)
 

@@ -28,6 +28,21 @@ log = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 2
 
+
+def _reveal_with_retry(url: str, payload: dict, max_attempts: int = 3) -> dict:
+    """POST to a /reveal endpoint, retrying up to max_attempts times on transient errors."""
+    last_exc: Exception = RuntimeError("no attempts made")
+    for attempt in range(max_attempts):
+        try:
+            return _node_post(url, payload)
+        except RuntimeError as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                log.warning(f"Reveal to {url} attempt {attempt + 1} failed: {exc} — retrying in 5s")
+                time.sleep(5)
+    raise last_exc
+
+
 VALIDATOR_CLAIM_SYSTEM = """You are an independent evaluator assessing whether a hypothesis is supported by evidence.
 
 Work through these 5 steps in order:
@@ -405,7 +420,7 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -
     researcher_reveal_hash = reveal_resp.get("researcher_reveal_hash")
 
     for i, vurl in enumerate(VALIDATOR_URLS):
-        _node_post(f"{vurl}/reveal", {"external_hash_b64": external_hash_b64})
+        _reveal_with_retry(f"{vurl}/reveal", {"external_hash_b64": external_hash_b64})
         if i < len(VALIDATOR_URLS) - 1:
             time.sleep(15)
 
