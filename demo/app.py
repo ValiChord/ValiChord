@@ -252,20 +252,24 @@ def _run_custom_reveal_phase(job_id: str):
 
 
 def _custom_timeout_watchdog():
-    """Release the custom demo lock if the user never clicks Reveal."""
+    """Release the custom demo lock if a run gets stuck in any non-terminal phase."""
     global _custom_running
     while True:
         time.sleep(60)
         if _custom_running:
             for job in _custom_jobs.values():
-                if (
-                    job.get("phase") == "awaiting_reveal"
-                    and time.time() - job.get("_started_at", 0) > _CUSTOM_TIMEOUT_SECS
-                ):
+                phase = job.get("phase", "")
+                age   = time.time() - job.get("_started_at", 0)
+                if phase not in ("done", "error") and age > _CUSTOM_TIMEOUT_SECS:
+                    print(f"Watchdog: releasing stuck job in phase={phase!r} after {age:.0f}s", flush=True)
                     job["phase"]  = "error"
                     job["status"] = "error"
-                    job["error"]  = "Session expired — reveal not triggered within 30 minutes."
+                    job["error"]  = (
+                        f"Session timed out in phase '{phase}' after "
+                        f"{_CUSTOM_TIMEOUT_SECS // 60} minutes."
+                    )
                     _custom_running = False
+                    break  # only one lock to release; re-check next minute
 
 
 threading.Thread(target=_custom_timeout_watchdog, daemon=True).start()
