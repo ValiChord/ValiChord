@@ -37,12 +37,15 @@ Work through these 5 steps in order:
 
 You cannot see what the other validators have concluded — they are working simultaneously and independently.
 
-When you have completed all 5 steps, write your verdict to /mnt/session/verdict.json with this exact format:
+REQUIRED FINAL ACTION — YOU MUST DO THIS:
+Use the write tool to save your verdict to /mnt/session/verdict.json in this exact format:
 {
   "outcome": "Reproduced" | "PartiallyReproduced" | "NotReproduced",
   "confidence": "High" | "Medium" | "Low",
   "reasoning": "At least 3 sentences describing what you found and why you reached this verdict."
-}"""
+}
+Do not put your verdict in a text response. Write it to the file using the write tool.
+Your session is not complete until verdict.json has been written."""
 
 _COMPARE_TEMPLATE = """\
 A researcher assessed a hypothesis and sealed their answer as a cryptographic commitment before three \
