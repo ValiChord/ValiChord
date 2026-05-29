@@ -502,7 +502,8 @@ details[open]>summary::after{transform:rotate(90deg)}
 </main>
 <script>
 // ── Free demo ─────────────────────────────────────────────────────────────────
-let poll=null;
+let poll=null,pollStart=null;
+const MAX_POLL_MS=8*60*1000;
 function startDemo(){
   const btn=document.getElementById('runBtn');
   btn.disabled=true;
@@ -518,10 +519,16 @@ function startDemo(){
       btn.disabled=false;pc.style.display='none';return;
     }
     if(!d.job_id){showErr('resultArea','Failed to start: '+JSON.stringify(d));btn.disabled=false;return;}
-    poll=setInterval(()=>doPoll(d.job_id),2000);
+    pollStart=Date.now();poll=setInterval(()=>doPoll(d.job_id),2000);
   }).catch(e=>{showErr('resultArea','Network error: '+e.message);btn.disabled=false;});
 }
 function doPoll(id){
+  if(pollStart&&Date.now()-pollStart>MAX_POLL_MS){
+    clearInterval(poll);
+    showErr('resultArea','Demo timed out after 8 minutes. The run may still be processing — refresh to check.');
+    document.getElementById('runBtn').disabled=false;
+    return;
+  }
   fetch('/demo/result/'+id).then(r=>r.json()).then(j=>{
     setSteps(j.step,false);
     if(j.status==='done'){clearInterval(poll);setSteps(7,true);showFreeResult(j.result);document.getElementById('runBtn').disabled=false;}
@@ -539,7 +546,7 @@ function setSteps(cur,done){
 }
 
 // ── Custom demo ───────────────────────────────────────────────────────────────
-let customPoll=null,customJobId=null;
+let customPoll=null,customJobId=null,customPollStart=null;
 function checkCustomReady(){
   const ok=document.getElementById('customClaim').value.trim()
          &&document.getElementById('customAnswer').value.trim()
@@ -575,7 +582,7 @@ function startCustomDemo(){
         document.getElementById('customInputCard').style.opacity='1';return;
       }
       customJobId=d.job_id;
-      customPoll=setInterval(()=>pollCustom(d.job_id),2000);
+      customPollStart=Date.now();customPoll=setInterval(()=>pollCustom(d.job_id),2000);
     }).catch(e=>{
       showErr('customResultArea','Network error: '+e.message);
       document.getElementById('customSubmitBtn').disabled=false;
@@ -583,6 +590,13 @@ function startCustomDemo(){
     });
 }
 function pollCustom(id){
+  if(customPollStart&&Date.now()-customPollStart>MAX_POLL_MS){
+    clearInterval(customPoll);
+    showErr('customResultArea','Demo timed out after 8 minutes. The run may still be processing — refresh to check.');
+    document.getElementById('customSubmitBtn').disabled=false;
+    document.getElementById('customInputCard').style.opacity='1';
+    return;
+  }
   fetch('/demo/custom/result/'+id).then(r=>r.json()).then(j=>{
     setCustomDots(j.validators_committed||0);
     if(j.phase==='awaiting_reveal'){clearInterval(customPoll);enableRevealBtn();}
