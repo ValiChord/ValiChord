@@ -27,6 +27,56 @@ This document describes the integration architecture, the combined demo, and wha
 
 ---
 
+## CORE-Bench solves ValiChord's hardest UX problem
+
+ValiChord's deepest challenge is not the protocol — it's the input. For commit-reveal verification to work, a researcher has to structure their claim precisely enough that an independent party can verify it without guidance. That means:
+
+- A clear, unambiguous statement of what is being claimed
+- All materials needed to reproduce it
+- Specific, pre-defined metrics the validator can check against
+
+This is a lot to ask. The current demo sidesteps it by using free-text claims that web-search agents assess subjectively. For computational research the bar needs to be higher — verdicts should flow from running code, not forming opinions.
+
+**A CodeOcean capsule is exactly what ValiChord needs as its input layer.**
+
+A CORE-Bench capsule already contains everything:
+
+| Capsule component | ValiChord role |
+|---|---|
+| Code + data | The claim, operationally defined |
+| `README.md` / `REPRODUCING.md` | Instructions any independent party can follow |
+| Specific numerical outputs | The pre-defined metrics validators check against |
+
+A researcher who has a CodeOcean capsule has already done ValiChord's hardest UX work — without knowing it. They don't need to learn a new way of structuring their research. The capsule is the structured input.
+
+### Automatic metric extraction closes the loop
+
+CORE-Bench's agent can be run once by the researcher to extract the key numerical outputs from their code. Those outputs become the metrics the researcher commits to ValiChord before any validator starts. The researcher didn't manually define metrics — their code defined them.
+
+The complete workflow:
+
+```
+1. Researcher runs their capsule once
+        ↓
+2. Agent extracts key numerical outputs → these become the committed metrics
+        ↓
+3. Researcher commits metrics + capsule reference to ValiChord
+   (sealed before any validator starts)
+        ↓
+4. Three independent agents download the same capsule, run it in isolation,
+   compare their outputs against the committed metrics, write report.json
+        ↓
+5. Each commits their report.json blind — no agent can see the others'
+        ↓
+6. Simultaneous reveal → HarmonyRecord
+```
+
+The capsule is the unit of commitment. The code is the claim. CORE-Bench provides the scaffolding that turns both into something any third party can independently verify.
+
+This matters because it makes ValiChord accessible to computational researchers without asking them to change how they work. If they already have a reproducible capsule — the standard CodeOcean format, increasingly required by journals — they already have what ValiChord needs. The protocol wraps around their existing artefact rather than demanding a new one.
+
+---
+
 ## How CORE-Bench's agent becomes a ValiChord validator
 
 ### What CORE-Bench's agent does
