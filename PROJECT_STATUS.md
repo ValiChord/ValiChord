@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-28
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.6** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
+**Last updated:** 2026-05-29
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
 
@@ -86,6 +86,31 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Release v0.5.7 — Demo reliability hardening — 2026-05-29 ✓
+
+10-commit reliability overhaul of the public demo, driven by user reports of "validator 1/2/3 ended without giving a verdict." Root cause: the custom demo path (`custom_runner.py`) had never received the hardening applied to the free path (`ai_validator_cma.py`) in v0.5.5/v0.5.6.
+
+**Fixes shipped (custom_runner.py):**
+- **Hardened system prompt** — ported the "REQUIRED FINAL ACTION — YOU MUST DO THIS" block and "Do not put your verdict in a text response" instruction to `VALIDATOR_CLAIM_SYSTEM`
+- **Fresh-session retry** — replaced the weak in-session reminder with a `_MAX_ATTEMPTS = 2` loop that creates a fully fresh CMA session on retry (mirrors `_run_cma_session` in the free path); `json.JSONDecodeError` also triggers a retry
+- **`compare_answers` fallback** — wrapped JSON parse in try/except; a malformed Claude reply no longer marks the job as error after the HarmonyRecord is already on-chain
+- **Reveal retry** — `_reveal_with_retry` helper retries each validator `/reveal` call up to 3 times with 5 s back-off
+- **Tolerant error collection** — parallel validator futures are now all awaited before raising; a single failure produces a descriptive error naming which validators failed rather than aborting silently
+
+**Fixes shipped (ai_validator_cma.py):**
+- **Commit DHT retry** — ported the 6-attempt "No ValidationRequest found" retry from the custom path to the free path's `_run_cma_session`
+- **Reveal retry** — same `_reveal_with_retry` helper applied to `_finish_protocol`
+- **Tolerant error collection** — same tolerant `as_completed` loop applied to `form_verdicts_cma`
+
+**Fixes shipped (app.py):**
+- **Watchdog expanded** — background watchdog now releases `_custom_running` for any non-terminal phase (starting, committing, awaiting_reveal), not only `awaiting_reveal`; prevents permanent lock if the commit thread crashes mid-run
+- **Rate limit on success only** — `_ip_last_free[ip]` and `_free_run_count` now recorded only after a successful free run, not on failure; failed runs no longer burn the user's daily quota or the monthly budget
+- **Client-side poll timeout** — 8-minute `MAX_POLL_MS` hard stop added to both `doPoll` and `pollCustom`; `customPollStart` is reset in `triggerReveal()` so the reveal phase gets its own 8-minute window
+
+Verified by Opus 4.8 code review; one regression (false timeout on reveal) caught and fixed before deploy.
+
+---
 
 ### Three minor correctness fixes — 2026-05-28 ✓
 

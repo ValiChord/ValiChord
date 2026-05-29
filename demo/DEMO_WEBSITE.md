@@ -38,16 +38,16 @@ The user enters a hypothesis and their own assessment of it. That assessment is 
    - Receives a `user.message` with the hypothesis and its validator index
    - Works through 5 steps using `web_search`, `web_fetch`, and `write` tools
    - Writes its verdict to `/mnt/session/verdict.json` — `outcome`, `confidence`, `reasoning`
-   - If the session goes idle without writing a verdict, a reminder message is sent and the session streams again
+   - If the session goes idle without writing a verdict, a fresh session is created on the same env/agent (up to `_MAX_ATTEMPTS = 2` total attempts)
    - Calls `POST /commit` on its assigned validator node; retries up to 6 times (15 s apart) if the ValidationRequest hasn't propagated yet
-6. Once all three have committed, `job["phase"]` is set to `"awaiting_reveal"`. The UI Reveal button starts pulsing green.
+6. Once all three have committed, `job["phase"]` is set to `"awaiting_reveal"`. The UI Reveal button starts pulsing green. If any validators fail after all retry attempts, a descriptive error names exactly which ones failed.
 
 **Phase 2 — Reveal (triggered by user click)**
 
 1. Polls `GET /phase` on the researcher node until `"RevealOpen"` (up to 240 s).
 2. `POST /reveal` on the researcher node — unseals the researcher's commitment.
-3. `POST /reveal` on each of the three validator nodes (15 s apart to avoid DHT write conflicts).
-4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns `{ outcome, agreement_level, summary }`.
+3. `POST /reveal` on each of the three validator nodes (15 s apart to avoid DHT write conflicts); each call retried up to 3 times on transient network errors.
+4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns `{ outcome, agreement_level, summary }`. If Claude returns malformed JSON, a neutral fallback result is used so the HarmonyRecord is still written.
 5. `POST /create-harmony-record` → permanent HarmonyRecord on the DHT.
 6. `job["phase"] = "done"` — UI renders the full result.
 
@@ -104,7 +104,7 @@ Note: `agreement_level` in the HarmonyRecord reflects validator-to-validator con
 
 ### Concurrency
 
-One custom run at a time, enforced by `_custom_running` bool + `_custom_lock`. A second visitor during an active run gets a 409. The lock is held through both phases — it is not released between commit and reveal. A background watchdog thread releases it automatically if the user never clicks Reveal within 30 minutes.
+One custom run at a time, enforced by `_custom_running` bool + `_custom_lock`. A second visitor during an active run gets a 409. The lock is held through both phases — it is not released between commit and reveal. A background watchdog thread releases it automatically if a job gets stuck in any non-terminal phase (starting, committing, or awaiting_reveal) for more than 30 minutes.
 
 ### Requires
 
@@ -142,8 +142,8 @@ One free run at a time, enforced by `_demo_lock` + `_demo_running` bool. Lock al
 
 | Demo | Limit | Enforcement |
 |---|---|---|
-| Free | Once per IP per day | `_ip_last_free` dict, 86 400 s cooldown |
-| Free | ~50 runs/month server budget | `_free_run_count × $0.10 ≥ $5.00` → 429 |
+| Free | Once per IP per day | `_ip_last_free` dict, 86 400 s cooldown — recorded only on successful completion |
+| Free | ~50 runs/month server budget | `_free_run_count × $0.10 ≥ $5.00` → 429 — counted only on success |
 | Custom | 1 concurrent run (global) | `_custom_running` bool + 30-min watchdog |
 
 A visitor who hits either limit gets a 429 with a human-readable explanation. The free demo rate limit is per IP, not per session — VPNs can bypass it but that's accepted.
