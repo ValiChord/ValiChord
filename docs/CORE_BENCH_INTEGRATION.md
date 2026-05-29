@@ -14,7 +14,7 @@ This document describes the integration architecture, the combined demo, and wha
 |---|---|---|---|
 | **Reproduction is computational** | ✅ Agent runs actual code | ❌ Current demo uses web search | ✅ |
 | **Verdict is objective** | ✅ Code output matches or it doesn't | ❌ Agent forms an opinion | ✅ |
-| **Multiple independent parties** | ❌ One agent, one result | ✅ Three validators | ✅ |
+| **Multiple independent parties** | ❌ One agent, one result | ✅ N validators (configurable) | ✅ |
 | **Structural independence** | ❌ Second runner can see first's result | ✅ Commit-reveal prevents this | ✅ |
 | **Permanent verifiable record** | ❌ Results live in a log file | ✅ HarmonyRecord on DHT | ✅ |
 | **No post-hoc adjustment** | ❌ Anyone could re-run and pick the best | ✅ Commit-reveal prevents this | ✅ |
@@ -23,21 +23,27 @@ This document describes the integration architecture, the combined demo, and wha
 
 **ValiChord alone** proves independent parties agreed — but the current demo validators form opinions via web search, which is subjective.
 
-**Combined**: three agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed, and the outcome is permanently recorded on a distributed network no single party controls.
+**Combined**: N agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed, and the outcome is permanently recorded on a distributed network no single party controls.
 
-### What three independent runs actually prove
+### What N independent runs actually prove
 
 It is worth being precise here, because the value of commit-reveal is different for objective code than for subjective claims.
 
-For deterministic code with fixed seeds and pinned dependencies, three correct runs will produce byte-identical output. Agreement is then near-tautological — there is no opinion to coordinate on. What commit-reveal protects against in the objective setting is not *"validator B anchored on validator A's interpretation"* but *"validator B copied validator A's `report.json` instead of running the code."* That is still a real and defensible guarantee, just a different one from the subjective case.
+For deterministic code with fixed seeds and pinned dependencies, N correct runs will produce byte-identical output. Agreement is then near-tautological — there is no opinion to coordinate on. What commit-reveal protects against in the objective setting is not *"validator B anchored on validator A's interpretation"* but *"validator B copied validator A's `report.json` instead of running the code."* That is still a real and defensible guarantee, just a different one from the subjective case.
 
-Three independent hard-difficulty runs concretely prove:
+N independent hard-difficulty runs concretely prove:
 
-1. **The capsule executes from scratch** — a party with no hints can follow the instructions and reach the code's output
-2. **The result is robust to independent environments** — package installs, library versions, hardware variance across three separate runs
+1. **The capsule executes from scratch** — any party with no hints can follow the instructions and reach the code's output
+2. **The result is robust to independent environments** — package installs, library versions, hardware variance across N separate runs
 3. **No agent fabricated or copied a result** — commit-reveal means each agent committed before seeing any other's `report.json`; copying would have required predicting the others' outputs
 
 This is the honest value proposition for the objective setting. State it this way and it is hard to poke.
+
+### Validator count is a parameter, not a constant
+
+ValiChord places no architectural limit on the number of validators. The current demo uses three because that is a convenient number for illustration — not because the protocol requires it. A routine benchmark check might warrant three; a regulatory submission might warrant thirty; a contested safety evaluation might warrant more still.
+
+The optimal number is an open empirical question. It depends on the expected agreement rate, the required statistical confidence, the cost per validation run, and the stakes of the claim. This is directly analogous to statistical power analysis in clinical trial design — a question for statisticians once the protocol is in wider use, not something the architecture should pre-answer.
 
 ---
 
@@ -134,14 +140,14 @@ This structured output — the agent's answer to specific verifiable questions a
 ## Integration architecture
 
 ```
-Researcher                    Validator 1           Validator 2           Validator 3
+Researcher                    Validator 1           Validator 2     ...   Validator N
     |                              |                     |                     |
     | Commits result hash          |                     |                     |
     |---> ValiChord DHT            |                     |                     |
     |                              |                     |                     |
     |      [30s DHT propagation]   |                     |                     |
     |                              |                     |                     |
-    |                    [Three CORE-Bench agents run in parallel, isolated]
+    |                    [N CORE-Bench agents run in parallel, isolated]
     |                              |                     |                     |
     |                    Downloads capsule    Downloads capsule    Downloads capsule
     |                    Runs code (hard)     Runs code (hard)     Runs code (hard)
@@ -149,16 +155,17 @@ Researcher                    Validator 1           Validator 2           Valida
     |                              |                     |                     |
     |                    Commits report hash to ValiChord DHT (each blind)
     |                              |                     |                     |
-    |      [All three committed — ValiChord opens reveal phase]
+    |      [All N committed — ValiChord opens reveal phase]
     |                              |                     |                     |
     |                    Reveals report.json  Reveals             Reveals
     |                              |                     |                     |
-    |      ValiChord compares all three reports
+    |      ValiChord compares all N reports against researcher's committed claim
     |      Writes HarmonyRecord to DHT:
-    |        - ExactMatch: all three got identical answers
-    |        - WithinTolerance: answers agree within numeric tolerance
-    |        - Divergent: agents got different results
+    |        - ExactMatch: all validators reproduced, outputs match
+    |        - WithinTolerance: validators reproduced, within numeric tolerance
+    |        - Divergent: validators disagree or failed to reproduce
 ```
+*(Diagram shows N=3 for clarity. The protocol supports any number of validators.)*
 
 ---
 
@@ -195,10 +202,11 @@ async def run_core_bench_validator(
 
 ### 2. `demo/core_bench_runner.py`
 
-Orchestrator that runs three validators in parallel:
-- Each validator runs a separate Inspect AI eval against the same capsule
+Orchestrator that runs N validators in parallel:
+- Validator count is a runtime parameter, not hardcoded
+- Each validator runs a separate Inspect AI eval against the same capsule in isolation
 - Each commits before seeing others' results (enforced by ValiChord protocol)
-- Initiates reveal phase once all three have committed
+- Initiates reveal phase once all N have committed
 - Returns the HarmonyRecord
 
 ### 3. Verdict format adapter
@@ -237,7 +245,7 @@ Each validator agent runs in an isolated Docker sandbox (CORE-Bench already uses
 
 ### What it shows
 
-A live run of the full protocol on a specific CORE-Bench capsule. Three independent AI agents each reproduce a research paper's computational results in isolated Docker environments, commit their findings blind, reveal simultaneously, and produce a permanent HarmonyRecord.
+A live run of the full protocol on a specific CORE-Bench capsule. Three independent AI agents each reproduce a research paper's computational results in isolated Docker environments, commit their findings blind, reveal simultaneously, and produce a permanent HarmonyRecord. Three validators is a demonstration choice — the protocol imposes no upper limit, and the right number for any given claim is a function of its stakes and the statistical confidence required.
 
 ### Demo capsule selection criteria
 
