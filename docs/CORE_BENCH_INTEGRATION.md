@@ -23,7 +23,21 @@ This document describes the integration architecture, the combined demo, and wha
 
 **ValiChord alone** proves independent parties agreed — but the current demo validators form opinions via web search, which is subjective.
 
-**Combined**: three agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed (commit-reveal prevents coordination), and the outcome is permanently recorded on a distributed network no single party controls.
+**Combined**: three agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed, and the outcome is permanently recorded on a distributed network no single party controls.
+
+### What three independent runs actually prove
+
+It is worth being precise here, because the value of commit-reveal is different for objective code than for subjective claims.
+
+For deterministic code with fixed seeds and pinned dependencies, three correct runs will produce byte-identical output. Agreement is then near-tautological — there is no opinion to coordinate on. What commit-reveal protects against in the objective setting is not *"validator B anchored on validator A's interpretation"* but *"validator B copied validator A's `report.json` instead of running the code."* That is still a real and defensible guarantee, just a different one from the subjective case.
+
+Three independent hard-difficulty runs concretely prove:
+
+1. **The capsule executes from scratch** — a party with no hints can follow the instructions and reach the code's output
+2. **The result is robust to independent environments** — package installs, library versions, hardware variance across three separate runs
+3. **No agent fabricated or copied a result** — commit-reveal means each agent committed before seeing any other's `report.json`; copying would have required predicting the others' outputs
+
+This is the honest value proposition for the objective setting. State it this way and it is hard to poke.
 
 ---
 
@@ -104,7 +118,8 @@ This structured output — the agent's answer to specific verifiable questions a
 |---|---|
 | Agent runs the capsule | Validator independently reproduces the claim |
 | `report.json` | Validator's sealed verdict |
-| Scorer checks against ground truth | ValiChord compares all validators' verdicts |
+| Scorer checks against CORE-Bench ground truth | Separate optional overlay — not used for the ValiChord HarmonyRecord |
+| ValiChord compares validators' reports against researcher's committed claim | The actual agreement computation |
 | One agent, one run | Three agents, three independent runs |
 | Result stored in log file | HarmonyRecord on DHT |
 
@@ -188,21 +203,29 @@ Orchestrator that runs three validators in parallel:
 
 ### 3. Verdict format adapter
 
-Maps CORE-Bench `report.json` to ValiChord's verdict structure:
+Maps CORE-Bench `report.json` to ValiChord's verdict structure.
+
+**Important design constraint:** validators commit their raw `report.json` *before* the researcher reveals. The comparison is researcher-claim-relative — each validator's output is compared against the researcher's committed metrics at reveal time. CORE-Bench ground truth (the encrypted HuggingFace dataset) is a separate, optional overlay for benchmark scoring and must not be passed into the commit-time adapter, as doing so would give validators knowledge of the expected answer before they commit, defeating blinding.
 
 ```python
-def report_json_to_verdict(report: dict, ground_truth: dict) -> dict:
+def report_json_to_verdict(report: dict, tolerance_config: dict) -> dict:
     """
     Convert CORE-Bench report.json to a ValiChord validator verdict.
-    
-    outcome: 'Reproduced' if all questions answered correctly,
-             'PartiallyReproduced' if some match,
-             'NotReproduced' if major discrepancies
-    confidence: 'High' if numeric answers within 1%, 'Medium' within 5%, 'Low' otherwise
-    reasoning: summary of which questions matched and by how much
+    Called at commit time — report contains only what the agent found;
+    the researcher's claimed values are not available yet.
+
+    outcome: 'Reproduced' | 'PartiallyReproduced' | 'FailedToReproduce'
+             (Note: 'FailedToReproduce' not 'NotReproduced' — must match
+             the AttestationOutcome enum in shared_types/src/lib.rs)
+    confidence: 'High' | 'Medium' | 'Low'
+    reasoning: summary of what the agent found and any execution issues
     metrics: list of per-question results for the HarmonyRecord
     """
 ```
+
+**Tolerance function caveat:** the numeric tolerance (e.g., "within 0.5% counts as a match") is applied client-side in this Python adapter before the output becomes an outcome enum (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`). Once it is an enum, the tolerance decision is no longer visible or verifiable on-chain. For a system whose pitch is "no trust required at any layer," the tolerance configuration should be pinned and committed alongside the researcher's metrics — not buried in the adapter implementation. Otherwise a validator could quietly use a generous tolerance and nobody could check.
+
+CORE-Bench ground truth scoring (comparing validator output against the benchmark's official answers) is a separate step that can run after the HarmonyRecord is written. It does not affect the ValiChord protocol.
 
 ### 4. Docker isolation for validators
 
@@ -236,29 +259,34 @@ ValiChord + CORE-Bench — Computational Reproducibility Demo
 Paper: [paper title from capsule]
 Capsule: capsule-XXXXXXX
 
-[1/5] Researcher commits claimed results to distributed network...
-      Commitment sealed. No validator can see the claimed values.
+[1/6] Researcher runs capsule, extracts key outputs, locks result...
+      SHA-256 commitment sealed on DHT. Validators cannot see claimed values.
+      ValidationRequest posted. Waiting for DHT propagation (30s)...
 
-[2/5] Three independent agents downloading and running capsule...
+[2/6] Three independent agents downloading and running capsule...
       Validator 1: installing dependencies...
       Validator 2: installing dependencies...
       Validator 3: installing dependencies...
 
-[3/5] Agents executing code and writing findings...
+[3/6] Agents executing code and writing findings...
       Validator 1 committed ✓  (3m 12s, report.json written)
       Validator 2 committed ✓  (3m 47s, report.json written)
       Validator 3 committed ✓  (4m 01s, report.json written)
       All three committed blind. Reveal phase open.
 
-[4/5] Simultaneous reveal...
+[4/6] Simultaneous reveal...
       Researcher reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
       Validator 1 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
       Validator 2 reveals: {"mean_squared_error": 0.0424, "accuracy": 0.891}
       Validator 3 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.890}
 
-[5/5] HarmonyRecord written to distributed network.
-      Outcome:         Reproduced
-      Agreement level: ExactMatch (all values within 0.5%)
+[5/6] Agreement computed against researcher's committed claim...
+      Outcome:   Reproduced (3/3 validators matched within tolerance)
+      Agreement: WithinTolerance
+      (Note: all-PartiallyReproduced panels reach WithinTolerance, not ExactMatch;
+       ExactMatch requires Reproduced outcomes from all validators)
+
+[6/6] HarmonyRecord written to distributed network.
       HarmonyRecord:   uhC8k...
       Shareable URL:   http://.../record?hash=uhC8k...
 
@@ -267,7 +295,7 @@ Capsule: capsule-XXXXXXX
 ============================================================
   Three agents ran the code independently.
   None could see the others' results before committing.
-  The record cannot be changed. The paper reproduces.
+  The record cannot be changed. The capsule reproduces.
 ============================================================
 ```
 
@@ -286,12 +314,15 @@ Capsule: capsule-XXXXXXX
 
 | Task | Effort |
 |---|---|
+| Capsule selection — find one that runs clean in hard mode, no GPU, < 5 min, numeric output | 1–2 days |
 | `core_bench_validator.py` — Inspect AI agent wrapper | 1–2 days |
-| Verdict adapter (report.json → ValiChord verdict) | 0.5 days |
+| Verdict adapter (report.json → ValiChord verdict) + tolerance config design | 1 day |
 | `core_bench_runner.py` — parallel orchestrator | 1 day |
-| Docker isolation in demo containers | 0.5 days |
-| Capsule selection and end-to-end testing | 1 day |
-| **Total** | **~4 days** |
+| Docker isolation in demo containers | 0.5–1 day |
+| End-to-end testing and reliability hardening | 1–2 days |
+| **Total** | **~6–8 days** |
+
+Capsule selection is on the critical path — everything else depends on a capsule that runs reliably. Start there.
 
 ---
 
@@ -307,7 +338,9 @@ This is demonstrably superior because:
 
 2. **ValiChord without CORE-Bench**: proves structural independence. Current validators form opinions via web search — useful for general claims, but subjective.
 
-3. **Combined**: the verdict is objective (code output is what it is), the independence is structural (commit-reveal prevents coordination), the record is permanent. No trust required at any layer.
+3. **Combined**: three agents independently ran the code in isolation. None could copy another's `report.json` before committing — the commit-reveal protocol structurally prevents it. The result is not an opinion; it is what the code produces. The record is permanent.
+
+Be precise when presenting this: for deterministic code the value of commit-reveal is not "prevented opinion anchoring" but "prevented result copying." That is a real guarantee and a defensible one — state it that way.
 
 The demo is the proof.
 
