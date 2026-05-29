@@ -342,8 +342,8 @@ def _run_cma_session(
         "reasoning":  reasoning,
     }
 
-    # Commit to Holochain DHT
-    _node_post(f"{validator_url}/commit", {
+    # Commit to Holochain DHT — retry if ValidationRequest hasn't propagated yet
+    commit_payload = {
         "external_hash_b64": external_hash_b64,
         "verdict": {
             "outcome":    verdict["outcome"],
@@ -352,7 +352,17 @@ def _run_cma_session(
         },
         "metrics":    metrics,
         "discipline": discipline,
-    })
+    }
+    for attempt in range(6):
+        try:
+            _node_post(f"{validator_url}/commit", commit_payload)
+            break
+        except RuntimeError as exc:
+            if "No ValidationRequest found" in str(exc) and attempt < 5:
+                log.info(f"Validator {idx} commit attempt {attempt + 1} waiting for DHT propagation (15s)")
+                time.sleep(15)
+            else:
+                raise
 
     log.info(json.dumps({
         "event":       "cma_session_done",
