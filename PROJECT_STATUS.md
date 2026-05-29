@@ -87,6 +87,32 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### CORE-Bench integration strategy — 2026-05-29 ✓
+
+Strategic analysis and integration doc for combining ValiChord with CORE-Bench (the inspect_evals benchmark for AI computational reproducibility). Full doc at `docs/CORE_BENCH_INTEGRATION.md`.
+
+**Key insights:**
+
+- **The capsule is the input layer.** A CodeOcean capsule already contains everything ValiChord needs as structured input: code + data (the claim, operationally defined), `README.md` / `REPRODUCING.md` (instructions any independent party can follow), and specific numerical outputs (the pre-defined metrics validators check against). A researcher with an existing capsule has already done ValiChord's hardest UX work without knowing it.
+
+- **Automatic metric extraction closes the loop.** CORE-Bench's agent can be run once by the researcher to extract key numerical outputs. Those outputs become the committed metrics. The researcher didn't manually define metrics — their code defined them.
+
+- **Validator count is a parameter, not a constant.** The current demo uses three validators for illustration; the protocol places no architectural limit. The optimal number for any given claim (routine benchmark vs regulatory submission) is an open empirical question — analogous to statistical power analysis in clinical trial design.
+
+- **What N independent computational runs actually prove.** For deterministic code, commit-reveal protects against result copying (validator B copying validator A's `report.json` instead of running the code), not opinion anchoring. This is a real and defensible guarantee — stated precisely it is hard to poke. N runs prove: (a) the capsule executes from scratch without hints, (b) the result is robust to independent environments, (c) no agent fabricated or copied a result.
+
+- **Design constraint: ground-truth vs committed claim.** Validators commit their raw `report.json` before the researcher reveals. ValiChord agreement is researcher-claim-relative. CORE-Bench ground truth (the official benchmark answers) is a separate optional overlay and must not be available at commit time — doing so would defeat blinding.
+
+- **`FailedToReproduce` not `NotReproduced`.** The valid `AttestationOutcome` enum values are `Reproduced | PartiallyReproduced | FailedToReproduce | UnableToAssess`.
+
+- **Tolerance function must be pinned.** Numeric tolerance (e.g. "within 0.5% counts as a match") is currently client-side in the Python adapter before becoming an outcome enum. For "no trust required at any layer" to hold, the tolerance configuration should be committed alongside the researcher's metrics.
+
+**Demo spec:** three validators (illustrative), hard difficulty, Python capsule, no GPU, <5 min, numeric outputs. Build estimate ~6–8 days with capsule selection on the critical path. See `docs/CORE_BENCH_INTEGRATION.md` for full architecture, demo output, and infrastructure requirements.
+
+**inspect_evals outreach context:** `docs/inspect_evals_issue_and_pr.md` contains a draft issue (target: 2026-06-02) and PR proposing two optional YAML fields (`valichord_attestation_uri`, `valichord_harmony_record_uri`) in the register schema. CORE-Bench is named in the issue as the most direct example. The integration doc and demo are held for follow-up once the issue gets a positive response.
+
+---
+
 ### Release v0.5.7 — Demo reliability hardening — 2026-05-29 ✓
 
 10-commit reliability overhaul of the public demo, driven by user reports of "validator 1/2/3 ended without giving a verdict." Root cause: the custom demo path (`custom_runner.py`) had never received the hardening applied to the free path (`ai_validator_cma.py`) in v0.5.5/v0.5.6.
@@ -495,6 +521,15 @@ directly against the Claude API (`demo/ai_validator.py`). No further Feynman int
 
 ### 4. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
+
+### 5. CORE-Bench + ValiChord demo — NOT STARTED
+Live demo combining ValiChord's commit-reveal protocol with CORE-Bench-style AI agents that actually run research paper code in isolated Docker environments. Demonstrates that the combined system prevents result copying across N independent computational reproductions — a stronger guarantee than either system alone.
+
+**Critical path:** capsule selection first — find a Python capsule, no GPU, hard difficulty executable in <5 min, producing specific numeric outputs. Everything else depends on one that runs clean.
+
+**Estimate:** ~6–8 days. See `docs/CORE_BENCH_INTEGRATION.md` for full spec.
+
+**Trigger:** hold until inspect_evals issue (target 2026-06-02) gets a positive response — the demo is the follow-up, not the opening move.
 
 ---
 
