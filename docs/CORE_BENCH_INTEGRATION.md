@@ -1,0 +1,277 @@
+# ValiChord + CORE-Bench Integration
+
+## What this is
+
+[CORE-Bench](https://arxiv.org/abs/2409.11363) tests whether an AI agent can computationally reproduce the results of scientific papers. [ValiChord](https://github.com/topeuph-ai/ValiChord) proves that independent parties reached the same conclusion without being able to coordinate after the fact. Neither system alone provides what both together do.
+
+This document describes the integration architecture, the combined demo, and what needs to be built.
+
+---
+
+## Why the combination is superior to either alone
+
+| | CORE-Bench alone | ValiChord alone | Combined |
+|---|---|---|---|
+| **Reproduction is computational** | ✅ Agent runs actual code | ❌ Current demo uses web search | ✅ |
+| **Verdict is objective** | ✅ Code output matches or it doesn't | ❌ Agent forms an opinion | ✅ |
+| **Multiple independent parties** | ❌ One agent, one result | ✅ Three validators | ✅ |
+| **Structural independence** | ❌ Second runner can see first's result | ✅ Commit-reveal prevents this | ✅ |
+| **Permanent verifiable record** | ❌ Results live in a log file | ✅ HarmonyRecord on DHT | ✅ |
+| **No post-hoc adjustment** | ❌ Anyone could re-run and pick the best | ✅ Commit-reveal prevents this | ✅ |
+
+**CORE-Bench alone** answers: *"can an AI reproduce this paper?"* — but gives you one result, which you still have to trust came from a genuine independent run.
+
+**ValiChord alone** proves independent parties agreed — but the current demo validators form opinions via web search, which is subjective.
+
+**Combined**: three agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed (commit-reveal prevents coordination), and the outcome is permanently recorded on a distributed network no single party controls.
+
+---
+
+## How CORE-Bench's agent becomes a ValiChord validator
+
+### What CORE-Bench's agent does
+
+Given a research paper's code repository (a "capsule"), the agent:
+1. Reads `README.md` or `REPRODUCING.md`
+2. Installs dependencies and runs the code (hard difficulty)
+3. Writes its findings as structured JSON to `/capsule/report.json`
+4. The scorer compares `report.json` against the ground-truth answers
+
+`report.json` looks like:
+```json
+{
+  "What is the mean squared error on the test set?": 0.0423,
+  "How many epochs until convergence?": 47,
+  "What is the final accuracy?": 0.891
+}
+```
+
+This structured output — the agent's answer to specific verifiable questions about the paper's results — is exactly what a ValiChord validator verdict needs to contain.
+
+### The mapping
+
+| CORE-Bench concept | ValiChord concept |
+|---|---|
+| Agent runs the capsule | Validator independently reproduces the claim |
+| `report.json` | Validator's sealed verdict |
+| Scorer checks against ground truth | ValiChord compares all validators' verdicts |
+| One agent, one run | Three agents, three independent runs |
+| Result stored in log file | HarmonyRecord on DHT |
+
+### Hard difficulty is required
+
+- **Easy**: the agent is *given* the expected results and just reads them. No execution. The validator already knows the answer — defeats blinding.
+- **Medium**: the agent runs a Docker command from `REPRODUCING.md`. Partial execution, but the instructions are standardised and may contain hints about expected outputs.
+- **Hard**: the agent reads `README.md`, installs dependencies, and runs everything from scratch. This is the appropriate difficulty for ValiChord validation — the agent cannot see the expected outputs before committing.
+
+---
+
+## Integration architecture
+
+```
+Researcher                    Validator 1           Validator 2           Validator 3
+    |                              |                     |                     |
+    | Commits result hash          |                     |                     |
+    |---> ValiChord DHT            |                     |                     |
+    |                              |                     |                     |
+    |      [30s DHT propagation]   |                     |                     |
+    |                              |                     |                     |
+    |                    [Three CORE-Bench agents run in parallel, isolated]
+    |                              |                     |                     |
+    |                    Downloads capsule    Downloads capsule    Downloads capsule
+    |                    Runs code (hard)     Runs code (hard)     Runs code (hard)
+    |                    Writes report.json   Writes report.json   Writes report.json
+    |                              |                     |                     |
+    |                    Commits report hash to ValiChord DHT (each blind)
+    |                              |                     |                     |
+    |      [All three committed — ValiChord opens reveal phase]
+    |                              |                     |                     |
+    |                    Reveals report.json  Reveals             Reveals
+    |                              |                     |                     |
+    |      ValiChord compares all three reports
+    |      Writes HarmonyRecord to DHT:
+    |        - ExactMatch: all three got identical answers
+    |        - WithinTolerance: answers agree within numeric tolerance
+    |        - Divergent: agents got different results
+```
+
+---
+
+## What needs to be built
+
+### 1. `demo/core_bench_validator.py`
+
+An Inspect AI task wrapper that:
+- Takes a capsule ID and task questions as input
+- Runs the CORE-Bench hard-difficulty agent against the capsule
+- Reads the `report.json` the agent produces
+- Returns a structured ValiChord verdict
+
+```python
+async def run_core_bench_validator(
+    capsule_id: str,
+    task_questions: list[str],
+    validator_url: str,
+    external_hash_b64: str,
+    discipline: dict,
+    api_key: str,
+) -> dict:
+    """
+    Run a CORE-Bench hard-difficulty agent and commit its findings to ValiChord.
+    Returns the validator's verdict dict.
+    """
+    # 1. Download capsule
+    # 2. Run inspect_ai eval with react() agent + bash tools (hard difficulty)
+    # 3. Read report.json from the sandbox
+    # 4. Format as ValiChord verdict
+    # 5. POST /commit to validator_url
+    # 6. Return verdict
+```
+
+### 2. `demo/core_bench_runner.py`
+
+Orchestrator that runs three validators in parallel:
+- Each validator runs a separate Inspect AI eval against the same capsule
+- Each commits before seeing others' results (enforced by ValiChord protocol)
+- Initiates reveal phase once all three have committed
+- Returns the HarmonyRecord
+
+### 3. Verdict format adapter
+
+Maps CORE-Bench `report.json` to ValiChord's verdict structure:
+
+```python
+def report_json_to_verdict(report: dict, ground_truth: dict) -> dict:
+    """
+    Convert CORE-Bench report.json to a ValiChord validator verdict.
+    
+    outcome: 'Reproduced' if all questions answered correctly,
+             'PartiallyReproduced' if some match,
+             'NotReproduced' if major discrepancies
+    confidence: 'High' if numeric answers within 1%, 'Medium' within 5%, 'Low' otherwise
+    reasoning: summary of which questions matched and by how much
+    metrics: list of per-question results for the HarmonyRecord
+    """
+```
+
+### 4. Docker isolation for validators
+
+Each validator agent runs in an isolated Docker sandbox (CORE-Bench already uses Docker via Inspect AI's sandbox feature). For the demo, three separate sandbox environments ensure the agents cannot share state.
+
+---
+
+## Demo specification
+
+### What it shows
+
+A live run of the full protocol on a specific CORE-Bench capsule. Three independent AI agents each reproduce a research paper's computational results in isolated Docker environments, commit their findings blind, reveal simultaneously, and produce a permanent HarmonyRecord.
+
+### Demo capsule selection criteria
+
+For a demo that runs reliably:
+- Python (not R) — faster install, more portable
+- No GPU required
+- Hard difficulty executable in under 5 minutes
+- Produces specific numeric outputs (not just plots)
+- Small capsule size (< 500 MB)
+
+Good candidates from the CORE-Bench test set: capsules in the Social Sciences or Medical Sciences fields with simple Python pipelines.
+
+### Demo output (target)
+
+```
+ValiChord + CORE-Bench — Computational Reproducibility Demo
+============================================================
+
+Paper: [paper title from capsule]
+Capsule: capsule-XXXXXXX
+
+[1/5] Researcher commits claimed results to distributed network...
+      Commitment sealed. No validator can see the claimed values.
+
+[2/5] Three independent agents downloading and running capsule...
+      Validator 1: installing dependencies...
+      Validator 2: installing dependencies...
+      Validator 3: installing dependencies...
+
+[3/5] Agents executing code and writing findings...
+      Validator 1 committed ✓  (3m 12s, report.json written)
+      Validator 2 committed ✓  (3m 47s, report.json written)
+      Validator 3 committed ✓  (4m 01s, report.json written)
+      All three committed blind. Reveal phase open.
+
+[4/5] Simultaneous reveal...
+      Researcher reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
+      Validator 1 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
+      Validator 2 reveals: {"mean_squared_error": 0.0424, "accuracy": 0.891}
+      Validator 3 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.890}
+
+[5/5] HarmonyRecord written to distributed network.
+      Outcome:         Reproduced
+      Agreement level: ExactMatch (all values within 0.5%)
+      HarmonyRecord:   uhC8k...
+      Shareable URL:   http://.../record?hash=uhC8k...
+
+      Verify independently: curl "http://.../record?hash=uhC8k..."
+
+============================================================
+  Three agents ran the code independently.
+  None could see the others' results before committing.
+  The record cannot be changed. The paper reproduces.
+============================================================
+```
+
+### Infrastructure requirements
+
+| Component | Status |
+|---|---|
+| ValiChord Holochain nodes (researcher + 3 validators) | ✅ Running on Oracle |
+| Inspect AI | Needs installing in demo environment |
+| Docker (for agent sandboxes) | Needs enabling in validator containers |
+| CORE-Bench capsules | Public at `corebench.cs.princeton.edu/capsules/{id}.tar.gz` |
+| CORE-Bench task questions + ground truth | Encrypted HuggingFace dataset — password in [siegelz/core-bench](https://github.com/siegelz/core-bench) |
+| Anthropic API key | Already required for existing demo |
+
+### Build estimate
+
+| Task | Effort |
+|---|---|
+| `core_bench_validator.py` — Inspect AI agent wrapper | 1–2 days |
+| Verdict adapter (report.json → ValiChord verdict) | 0.5 days |
+| `core_bench_runner.py` — parallel orchestrator | 1 day |
+| Docker isolation in demo containers | 0.5 days |
+| Capsule selection and end-to-end testing | 1 day |
+| **Total** | **~4 days** |
+
+---
+
+## What to show inspect_evals
+
+The demo makes one argument that neither system alone can make:
+
+> *Three agents independently ran the code. None could see the others' results before they committed. The record on the distributed network shows they all got the same answer. You don't have to trust any one of them — you can verify the record yourself with a single curl command.*
+
+This is demonstrably superior because:
+
+1. **CORE-Bench without ValiChord**: tells you an AI can reproduce a paper. Doesn't prove the person reporting the score ran it fairly, or that a second party would agree.
+
+2. **ValiChord without CORE-Bench**: proves structural independence. Current validators form opinions via web search — useful for general claims, but subjective.
+
+3. **Combined**: the verdict is objective (code output is what it is), the independence is structural (commit-reveal prevents coordination), the record is permanent. No trust required at any layer.
+
+The demo is the proof.
+
+---
+
+## Relationship to the inspect_evals issue/PR
+
+The integration doc and demo are what you bring to the conversation *after* the issue gets a positive response — not in the opening issue. The issue makes a low-friction schema ask (two optional YAML fields). The demo is what you offer when they ask "can you show us this working?"
+
+The sequence:
+1. Issue → schema fields accepted
+2. Demo → proof the combined system works on a real CORE-Bench capsule
+3. Collaboration → AISI's independent runs committed via ValiChord, HarmonyRecord in the register
+
+---
+
+*Last updated: 2026-05-29*
