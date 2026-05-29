@@ -634,7 +634,7 @@ function triggerReveal(){
   fetch('/demo/custom/reveal/'+customJobId,{method:'POST'})
     .then(r=>r.json()).then(d=>{
       if(d.error){showErr('customResultArea',d.error);return;}
-      customPoll=setInterval(()=>pollCustom(customJobId),2000);
+      customPollStart=Date.now();customPoll=setInterval(()=>pollCustom(customJobId),2000);
     }).catch(e=>showErr('customResultArea','Network error: '+e.message));
 }
 
