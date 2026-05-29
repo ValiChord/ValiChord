@@ -411,10 +411,22 @@ def form_verdicts_cma(
             ): idx
             for idx, url in enumerate(validator_urls)
         }
-        results = {}
+        results: dict = {}
+        errors:  dict = {}
         for fut in as_completed(futures):
             idx = futures[fut]
-            results[idx] = fut.result()
+            try:
+                results[idx] = fut.result()
+            except Exception as exc:
+                log.error(f"Validator {idx + 1} failed: {exc}")
+                errors[idx] = str(exc)
+
+        if errors:
+            failed_msgs = [f"Validator {i + 1}: {e}" for i, e in sorted(errors.items())]
+            raise RuntimeError(
+                f"{len(errors)}/{len(VALIDATOR_URLS)} validator(s) failed:\n"
+                + "\n".join(failed_msgs)
+            )
 
     return [results[i] for i in range(len(validator_urls))]
 
