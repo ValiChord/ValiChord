@@ -83,12 +83,8 @@ def demo_run():
             }), 409
         _demo_running = True
 
-    _ip_last_free[ip] = time.time()
-    with _free_run_lock:
-        _free_run_count += 1
-
     job_id = str(uuid.uuid4())
-    _jobs[job_id] = {"step": 0, "status": "running", "result": None, "error": None}
+    _jobs[job_id] = {"step": 0, "status": "running", "result": None, "error": None, "_ip": ip}
 
     threading.Thread(target=_run_free_job, args=(job_id,), daemon=True).start()
     return jsonify({"job_id": job_id}), 202
@@ -115,8 +111,9 @@ def demo_record(hash_b64):
 
 
 def _run_free_job(job_id: str):
-    global _demo_running
+    global _demo_running, _free_run_count
     job = _jobs[job_id]
+    ip  = job.pop("_ip", "")
     try:
         import demo_runner
         job["step"] = 1
@@ -131,6 +128,10 @@ def _run_free_job(job_id: str):
         job["step"]   = 7
         job["status"] = "done"
         job["result"] = result
+        # Record usage only on success so failed runs don't burn the daily quota
+        _ip_last_free[ip] = time.time()
+        with _free_run_lock:
+            _free_run_count += 1
     except Exception as e:
         job["status"] = "error"
         job["error"]  = str(e)
