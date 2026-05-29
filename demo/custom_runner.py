@@ -26,6 +26,8 @@ VALIDATOR_URLS = [
 
 log = logging.getLogger(__name__)
 
+_MAX_ATTEMPTS = 2
+
 VALIDATOR_CLAIM_SYSTEM = """You are an independent evaluator assessing whether a hypothesis is supported by evidence.
 
 Work through these 5 steps in order:
@@ -101,94 +103,88 @@ def _run_cma_claim_session(
         }],
         betas=BETAS,
     )
-    session = client.beta.sessions.create(
-        agent={"type": "agent", "id": agent.id, "version": agent.version},
-        environment_id=env.id,
-        betas=BETAS,
-    )
 
-    client.beta.sessions.events.send(
-        session.id,
-        betas=BETAS,
-        events=[{"type": "user.message", "content": [{"type": "text", "text": (
-            f"You are Validator {idx} in a 3-validator independent review. "
-            f"The other validators are working simultaneously and you cannot see their conclusions.\n\n"
-            f"HYPOTHESIS TO EVALUATE:\n{claim}\n\n"
-            f"Research this hypothesis independently. Use web_search to find supporting or refuting evidence. "
-            f"Work through all 5 steps, then write your final verdict to /mnt/session/verdict.json."
-        )}]}],
-    )
-
+    last_error = ""
     t0 = time.time()
-    n_tool_calls = 0
+    v = None
 
-    with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
-        for ev in stream:
-            if ev.type == "agent.tool_use":
-                n_tool_calls += 1
-            elif ev.type == "session.status_idle":
-                break
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        session = client.beta.sessions.create(
+            agent={"type": "agent", "id": agent.id, "version": agent.version},
+            environment_id=env.id,
+            betas=BETAS,
+        )
 
-    def _extract_verdict(session_id):
-        """Reconstruct verdict.json content from event log. Tolerates any path containing 'verdict'."""
-        content = ""
-        for ev in client.beta.sessions.events.list(session_id, limit=1000, betas=BETAS):
-            if ev.type == "agent.tool_use":
-                path = ev.input.get("file_path", "").lower()
-                if ev.name == "write" and "verdict" in path:
-                    content = ev.input.get("content", "")
-                elif ev.name == "edit" and "verdict" in path:
-                    content = content.replace(
-                        ev.input.get("old_string", ""),
-                        ev.input.get("new_string", ""),
-                        1,
-                    )
-        return content
-
-    verdict_content = _extract_verdict(session.id)
-
-    # If the agent went idle without writing the verdict, send one reminder and stream again.
-    if not verdict_content:
-        log.info(f"Validator {idx} idle without verdict after {n_tool_calls} tool calls — sending reminder")
         client.beta.sessions.events.send(
             session.id,
             betas=BETAS,
             events=[{"type": "user.message", "content": [{"type": "text", "text": (
-                "You have not written your verdict yet. "
-                "Based on your research so far, write your verdict now to /mnt/session/verdict.json. "
-                "Use the exact format specified: outcome, confidence, reasoning. "
-                "If the evidence is genuinely mixed or unclear, use PartiallyReproduced with Low confidence."
+                f"You are Validator {idx} in a 3-validator independent review. "
+                f"The other validators are working simultaneously and you cannot see their conclusions.\n\n"
+                f"HYPOTHESIS TO EVALUATE:\n{claim}\n\n"
+                f"Research this hypothesis independently. Use web_search to find supporting or refuting evidence. "
+                f"Work through all 5 steps. When done, use the write tool to save your verdict to "
+                f"/mnt/session/verdict.json — do not put your verdict in a text response."
             )}]}],
         )
+
+        n_tool_calls = 0
         with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
             for ev in stream:
                 if ev.type == "agent.tool_use":
                     n_tool_calls += 1
                 elif ev.type == "session.status_idle":
                     break
-        verdict_content = _extract_verdict(session.id)
 
-    elapsed = time.time() - t0
+        verdict_content = ""
+        for ev in client.beta.sessions.events.list(session.id, limit=1000, betas=BETAS):
+            if ev.type == "agent.tool_use":
+                path = ev.input.get("file_path", "").lower()
+                if ev.name == "write" and "verdict" in path:
+                    verdict_content = ev.input.get("content", "")
+                elif ev.name == "edit" and "verdict" in path:
+                    verdict_content = verdict_content.replace(
+                        ev.input.get("old_string", ""),
+                        ev.input.get("new_string", ""),
+                        1,
+                    )
 
-    if not verdict_content:
-        raise RuntimeError(
-            f"Validator {idx} ended without writing verdict.json after reminder "
-            f"(tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
-        )
+        elapsed = time.time() - t0
 
-    raw = verdict_content.strip()
-    for fence in ("```json", "```"):
-        if raw.startswith(fence):
-            raw = raw[len(fence):]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    raw = raw.strip()
+        if not verdict_content:
+            last_error = (
+                f"Validator {idx} session ended without writing verdict.json "
+                f"(attempt={attempt}/{_MAX_ATTEMPTS}, tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
+            )
+            log.warning(last_error + (" — retrying with fresh session" if attempt < _MAX_ATTEMPTS else ""))
+            continue
 
-    v = json.loads(raw)
-    if v.get("outcome") not in {"Reproduced", "PartiallyReproduced", "NotReproduced"}:
-        raise RuntimeError(f"Validator {idx} wrote invalid outcome: {v.get('outcome')!r}")
-    if v.get("confidence") not in {"High", "Medium", "Low"}:
-        raise RuntimeError(f"Validator {idx} wrote invalid confidence: {v.get('confidence')!r}")
+        raw = verdict_content.strip()
+        for fence in ("```json", "```"):
+            if raw.startswith(fence):
+                raw = raw[len(fence):]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
+
+        try:
+            v = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            last_error = (
+                f"Validator {idx} verdict.json is not valid JSON "
+                f"(attempt={attempt}/{_MAX_ATTEMPTS}): {exc}"
+            )
+            log.warning(last_error + (" — retrying" if attempt < _MAX_ATTEMPTS else ""))
+            continue
+
+        if v.get("outcome") not in {"Reproduced", "PartiallyReproduced", "NotReproduced"}:
+            raise RuntimeError(f"Validator {idx} wrote invalid outcome: {v.get('outcome')!r}")
+        if v.get("confidence") not in {"High", "Medium", "Low"}:
+            raise RuntimeError(f"Validator {idx} wrote invalid confidence: {v.get('confidence')!r}")
+
+        break  # verdict is good
+    else:
+        raise RuntimeError(last_error)
 
     verdict = {
         "outcome":    v["outcome"],
@@ -211,8 +207,6 @@ def _run_cma_claim_session(
         }],
         "discipline": discipline,
     }
-    # Retry if the ValidationRequest hasn't propagated to this validator's DHT node yet.
-    # Parallel CMA sessions can finish research faster than the 20s gossip window.
     for attempt in range(6):
         try:
             _node_post(f"{validator_url}/commit", commit_payload)
@@ -224,7 +218,6 @@ def _run_cma_claim_session(
             else:
                 raise
 
-    # CPython GIL makes this increment safe across threads for simple int values
     job["validators_committed"] = job.get("validators_committed", 0) + 1
 
     log.info(json.dumps({
