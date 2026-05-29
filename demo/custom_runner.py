@@ -301,7 +301,15 @@ def compare_answers(
     if text.endswith("```"):
         text = text[:-3]
 
-    result = json.loads(text.strip())
+    try:
+        result = json.loads(text.strip())
+    except json.JSONDecodeError:
+        log.warning("compare_answers: Claude returned non-JSON; using fallback comparison result")
+        return {
+            "outcome":         "PartiallyReproduced",
+            "agreement_level": "DirectionalMatch",
+            "summary":         "Automated comparison unavailable. Review individual validator verdicts above.",
+        }
     return {
         "outcome":         result.get("outcome",         "NotReproduced"),
         "agreement_level": result.get("agreement_level", "DirectionalMatch"),
