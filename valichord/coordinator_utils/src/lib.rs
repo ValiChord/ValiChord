@@ -2,16 +2,29 @@ use hdk::prelude::*;
 
 /// Fetch records for a list of links whose targets are ActionHashes (network).
 /// Skips links with non-ActionHash targets and missing records.
+///
+/// Issues a single batched `get` host call for all targets instead of one call
+/// per link. The conductor resolves the batch together (parallel network
+/// fetches), cutting WASM↔host boundary crossings from N to 1 — a meaningful
+/// saving on fan-out reads like `get_attestations_for_discipline` (up to 500
+/// links). Semantics are identical to N sequential `get(.., network())` calls:
+/// non-ActionHash targets are skipped, missing records are filtered out, and
+/// the surviving records stay in link order.
+///
+/// `HDK.with(|h| h.borrow().get(inputs))` is exactly what the single-hash
+/// `get()` wraps internally (see hdk::entry::get) — this is the idiomatic
+/// batched form, not a workaround.
 pub fn records_for_links(links: Vec<Link>) -> ExternResult<Vec<Record>> {
-    let mut records = Vec::new();
-    for link in links {
-        if let Some(hash) = link.target.into_action_hash() {
-            if let Some(record) = get(hash, GetOptions::network())? {
-                records.push(record);
-            }
-        }
+    let inputs: Vec<GetInput> = links
+        .into_iter()
+        .filter_map(|link| link.target.into_action_hash())
+        .map(|hash| GetInput::new(AnyDhtHash::from(hash), GetOptions::network()))
+        .collect();
+    if inputs.is_empty() {
+        return Ok(Vec::new());
     }
-    Ok(records)
+    let results = HDK.with(|h| h.borrow().get(inputs))?;
+    Ok(results.into_iter().flatten().collect())
 }
 
 /// Call a zome function on another role in this hApp and decode the response.
