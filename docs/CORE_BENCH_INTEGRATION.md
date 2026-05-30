@@ -173,9 +173,13 @@ The CORE-Bench harness hands a validator wrapper a clean, scriptable contract:
 - **Difficulty is set by deletion.** Hard removes both the `results/` directory *and* the `environment/` + `REPRODUCING.md` reproduction guides — the agent gets only code, data, and the README / `task_prompt`. (Medium keeps the Dockerfile + REPRODUCING.md; easy keeps `results/`.) Hard is what we want.
 - **Agent invocation:** the harness runs `bash /capsule/{agent_script}` under a timeout in Docker; the agent writes `report.json` anywhere under `environment/`, and the harness locates it after the run.
 - **Scoring:** `eval_result_json(gt_result, result_report)` — `gt_result` is the dataset entry's `results` list, `result_report` is the agent's `report.json`.
-- **Dataset entry schema (assert-enforced in the harness):** exactly
+- **Dataset entry schema (assert-enforced in the harness, confirmed against the decrypted `core_test.json`):** exactly
   `{field, language, capsule_title, capsule_id, capsule_doi, task_prompt, results}`.
-  `task_prompt` carries the questions; `results` is a list of run-dicts that all share the same keys (a key containing `'fig'` is a vision question). The 95% prediction interval is computed across that list.
+  `task_prompt` carries the questions; `results` is a **list of the three ground-truth runs**, each a dict that maps the full **question text to its answer value** — the question *is* the key. A key whose text contains `'fig'` is a vision question. The 95% prediction interval is computed across the three runs. Verified example (`capsule-5507257`):
+  ```json
+  // results = [run1, run2, run3]; each run is a dict like:
+  {"Report the accuracy of the multitask learning model at the end of training on the test set.": 96.12499135323452}
+  ```
 
 For ValiChord, `core_bench_validator.py` reuses the harness's own capsule fetch + hard-mode setup + `report.json` discovery, then routes the resulting report through `report_json_to_verdict` instead of (or alongside) `eval_result_json`. The researcher side runs the same path three times to establish the committed interval.
 
@@ -308,7 +312,16 @@ For a demo that runs reliably:
 - **Text/numeric questions only — no vision questions.** CORE-Bench includes vision-based questions whose answers are read from figures and plots. Reading a chart is a model-judgment step, not objective code output — it reintroduces exactly the subjectivity the computational path is meant to remove. Screen these out so "the verdict is what the code produces, not an opinion" stays true.
 - **In the reproducible minority, and pre-verified.** The best agent reproduced only ~21% of hard tasks; a randomly chosen capsule will most likely yield `FailedToReproduce` — honest, but not the first impression you want. Pick a capsule and confirm all three independent runs reproduce it reliably *before* wiring it into the demo.
 
-Good candidates from the CORE-Bench test set: capsules in the Social Sciences or Medical Sciences fields with simple Python pipelines and no figure-based questions.
+Verified against the decrypted `core_test.json` (a 45-task slice): **34 of 45 tasks contain a vision question** and are disqualified; only 11 are vision-free, split roughly half Python / half R. The strongest first-demo candidates — Python, no vision, a single numeric question — are:
+
+| capsule_id | field | questions |
+|---|---|---|
+| `capsule-5507257` | Computer Science | 1 (model accuracy) |
+| `capsule-6003668` | Computer Science | 1 (continual learning) |
+| `capsule-9660931` | Computer Science | 1 (deep-learning library) |
+| `capsule-0851068` | Medical Sciences | 1 (MLP COVID/skin classification) |
+
+A single-question, vision-free, Python capsule yields one numeric value and one 95% interval — an unambiguous Reproduced/Failed with nothing for a skeptic to wave away. The one filter left is empirical, and only a test run settles it: confirm the chosen capsule actually reproduces in hard mode, in under 5 minutes, with no GPU (recall the 21%).
 
 ### Demo output (target)
 
