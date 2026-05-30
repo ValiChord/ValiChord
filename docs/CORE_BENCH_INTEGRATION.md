@@ -6,6 +6,10 @@
 
 This document describes the integration architecture, the combined demo, and what needs to be built.
 
+**The two systems already share an epistemic stance.** CORE-Bench defines its task as reproducing *"the results of running the code… not to ensure that the results reported in the paper are correct."* That is, almost verbatim, ValiChord's core meaning: a validator confirms it reached the **same result** as the researcher, not that the result is *correct*. This is the strongest opening for any conversation with the CORE-Bench / inspect_evals authors — you are not asking them to adopt a foreign concept, you are extending one they already built on.
+
+**And the problem is real.** CORE-Bench's own headline finding is that the **best agent reproduced only ~21% of hard tasks.** Reproduction is hard and unreliable even for capable agents — which is exactly why independently verifying a *claimed* successful reproduction, with no copying between parties, is a missing and valuable trust layer.
+
 ---
 
 ## Why the combination does more than either alone
@@ -93,16 +97,18 @@ A researcher who has a CodeOcean capsule has already done ValiChord's hardest UX
 
 ### Automatic metric extraction closes the loop
 
-CORE-Bench's agent can be run once by the researcher to extract the key numerical outputs from their code. Those outputs become the metrics the researcher commits to ValiChord before any validator starts. The researcher didn't manually define metrics — their code defined them.
+CORE-Bench's agent can be run by the researcher to extract the key numerical outputs from their code. Because the match criterion is a 95% *prediction* interval (see below), the researcher runs the capsule **at least three times** — the spread across those runs defines the interval the metrics are committed with, not a bare point value. Those outputs become the metrics the researcher commits to ValiChord before any validator starts. The researcher didn't manually define metrics — their code defined them.
 
 The complete workflow:
 
 ```
-1. Researcher runs their capsule once
+1. Researcher runs their capsule 3x (CORE-Bench's own protocol — needed to
+   compute the 95% prediction interval, not just a point value)
         ↓
-2. Agent extracts key numerical outputs → these become the committed metrics
+2. Agent extracts key numerical outputs from each run → the per-question
+   mean + 95% prediction interval become the committed metrics
         ↓
-3. Researcher commits metrics + capsule reference to ValiChord
+3. Researcher commits metrics + intervals + capsule reference to ValiChord
    (sealed before any validator starts)
         ↓
 4. Three independent agents download the same capsule, run it in isolation,
@@ -156,6 +162,22 @@ This structured output — the agent's answer to specific verifiable questions a
 - **Easy**: the agent is *given* the expected results and just reads them. No execution. The validator already knows the answer — defeats blinding.
 - **Medium**: the agent runs a Docker command from `REPRODUCING.md`. Partial execution, but the instructions are standardised and may contain hints about expected outputs.
 - **Hard**: the agent reads `README.md`, installs dependencies, and runs everything from scratch. This is the appropriate difficulty for ValiChord validation — the agent cannot see the expected outputs before committing.
+
+---
+
+### Harness contract — verified against `benchmark/benchmark.py`
+
+The CORE-Bench harness hands a validator wrapper a clean, scriptable contract:
+
+- **Capsule fetch:** `https://corebench.cs.princeton.edu/capsules/{capsule_id}.tar.gz`, extracted to `environment/{capsule_id}/` (code / data / results subdirs).
+- **Difficulty is set by deletion.** Hard removes both the `results/` directory *and* the `environment/` + `REPRODUCING.md` reproduction guides — the agent gets only code, data, and the README / `task_prompt`. (Medium keeps the Dockerfile + REPRODUCING.md; easy keeps `results/`.) Hard is what we want.
+- **Agent invocation:** the harness runs `bash /capsule/{agent_script}` under a timeout in Docker; the agent writes `report.json` anywhere under `environment/`, and the harness locates it after the run.
+- **Scoring:** `eval_result_json(gt_result, result_report)` — `gt_result` is the dataset entry's `results` list, `result_report` is the agent's `report.json`.
+- **Dataset entry schema (assert-enforced in the harness):** exactly
+  `{field, language, capsule_title, capsule_id, capsule_doi, task_prompt, results}`.
+  `task_prompt` carries the questions; `results` is a list of run-dicts that all share the same keys (a key containing `'fig'` is a vision question). The 95% prediction interval is computed across that list.
+
+For ValiChord, `core_bench_validator.py` reuses the harness's own capsule fetch + hard-mode setup + `report.json` discovery, then routes the resulting report through `report_json_to_verdict` instead of (or alongside) `eval_result_json`. The researcher side runs the same path three times to establish the committed interval.
 
 ---
 
@@ -235,14 +257,19 @@ Orchestrator that runs N validators in parallel:
 
 Maps CORE-Bench `report.json` to ValiChord's verdict structure.
 
-**Important design constraint:** validators commit their raw `report.json` *before* the researcher reveals. The comparison is researcher-claim-relative — each validator's output is compared against the researcher's committed metrics at reveal time. CORE-Bench ground truth (the encrypted HuggingFace dataset) is a separate, optional overlay for benchmark scoring and must not be passed into the commit-time adapter, as doing so would give validators knowledge of the expected answer before they commit, defeating blinding.
+**Important design constraint:** validators commit their raw `report.json` *before* the researcher reveals. The comparison is researcher-claim-relative — each validator's output is compared against the researcher's committed metrics at reveal time. CORE-Bench ground truth — the official answers and their prediction intervals, distributed as the GPG-encrypted dataset `benchmark/dataset/core_test.json.gpg` (password `reproducibility`) — is a separate, optional overlay for benchmark scoring and **must not be passed into the commit-time adapter**: doing so would hand validators the expected answer before they commit, defeating blinding. Because that ground truth is trivially decryptable, this is an enforceable discipline the demo harness must respect, not a hypothetical.
 
 ```python
-def report_json_to_verdict(report: dict, tolerance_config: dict) -> dict:
+def report_json_to_verdict(report: dict, prediction_intervals: dict) -> dict:
     """
     Convert CORE-Bench report.json to a ValiChord validator verdict.
     Called at commit time — report contains only what the agent found;
     the researcher's claimed values are not available yet.
+
+    prediction_intervals: the per-question 95% prediction intervals committed
+        on-chain by the researcher (the same notion CORE-Bench uses for scoring).
+        The match test is "does the agent's value fall inside the interval?",
+        and the interval is part of the committed claim — not a private knob.
 
     outcome: 'Reproduced' | 'PartiallyReproduced' | 'FailedToReproduce'
              (Note: 'FailedToReproduce' not 'NotReproduced' — must match
@@ -253,7 +280,9 @@ def report_json_to_verdict(report: dict, tolerance_config: dict) -> dict:
     """
 ```
 
-**Tolerance function caveat:** the numeric tolerance (e.g., "within 0.5% counts as a match") is applied client-side in this Python adapter before the output becomes an outcome enum (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`). Once it is an enum, the tolerance decision is no longer visible or verifiable on-chain. For a system whose pitch is "no trust required at any layer," the tolerance configuration should be pinned and committed alongside the researcher's metrics — not buried in the adapter implementation. Otherwise a validator could quietly use a generous tolerance and nobody could check.
+**Match criterion — use CORE-Bench's 95% prediction interval, not an arbitrary tolerance.** CORE-Bench does not score numeric answers by exact match or a hand-picked percentage. It ran each capsule **three times manually** and accepts an answer if it falls **within the 95% prediction interval** of those runs, for *every* question in the task (a task counts only if all its questions pass; only ~17 of the benchmark's ~181 questions are stochastic at all). ValiChord should adopt the same principled criterion rather than inventing one: the researcher's committed metrics should carry the per-question 95% prediction interval, and that interval should be **committed on-chain alongside the metrics** — not applied silently in the Python adapter. Otherwise the match decision is invisible and unverifiable, and a validator could quietly widen the interval with nobody able to check. Pinning the interval at commit time is what lets the "no trust required at any layer" claim actually hold.
+
+*Verified against `benchmark/evaluations.py` (`eval_result_json`):* the interval is computed on the fly from the list of ground-truth runs, not stored as bounds — `t_value = t.ppf(0.975, n-1)`, then `mean ± t_value · std · √(1 + 1/n)`, and an answer passes iff `lower ≤ reported[key] ≤ upper`. Vision questions are identified by the substring `'fig'` in the question key, and a task passes only if every written *and* every vision question is in-interval. Two consequences for the adapter: (a) the researcher commits either the list of their runs or the derived per-question interval — both reduce to the same test; (b) the "no vision questions" capsule filter is mechanical — drop any capsule whose result keys contain `'fig'`.
 
 CORE-Bench ground truth scoring (comparing validator output against the benchmark's official answers) is a separate step that can run after the HarmonyRecord is written. It does not affect the ValiChord protocol.
 
@@ -275,10 +304,11 @@ For a demo that runs reliably:
 - Python (not R) — faster install, more portable
 - No GPU required
 - Hard difficulty executable in under 5 minutes
-- Produces specific numeric outputs (not just plots)
 - Small capsule size (< 500 MB)
+- **Text/numeric questions only — no vision questions.** CORE-Bench includes vision-based questions whose answers are read from figures and plots. Reading a chart is a model-judgment step, not objective code output — it reintroduces exactly the subjectivity the computational path is meant to remove. Screen these out so "the verdict is what the code produces, not an opinion" stays true.
+- **In the reproducible minority, and pre-verified.** The best agent reproduced only ~21% of hard tasks; a randomly chosen capsule will most likely yield `FailedToReproduce` — honest, but not the first impression you want. Pick a capsule and confirm all three independent runs reproduce it reliably *before* wiring it into the demo.
 
-Good candidates from the CORE-Bench test set: capsules in the Social Sciences or Medical Sciences fields with simple Python pipelines.
+Good candidates from the CORE-Bench test set: capsules in the Social Sciences or Medical Sciences fields with simple Python pipelines and no figure-based questions.
 
 ### Demo output (target)
 
