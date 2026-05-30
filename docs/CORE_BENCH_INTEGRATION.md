@@ -8,7 +8,7 @@ This document describes the integration architecture, the combined demo, and wha
 
 ---
 
-## Why the combination is superior to either alone
+## Why the combination does more than either alone
 
 | | CORE-Bench alone | ValiChord alone | Combined |
 |---|---|---|---|
@@ -23,7 +23,9 @@ This document describes the integration architecture, the combined demo, and wha
 
 **ValiChord alone** proves independent parties agreed — but the current demo validators form opinions via web search, which is subjective.
 
-**Combined**: N agents independently execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the independence is structurally guaranteed, and the outcome is permanently recorded on a distributed network no single party controls.
+**Combined**: N agents execute the same code in isolated environments, each commits their `report.json` before seeing others' results, all reveal simultaneously. The verdict is objective (the code produces what it produces), the runs are blinded so no agent can copy another, and the outcome is permanently recorded on a distributed network no single party controls.
+
+> ⚠️ The "multiple independent parties" row carries an asterisk: that guarantee is strongest when validators differ in operator, model, or environment. N invocations of the *same* agent reduce it to the anti-copying / determinism guarantee — still real, but narrower. See [Where the independence actually comes from](#where-the-independence-actually-comes-from--read-before-pitching-this) before making the independence claim out loud.
 
 ### What N independent runs actually prove
 
@@ -38,6 +40,26 @@ N independent hard-difficulty runs concretely prove:
 3. **No agent fabricated or copied a result** — commit-reveal means each agent committed before seeing any other's `report.json`; copying would have required predicting the others' outputs
 
 This is the honest value proposition for the objective setting. State it this way and it is hard to poke.
+
+### Where the independence actually comes from — read before pitching this
+
+This is the question a sceptical evaluator (e.g. an Inspect maintainer) will ask first, so it must be answered head-on rather than glossed.
+
+**N runs of the same model, by the same operator, are not independent — they are correlated.** Three invocations of the same agent on the same capsule mostly demonstrate determinism, plus the anti-copying guarantee above. They do *not* give you three independent corroborations in any deep sense: if the model has a systematic blind spot, all three share it.
+
+Genuine independence comes from **diversity across the validator set**, not from the count alone:
+
+- **Different operators** running the protocol on different machines/networks (the operational independence the Holochain layer already provides — separate conductors, separate source chains).
+- **Different agent stacks or models** where feasible — so a shared model failure mode cannot pass undetected through all N.
+- **Different environments** — package resolutions, library versions, hardware — which is what makes "robust to independent environments" a real claim.
+
+The honest hierarchy of what you can claim, weakest to strongest:
+
+1. **Same model, same operator, N times** → proves determinism + no result-copying. Real, narrow.
+2. **Same model, different operators/environments** → adds environment-robustness and anti-fabrication.
+3. **Different models/operators/environments** → adds defence against a shared model blind spot. This is the only configuration that supports the word "independent" without an asterisk.
+
+The demo therefore should *not* run three identical agents and call them independent — vary the model or the operator across at least some validators, or explicitly state which of the three claims above is being made. Overclaiming independence to the one audience equipped to notice is the fastest way to lose the room.
 
 ### Validator count is a parameter, not a constant
 
@@ -284,15 +306,18 @@ Capsule: capsule-XXXXXXX
 
 [4/6] Simultaneous reveal...
       Researcher reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
-      Validator 1 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}
-      Validator 2 reveals: {"mean_squared_error": 0.0424, "accuracy": 0.891}
-      Validator 3 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.890}
+      Validator 1 reveals: {"mean_squared_error": 0.0423, "accuracy": 0.891}  → Reproduced
+      Validator 2 reveals: {"mean_squared_error": 0.0424, "accuracy": 0.889}  → Reproduced (within tolerance)
+      Validator 3 reveals: {"mean_squared_error": 0.0451, "accuracy": 0.872}  → PartiallyReproduced
 
 [5/6] Agreement computed against researcher's committed claim...
-      Outcome:   Reproduced (3/3 validators matched within tolerance)
+      Per-validator outcome: 2 Reproduced, 1 PartiallyReproduced
       Agreement: WithinTolerance
-      (Note: all-PartiallyReproduced panels reach WithinTolerance, not ExactMatch;
-       ExactMatch requires Reproduced outcomes from all validators)
+      (full_rate = 2/3 = 67% → below the 90% ExactMatch threshold;
+       any_rate  = 3/3 = 100% → ≥70% → WithinTolerance.
+       ExactMatch needs a Reproduced outcome from ~all validators, not just
+       within-tolerance partials — see shared_types::derive_agreement_level.
+       If all three had landed Reproduced, this would read ExactMatch.)
 
 [6/6] HarmonyRecord written to distributed network.
       HarmonyRecord:   uhC8k...
@@ -301,9 +326,9 @@ Capsule: capsule-XXXXXXX
       Verify independently: curl "http://.../record?hash=uhC8k..."
 
 ============================================================
-  Three agents ran the code independently.
+  Three agents ran the code in isolated environments.
   None could see the others' results before committing.
-  The record cannot be changed. The capsule reproduces.
+  The record cannot be changed. The capsule reproduces, within tolerance.
 ============================================================
 ```
 
@@ -334,35 +359,51 @@ Capsule selection is on the critical path — everything else depends on a capsu
 
 ---
 
-## What to show inspect_evals
+## What to show inspect_evals — framing matters
 
-The demo makes one argument that neither system alone can make:
+Lead with composition, not competition. Inspect/CORE-Bench is the **execution layer** — it runs the reproduction. ValiChord is a **verification layer** that sits on top — it makes the reproduction's result trustworthy to a third party who wasn't in the room. These compose; one does not replace or improve the other. Pitched as "you built the thing that runs it, here's a thing that makes the result independently checkable," it is a collaboration story. Pitched as "superior to what you have," it reads as a threat to the people who built something good — and they are exactly the people who can spot an overclaim.
 
-> *Three agents independently ran the code. None could see the others' results before they committed. The record on the distributed network shows they all got the same answer. You don't have to trust any one of them — you can verify the record yourself with a single curl command.*
+The honest gap it fills (not a feature AISI built worse — a category Inspect has *no* mechanism for): a `.eval` log is single-author and self-attested. Nothing in it prevents the producer from re-running until the number looks right, or proves a second party would get the same output. There is no multi-party, blinded, tamper-evident layer anywhere in the eval-framework space.
 
-This is demonstrably superior because:
+The one argument the combination makes that neither part can:
 
-1. **CORE-Bench without ValiChord**: tells you an AI can reproduce a paper. Doesn't prove the person reporting the score ran it fairly, or that a second party would agree.
+> *Several agents ran the code in isolated environments. None could see the others' results before they committed. The record on a network no single party controls shows what each one got. You don't have to trust any of them — you can verify the record yourself with a single curl command.*
 
-2. **ValiChord without CORE-Bench**: proves structural independence. Current validators form opinions via web search — useful for general claims, but subjective.
+Why each part alone falls short:
 
-3. **Combined**: three agents independently ran the code in isolation. None could copy another's `report.json` before committing — the commit-reveal protocol structurally prevents it. The result is not an opinion; it is what the code produces. The record is permanent.
+1. **CORE-Bench alone**: tells you an AI *can* reproduce a paper. Gives you one self-reported result — useful as a benchmark *score*, but not usable as *evidence* a third party would trust, because nothing proves it came from a fair, independent run.
 
-Be precise when presenting this: for deterministic code the value of commit-reveal is not "prevented opinion anchoring" but "prevented result copying." That is a real guarantee and a defensible one — state it that way.
+2. **ValiChord alone**: proves structural independence and non-copying. But the current demo validators form opinions via web search — fine for general claims, subjective for computational ones.
 
-The demo is the proof.
+3. **Combined**: the verdict is what the code produces (objective), the runs are isolated and blinded (no `report.json` copying), and the outcome is permanent and independently verifiable. A CORE-Bench score becomes a CORE-Bench *attestation*.
 
----
+Two precision rules when presenting, both load-bearing with this audience:
 
-## Relationship to the inspect_evals issue/PR
+- **Claim the right guarantee.** For deterministic code the value of commit-reveal is *prevented result-copying and fabrication*, not *prevented opinion-anchoring*. Real and defensible — state it narrowly.
+- **Don't overclaim independence.** See "Where the independence actually comes from" above. Three identical agents are not three independent parties; say what the demo's configuration actually supports.
 
-The integration doc and demo are what you bring to the conversation *after* the issue gets a positive response — not in the opening issue. The issue makes a low-friction schema ask (two optional YAML fields). The demo is what you offer when they ask "can you show us this working?"
-
-The sequence:
-1. Issue → schema fields accepted
-2. Demo → proof the combined system works on a real CORE-Bench capsule
-3. Collaboration → AISI's independent runs committed via ValiChord, HarmonyRecord in the register
+The demo is the proof. It is also the thing you bring *first* — see the sequencing note below.
 
 ---
 
-*Last updated: 2026-05-29*
+## Relationship to the inspect_evals issue/PR — lead with the demo, not the issue
+
+The earlier plan had this backwards: it gated the demo behind a schema-change issue getting a positive response. That makes the strongest asset (a working integration — a *gift*) hostage to the weakest one (a request to add two YAML fields — easy for a maintainer to defer or ignore). If the issue stalls, the CORE-Bench conversation never even opens.
+
+Two facts make the inversion obvious:
+
+- **The demo needs nothing from inspect_evals to exist.** Run their existing CORE-Bench agent on a capsule, feed the outputs through ValiChord's commit-reveal, produce a HarmonyRecord. The `valichord_attestation_uri` schema field is about making the integration *discoverable and durable later* — it is not a prerequisite for proving it *works now*. The dependency was self-imposed.
+- **Show-don't-ask beats ask-don't-show.** Maintainers engage with artifacts far more than with feature requests — especially on-topic ones, and "did the agent really reproduce it or copy/fabricate?" is the exact question CORE-Bench exists to probe.
+
+The corrected sequence:
+
+1. **Build the minimal standalone demo** — one real capsule through commit-reveal, shareable HarmonyRecord, no inspect_evals dependency. This de-risks everything: you are no longer waiting on anyone's response to start the conversation.
+2. **Open warm, not cold.** A note to an existing contact (e.g. via LinkedIn) pointing at the working demo outperforms a fresh public issue — and lets you pressure-test the framing (and the independence/determinism caveats above) privately before anything is on the public record.
+3. **Demote the schema field to the follow-on.** Once a working thing points at it, "would a register field make this discoverable to others?" is a far easier yes than the same ask in a vacuum.
+4. **Collaboration** → AISI's independent runs committed via ValiChord, HarmonyRecord referenced from the register.
+
+The schema PR isn't wasted work — it's just the wrong opening move. Lead with the gift; let it earn the conversation.
+
+---
+
+*Last updated: 2026-05-30*
