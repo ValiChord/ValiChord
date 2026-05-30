@@ -14,6 +14,8 @@ import uuid
 import zipfile
 from pathlib import Path
 
+from agreement import derive_agreement_level, derive_majority_outcome
+
 DEMO_DIR   = Path(__file__).parent
 STUDY_DIR  = DEMO_DIR / 'synthetic_study'
 MODEL      = 'claude-haiku-4-5-20251001'
@@ -239,23 +241,12 @@ def run_protocol(data_hash: str, metrics: list, verdicts: list, job: dict) -> di
             f'The commit-reveal round completed but the record is not yet retrievable.'
         )
 
+    # Outcome + agreement derived with the same logic as the on-chain
+    # HarmonyRecord (shared_types::derive_*) via the shared helper, so the
+    # display can never diverge from the record the skeptic fetches.
     outcomes = [v['outcome'] for v in verdicts]
-    n_reproduced = outcomes.count('Reproduced')
-    n_partial    = outcomes.count('PartiallyReproduced')
-    rate = (n_reproduced + n_partial) / len(outcomes)
-    agreement_level = (
-        'ExactMatch'       if rate >= 0.90 else
-        'WithinTolerance'  if rate >= 0.70 else
-        'DirectionalMatch' if rate >= 0.50 else
-        'Divergent'        if n_reproduced + n_partial > 0 else
-        'UnableToAssess'
-    )
-    majority_outcome = (
-        'Reproduced'          if n_reproduced >= 2 else
-        'PartiallyReproduced' if n_partial    >= 2 else
-        'FailedToReproduce'   if outcomes.count('FailedToReproduce') >= 2 else
-        'UnableToAssess'
-    )
+    agreement_level  = derive_agreement_level(outcomes)
+    majority_outcome = derive_majority_outcome(outcomes)
 
     return {
         'harmony_record_hash':    harmony_record_hash,

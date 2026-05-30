@@ -37,6 +37,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import NoReturn
 
+from agreement import derive_agreement_level, derive_majority_outcome
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger(__name__)
 
@@ -529,23 +531,12 @@ def _finish_protocol(
     if not harmony_record_hash:
         raise RuntimeError("HarmonyRecord was not written to the DHT")
 
+    # Outcome + agreement derived with the same logic as the on-chain
+    # HarmonyRecord (shared_types::derive_*) via the shared helper, so the
+    # display can never diverge from the record the skeptic fetches.
     outcomes  = [v["outcome"] for v in verdicts]
-    n_repro   = outcomes.count("Reproduced")
-    n_partial = outcomes.count("PartiallyReproduced")
-    rate      = (n_repro + n_partial) / len(outcomes)
-    agreement = (
-        "ExactMatch"       if rate >= 0.90 else
-        "WithinTolerance"  if rate >= 0.70 else
-        "DirectionalMatch" if rate >= 0.50 else
-        "Divergent"        if n_repro + n_partial > 0 else
-        "UnableToAssess"
-    )
-    majority = (
-        "Reproduced"          if n_repro   >= 2 else
-        "PartiallyReproduced" if n_partial >= 2 else
-        "FailedToReproduce"   if outcomes.count("FailedToReproduce") >= 2 else
-        "UnableToAssess"
-    )
+    agreement = derive_agreement_level(outcomes)
+    majority  = derive_majority_outcome(outcomes)
 
     return {
         "harmony_record_hash":    harmony_record_hash,

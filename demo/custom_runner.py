@@ -16,6 +16,7 @@ import os
 import anthropic
 
 from ai_validator_cma import _node_post, _node_get, BETAS, MODEL_CMA
+from agreement import derive_agreement_level, derive_majority_outcome
 
 RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://132.145.34.27:3001")
 VALIDATOR_URLS = [
@@ -445,11 +446,18 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -
     if not harmony_record_hash:
         raise RuntimeError("HarmonyRecord was not written to the DHT")
 
+    # Outcome + agreement_level are derived from the validator verdicts with the
+    # same logic as the on-chain HarmonyRecord (shared_types::derive_*), NOT from
+    # the free-form compare_answers adjudication — otherwise the label could
+    # contradict the per-validator verdicts shown beside it (e.g. 3/3 Reproduced
+    # displayed as "WithinTolerance"). compare_answers is kept only for its
+    # human-readable summary.
+    outcomes = [v["outcome"] for v in verdicts]
     job["result"] = {
         "harmony_record_hash":    harmony_record_hash,
         "external_hash_b64":      external_hash_b64,
-        "outcome":                comparison["outcome"],
-        "agreement_level":        comparison["agreement_level"],
+        "outcome":                derive_majority_outcome(outcomes),
+        "agreement_level":        derive_agreement_level(outcomes),
         "comparison_summary":     comparison["summary"],
         "researcher_answer":      user_answer,
         "validator_count":        3,
