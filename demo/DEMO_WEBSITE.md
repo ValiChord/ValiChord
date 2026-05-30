@@ -47,7 +47,7 @@ The user enters a hypothesis and their own assessment of it. That assessment is 
 1. Polls `GET /phase` on the researcher node until `"RevealOpen"` (up to 240 s).
 2. `POST /reveal` on the researcher node — unseals the researcher's commitment.
 3. `POST /reveal` on each of the three validator nodes (15 s apart to avoid DHT write conflicts); each call retried up to 3 times on transient network errors.
-4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns `{ outcome, agreement_level, summary }`. If Claude returns malformed JSON, a neutral fallback result is used so the HarmonyRecord is still written.
+4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns a human-readable `summary` comparing the researcher's answer to the panel. (Its `outcome`/`agreement_level` are no longer used for display; a malformed-JSON reply falls back to a neutral summary so the HarmonyRecord is still written.) The displayed `outcome` and `agreement_level` are derived from the validator verdicts by `demo/agreement.py`, which mirrors the on-chain Rust logic (`shared_types::derive_majority_outcome` / `derive_agreement_level`) — so the label always matches the HarmonyRecord a skeptic fetches, and can never show "3/3 Reproduced" beside a contradictory agreement level.
 5. `POST /create-harmony-record` → permanent HarmonyRecord on the DHT.
 6. `job["phase"] = "done"` — UI renders the full result.
 
@@ -86,8 +86,8 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
 {
   "harmony_record_hash": "uhC8k…",
   "external_hash_b64": "…",
-  "outcome": "Reproduced | PartiallyReproduced | NotReproduced",
-  "agreement_level": "ExactMatch | WithinTolerance | DirectionalMatch | Divergent",
+  "outcome": "Reproduced | PartiallyReproduced | FailedToReproduce | UnableToAssess",
+  "agreement_level": "ExactMatch | WithinTolerance | DirectionalMatch | Divergent | UnableToAssess",
   "comparison_summary": "…",
   "researcher_answer": "…",
   "validator_count": 3,
@@ -100,7 +100,7 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
 }
 ```
 
-Note: `agreement_level` in the HarmonyRecord reflects validator-to-validator consensus; the UI outcome label reflects researcher-to-validator alignment. Both are correct — they measure different things.
+Note: `outcome` and `agreement_level` are derived from the validator verdicts with the same logic as the on-chain HarmonyRecord, so the displayed label always matches the record you can fetch yourself (validator-to-validator consensus). `comparison_summary` is the separate researcher-to-validator narrative from `compare_answers` — it explains how the panel's finding relates to the researcher's sealed answer, but does not drive the outcome label.
 
 ### Concurrency
 
