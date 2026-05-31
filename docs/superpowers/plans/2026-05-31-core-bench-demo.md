@@ -56,12 +56,18 @@ Append these lines to `demo/requirements.txt` (keep existing lines intact):
 
 ```
 # CORE-Bench demo (inspect_evals integration)
+# Pinned to a verified main commit: the PUBLISHED release (0.3.103) lags main and
+# uses basic_agent (not react), lacks filter_out_vision, and lacks CAPSULE_CHECKSUMS
+# — all of which this demo relies on. Verified against this exact SHA.
 inspect_ai>=0.3.50
-inspect_evals>=0.1
+inspect_evals @ git+https://github.com/UKGovernmentBEIS/inspect_evals@34617f8b01356c6b802d429fbfaca97c9eaf1386
 scipy>=1.11
 ```
 
-> If a listed version is not resolvable at install time, pin to the latest published version instead — the smoke test below is what actually guards the import surface we depend on.
+> The git+SHA pin is deliberate and fully reproducible — do NOT fall back to the
+> PyPI release, whose CORE-Bench API differs (it would break Tasks 4–6). The smoke
+> test below guards the exact import surface; if it fails on the pinned SHA, report
+> BLOCKED rather than swapping in the published package.
 
 - [ ] **Step 3: Install**
 
