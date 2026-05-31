@@ -6,7 +6,16 @@ Reuses demo_runner's node HTTP helpers and agreement.py so the displayed
 outcome matches the on-chain HarmonyRecord by construction."""
 import hashlib
 import os
+import time
+import urllib.parse
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from agreement import derive_agreement_level, derive_majority_outcome
+from core_bench_validator import run_validator_eval, run_researcher_claim
+from report_to_verdict import report_to_verdict, build_numeric_panel
+# Reuse the battle-tested node HTTP helpers + URL config from demo_runner.
+from demo_runner import _node_post, _node_get, RESEARCHER_URL, VALIDATOR_URLS
 from inspect_evals.core_bench.dataset import CAPSULE_CHECKSUMS
 
 # provider env var expected per model-string prefix
@@ -54,17 +63,6 @@ def validate_model_keys(models: list) -> None:
         raise RuntimeError("Missing required provider API keys:\n  - " + "\n  - ".join(missing))
 
 
-import time
-import urllib.parse
-import uuid
-from concurrent.futures import ThreadPoolExecutor
-
-from agreement import derive_agreement_level, derive_majority_outcome
-from core_bench_validator import run_validator_eval, run_researcher_claim
-from report_to_verdict import report_to_verdict, build_numeric_panel
-# Reuse the battle-tested node HTTP helpers + URL config from demo_runner.
-from demo_runner import _node_post, _node_get, RESEARCHER_URL, VALIDATOR_URLS
-
 _MAX_VALIDATOR_ATTEMPTS = 2
 
 
@@ -75,7 +73,7 @@ def _sleep(seconds):  # indirection so tests can stub out real waiting
 def _run_one_validator(capsule_id, required_keys, model):
     """Run a validator eval (one retry with a fresh sandbox) -> (report, verdict)."""
     last_err = None
-    for attempt in range(_MAX_VALIDATOR_ATTEMPTS):
+    for _ in range(_MAX_VALIDATOR_ATTEMPTS):
         try:
             report = run_validator_eval(capsule_id, model)
             verdict = report_to_verdict(report, required_keys)
@@ -113,7 +111,7 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
                    for i, m in enumerate(validator_models)}
         results = {}
         errors = []
-        for fut in futures:
+        for fut in as_completed(futures):
             i, m = futures[fut]
             try:
                 results[i] = fut.result()

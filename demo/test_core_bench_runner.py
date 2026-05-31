@@ -80,3 +80,33 @@ def test_run_protocol_drives_full_sequence(monkeypatch):
     assert result["harmony_record_hash"] == "uhC8kHARM"
     assert result["agreement_level"] == "ExactMatch"  # 3/3 Reproduced
     assert all(row["match"] for v in result["numeric_panel"] for row in v["rows"])
+
+
+def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+
+    monkeypatch.setattr(cbr, "_node_post", lambda url, payload, timeout=600: {"external_hash_b64": "uhC8kEXT"})
+    monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
+    monkeypatch.setattr(cbr, "run_researcher_claim",
+                        lambda cid, model, n_runs, rel_tolerance:
+                        {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
+    monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+
+    def flaky_eval(cid, model):
+        if model == "openai/gpt-4o":
+            raise RuntimeError("sandbox build failed")
+        return {"Q": 96.125}
+
+    monkeypatch.setattr(cbr, "run_validator_eval", flaky_eval)
+
+    with pytest.raises(RuntimeError) as exc:
+        cbr.run_core_bench_protocol(
+            capsule_id="capsule-5507257",
+            researcher_model="anthropic/claude-opus-4-8",
+            validator_models=["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-1.5-pro"],
+        )
+    msg = str(exc.value)
+    assert "aborted" in msg.lower()
+    assert "openai/gpt-4o" in msg  # names the failed model
