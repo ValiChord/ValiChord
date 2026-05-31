@@ -4,6 +4,7 @@ HarmonyRecord -> recomputable numeric panel.
 
 Reuses demo_runner's node HTTP helpers and agreement.py so the displayed
 outcome matches the on-chain HarmonyRecord by construction."""
+import argparse
 import hashlib
 import os
 import time
@@ -169,3 +170,57 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
             for i in range(3)
         ],
     }
+
+
+_DEFAULT_MODELS = ["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-1.5-pro"]
+
+
+def format_result(result: dict) -> str:
+    lines = []
+    a = lines.append
+    a("=" * 60)
+    a("  ValiChord x CORE-Bench - Computational Reproducibility")
+    a("=" * 60)
+    a(f"  Outcome:          {result['outcome']}")
+    a(f"  Agreement level:  {result['agreement_level']}  (independent execution agreement)")
+    a(f"  HarmonyRecord:    {result['harmony_record_hash']}")
+    a("")
+    a("  Validators (mixed models, blind, isolated sandboxes):")
+    for v in result["validator_verdicts"]:
+        a(f"    V{v['validator']} [{v['model']}]: {v['outcome']} ({v['confidence']}) - {v['reasoning']}")
+    a("")
+    a("  Numeric convergence vs researcher's committed interval (recomputable):")
+    for v in result["numeric_panel"]:
+        for row in v["rows"]:
+            verdict = "MATCH" if row["match"] else "OUTSIDE"
+            a(f"    {v['validator']}: {row['value']} in [{row['lower']!r}, {row['upper']!r}] -> {verdict}")
+    a("")
+    a(f"  Verify independently:")
+    a(f"    curl \"{result['record_url']}\"")
+    a("=" * 60)
+    return "\n".join(lines)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="ValiChord x CORE-Bench CLI demo")
+    parser.add_argument("--capsule", required=True, help="capsule_id, e.g. capsule-5507257")
+    parser.add_argument("--researcher-model", default=_DEFAULT_MODELS[0])
+    parser.add_argument("--validator-models", nargs=3, default=_DEFAULT_MODELS,
+                        help="three model strings, e.g. anthropic/claude-opus-4-8 openai/gpt-4o google/gemini-1.5-pro")
+    parser.add_argument("--researcher-runs", type=int, default=3)
+    parser.add_argument("--tolerance", type=float, default=0.001, help="relative tolerance for deterministic capsules")
+    args = parser.parse_args(argv)
+
+    result = run_core_bench_protocol(
+        capsule_id=args.capsule,
+        researcher_model=args.researcher_model,
+        validator_models=args.validator_models,
+        n_researcher_runs=args.researcher_runs,
+        rel_tolerance=args.tolerance,
+    )
+    print(format_result(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

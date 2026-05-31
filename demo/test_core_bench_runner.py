@@ -110,3 +110,23 @@ def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
     msg = str(exc.value)
     assert "aborted" in msg.lower()
     assert "openai/gpt-4o" in msg  # names the failed model
+
+
+def test_format_result_output_contains_headline_facts():
+    result = {
+        "outcome": "Reproduced", "agreement_level": "ExactMatch",
+        "harmony_record_hash": "uhC8kHARM", "record_url": "http://x/record?hash=uhC8kEXT",
+        "validator_verdicts": [
+            {"validator": 1, "model": "anthropic/claude-opus-4-8", "outcome": "Reproduced", "confidence": "High", "reasoning": "ok"},
+            {"validator": 2, "model": "openai/gpt-4o", "outcome": "Reproduced", "confidence": "High", "reasoning": "ok"},
+            {"validator": 3, "model": "google/gemini-1.5-pro", "outcome": "Reproduced", "confidence": "High", "reasoning": "ok"},
+        ],
+        "numeric_panel": [
+            {"validator": "V1-claude-opus-4-8", "rows": [{"question": "Q", "value": 96.125, "lower": 96.0, "upper": 96.25, "match": True}]},
+        ],
+    }
+    text = cbr.format_result(result)
+    assert "ExactMatch" in text
+    assert "uhC8kHARM" in text
+    assert "96.125" in text and "96.0" in text  # numeric panel rendered
+    assert "claude-opus-4-8" in text and "gpt-4o" in text and "gemini-1.5-pro" in text
