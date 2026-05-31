@@ -101,6 +101,24 @@ The Phase 0 spike confirms which reproduces clean in hard mode, < 5 min, no GPU.
 Leaning deterministic for a crisp first-impression ("three different models all
 converged on the identical number").
 
+> **Note (Ceri's opinion — may prove incorrect):** the *demo-optimal* capsule
+> and the *value-optimal* capsule are probably not the same. A **stochastic**
+> capsule is likely the more representative use of ValiChord: when the result
+> has genuine run-to-run variance, multiple independent validators do work a
+> single run structurally cannot — they characterise the distribution and help
+> "pin down" the likely-correct value, and blinding earns its keep (a validator
+> can't tune their run toward a revealed target). A deterministic capsule still
+> proves something real — reproduces-at-all (only ~21% of hard tasks do),
+> robustness across diverse environments/agents, and no copying/fabrication —
+> but the *marginal* value of extra validators and of the blinding is lower when
+> there is no spread to triangulate. So we lead with deterministic for
+> **legibility** (unambiguous, hard to nitpick in a 2-minute demo), and treat
+> the stochastic capsule (`capsule-6003668`) as the **more representative
+> follow-up** once the deterministic version has earned the first impression.
+> This is a judgement call, not a settled fact — the live runs may show the
+> stochastic capsule is too messy to be worth leading toward, or that
+> deterministic carries more weight with the target audience than expected.
+
 ---
 
 ## 4. Architecture
