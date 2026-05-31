@@ -39,3 +39,12 @@ docs/DEEPMIND_ENGAGEMENT_PLAN.md
 docs/DEMOZERO_PLAN.md
 docs/ValiChord_Repository_Cleaning_Specification_15.md
 docs/zeroclaw_investigation.md
+
+# CORE-Bench demo local API keys — never commit
+.keys.env
+*.keys.env
+.core_bench_keys
+
+# CORE-Bench demo run artifacts
+demo/spike-*.log
+demo/logs/
