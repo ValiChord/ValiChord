@@ -219,6 +219,17 @@ Researcher                    Validator 1           Validator 2     ...   Valida
 
 ## What needs to be built
 
+> **STATUS (2026-05-31): BUILT on branch `core-bench-demo`.** Implemented against
+> the **inspect_evals `core_bench` task** (not the AutoGPT harness) — its
+> `react`+`bash` agent is model-agnostic, so validators run different models
+> (Claude/GPT-4o/Gemini) trivially. Modules below map to: `core_bench_validator.py`
+> (eval wrapper), `core_bench_runner.py` (parallel orchestrator + CLI),
+> `report_to_verdict.py` (verdict adapter), and a custom **capture scorer** that
+> lifts `report.json` without reading ground truth. Inspect's per-sample Docker
+> sandbox provides isolation. **Verified live:** `capsule-0851068` reproduces
+> exactly (`0.9157952669235003`); the full HarmonyRecord run is pending a 64 GB+
+> machine (sandboxes are ~14 GB each). Full run guide: `demo/CORE_BENCH_DEMO.md`.
+
 ### 1. `demo/core_bench_validator.py`
 
 An Inspect AI task wrapper that:
