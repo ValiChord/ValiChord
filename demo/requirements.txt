@@ -3,3 +3,9 @@ flask-cors==5.0.0
 anthropic==0.94.1
 gunicorn==22.0.0
 litellm>=1.40.0
+# CORE-Bench demo (inspect_evals integration)
+# Pinned to a verified main commit: the published release (0.3.103) lags main and
+# uses basic_agent (not react), lacks filter_out_vision, and lacks CAPSULE_CHECKSUMS.
+inspect_ai>=0.3.50
+inspect_evals @ git+https://github.com/UKGovernmentBEIS/inspect_evals@34617f8b01356c6b802d429fbfaca97c9eaf1386
+scipy>=1.11
