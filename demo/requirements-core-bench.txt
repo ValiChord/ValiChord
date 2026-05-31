@@ -1,0 +1,17 @@
+# CORE-Bench CLI demo dependencies — NOT installed by the Render web demo.
+# Kept separate from requirements.txt because:
+#   - the public web demo (app.py) imports none of these, and
+#   - inspect_evals is a `git+` pin, which needs `git` on the build host; the
+#     Render python:3.12-slim image has no git, so including it here would (and
+#     did) break the web deploy.
+# Install for the CLI demo with:  pip install -r requirements-core-bench.txt
+-r requirements.txt
+# Pinned to a verified main commit: the published release (0.3.103) lags main and
+# uses basic_agent (not react), lacks filter_out_vision, and lacks CAPSULE_CHECKSUMS.
+inspect_ai>=0.3.50
+inspect_evals @ git+https://github.com/UKGovernmentBEIS/inspect_evals@34617f8b01356c6b802d429fbfaca97c9eaf1386
+scipy>=1.11
+# Gemini provider SDK for mixed-model runs — inspect_ai's google provider imports
+# it lazily and errors at call time if absent ("Google API requires optional
+# dependencies"); the openai provider SDK is pulled in transitively.
+google-genai>=1.0.0

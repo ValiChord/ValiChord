@@ -93,8 +93,11 @@ set**. So:
 ## Prerequisites
 
 - **Privileged Docker** (the inspect sandbox `compose.yaml` runs `privileged: true`).
-- `pip install -r requirements.txt` (installs `inspect_ai`, `inspect_evals`
-  pinned to a verified `main` commit, `scipy`, and `anthropic>=0.105.0`).
+- `pip install -r requirements-core-bench.txt` (installs `inspect_ai`,
+  `inspect_evals` pinned to a verified `main` commit, `scipy`, `google-genai`,
+  plus the base `requirements.txt`). Needs `git` on the host (the `inspect_evals`
+  pin is a `git+` URL). These are kept **out** of `requirements.txt` so the
+  public web demo's Render build (no `git`) is unaffected.
 - **Provider API keys** for the validator models. Mixed-model needs all three;
   all-Claude needs only Anthropic:
   - `ANTHROPIC_API_KEY` — Claude (and the researcher's runs)
@@ -221,8 +224,8 @@ inspect-dependent ones `importorskip`).
 - **Validators made sequential** — they ran in a `ThreadPoolExecutor`, but
   inspect_ai forbids concurrent `eval_async` ("Multiple concurrent calls … not
   allowed"). Blinding is structural (isolated sandboxes), not timing-dependent.
-- **`google-genai` added** to `requirements.txt` — the Gemini provider imports it
-  lazily and errors at call time if absent.
+- **`google-genai` added** to `requirements-core-bench.txt` — the Gemini provider
+  imports it lazily and errors at call time if absent.
 - **`gemini-1.5-pro` → `gemini-2.5-pro`** — 1.5-pro was retired from the Google API.
 - **Infra failures no longer mint bogus verdicts** — a rate-limited / quota'd /
   interrupted validator yields a non-`success` `EvalLog` with no samples;
@@ -240,4 +243,4 @@ inspect-dependent ones `importorskip`).
   Sonnet — **confirmed to reproduce the capsule** (2026-05-31).
 - **inspect_evals pin:** the published PyPI release lags `main` and uses a
   different CORE-Bench API (no `react`, no `filter_out_vision`, no
-  `CAPSULE_CHECKSUMS`). The `requirements.txt` git+SHA pin is deliberate.
+  `CAPSULE_CHECKSUMS`). The `requirements-core-bench.txt` git+SHA pin is deliberate.
