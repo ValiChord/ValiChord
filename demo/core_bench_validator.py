@@ -20,7 +20,11 @@ def build_validator_task(capsule_id: str) -> Task:
             difficulty="hard",
             language="Python",
             capsule_ids=[capsule_id],
-            filter_out_gpu=True,
+            # filter_out_gpu uses a crude substring check on REPRODUCING.md, which
+            # contains the boilerplate `docker run --gpus all` template line in
+            # virtually every capsule -> it false-positives and empties the dataset.
+            # We rely on capsule pre-screening (and the run itself) for CPU-fitness.
+            filter_out_gpu=False,
             filter_out_vision=True,
         ),
         solver=default_solver(),

@@ -7,7 +7,10 @@ import core_bench_validator as cbv
 
 
 def test_build_validator_task_uses_hard_blind_filters():
-    """Blinding guard: hard difficulty + no-GPU + no-vision + the one capsule."""
+    """Blinding guard: hard difficulty (deletes results/) + no-vision + the one
+    capsule. GPU filtering is intentionally OFF — its substring check on
+    REPRODUCING.md false-positives on the boilerplate `--gpus all` template and
+    would empty the dataset; CPU-fitness is handled by capsule pre-screening."""
     captured = {}
 
     def fake_read(**kwargs):
@@ -22,7 +25,7 @@ def test_build_validator_task_uses_hard_blind_filters():
 
     assert captured["difficulty"] == "hard"
     assert captured["capsule_ids"] == ["capsule-5507257"]
-    assert captured["filter_out_gpu"] is True
+    assert captured["filter_out_gpu"] is False  # crude filter disabled (see docstring)
     assert captured["filter_out_vision"] is True
     assert task["scorer"] == "SCORER"
 
