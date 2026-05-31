@@ -28,23 +28,35 @@ the agent retains in hard mode — so "independent execution" can't be reduced t
 "read the number." (Empirically `capsule-0851068` is clean today; this makes it a
 gate, not an assumption, and covers future/stochastic capsules.)
 
-**Retained set:** files **not** under
-`inspect_evals.core_bench.dataset.CAPSULE_PATHS_TO_REMOVE["hard"]` (imported, so it
-tracks what hard mode actually deletes). Scanned extensions:
-`.md .txt .rst .py .json .ipynb .csv .yaml .yml`. **`.ipynb` is scanned as raw
-text** — output cells are JSON strings, so a whole-file text scan catches
-`"AUC: 0.9158"` in cell output without notebook parsing.
+**Retained set:** files **not** removed by hard mode. The removal list
+`inspect_evals.core_bench.dataset.CAPSULE_PATHS_TO_REMOVE["hard"]` holds path
+**prefixes**, not bare names (`results`, `environment`, `REPRODUCING.md`,
+`code/run`, `code/run.sh`) and is applied as `rm -rf <path>`. Classification must
+therefore be **prefix-aware**: a file is *deleted* iff its capsule-relative path
+equals a removal entry **or** starts with `entry + "/"` (so `results/output.json`
+is correctly deleted). The dangerous direction is the false negative — treating a
+deleted file as retained is harmless; failing to recognise a retained file means
+never scanning it. A `is_retained(rel_path)` helper encodes exactly this rule
+against the imported list.
+
+Scanned extensions: `.md .txt .rst .py .json .ipynb .csv .yaml .yml`. **`.ipynb`
+is scanned as raw text** — output cells are JSON strings, so a whole-file text
+scan catches `"AUC: 0.9158"` in cell output without notebook parsing.
 
 **Two non-fuzzy signals** (the fuzzy keyword-near-number heuristic is dropped):
 
 1. **Rounded point forms** — for each committed metric `value`, generate
-   `repr(value)` and rounds to 2/3/4 sig-decimals plus the `value*100`
-   percentage form; flag if any appears as a token in retained text.
-2. **Interval membership** — extract numeric tokens from retained text; flag any
-   token inside `[lower - h, upper + h]` where `h = (upper - lower)/2` (i.e.
-   within 2× the committed half-width of the centre). Pure numeric comparison —
-   the exact case the gate guards for a *stochastic* capsule whose README states
-   an approximate result.
+   `repr(value)` and rounds to 2/3/4 decimal places plus the `value*100`
+   percentage form; flag if any appears as a token in retained text. **Applies to
+   all scanned extensions** (specific enough not to false-positive on data/code).
+2. **Interval membership** — extract numeric tokens and flag any inside
+   `[lower - h, upper + h]` where `h = (upper - lower)/2` (within 2× the committed
+   half-width of the centre). **Restricted to documentation-like files
+   (`.md .txt .rst .ipynb`) only** — on raw `.csv/.json/.py` an in-band token
+   (a data column, `lr=0.91`, a normalised feature) is noise that would cause a
+   false abort and make the gate look broken. Documentation is where an
+   *approximate stated result* actually lives, so that is where this signal earns
+   its keep.
 
 **API (pure):**
 ```python
@@ -80,7 +92,13 @@ numbers matched."
 **Pure helpers in `node-lib.mjs`** (unit-tested):
 - `parseCommittedInterval(expectedValueStr) -> {lower, upper} | null` — parses the
   researcher's `"[l, u] (basis)"` encoding (from `claim_to_metrics`).
-- `numericMatch(value, lower, upper) -> bool` — inclusive `<=` both sides; non-numeric → false.
+- `numericMatch(value, lower, upper) -> bool` — **a direct port of Python
+  `match_value`** (`report_to_verdict.py:55-61`), because `produced_value` /
+  `expected_value` are `String` on-chain (`shared_types:309-310`). Coerce
+  `Number(String(v).replace('%','').trim())`; `NaN` → false; inclusive `<=` both
+  sides. A naive `value <= upper` on the raw string renders **every** row
+  `OUTSIDE` on the exact surface meant to be trustworthy. Unit-test against a
+  `"%"`-suffixed and a whitespace-padded value, not just clean floats.
 - `buildNumericConvergence(researcherMetrics, attestationEntries) -> [{validator, metric, value, lower, upper, match}]`
   — per validator × metric: `value` = that validator's
   `outcome_summary.key_metrics[metric].produced_value`; interval parsed from the
@@ -117,12 +135,20 @@ shareable URL after the Oracle node is redeployed (user's server access).
 **Purpose:** make the doc's "display can never diverge from the HarmonyRecord"
 literally true.
 
-**Echo (runner):** after `create-harmony-record`, `_node_get(record_url)` and use
-the record's own `outcome` / `agreement_level` for the authoritative display.
-Fall back to Python `derive_majority_outcome` / `derive_agreement_level(outcomes)`
-only if the fetch fails or the fields are missing. (The locally-built
-`numeric_panel` is unchanged — it's the recomputable headline; Unit 2 is its
-on-chain counterpart.)
+**Echo (runner) — gossip-free source.** A `_node_get(record_url)` after creation
+would race governance gossip: the record is authored on validator-1's node and
+must propagate to the researcher node before the GET sees it; under lag the GET
+404s → the fallback fires → the display silently shows the **recomputed** value,
+i.e. the exact unverified path #3 exists to retire, now invisible.
+
+Instead, enrich `/create-harmony-record` (`validator-node.mjs`) to also return
+`outcome` and `agreement_level`, read by the **authoring** node from the record it
+just wrote (a local `get_harmony_record(request_ref)` on the author is
+gossip-free). The runner displays those authoritative fields. It falls back to
+Python `derive_*(outcomes)` **only** if the response omits them, and when it does
+it **labels the display** ("recomputed — record fields unavailable") so the
+output is never silently on the recompute path. The locally-built `numeric_panel`
+is unchanged — it's the recomputable headline; Unit 2 is its on-chain counterpart.
 
 **Shared golden fixture:** `valichord/shared_types/tests/agreement_golden.json`:
 ```json
@@ -130,6 +156,16 @@ on-chain counterpart.)
     "agreement_level": "ExactMatch", "majority_outcome": "Reproduced" }, ... ]
 ```
 Uses **canonical** outcome strings only (no `NotReproduced`).
+
+"Breaks both or neither" only holds for vectors that **exercise the thresholds**,
+so the fixture must include the exact edges (migrated from the current
+`test_agreement.py`), not just the easy `3×Reproduced` case:
+- `full_rate == 0.90` → 9×Reproduced + 1×Failed → `ExactMatch`
+- `full_rate == 0.70 < 0.90`, `any_rate == 0.70` → 7×Reproduced + 3×Failed → `WithinTolerance`
+- `any_rate == 0.50` → 1×Reproduced + 1×Failed → `DirectionalMatch`
+- `any_rate` just above 0 → 1×Reproduced + 2×Failed → `Divergent`
+- `any_rate == 0` → 3×Failed → `UnableToAssess`
+- all-partial → 3×PartiallyReproduced → `WithinTolerance` (full 0, any 1.0)
 
 - **Python** (`test_agreement.py`): resolve the path via a `repo_root()` walk-up
   helper (find the dir containing `valichord/`, override with
