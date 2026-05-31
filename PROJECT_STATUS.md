@@ -522,12 +522,14 @@ directly against the Claude API (`demo/ai_validator.py`). No further Feynman int
 ### 4. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
 
-### 5. CORE-Bench + ValiChord demo — IN PROGRESS (pipeline built & verified; full live run pending bigger disk)
-Live CLI demo combining ValiChord's commit-reveal protocol with the inspect_evals CORE-Bench task — AI agents that actually run research-paper code in isolated Docker sandboxes. Code complete on branch `core-bench-demo`; see `demo/CORE_BENCH_DEMO.md`.
+### 5. CORE-Bench + ValiChord demo — ✓ FULL RUN DONE (2026-05-31)
+Live CLI demo combining ValiChord's commit-reveal protocol with the inspect_evals CORE-Bench task — AI agents that actually run research-paper code in isolated Docker sandboxes. On branch `core-bench-demo`; see `demo/CORE_BENCH_DEMO.md`.
 
-**Verified live (2026-05-31, Claude Opus 4.8):** full validator path end-to-end (dataset → privileged Docker sandbox → Claude-as-agent → `report.json` capture → `extract_report_from_log`); **`capsule-0851068` reproduces exactly** (`0.9157952669235003`); 28 tests pass. Two bugs found+fixed live: `filter_out_gpu` empties the dataset (substring-matches the boilerplate `--gpus all` in every `REPRODUCING.md`); `anthropic>=0.105.0` required by inspect_ai.
+**Full commit-reveal run complete (2026-05-31, 128 GB Codespace):** end-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`, `--researcher-runs 1`) produced a clean **`Reproduced` / `ExactMatch`** HarmonyRecord — all 3 validators independently got `0.9157952669235003`. Public + recomputable on the Oracle DHT: `curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`. Both Opus 4.8 and Sonnet 4.6 reproduce the capsule exactly. **31 tests pass.**
 
-**Pending:** the full commit-reveal run to a HarmonyRecord. It reuses the already-proven node-API path the Oracle demo runs daily (lowest-risk step), but each sandbox is ~14 GB → a 3-validator run needs a **64 GB+** machine; the 32 GB Codespace can't fit it.
+**Four bugs fixed live (each only surfaces with 3 real validators):** (1) validators ran in a `ThreadPoolExecutor` but inspect_ai forbids concurrent `eval_async` → made sequential; (2) `google-genai` missing from `requirements.txt` → added; (3) `gemini-1.5-pro` retired by Google → `gemini-2.5-pro`; (4) infra failure (rate-limit/quota/auth/interrupt → empty `EvalLog` → `None` report) was minting a bogus `FailedToReproduce` HarmonyRecord → `run_validator_eval` now raises on non-`success` status so the round aborts with the real error. (Earlier: `filter_out_gpu` empties the dataset; `anthropic>=0.105.0`.)
+
+**Gotcha:** the commit-reveal half defaults to the **Oracle** nodes (`demo_runner` `RESEARCHER_URL`/`VALIDATOR_URLS`) unless `VALICHORD_*_URL` is exported to localhost — so the inspect sandboxes run locally but the DHT half hits the live Oracle. **Keys:** mixed-model needs paid keys (OpenAI free = `insufficient_quota`, Gemini free = `limit:0` for 2.5-pro); all-Sonnet is the cheap working default.
 
 **Trigger CORRECTED:** the earlier "hold until the inspect_evals issue responds" gating is **reversed** (per `docs/CORE_BENCH_INTEGRATION.md` 2026-05-30, "lead with the demo"). There is no inspect_evals issue — outreach to Scott Simmons was a **direct LinkedIn message** (no response required). The demo is the gift you lead with, not a follow-up.
 

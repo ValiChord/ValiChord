@@ -9,3 +9,8 @@ litellm>=1.40.0
 inspect_ai>=0.3.50
 inspect_evals @ git+https://github.com/UKGovernmentBEIS/inspect_evals@34617f8b01356c6b802d429fbfaca97c9eaf1386
 scipy>=1.11
+# Provider SDK for the Gemini validator in mixed-model runs. inspect_ai's google
+# provider imports google-genai lazily and errors at call time if it is absent
+# ("Google API requires optional dependencies"); the openai provider SDK is
+# already pulled in transitively.
+google-genai>=1.0.0

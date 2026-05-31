@@ -50,6 +50,31 @@ def test_run_validator_eval_returns_report():
     assert report == {"Q": 2.0}
 
 
+def test_run_validator_eval_raises_on_non_success_eval():
+    """An infra failure (rate limit, quota, auth, interruption) yields a
+    non-success eval log with no samples. It must raise so the round aborts with
+    the real error -- never be silently returned as None and then recorded as a
+    bogus FailedToReproduce verdict."""
+    err = mock.Mock(message="Error code: 429 - insufficient_quota")
+    bad_log = mock.Mock(status="error", error=err, samples=[])
+    with mock.patch.object(cbv, "build_validator_task", lambda cid: "TASK"), \
+         mock.patch.object(cbv, "inspect_eval", lambda *a, **k: [bad_log]):
+        with pytest.raises(RuntimeError) as exc:
+            cbv.run_validator_eval("capsule-5507257", "openai/gpt-4o")
+    assert "429" in str(exc.value) and "status=error" in str(exc.value)
+
+
+def test_run_validator_eval_returns_none_when_success_but_no_report():
+    """A *successful* eval that produced no report.json is a genuine
+    no-reproduction (-> FailedToReproduce later), distinct from an infra
+    failure -- so it returns None rather than raising."""
+    good_log = mock.Mock(status="success", samples=[])
+    with mock.patch.object(cbv, "build_validator_task", lambda cid: "TASK"), \
+         mock.patch.object(cbv, "inspect_eval", lambda *a, **k: [good_log]):
+        report = cbv.run_validator_eval("capsule-5507257", "anthropic/claude-opus-4-8")
+    assert report is None
+
+
 def test_run_researcher_claim_runs_n_times_and_derives():
     calls = []
 

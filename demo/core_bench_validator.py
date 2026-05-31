@@ -49,10 +49,22 @@ def extract_report_from_log(logs) -> Optional[dict]:
 
 
 def run_validator_eval(capsule_id: str, model: str) -> Optional[dict]:
-    """Run one CORE-Bench eval with `model` and return the agent's report.json
-    (or None on failure)."""
+    """Run one CORE-Bench eval with `model` and return the agent's report.json.
+
+    Returns None only when the eval *succeeded* but the agent produced no
+    report.json (a genuine no-reproduction). An infra failure (rate limit,
+    quota, auth error, interruption) yields a non-success EvalLog with no
+    samples; that must raise so the round aborts with the real error, never be
+    silently turned into a FailedToReproduce verdict on a published
+    HarmonyRecord."""
     task = build_validator_task(capsule_id)
     logs = inspect_eval(task, model=model)
+    if logs:
+        status = getattr(logs[0], "status", None)
+        if status is not None and status != "success":
+            err = getattr(logs[0], "error", None)
+            detail = getattr(err, "message", None) or (str(err) if err else "no error detail")
+            raise RuntimeError(f"eval did not complete (status={status}): {detail}")
     return extract_report_from_log(logs)
 
 

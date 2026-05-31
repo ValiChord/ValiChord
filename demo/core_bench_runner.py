@@ -10,7 +10,6 @@ import os
 import time
 import urllib.parse
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agreement import derive_agreement_level, derive_majority_outcome
 from core_bench_validator import run_validator_eval, run_researcher_claim
@@ -106,18 +105,20 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
                {"external_hash_b64": ext, "discipline": disc, "num_validators_required": 3})
     _sleep(20)  # DHT propagation
 
-    # 2. Three mixed-model validators reproduce in parallel, blind.
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {pool.submit(_run_one_validator, capsule_id, required_keys, m): (i, m)
-                   for i, m in enumerate(validator_models)}
-        results = {}
-        errors = []
-        for fut in as_completed(futures):
-            i, m = futures[fut]
-            try:
-                results[i] = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                errors.append(str(exc))
+    # 2. Three mixed-model validators reproduce blind, one at a time.
+    # inspect_ai forbids concurrent eval_async calls in a single process
+    # ("Multiple concurrent calls to eval_async are not allowed"), so the evals
+    # run sequentially. Blinding is structural (each runs in its own isolated
+    # sandbox, blind to the sealed answer and to the others) and does not depend
+    # on wall-clock parallelism; sequential also keeps only one ~14 GB sandbox
+    # on disk at a time.
+    results = {}
+    errors = []
+    for i, m in enumerate(validator_models):
+        try:
+            results[i] = _run_one_validator(capsule_id, required_keys, m)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(str(exc))
     if errors:
         raise RuntimeError("Validator reproduction failed; round aborted:\n  - " + "\n  - ".join(errors))
     validator_reports = [(f"V{i+1}-{validator_models[i].split('/')[-1]}", results[i][0]) for i in range(3)]
@@ -172,7 +173,8 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
     }
 
 
-_DEFAULT_MODELS = ["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-1.5-pro"]
+# gemini-1.5-pro was retired from the Google API; 2.5-pro is the current "pro" tier.
+_DEFAULT_MODELS = ["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-2.5-pro"]
 
 
 def format_result(result: dict) -> str:
@@ -206,7 +208,7 @@ def main(argv=None):
     parser.add_argument("--capsule", required=True, help="capsule_id, e.g. capsule-5507257")
     parser.add_argument("--researcher-model", default=_DEFAULT_MODELS[0])
     parser.add_argument("--validator-models", nargs=3, default=_DEFAULT_MODELS,
-                        help="three model strings, e.g. anthropic/claude-opus-4-8 openai/gpt-4o google/gemini-1.5-pro")
+                        help="three model strings, e.g. anthropic/claude-opus-4-8 openai/gpt-4o google/gemini-2.5-pro")
     parser.add_argument("--researcher-runs", type=int, default=3)
     parser.add_argument("--tolerance", type=float, default=0.001, help="relative tolerance for deterministic capsules")
     args = parser.parse_args(argv)

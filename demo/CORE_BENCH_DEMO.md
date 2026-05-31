@@ -38,7 +38,8 @@ checkable**. Composition, not competition.
 Researcher runs the capsule -> committed metrics + interval (SEALED on the DHT)
         |
 3 validators (mixed models) each run the SAME capsule, hard mode, isolated sandbox
-        | each writes report.json, blind to the sealed answer and to each other
+        | run sequentially (inspect_ai allows one eval at a time), each blind to
+        | the sealed answer and to each other; each writes its own report.json
         v
 All commit -> reveal phase opens -> simultaneous reveal -> HarmonyRecord
         |
@@ -98,10 +99,15 @@ set**. So:
   all-Claude needs only Anthropic:
   - `ANTHROPIC_API_KEY` — Claude (and the researcher's runs)
   - `OPENAI_API_KEY` — GPT-4o
-  - `GOOGLE_API_KEY` — Gemini (a free Google AI Studio key works)
+  - `GOOGLE_API_KEY` — Gemini-2.5-pro
+  - Note: **free tiers are not enough.** CORE-Bench reproduction is genuinely
+    agentic, so it needs a capable model: OpenAI has no usable free API tier
+    (`insufficient_quota`), and the Google free tier excludes `gemini-2.5-pro`
+    (`free_tier_requests, limit: 0`). Use paid keys, or run all-Claude/all-Sonnet.
 - **Disk:** each sandbox grows to **~14 GB** (the agent installs heavy ML
-  stacks). A 32 GB machine cannot fit three parallel sandboxes — use a
-  **64 GB+** machine for the full run. See "Known constraints" below.
+  stacks). Validators run **sequentially** (one sandbox at a time), so the full
+  run needs only ~14 GB for the active sandbox plus the conductors — budget
+  ~30 GB free. See "Known constraints" below.
 - The 5-conductor stack (`demo/docker-compose.yml`) for the commit-reveal half —
   pack `valichord.happ` first if needed (`hc app pack valichord -o valichord/workdir/valichord.happ`).
 
@@ -116,18 +122,26 @@ export GOOGLE_API_KEY=...             # mixed-model only
 # (optional) confirm a capsule reproduces before a full run:
 python3 core_bench_spike.py --capsule capsule-0851068 --model anthropic/claude-opus-4-8
 
-# bring up the conductor stack:
+# The commit-reveal half targets the node HTTP APIs from demo_runner, which
+# default to the permanently-live Oracle nodes (132.145.34.27:3001-3004). To run
+# the DHT half on a LOCAL stack instead, bring it up and point the runner at it:
 docker compose -f docker-compose.yml up --build -d
 until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node API ->')" -ge 4 ]; do sleep 3; done && echo Ready
+export VALICHORD_RESEARCHER_URL=http://localhost:3001
+export VALICHORD_VALIDATOR_1_URL=http://localhost:3002
+export VALICHORD_VALIDATOR_2_URL=http://localhost:3003
+export VALICHORD_VALIDATOR_3_URL=http://localhost:3004
+# (omit the four exports to record on the public Oracle DHT instead — no local stack needed)
 
-# full protocol run (mixed-model default):
+# full protocol run (mixed-model default: claude-opus-4-8 / gpt-4o / gemini-2.5-pro):
 python3 core_bench_runner.py --capsule capsule-0851068
 
-# all-Claude variant (one key, same-model label):
-python3 core_bench_runner.py --capsule capsule-0851068 \
-    --validator-models anthropic/claude-opus-4-8 anthropic/claude-opus-4-8 anthropic/claude-opus-4-8
+# all-Sonnet variant (one key, cheapest; same-model label):
+python3 core_bench_runner.py --capsule capsule-0851068 --researcher-runs 1 \
+    --researcher-model anthropic/claude-sonnet-4-6 \
+    --validator-models anthropic/claude-sonnet-4-6 anthropic/claude-sonnet-4-6 anthropic/claude-sonnet-4-6
 
-docker compose -f docker-compose.yml down -v   # between runs
+docker compose -f docker-compose.yml down -v   # between runs (only if you used a local stack)
 ```
 
 Flags: `--researcher-runs` (default 3; use `1` for a deterministic capsule),
@@ -140,10 +154,11 @@ capsules), `--researcher-model`, `--validator-models` (three model strings).
 Single question: *"Report the final AUC after training."* Ground truth (all
 three benchmark runs): **`0.9157952669235003`** — deterministic.
 
-**Verified 2026-05-31:** Claude Opus 4.8 reproduced it **exactly**
-(`0.9157952669235003`, to 16 digits) in ~9 min. Because it's deterministic, the
-researcher commits the value plus an explicit ±0.1% tolerance (sealed on-chain),
-and faithful validator runs converge on the same value → `ExactMatch`.
+**Verified 2026-05-31:** both Claude **Opus 4.8** (~9 min) and Claude
+**Sonnet 4.6** (~11 min) reproduced it **exactly** (`0.9157952669235003`, to 16
+digits). Because it's deterministic, the researcher commits the value plus an
+explicit ±0.1% tolerance (sealed on-chain), and faithful validator runs converge
+on the same value → `ExactMatch`.
 
 > **More-representative follow-up:** a deterministic capsule gives the crispest
 > first impression, but a *stochastic* capsule (e.g. `capsule-6003668`) is
@@ -156,7 +171,9 @@ The match is **recomputable from the record** — you don't have to trust the
 demo, the researcher, or any validator:
 
 ```bash
-curl "http://localhost:3001/record?hash=<external_hash>"
+# researcher node URL — the public Oracle by default, or localhost:3001 if you
+# set the VALICHORD_*_URL exports above to run on a local stack:
+curl "http://132.145.34.27:3001/record?hash=<external_hash>"
 ```
 
 The researcher's committed value + interval live in the `ResearcherReveal`
@@ -177,42 +194,50 @@ Redo `lower ≤ value ≤ upper` by hand — it's `<` and `>`, not a model call.
 
 Tests: `test_report_to_verdict.py`, `test_core_bench_capture_scorer.py`,
 `test_core_bench_validator.py`, `test_core_bench_runner.py`,
-`test_core_bench_imports.py` (28 tests; the pure adapter tests always run, the
+`test_core_bench_imports.py` (31 tests; the pure adapter tests always run, the
 inspect-dependent ones `importorskip`).
 
 ---
 
 ## Verification status (2026-05-31)
 
-**Verified live (Codespace, Claude Opus 4.8):**
-- ✅ Full validator path end-to-end: dataset download → privileged Docker
-  sandbox → Claude-as-agent installs deps + runs the paper's code → `report.json`
-  captured → `extract_report_from_log` pulls the value out of the real `EvalLog`.
-- ✅ `capsule-0851068` reproduces **exactly** (`0.9157952669235003`).
-- ✅ 28 unit/integration tests pass.
+**Full commit-reveal run DONE (Codespace, 128 GB disk):**
+- ✅ End-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`,
+  `--researcher-runs 1`) → clean **`Reproduced` / `ExactMatch`** HarmonyRecord;
+  all 3 validators independently produced `0.9157952669235003` → MATCH.
+- ✅ Record is public and recomputable on the Oracle DHT:
+  `curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`
+- ✅ Full validator path: dataset download → privileged Docker sandbox →
+  model-as-agent installs deps + runs the paper's code → `report.json` captured →
+  `extract_report_from_log` pulls the value out of the real `EvalLog`.
+- ✅ Both Opus 4.8 and Sonnet 4.6 reproduce `capsule-0851068` **exactly**.
+- ✅ 31 unit/integration tests pass.
 
 **Found and fixed during live verification:**
 - `filter_out_gpu` disabled — inspect_evals' `requires_gpu()` substring-matches
   `REPRODUCING.md`, which contains the boilerplate `docker run --gpus all` line
   in nearly every capsule, so `filter_out_gpu=True` empties the dataset.
 - `anthropic` bumped to `>=0.105.0` (inspect_ai's anthropic provider requires it).
-
-**Pending (needs a larger machine):**
-- The full commit-reveal run to a HarmonyRecord. It reuses the already-proven
-  node-API commit-reveal path the live Oracle demo runs daily, so it is the
-  lowest-risk remaining step — but each sandbox is ~14 GB, so a full
-  (3-validator) run needs a **64 GB+** machine. On a 32 GB box, a single sandbox
-  plus the conductor stack already exceeds free disk.
+- **Validators made sequential** — they ran in a `ThreadPoolExecutor`, but
+  inspect_ai forbids concurrent `eval_async` ("Multiple concurrent calls … not
+  allowed"). Blinding is structural (isolated sandboxes), not timing-dependent.
+- **`google-genai` added** to `requirements.txt` — the Gemini provider imports it
+  lazily and errors at call time if absent.
+- **`gemini-1.5-pro` → `gemini-2.5-pro`** — 1.5-pro was retired from the Google API.
+- **Infra failures no longer mint bogus verdicts** — a rate-limited / quota'd /
+  interrupted validator yields a non-`success` `EvalLog` with no samples;
+  `run_validator_eval` now raises on that so the round **aborts with the real
+  error** instead of recording a false `FailedToReproduce` on a HarmonyRecord.
 
 ## Known constraints
 
-- **Disk:** ~14 GB per sandbox; budget ~50 GB for a 3-parallel run plus
-  conductors. Point Docker's `data-root` at the largest available disk if
-  needed.
+- **Disk:** ~14 GB per sandbox, but validators run **sequentially** (one sandbox
+  at a time), so budget ~30 GB free (active sandbox + conductors), not 3×.
 - **Speed:** hard-mode reproduction is agentic (install → run → debug → report),
-  ~6–9 min per run. The `<5 min` target is optimistic for real capsules.
+  ~6–9 min per run on Opus, ~11 min on Sonnet. Sequential validators mean the
+  full 4-run round (1 researcher + 3 validators) is ~30–45 min wall-clock.
 - **Cost:** ~$1 per agent run on Opus (mostly cheap cache reads); ~5× less on
-  Sonnet if it reproduces the capsule (untested as of this writing).
+  Sonnet — **confirmed to reproduce the capsule** (2026-05-31).
 - **inspect_evals pin:** the published PyPI release lags `main` and uses a
   different CORE-Bench API (no `react`, no `filter_out_vision`, no
   `CAPSULE_CHECKSUMS`). The `requirements.txt` git+SHA pin is deliberate.

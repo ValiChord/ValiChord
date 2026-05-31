@@ -82,6 +82,58 @@ def test_run_protocol_drives_full_sequence(monkeypatch):
     assert all(row["match"] for v in result["numeric_panel"] for row in v["rows"])
 
 
+def test_validators_run_sequentially_not_concurrently(monkeypatch):
+    """inspect_ai forbids concurrent eval_async calls in one process, so the
+    three validator evals must run one at a time. Regression guard for the
+    'Multiple concurrent calls to eval_async are not allowed' failure."""
+    import threading
+    import time
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+
+    def fake_post(url, payload, timeout=600):
+        if url.endswith("/lock-result"):
+            return {"external_hash_b64": "uhC8kEXT"}
+        if url.endswith("/reveal"):
+            return {"researcher_reveal_hash": "uhCkkREV"}
+        if url.endswith("/create-harmony-record"):
+            return {"harmony_record_hash": "uhC8kHARM"}
+        return {}
+
+    monkeypatch.setattr(cbr, "_node_post", fake_post)
+    monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
+    monkeypatch.setattr(cbr, "run_researcher_claim",
+                        lambda cid, model, n_runs, rel_tolerance:
+                        {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
+    monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+
+    lock = threading.Lock()
+    state = {"in_flight": 0, "max_in_flight": 0}
+
+    def tracking_eval(cid, model):
+        with lock:
+            state["in_flight"] += 1
+            state["max_in_flight"] = max(state["max_in_flight"], state["in_flight"])
+        time.sleep(0.05)  # hold the slot so any overlap is observable
+        with lock:
+            state["in_flight"] -= 1
+        return {"Q": 96.125}
+
+    monkeypatch.setattr(cbr, "run_validator_eval", tracking_eval)
+
+    cbr.run_core_bench_protocol(
+        capsule_id="capsule-5507257",
+        researcher_model="anthropic/claude-opus-4-8",
+        validator_models=["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-1.5-pro"],
+    )
+    assert state["max_in_flight"] == 1, (
+        f"validators ran concurrently (max {state['max_in_flight']} in flight); "
+        "inspect_ai eval_async must not be called concurrently"
+    )
+
+
 def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
     monkeypatch.setenv("OPENAI_API_KEY", "x")
