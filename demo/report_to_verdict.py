@@ -59,3 +59,79 @@ def match_value(value, lower: float, upper: float) -> bool:
     except (ValueError, TypeError):
         return False
     return lower <= v <= upper
+
+
+def _coerce_number(raw) -> Optional[float]:
+    try:
+        return float(str(raw).replace("%", "").strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def report_to_verdict(report: Optional[dict], required_keys: list[str]) -> dict:
+    """Map a (blind) report.json to a committed ValiChord verdict.
+
+    Outcome is EXECUTION-SUCCESS only -- the validator cannot compare against the
+    researcher's sealed value at commit time, so this never encodes a match.
+    The researcher-relative match is computed at reveal by build_numeric_panel.
+
+      valid numeric report, all keys present -> Reproduced
+      no report / unparseable                -> FailedToReproduce
+      parsed but a required key missing/non-numeric -> UnableToAssess
+    """
+    if not report:
+        return {
+            "outcome": "FailedToReproduce",
+            "confidence": "High",
+            "reasoning": "Agent produced no valid report.json -- the capsule did not reproduce.",
+            "metrics": [],
+        }
+    metrics = []
+    ok = True
+    for k in required_keys:
+        raw = report.get(k, None)
+        num = _coerce_number(raw)
+        if k not in report or num is None:
+            ok = False
+        metrics.append({
+            "metric_name": k,
+            # produced_value is the validator's OWN reproduced value; expected
+            # is blank because the researcher's claim is sealed at commit time.
+            "produced_value": ("" if raw is None else (repr(num) if num is not None else str(raw))),
+            "expected_value": "",
+            "within_tolerance": False,
+        })
+    if not ok:
+        return {
+            "outcome": "UnableToAssess",
+            "confidence": "Medium",
+            "reasoning": "report.json was produced but a required answer was missing or non-numeric.",
+            "metrics": metrics,
+        }
+    return {
+        "outcome": "Reproduced",
+        "confidence": "High",
+        "reasoning": "Agent independently executed the capsule from scratch and produced a valid numeric result.",
+        "metrics": metrics,
+    }
+
+
+def build_numeric_panel(validator_reports: list, committed_claim: dict) -> list:
+    """Reveal-time match. validator_reports: list of (label, report_dict|None).
+    Returns per-validator rows comparing each value against the committed
+    interval -- the verifiable, recomputable headline of the demo."""
+    panel = []
+    for label, report in validator_reports:
+        rows = []
+        for q, spec in committed_claim.items():
+            raw = None if not report else report.get(q, None)
+            num = _coerce_number(raw)
+            rows.append({
+                "question": q,
+                "value": num,
+                "lower": spec["lower"],
+                "upper": spec["upper"],
+                "match": False if num is None else match_value(num, spec["lower"], spec["upper"]),
+            })
+        panel.append({"validator": label, "rows": rows})
+    return panel
