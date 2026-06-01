@@ -12,6 +12,9 @@ import urllib.parse
 import uuid
 
 from agreement import derive_agreement_level, derive_majority_outcome
+from capsule_blinding_gate import (
+    assert_capsule_blind, load_retained_capsule_text, CapsuleLeakError,
+)
 from core_bench_validator import run_validator_eval, run_researcher_claim
 from report_to_verdict import report_to_verdict, build_numeric_panel
 # Reuse the battle-tested node HTTP helpers + URL config from demo_runner.
@@ -95,6 +98,10 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
     # 1. Researcher establishes + seals the claim.
     claim = run_researcher_claim(capsule_id, researcher_model,
                                  n_runs=n_researcher_runs, rel_tolerance=rel_tolerance)
+    # Blinding gate: the answer must not be readable from any retained agent
+    # input, or "independent execution" reduces to "read the number". Runs after
+    # the claim (we need the value+interval) and before any validator starts.
+    assert_capsule_blind(load_retained_capsule_text(capsule_id), claim)
     required_keys = list(claim.keys())
     metrics = claim_to_metrics(claim)
     data_hash = compute_capsule_data_hash(capsule_id, salt=uuid.uuid4().bytes)

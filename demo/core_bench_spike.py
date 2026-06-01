@@ -31,6 +31,17 @@ def main(argv=None):
     print(f"[spike] RESULT: report.json = {report}")
     print(f"[spike] reproduced in {elapsed:.0f}s -> "
           f"{'GOOD demo candidate' if elapsed < 300 else 'TOO SLOW for <5min target'}")
+
+    from capsule_blinding_gate import load_retained_capsule_text, find_answer_leaks
+    # spike claim is a single deterministic value with a zero-width band; widen for the report
+    claim = {k: {"value": v, "lower": v, "upper": v, "basis": "spike"} for k, v in report.items()}
+    leaks = find_answer_leaks(load_retained_capsule_text(args.capsule), claim)
+    if leaks:
+        print("  ⚠ BLINDING LEAK — answer readable from retained inputs:")
+        for lk in leaks:
+            print(f"      {lk.file}: '{lk.token}' ({lk.signal})")
+    else:
+        print("  ✓ blinding: target not found in retained inputs")
     return 0
 
 

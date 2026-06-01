@@ -64,6 +64,7 @@ def test_run_protocol_drives_full_sequence(monkeypatch):
                         {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
     monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model: {"Q": 96.125})
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
 
     result = cbr.run_core_bench_protocol(
         capsule_id="capsule-5507257",
@@ -108,6 +109,7 @@ def test_validators_run_sequentially_not_concurrently(monkeypatch):
                         lambda cid, model, n_runs, rel_tolerance:
                         {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
 
     lock = threading.Lock()
     state = {"in_flight": 0, "max_in_flight": 0}
@@ -145,6 +147,7 @@ def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
                         lambda cid, model, n_runs, rel_tolerance:
                         {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
 
     def flaky_eval(cid, model):
         if model == "openai/gpt-4o":
@@ -162,6 +165,31 @@ def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
     msg = str(exc.value)
     assert "aborted" in msg.lower()
     assert "openai/gpt-4o" in msg  # names the failed model
+
+
+def test_run_protocol_aborts_on_capsule_leak(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+    monkeypatch.setattr(cbr, "_node_post", lambda url, payload, timeout=600: {"external_hash_b64": "uhC8kEXT"})
+    monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
+    monkeypatch.setattr(cbr, "run_researcher_claim",
+                        lambda cid, model, n_runs, rel_tolerance:
+                        {"AUC": {"value": 0.9157952669235003, "lower": 0.9148, "upper": 0.9167, "basis": "explicit_tolerance"}})
+    monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+    # capsule text leaks the answer in a retained README
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {"code/README.md": "final AUC 0.9158"})
+
+    def fail_if_called(*a, **k):
+        raise AssertionError("validators must not run when the capsule leaks")
+    monkeypatch.setattr(cbr, "run_validator_eval", fail_if_called)
+
+    with pytest.raises(cbr.CapsuleLeakError):
+        cbr.run_core_bench_protocol(
+            capsule_id="capsule-0851068",
+            researcher_model="anthropic/claude-opus-4-8",
+            validator_models=["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-2.5-pro"],
+        )
 
 
 def test_format_result_output_contains_headline_facts():
