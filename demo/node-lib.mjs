@@ -140,3 +140,54 @@ export function externalHashFromB64(b64) {
   const stripped = b64.startsWith('u') ? b64.slice(1) : b64;
   return Buffer.from(stripped, 'base64url');
 }
+
+// ── /record numeric-convergence helpers (Unit 2) ────────────────────────────
+// numericMatch is a direct port of Python report_to_verdict.match_value:
+// produced_value/expected_value are String on-chain, so coerce before comparing.
+// Inclusive bounds, NaN => false. A raw-string compare would render every row
+// OUTSIDE on the trustworthy surface.
+export function numericMatch(value, lower, upper) {
+  const v = Number(String(value).replace('%', '').trim());
+  if (Number.isNaN(v)) return false;
+  return lower <= v && v <= upper;
+}
+
+export function parseCommittedInterval(expectedValueStr) {
+  const m = String(expectedValueStr).match(/\[\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*\]/);
+  if (!m) return null;
+  const lower = Number(m[1]);
+  const upper = Number(m[2]);
+  if (Number.isNaN(lower) || Number.isNaN(upper)) return null;
+  return { lower, upper };
+}
+
+export function executionAgreementNote(level) {
+  return `agreement_level='${level}' is independent EXECUTION agreement: all participating `
+       + `validators independently produced a result. It is NOT a claim that their numbers `
+       + `agree — see numeric_convergence.`;
+}
+
+export function buildNumericConvergence(researcherMetrics, attestationEntries) {
+  const intervals = new Map();
+  for (const rm of researcherMetrics || []) {
+    const iv = parseCommittedInterval(rm.expected_value);
+    if (iv) intervals.set(rm.metric_name, iv);
+  }
+  const rows = [];
+  (attestationEntries || []).forEach((att, i) => {
+    const km = att?.outcome_summary?.key_metrics ?? [];
+    for (const m of km) {
+      const iv = intervals.get(m.metric_name);
+      if (!iv) continue;
+      rows.push({
+        validator: i + 1,
+        metric: m.metric_name,
+        value: m.produced_value,
+        lower: iv.lower,
+        upper: iv.upper,
+        match: numericMatch(m.produced_value, iv.lower, iv.upper),
+      });
+    }
+  });
+  return rows;
+}
