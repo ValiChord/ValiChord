@@ -21,7 +21,43 @@ the room. The two compose; neither replaces the other.
 
 ## What you'd actually see
 
-<!-- written in a later task -->
+The demo runs the `core_bench` task on a single deterministic capsule,
+`capsule-0851068` (Medical Sciences, Python — an MLP COVID/skin classifier with
+one question: *"Report the final AUC after training."*). A researcher runs the
+capsule and seals the result; three validators each reproduce it blind in isolated
+sandboxes; all commit, then reveal simultaneously; a HarmonyRecord is written.
+
+The headline output is a per-validator numeric panel: each validator's produced
+value against the researcher's **committed** interval — pure arithmetic, not a
+model's opinion. For this capsule every faithful run lands on the same value
+(`0.9157952669235003`), so the agreement is `ExactMatch`.
+
+The record is public and recomputable. One from a real run:
+
+```bash
+curl "http://<researcher-node>/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
+```
+
+It returns the outcome, the agreement level, the participating validators, and —
+on a node running the current code — a `numeric_convergence` panel like:
+
+```json
+{
+  "outcome": "Reproduced",
+  "agreement_level": "ExactMatch",
+  "validator_count": 3,
+  "numeric_convergence": [
+    {"validator": 1, "metric": "AUC", "value": "0.9157952669235003",
+     "lower": 0.9148, "upper": 0.9167, "match": true}
+  ]
+}
+```
+
+> Honest note: the public record linked above is from the run that first proved
+> the protocol end-to-end; it predates the `numeric_convergence` panel, so a
+> `curl` of *that* record shows the base fields without the panel. The JSON above
+> is the panel's shape as produced by the current node code (see "Reproduce it
+> yourself").
 
 ## What it does
 
