@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-31
 **Branch:** `core-bench-demo` (already merged to `main`)
-**Status:** design approved (pending written-spec review)
+**Status:** ✅ IMPLEMENTED 2026-06-01 — all 3 units built TDD via subagent-driven-development and merged to `main` (fast-forward). Tests green: Python 44 / JS 5 / Rust 27 (incl. cross-language agreement golden). See `docs/superpowers/plans/2026-05-31-core-bench-review-hardening.md`.
 
 Addresses three findings from an external review of the CORE-Bench × ValiChord
 demo. Three independent units; **none touch an integrity zome or change a DNA

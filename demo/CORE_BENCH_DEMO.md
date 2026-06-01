@@ -8,6 +8,7 @@ verdict is decided by **recomputable arithmetic, not LLM opinion**.
 Design spec: `docs/superpowers/specs/2026-05-31-core-bench-demo-design.md`
 Implementation plan: `docs/superpowers/plans/2026-05-31-core-bench-demo.md`
 Strategy/architecture: `docs/CORE_BENCH_INTEGRATION.md`
+Review-hardening (3 units, landed 2026-06-01): `docs/superpowers/specs/2026-05-31-core-bench-review-hardening-design.md` + `docs/superpowers/plans/2026-05-31-core-bench-review-hardening.md` — see "Review-hardening" below.
 
 ---
 
@@ -67,6 +68,38 @@ Numeric panel: each validator's value vs the researcher's committed interval
 
 See `docs/CORE_BENCH_INTEGRATION.md` §"Where the independence actually comes
 from" and §"The outcome-semantics decision" (spec §7) for the full rationale.
+
+---
+
+## Review-hardening (landed 2026-06-01)
+
+Three independent units from an external review, built TDD and merged to `main`.
+**None touch an integrity zome or change a DNA hash.**
+
+1. **Capsule blinding gate** (`capsule_blinding_gate.py`). The structural blinding
+   (hard-mode file deletion) is now also *proven per round*: after the researcher
+   seals the claim and **before any validator runs**, the gate scans every
+   *retained* file (those not removed in hard mode, classified prefix-aware
+   against `CAPSULE_PATHS_TO_REMOVE["hard"]`) for the committed answer. Two
+   signals — rounded-form match on all files, interval-membership on doc files
+   only. If the answer leaks, the round **hard-aborts with `CapsuleLeakError`**
+   instead of letting "independent execution" reduce to "read the number". The
+   spike prints a non-fatal leak report.
+2. **`/record` numeric-convergence panel.** `GET /record` now returns a numeric
+   panel — each validator's value vs the researcher's committed interval — with
+   explicit degradation states (full panel when revealed, `"pending"` pre-reveal,
+   base-fields-only on any enrichment error; it never 500s). The match arithmetic
+   lives in pure JS helpers in `node-lib.mjs` (`numericMatch` is a faithful port
+   of Python `match_value`, inclusive bounds, empty/whitespace → non-match),
+   tested with `node --test`. Base fields stay back-compatible with `ai_validator.py`.
+3. **Agreement parity.** `derive_agreement_level` / `derive_majority_outcome` are
+   pinned to a shared fixture `valichord/shared_types/tests/agreement_golden.json`
+   asserted by **both** `demo/test_agreement.py` (Python) and a Rust `#[test]` in
+   `shared_types` — a cross-language guard against threshold drift. The runner now
+   **echoes the authoritative on-chain `outcome`/`agreement_level`** read
+   gossip-free on the authoring node (`/create-harmony-record` returns them),
+   falling back to a local recompute only if absent and flagging it
+   (`agreement_recomputed`, labelled in the printed output).
 
 ---
 
@@ -193,12 +226,17 @@ Redo `lower ≤ value ≤ upper` by hand (inclusive bounds) — it's `≤` compa
 | `core_bench_capture_scorer.py` | Inspect scorer that captures `report.json`; never reads ground truth (blinding guard tested) |
 | `core_bench_validator.py` | builds the hard-mode blind Task, runs one eval/model, extracts the captured report, derives the researcher's N-run claim |
 | `core_bench_runner.py` | orchestrator + CLI: key validation → researcher claim → 3 validators → commit-reveal (reuses `demo_runner` node APIs) → HarmonyRecord → numeric panel |
-| `core_bench_spike.py` | Phase-0 capsule-selection helper (one capsule / one model, prints value + timing) |
+| `core_bench_spike.py` | Phase-0 capsule-selection helper (one capsule / one model, prints value + timing); now also prints a non-fatal blinding-leak report |
+| `capsule_blinding_gate.py` | **pure** (+ tarball loader): pre-round blinding gate — retained/deleted classifier, leak detection, `assert_capsule_blind` (raises `CapsuleLeakError`) |
+| `node-lib.mjs` (helpers) | `numericMatch` (port of Python `match_value`), `parseCommittedInterval`, `buildNumericConvergence`, `executionAgreementNote` for the `/record` panel |
 
 Tests: `test_report_to_verdict.py`, `test_core_bench_capture_scorer.py`,
 `test_core_bench_validator.py`, `test_core_bench_runner.py`,
-`test_core_bench_imports.py` (31 tests; the pure adapter tests always run, the
-inspect-dependent ones `importorskip`).
+`test_core_bench_imports.py` (34 tests), plus the review-hardening tests
+`test_capsule_blinding_gate.py` (7) + `test_agreement.py` golden parity (3) +
+`test_record_helpers.mjs` (5, `node --test`) + a Rust golden test in
+`shared_types` (`cargo test -p valichord_shared_types`, 27). The pure adapter
+tests always run; the inspect-dependent ones `importorskip`.
 
 ---
 

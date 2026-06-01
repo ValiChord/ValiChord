@@ -1,5 +1,7 @@
 # CORE-Bench Review-Hardening Implementation Plan
 
+> **✅ COMPLETE (2026-06-01).** All 9 tasks implemented TDD via subagent-driven-development (fresh implementer + spec/quality review per task) and merged to `main` (fast-forward, local — unpushed at merge time). Tests green: Python 44 / JS 5 / Rust 27. Two review-caught fixes folded in: `numericMatch` empty-string non-match (match Python), and normalizing the echoed adjacent-tagged `outcome` to a bare string for display. Note: the cargo package is `valichord_shared_types` (Task 8 cmds below say `shared_types`). The unchecked `- [ ]` boxes below are historical — the work is done.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the three review-hardening units from the spec — a capsule blinding gate, an honest `/record` numeric panel, and cross-language agreement parity.

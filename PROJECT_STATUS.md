@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-06-01
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
@@ -86,6 +86,16 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### CORE-Bench demo review-hardening — 2026-06-01 ✓
+
+Three review-hardening units merged to `main` (fast-forward; **local — not yet pushed at the time of writing**). Built TDD via subagent-driven-development (fresh implementer + spec-compliance + code-quality review per task) in an isolated worktree. **No integrity-zome or DNA-hash change.** All green: Python 44 / JS 5 / Rust 27 (incl. a cross-language agreement golden test). Full detail in `demo/CORE_BENCH_DEMO.md` → "Review-hardening"; spec/plan under `docs/superpowers/`.
+
+1. **Capsule blinding gate** (`demo/capsule_blinding_gate.py`) — after the researcher seals the claim and before any validator runs, scans every *retained* (hard-mode-surviving, prefix-aware) capsule file for the committed answer (rounded-form on all files; interval-membership on doc files only). Hard-aborts the round with `CapsuleLeakError` if the answer leaks, so "independent execution" can't reduce to "read the number". Wired into `core_bench_runner`; spike prints a non-fatal leak report.
+2. **`/record` numeric-convergence panel** — `GET /record` now returns a per-validator value-vs-committed-interval panel with explicit degradation states (full / `"pending"` / base-only; never 500s). Pure JS helpers in `node-lib.mjs` (`numericMatch` is a faithful port of Python `match_value`, inclusive bounds, empty/whitespace → non-match); base fields stay back-compatible with `ai_validator.py`.
+3. **Agreement parity** — `derive_agreement_level`/`derive_majority_outcome` pinned to a shared `valichord/shared_types/tests/agreement_golden.json` asserted by **both** Python and a new Rust `#[test]` (cross-language drift guard). The runner echoes the **authoritative on-chain `outcome`/`agreement_level`** read gossip-free on the authoring node (`/create-harmony-record` returns them), with a labelled recompute fallback (`agreement_recomputed`).
+
+Two review-caught bugs fixed during the run: `numericMatch('')` returned `true` in JS (diverged from Python) → guarded; the echoed adjacent-tagged `outcome` printed as `{'type': 'Reproduced'}` → normalized to a bare string. Known follow-up: `researcher-node.mjs` `/record` still returns the raw `{type:…}` outcome dict in its base fields — worth normalizing in the JS layer if a UI consumes it.
 
 ### CORE-Bench integration strategy — 2026-05-29 ✓
 
@@ -522,8 +532,8 @@ directly against the Claude API (`demo/ai_validator.py`). No further Feynman int
 ### 4. Rate limiting — LOW
 API keys are in. No per-key rate limiting yet.
 
-### 5. CORE-Bench + ValiChord demo — ✓ FULL RUN DONE (2026-05-31)
-Live CLI demo combining ValiChord's commit-reveal protocol with the inspect_evals CORE-Bench task — AI agents that actually run research-paper code in isolated Docker sandboxes. On branch `core-bench-demo`; see `demo/CORE_BENCH_DEMO.md`.
+### 5. CORE-Bench + ValiChord demo — ✓ FULL RUN DONE (2026-05-31); ✓ REVIEW-HARDENING LANDED (2026-06-01)
+Live CLI demo combining ValiChord's commit-reveal protocol with the inspect_evals CORE-Bench task — AI agents that actually run research-paper code in isolated Docker sandboxes. On `main` (demo + 3-unit review-hardening); see `demo/CORE_BENCH_DEMO.md`. Hardening detail in "Recently completed" above.
 
 **Full commit-reveal run complete (2026-05-31, 128 GB Codespace):** end-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`, `--researcher-runs 1`) produced a clean **`Reproduced` / `ExactMatch`** HarmonyRecord — all 3 validators independently got `0.9157952669235003`. Public + recomputable on the Oracle DHT: `curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`. Both Opus 4.8 and Sonnet 4.6 reproduce the capsule exactly. **31 tests pass.**
 
