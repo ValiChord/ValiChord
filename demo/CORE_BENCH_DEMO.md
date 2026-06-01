@@ -1,5 +1,7 @@
 # ValiChord × CORE-Bench — CLI Demo
 
+> Maintainer-facing summary (external, respectful): `docs/CORE_BENCH_FOR_INSPECT_EVALS.md`.
+
 A fully-local command-line demo that runs one real [CORE-Bench](https://arxiv.org/abs/2409.11363)
 capsule through ValiChord's blind commit-reveal protocol with three AI
 validators, producing a tamper-evident **HarmonyRecord** whose replication

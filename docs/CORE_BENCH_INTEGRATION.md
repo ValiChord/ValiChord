@@ -6,6 +6,10 @@
 
 This document describes the integration architecture, the combined demo, and what needs to be built.
 
+> **Maintainer-facing version:** for an external, respectful summary to share with
+> inspect_evals maintainers, see `docs/CORE_BENCH_FOR_INSPECT_EVALS.md` (this doc is
+> the internal strategy/architecture source it draws from).
+
 **The two systems already share an epistemic stance.** CORE-Bench defines its task as reproducing *"the results of running the code… not to ensure that the results reported in the paper are correct."* That is, almost verbatim, ValiChord's core meaning: a validator confirms it reached the **same result** as the researcher, not that the result is *correct*. This is the strongest opening for any conversation with the CORE-Bench / inspect_evals authors — you are not asking them to adopt a foreign concept, you are extending one they already built on.
 
 **And the problem is real.** CORE-Bench's own headline finding is that the **best agent reproduced only ~21% of hard tasks.** Reproduction is hard and unreliable even for capable agents — which is exactly why independently verifying a *claimed* successful reproduction, with no copying between parties, is a missing and valuable trust layer.
