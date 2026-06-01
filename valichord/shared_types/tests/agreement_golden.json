@@ -1,0 +1,9 @@
+[
+  {"outcomes": ["Reproduced", "Reproduced", "Reproduced"], "agreement_level": "ExactMatch", "majority_outcome": "Reproduced"},
+  {"outcomes": ["Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "FailedToReproduce"], "agreement_level": "ExactMatch", "majority_outcome": "Reproduced"},
+  {"outcomes": ["Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "Reproduced", "FailedToReproduce", "FailedToReproduce", "FailedToReproduce"], "agreement_level": "WithinTolerance", "majority_outcome": "Reproduced"},
+  {"outcomes": ["Reproduced", "FailedToReproduce"], "agreement_level": "DirectionalMatch", "majority_outcome": "Reproduced"},
+  {"outcomes": ["Reproduced", "FailedToReproduce", "FailedToReproduce"], "agreement_level": "Divergent", "majority_outcome": "FailedToReproduce"},
+  {"outcomes": ["FailedToReproduce", "FailedToReproduce", "FailedToReproduce"], "agreement_level": "UnableToAssess", "majority_outcome": "FailedToReproduce"},
+  {"outcomes": ["PartiallyReproduced", "PartiallyReproduced", "PartiallyReproduced"], "agreement_level": "WithinTolerance", "majority_outcome": "PartiallyReproduced"}
+]

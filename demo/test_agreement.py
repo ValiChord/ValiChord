@@ -46,6 +46,37 @@ def test_majority_outcome():
     check("2 Failed + 1 Reproduced",  derive_majority_outcome(["FailedToReproduce", "FailedToReproduce", "Reproduced"]), "FailedToReproduce")
 
 
+import json
+import os
+from pathlib import Path
+
+
+def repo_root() -> Path:
+    """Locate the repo root (the dir containing valichord/shared_types) so the
+    shared golden fixture resolves from any layout. Fails loudly — never a silent
+    skip. Override with VALICHORD_REPO_ROOT."""
+    env = os.environ.get("VALICHORD_REPO_ROOT")
+    if env:
+        return Path(env)
+    here = Path(__file__).resolve()
+    for parent in [here, *here.parents]:
+        if (parent / "valichord" / "shared_types").is_dir():
+            return parent
+    raise RuntimeError(
+        "repo root not found above test_agreement.py (no valichord/shared_types); "
+        "set VALICHORD_REPO_ROOT"
+    )
+
+
+def test_golden_vectors_match_python_derivation():
+    fixture = repo_root() / "valichord" / "shared_types" / "tests" / "agreement_golden.json"
+    vectors = json.loads(fixture.read_text())
+    assert len(vectors) >= 7
+    for v in vectors:
+        assert derive_agreement_level(v["outcomes"]) == v["agreement_level"], v
+        assert derive_majority_outcome(v["outcomes"]) == v["majority_outcome"], v
+
+
 if __name__ == "__main__":
     print("test_agreement_level:")
     test_agreement_level()
