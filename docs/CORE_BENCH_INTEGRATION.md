@@ -163,6 +163,8 @@ This structured output — the agent's answer to specific verifiable questions a
 - **Medium**: the agent runs a Docker command from `REPRODUCING.md`. Partial execution, but the instructions are standardised and may contain hints about expected outputs.
 - **Hard**: the agent reads `README.md`, installs dependencies, and runs everything from scratch. This is the appropriate difficulty for ValiChord validation — the agent cannot see the expected outputs before committing.
 
+**But deletion is necessary, not sufficient — the blinding gate closes the gap.** Hard mode removes `results/`, `REPRODUCING.md`, and the run scripts, but it cannot guarantee the answer isn't stated *elsewhere* in a retained file — a `README` that quotes the final AUC, a committed notebook output cell. So before any validator runs, `demo/capsule_blinding_gate.py` scans every retained file (classified prefix-aware against `CAPSULE_PATHS_TO_REMOVE["hard"]`) for the researcher's committed answer — rounded-form match on all files, interval-membership on doc files — and **hard-aborts the round with `CapsuleLeakError`** if it leaks. This turns "the agent can't see the target" from an assumption into a per-round, tested proof, and covers future or stochastic capsules where today's empirical clean-check (`capsule-0851068` is clean) no longer holds. It is the retained-file counterpart to the commit-time ground-truth discipline in §3 below: §3 stops you *handing* validators the answer; the gate proves the capsule isn't *already holding* it.
+
 ---
 
 ### Harness contract — verified against `benchmark/benchmark.py`
@@ -219,16 +221,21 @@ Researcher                    Validator 1           Validator 2     ...   Valida
 
 ## What needs to be built
 
-> **STATUS (2026-05-31): BUILT on branch `core-bench-demo`.** Implemented against
+> **STATUS (2026-06-01): BUILT and merged to `main`.** Implemented against
 > the **inspect_evals `core_bench` task** (not the AutoGPT harness) — its
 > `react`+`bash` agent is model-agnostic, so validators run different models
 > (Claude/GPT-4o/Gemini) trivially. Modules below map to: `core_bench_validator.py`
 > (eval wrapper), `core_bench_runner.py` (parallel orchestrator + CLI),
 > `report_to_verdict.py` (verdict adapter), and a custom **capture scorer** that
 > lifts `report.json` without reading ground truth. Inspect's per-sample Docker
-> sandbox provides isolation. **Verified live:** `capsule-0851068` reproduces
-> exactly (`0.9157952669235003`); the full HarmonyRecord run is pending a 64 GB+
-> machine (sandboxes are ~14 GB each). Full run guide: `demo/CORE_BENCH_DEMO.md`.
+> sandbox provides isolation. **Verified live (2026-05-31):** `capsule-0851068`
+> reproduces exactly (`0.9157952669235003`) and a full all-Sonnet commit-reveal
+> run produced a clean `Reproduced`/`ExactMatch` HarmonyRecord on the Oracle DHT
+> (the 64 GB+ blocker is resolved by a bigger-disk Codespace). **Review-hardening
+> landed 2026-06-01** (3 units, no DNA-hash change): a per-round **capsule
+> blinding gate** (see "Hard difficulty" above), an honest `/record`
+> numeric-convergence panel, and cross-language (Python↔Rust) agreement parity.
+> Full run guide: `demo/CORE_BENCH_DEMO.md`.
 
 ### 1. `demo/core_bench_validator.py`
 
@@ -460,4 +467,4 @@ The schema PR isn't wasted work — it's just the wrong opening move. Lead with 
 
 ---
 
-*Last updated: 2026-05-30*
+*Last updated: 2026-06-01*
