@@ -1099,6 +1099,7 @@ dependencies = [
  "holochain_serialized_bytes",
  "rmp-serde",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 
