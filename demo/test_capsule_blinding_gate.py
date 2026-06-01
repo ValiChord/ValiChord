@@ -48,3 +48,31 @@ def test_assert_raises_and_names_file():
     with pytest.raises(gate.CapsuleLeakError) as exc:
         gate.assert_capsule_blind({"REPORTME.md": "AUC = 0.9158"}, _CLAIM)
     assert "REPORTME.md" in str(exc.value)
+
+
+import io, tarfile
+
+
+def _make_capsule_tar(path, members: dict):
+    with tarfile.open(path, "w:gz") as tar:
+        for name, data in members.items():
+            b = data.encode()
+            info = tarfile.TarInfo(name=name)
+            info.size = len(b)
+            tar.addfile(info, io.BytesIO(b))
+
+
+def test_load_retained_capsule_text(tmp_path, monkeypatch):
+    cap = "capsule-test123"
+    tar_path = tmp_path / f"{cap}.tar.gz"
+    _make_capsule_tar(tar_path, {
+        f"{cap}/code/README.md": "hello",
+        f"{cap}/REPRODUCING.md": "auc 0.9158",      # deleted in hard mode -> excluded
+        f"{cap}/results/output": "auc 0.9158",      # deleted -> excluded
+        f"{cap}/data/final_model.pth": "BINARY",    # non-text ext -> excluded
+        f"{cap}/code/train.py": "print('hi')",
+    })
+    monkeypatch.setattr(gate, "CAPSULE_TAR_PATH", str(tmp_path / "{capsule_id}.tar.gz"))
+    files = gate.load_retained_capsule_text(cap)
+    assert set(files) == {"code/README.md", "code/train.py"}
+    assert files["code/README.md"] == "hello"

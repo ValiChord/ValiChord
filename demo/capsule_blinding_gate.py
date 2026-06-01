@@ -2,9 +2,12 @@
 the agent retains in CORE-Bench hard mode, so 'independent execution' cannot
 reduce to 'read the number'. Pure functions + a tarball loader; no protocol code."""
 import re
+import tarfile as _tarfile
 from typing import NamedTuple
 
-from inspect_evals.core_bench.dataset import CAPSULE_PATHS_TO_REMOVE
+from inspect_evals.core_bench.dataset import CAPSULE_PATHS_TO_REMOVE, CAPSULE_TAR_PATH
+
+_TEXT_EXTS = (".md", ".txt", ".rst", ".py", ".json", ".ipynb", ".csv", ".yaml", ".yml")
 
 
 _DOC_EXTS = (".md", ".txt", ".rst", ".ipynb")  # interval signal only here
@@ -76,3 +79,26 @@ def is_retained(rel_path: str, difficulty: str = "hard") -> bool:
         if rel_path == entry or rel_path.startswith(entry + "/"):
             return False
     return True
+
+
+def load_retained_capsule_text(capsule_id: str) -> dict:
+    """Return {capsule_relative_path: text} for retained, text-extension files in
+    the cached capsule tarball. utf-8 with errors='ignore' (so .ipynb output cells
+    are scanned as raw JSON text)."""
+    tar_path = CAPSULE_TAR_PATH.format(capsule_id=capsule_id)
+    prefix = capsule_id + "/"
+    out = {}
+    with _tarfile.open(tar_path, "r:gz") as tar:
+        for member in tar.getmembers():
+            if not member.isfile():
+                continue
+            rel = member.name[len(prefix):] if member.name.startswith(prefix) else member.name
+            if not rel or not is_retained(rel):
+                continue
+            if not rel.lower().endswith(_TEXT_EXTS):
+                continue
+            f = tar.extractfile(member)
+            if f is None:
+                continue
+            out[rel] = f.read().decode("utf-8", errors="ignore")
+    return out
