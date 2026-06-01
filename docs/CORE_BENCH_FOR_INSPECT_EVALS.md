@@ -61,11 +61,45 @@ on a node running the current code — a `numeric_convergence` panel like:
 
 ## What it does
 
-<!-- written in a later task -->
+- **N agents reproduce the same capsule, blind and isolated.** Each validator runs
+  the `core_bench` hard-difficulty agent in its own Docker sandbox. Hard mode
+  deletes `results/`, `REPRODUCING.md`, and the run scripts, so the agent gets only
+  code + data + README + the question — it cannot read the target.
+- **A pre-round blinding gate proves the answer isn't readable from retained
+  files.** Deletion is necessary but not sufficient (a README could quote the
+  number). Before any validator runs, the gate scans every retained file for the
+  committed answer and **hard-aborts the round** if it leaks — turning "the agent
+  can't see the target" from an assumption into a per-round, tested check.
+- **The verdict is arithmetic, not opinion.** A validator's committed outcome is
+  execution-success only; the *match* against the researcher's claim is computed at
+  reveal as `lower ≤ value ≤ upper` (inclusive) against the researcher's
+  **committed** interval. No adjudicator model sits in the trust path.
+- **Commit-reveal removes last-mover advantage.** Each validator seals its
+  `report.json` before any other reveals; copying would require predicting the
+  others' outputs.
+- **The record is recomputable.** The outcome, agreement level, and the per-metric
+  numeric panel are derivable from a single `curl` — you don't have to trust the
+  demo, the researcher, or any validator.
 
 ## What it doesn't do yet
 
-<!-- written in a later task -->
+Stated plainly, because this audience is equipped to notice an overclaim:
+
+- **One capsule.** The demo uses a single, pre-verified, deterministic capsule.
+  The more representative case — a *stochastic* capsule where multiple validators
+  triangulate a noisy quantity — is not yet wired in.
+- **Validators self-assign.** There is no assignment engine, conflict-of-interest
+  detection, or institutional balancing yet (Phase 0); validators claim a study
+  directly.
+- **Reputation is `Provisional` in production.** Badge tiers currently reflect
+  participant count and agreement only, not an earned validator track record.
+- **No automated handoff** from a `.eval` log to the protocol — running the demo is
+  a manual sequence today.
+- **The `/record` numeric panel + the gossip-free outcome echo are unit-tested and
+  syntax-checked, but have not yet been exercised against a live conductor.** The
+  most recent *full* run used hosted nodes for the commit-reveal half; a clean
+  local end-to-end with the current node code is a pending verification step (see
+  "What still needs doing").
 
 ## How it fills the gap
 
