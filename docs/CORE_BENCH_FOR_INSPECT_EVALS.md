@@ -103,7 +103,31 @@ Stated plainly, because this audience is equipped to notice an overclaim:
 
 ## How it fills the gap
 
-<!-- written in a later task -->
+| | CORE-Bench alone | ValiChord alone | Combined |
+|---|---|---|---|
+| Reproduction is computational | ✅ agent runs real code | ❌ (web-search demo) | ✅ |
+| Verdict is objective | ✅ code output matches or not | ❌ agent forms an opinion | ✅ |
+| Multiple independent parties | ❌ one agent, one result | ✅ N validators | ✅ |
+| Structural independence | ❌ a second runner can see the first's result | ✅ commit-reveal | ✅ |
+| Permanent verifiable record | ❌ a log file | ✅ HarmonyRecord | ✅ |
+| No post-hoc adjustment | ❌ re-run and pick the best | ✅ commit-reveal | ✅ |
+
+**What N independent runs actually prove** (stated narrowly, because precision
+matters here): for deterministic code with pinned dependencies, N correct runs
+produce the same output — so commit-reveal's guarantee is **prevented result-copying
+and fabrication**, not *prevented opinion-anchoring*. Concretely, N hard-mode runs
+show: (1) the capsule executes from scratch with no hints; (2) the result is robust
+across independent environments; (3) no agent fabricated or copied a result.
+
+Two precision rules we hold to, and ask you to hold us to:
+
+- **Claim the right guarantee.** For deterministic code the value is anti-copying
+  and anti-fabrication — not anti-anchoring. We state it that narrowly.
+- **Don't overclaim independence.** N runs of the *same* model by the *same*
+  operator are correlated, not independent. Genuine independence comes from
+  diversity across the validator set (different models / operators / environments).
+  The demo defaults to mixed models for exactly this reason; an all-one-model run
+  is labelled honestly as same-model.
 
 ## Reproduce it yourself
 
