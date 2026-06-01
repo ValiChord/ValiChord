@@ -239,7 +239,7 @@ def _full_run(monkeypatch, harmony_response):
 
 def test_echoes_record_fields_when_present(monkeypatch):
     res = _full_run(monkeypatch, {"harmony_record_hash": "uhC8kHARM",
-                                  "outcome": "Reproduced", "agreement_level": "ExactMatch"})
+                                  "outcome": {"type": "Reproduced"}, "agreement_level": "ExactMatch"})
     assert res["outcome"] == "Reproduced"
     assert res["agreement_level"] == "ExactMatch"
     assert res["agreement_recomputed"] is False

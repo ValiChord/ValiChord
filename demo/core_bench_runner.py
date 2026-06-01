@@ -167,6 +167,8 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
     # never silently on the recomputed path.
     outcomes = [v["outcome"] for v in verdicts]
     rec_outcome = harmony.get("outcome")
+    if isinstance(rec_outcome, dict):
+        rec_outcome = rec_outcome.get("type")  # adjacent-tag serde: {"type": "Reproduced"} -> "Reproduced"
     rec_agreement = harmony.get("agreement_level")
     if rec_outcome and rec_agreement:
         display_outcome, display_agreement, recomputed = rec_outcome, rec_agreement, False
