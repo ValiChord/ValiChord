@@ -210,3 +210,42 @@ def test_format_result_output_contains_headline_facts():
     assert "uhC8kHARM" in text
     assert "96.125" in text and "96.0" in text  # numeric panel rendered
     assert "claude-opus-4-8" in text and "gpt-4o" in text and "gemini-1.5-pro" in text
+
+
+def _full_run(monkeypatch, harmony_response):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
+    monkeypatch.setattr(cbr, "run_researcher_claim",
+                        lambda cid, model, n_runs, rel_tolerance:
+                        {"AUC": {"value": 96.0, "lower": 95.9, "upper": 96.1, "basis": "x"}})
+    monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model: {"AUC": 96.0})
+    monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
+    monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+
+    def fake_post(url, payload, timeout=600):
+        if url.endswith("/lock-result"): return {"external_hash_b64": "uhC8kEXT"}
+        if url.endswith("/reveal"): return {"researcher_reveal_hash": "uhCkkREV"}
+        if url.endswith("/create-harmony-record"): return harmony_response
+        return {}
+    monkeypatch.setattr(cbr, "_node_post", fake_post)
+    return cbr.run_core_bench_protocol(
+        capsule_id="capsule-0851068",
+        researcher_model="anthropic/claude-opus-4-8",
+        validator_models=["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-2.5-pro"],
+    )
+
+
+def test_echoes_record_fields_when_present(monkeypatch):
+    res = _full_run(monkeypatch, {"harmony_record_hash": "uhC8kHARM",
+                                  "outcome": "Reproduced", "agreement_level": "ExactMatch"})
+    assert res["outcome"] == "Reproduced"
+    assert res["agreement_level"] == "ExactMatch"
+    assert res["agreement_recomputed"] is False
+
+
+def test_labels_recompute_when_record_fields_absent(monkeypatch):
+    res = _full_run(monkeypatch, {"harmony_record_hash": "uhC8kHARM"})  # no outcome/agreement
+    assert res["agreement_level"] == "ExactMatch"     # recomputed from 3x Reproduced
+    assert res["agreement_recomputed"] is True

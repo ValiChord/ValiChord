@@ -181,7 +181,7 @@ curl "http://132.145.34.27:3001/record?hash=<external_hash>"
 
 The researcher's committed value + interval live in the `ResearcherReveal`
 metrics, and each validator's revealed value lives in its attestation metrics.
-Redo `lower ≤ value ≤ upper` by hand — it's `<` and `>`, not a model call.
+Redo `lower ≤ value ≤ upper` by hand (inclusive bounds) — it's `≤` comparisons, not a model call.
 
 ---
 

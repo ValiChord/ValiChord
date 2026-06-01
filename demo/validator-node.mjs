@@ -261,8 +261,30 @@ const server = createServer(async (req, res) => {
       }
 
       console.log(`[/create-harmony-record] final hash: ${harmonyRecordHash?.slice(0, 20) ?? 'null'}…`);
+
+      // Read the just-authored record locally (gossip-free on the authoring node)
+      // so the runner can display the AUTHORITATIVE outcome/agreement_level
+      // instead of recomputing them.
+      let recOutcome = null, recAgreement = null;
+      if (harmonyRecordHash) {
+        try {
+          const rec = await withSession(async ({ call }) =>
+            call('governance', 'governance_coordinator', 'get_harmony_record', hashBytes));
+          const { decode: msgpackDecode } = await import('@msgpack/msgpack');
+          const b64 = rec?.entry?.Present?.entry?.__bytes ?? null;
+          const hr = b64 ? (msgpackDecode(Buffer.from(b64, 'base64')) ?? {}) : {};
+          recOutcome = hr.outcome ?? null;
+          recAgreement = hr.agreement_level ?? null;
+        } catch (e) {
+          console.error('[/create-harmony-record] local record read failed:', e.message);
+        }
+      }
       res.writeHead(200);
-      res.end(JSON.stringify({ harmony_record_hash: harmonyRecordHash }));
+      res.end(JSON.stringify({
+        harmony_record_hash: harmonyRecordHash,
+        outcome: recOutcome,
+        agreement_level: recAgreement,
+      }));
     } catch (err) {
       console.error('[/create-harmony-record]', err.message);
       res.writeHead(502);

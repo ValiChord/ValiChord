@@ -162,13 +162,26 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
     if not harmony_hash:
         raise RuntimeError(f"HarmonyRecord not written after gossip retries (ext={ext[:20]}...)")
 
-    # 7. Display + the verifiable numeric headline.
+    # Echo the AUTHORITATIVE record fields (read gossip-free on the authoring node).
+    # Fall back to local recompute only if absent, and flag it so the display is
+    # never silently on the recomputed path.
     outcomes = [v["outcome"] for v in verdicts]
+    rec_outcome = harmony.get("outcome")
+    rec_agreement = harmony.get("agreement_level")
+    if rec_outcome and rec_agreement:
+        display_outcome, display_agreement, recomputed = rec_outcome, rec_agreement, False
+    else:
+        display_outcome = derive_majority_outcome(outcomes)
+        display_agreement = derive_agreement_level(outcomes)
+        recomputed = True
+
+    # 7. Display + the verifiable numeric headline.
     return {
         "harmony_record_hash": harmony_hash,
         "external_hash_b64": ext,
-        "outcome": derive_majority_outcome(outcomes),
-        "agreement_level": derive_agreement_level(outcomes),
+        "outcome": display_outcome,
+        "agreement_level": display_agreement,
+        "agreement_recomputed": recomputed,
         "researcher_reveal_hash": reveal.get("researcher_reveal_hash"),
         "record_url": f"{RESEARCHER_URL}/record?hash={urllib.parse.quote(ext)}",
         "committed_claim": claim,
@@ -191,7 +204,8 @@ def format_result(result: dict) -> str:
     a("  ValiChord x CORE-Bench - Computational Reproducibility")
     a("=" * 60)
     a(f"  Outcome:          {result['outcome']}")
-    a(f"  Agreement level:  {result['agreement_level']}  (independent execution agreement)")
+    suffix = " — RECOMPUTED, record fields unavailable" if result.get("agreement_recomputed") else ""
+    a(f"  Agreement level:  {result['agreement_level']}  (independent execution agreement){suffix}")
     a(f"  HarmonyRecord:    {result['harmony_record_hash']}")
     a("")
     a("  Validators (mixed models, blind, isolated sandboxes):")
