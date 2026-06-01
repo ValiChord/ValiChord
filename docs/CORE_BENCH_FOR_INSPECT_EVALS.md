@@ -185,7 +185,22 @@ GPT-4o / Gemini) — see "How it fills the gap".
 
 ## What still needs doing
 
-<!-- written in a later task -->
+- **Make the local stack the default run target.** The runner currently defaults
+  to hosted nodes; a maintainer should never accidentally write to ours. Flip the
+  default to localhost (or ship a one-command `make demo`).
+- **Verify the local end-to-end with the current node code** — the `/record` panel
+  and gossip-free echo are unit-tested but not yet run against a live conductor.
+- **Add a stochastic capsule** so the demo shows multiple validators triangulating
+  a noisy quantity, not just confirming a deterministic value.
+- **Validator assignment, reputation, and packaging** are Phase-1 work (see
+  `docs/7_ValiChord_4-DNA_architecture_technical.md`).
+
+**A possible future step — entirely optional, and not something this doc is asking
+for.** If it were ever useful, an optional `valichord_attestation_uri` field in the
+inspect_evals register schema would let a task point at a HarmonyRecord, making an
+independent-verification attestation discoverable from the eval itself. It needs
+nothing from you to *exist* — the demo already runs without it — it would only make
+the integration *discoverable* later. Mentioned for completeness, not as a request.
 
 ## In one sentence
 
