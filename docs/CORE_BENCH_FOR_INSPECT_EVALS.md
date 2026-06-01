@@ -195,9 +195,30 @@ curl "http://localhost:3001/record?hash=<external_hash_from_the_run_output>"
 docker compose -f docker-compose.yml down -v
 ```
 
-For a genuine *independence* claim rather than a "the protocol works"
-demonstration, pass three different models to `--validator-models` (e.g. Claude /
-GPT-4o / Gemini) — see "How it fills the gap".
+The steps above use **all-Sonnet** — one API key, and the configuration we have
+verified end-to-end. It demonstrates that the protocol works; it is honestly a
+*same-model* run (see "How it fills the gap").
+
+### Mixed-model — untested, and we'd genuinely value your report
+
+The configuration that earns the word *independent* without an asterisk is three
+**different** models, so a shared model blind-spot can't pass undetected through
+all three. We have plumbed this path (provider-specific wiring for OpenAI and
+Google is in place), **but we have not completed a mixed-model run end-to-end** —
+we haven't had paid API access across all three providers at once. If you do
+(AISI very likely does), you're better-placed than we are to run it. The only
+change is the model list:
+
+```bash
+python3 core_bench_runner.py --capsule capsule-0851068 --researcher-runs 1 \
+    --researcher-model anthropic/claude-sonnet-4-6 \
+    --validator-models anthropic/claude-sonnet-4-6 openai/gpt-4o google/gemini-2.5-pro
+```
+
+Prerequisite: **paid** keys for all three (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GOOGLE_API_KEY`) — free tiers won't do agentic reproduction. This is explicitly
+**untested**: it may surface a provider-specific bug, and if it does, that report
+is exactly what we'd want. Pass or fail, we'd love to hear how it goes.
 
 ## What still needs doing
 
