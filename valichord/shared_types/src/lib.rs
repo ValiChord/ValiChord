@@ -766,4 +766,54 @@ mod tests {
     fn badge_none_directional_match_below_quorum() {
         assert_eq!(evaluate_badge(&AgreementLevel::DirectionalMatch, 2), None);
     }
+
+    // --- golden fixture parity (cross-language guard) ---
+
+    fn outcome_from_str(s: &str) -> AttestationOutcome {
+        match s {
+            "Reproduced"         => AttestationOutcome::Reproduced,
+            "PartiallyReproduced" => AttestationOutcome::PartiallyReproduced { details: String::new() },
+            "FailedToReproduce"  => AttestationOutcome::FailedToReproduce   { details: String::new() },
+            "UnableToAssess"     => AttestationOutcome::UnableToAssess      { reason:  String::new() },
+            other => panic!("unknown outcome in golden fixture: {other}"),
+        }
+    }
+
+    fn outcome_to_str(o: &AttestationOutcome) -> &'static str {
+        match o {
+            AttestationOutcome::Reproduced               => "Reproduced",
+            AttestationOutcome::PartiallyReproduced { .. } => "PartiallyReproduced",
+            AttestationOutcome::FailedToReproduce   { .. } => "FailedToReproduce",
+            AttestationOutcome::UnableToAssess      { .. } => "UnableToAssess",
+        }
+    }
+
+    #[test]
+    fn golden_vectors_match_rust_derivation() {
+        let raw = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/agreement_golden.json"));
+        let vectors: Vec<serde_json::Value> = serde_json::from_str(raw).unwrap();
+        assert!(vectors.len() >= 7, "fixture must have at least 7 vectors");
+        for v in &vectors {
+            let atts: Vec<ValidationAttestation> = v["outcomes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|o| att(outcome_from_str(o.as_str().unwrap())))
+                .collect();
+            let level = format!("{:?}", derive_agreement_level(&atts));
+            assert_eq!(
+                level,
+                v["agreement_level"].as_str().unwrap(),
+                "agreement_level mismatch for outcomes {:?}",
+                v["outcomes"]
+            );
+            let major = outcome_to_str(&derive_majority_outcome(&atts));
+            assert_eq!(
+                major,
+                v["majority_outcome"].as_str().unwrap(),
+                "majority_outcome mismatch for outcomes {:?}",
+                v["outcomes"]
+            );
+        }
+    }
 }
