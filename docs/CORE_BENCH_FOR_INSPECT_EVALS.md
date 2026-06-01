@@ -39,25 +39,40 @@ curl "http://<researcher-node>/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-
 ```
 
 It returns the outcome, the agreement level, the participating validators, and —
-on a node running the current code — a `numeric_convergence` panel like:
+on a node running the current code — a `numeric_convergence` panel. This is **real
+output, captured 2026-06-01 from a verified local run** (all-Sonnet, three blind
+validators), abridged for length:
 
 ```json
 {
   "outcome": "Reproduced",
   "agreement_level": "ExactMatch",
   "validator_count": 3,
+  "execution_agreement": {
+    "level": "ExactMatch",
+    "means": "agreement_level='ExactMatch' is independent EXECUTION agreement: all participating validators independently produced a result. It is NOT a claim that their numbers agree — see numeric_convergence."
+  },
   "numeric_convergence": [
-    {"validator": 1, "metric": "AUC", "value": "0.9157952669235003",
-     "lower": 0.9148, "upper": 0.9167, "match": true}
+    {"validator": 1, "metric": "Report the final AUC after training.",
+     "value": "0.9157952669235003", "lower": 0.9148794716565768, "upper": 0.9167110621904239, "match": true},
+    {"validator": 2, "metric": "Report the final AUC after training.",
+     "value": "0.9157952669235003", "lower": 0.9148794716565768, "upper": 0.9167110621904239, "match": true},
+    {"validator": 3, "metric": "Report the final AUC after training.",
+     "value": "0.9157952669235003", "lower": 0.9148794716565768, "upper": 0.9167110621904239, "match": true}
+  ],
+  "committed_claim": [
+    {"metric": "Report the final AUC after training.",
+     "value": "0.9157952669235003", "interval": "[0.9148794716565768, 0.9167110621904239] (explicit_tolerance)"}
   ]
 }
 ```
 
-> Honest note: the public record linked above is from the run that first proved
-> the protocol end-to-end; it predates the `numeric_convergence` panel, so a
-> `curl` of *that* record shows the base fields without the panel. The JSON above
-> is the panel's shape as produced by the current node code (see "Reproduce it
-> yourself").
+> Honest note: the *public* record linked above (on a hosted node) is from the run
+> that first proved the protocol end-to-end; that hosted node runs older code, so a
+> `curl` of *that* record shows the base fields without the panel. The JSON shown
+> here is real output from a **local** run on 2026-06-01 that we verified against a
+> live conductor — reproduce it for yourself below to get the same panel on your
+> own node.
 
 ## What it does
 
@@ -95,11 +110,12 @@ Stated plainly, because this audience is equipped to notice an overclaim:
   participant count and agreement only, not an earned validator track record.
 - **No automated handoff** from a `.eval` log to the protocol — running the demo is
   a manual sequence today.
-- **The `/record` numeric panel + the gossip-free outcome echo are unit-tested and
-  syntax-checked, but have not yet been exercised against a live conductor.** The
-  most recent *full* run used hosted nodes for the commit-reveal half; a clean
-  local end-to-end with the current node code is a pending verification step (see
-  "What still needs doing").
+- **The `/record` numeric panel + gossip-free echo are verified against a live
+  local conductor (all-Sonnet, 2026-06-01)** — that is the source of the real JSON
+  above — **but not yet in a mixed-model run or a hosted deployment.** The only
+  *publicly* curl-able record today is on a hosted node running older code, so it
+  shows the base fields without the panel; the panel is reproducible locally (see
+  below).
 
 ## How it fills the gap
 
@@ -188,8 +204,11 @@ GPT-4o / Gemini) — see "How it fills the gap".
 - **Make the local stack the default run target.** The runner currently defaults
   to hosted nodes; a maintainer should never accidentally write to ours. Flip the
   default to localhost (or ship a one-command `make demo`).
-- **Verify the local end-to-end with the current node code** — the `/record` panel
-  and gossip-free echo are unit-tested but not yet run against a live conductor.
+- **Exercise mixed-model and a hosted, public record.** The local all-Sonnet
+  end-to-end is verified (2026-06-01); still to do: a mixed-model run (Claude /
+  GPT-4o / Gemini) and a hosted node running the current code so there is a
+  *publicly* curl-able, panel-showing record (today's public record predates the
+  panel).
 - **Add a stochastic capsule** so the demo shows multiple validators triangulating
   a noisy quantity, not just confirming a deterministic value.
 - **Validator assignment, reputation, and packaging** are Phase-1 work (see
