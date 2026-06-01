@@ -11,6 +11,8 @@ test('numericMatch ports Python match_value: coercion + inclusive bounds', () =>
   assert.equal(numericMatch('  0.9148  ', 0.9148, 0.9167), true); // whitespace + exactly on lower bound (inclusive)
   assert.equal(numericMatch('0.9167', 0.9148, 0.9167), true);     // exactly on upper bound (inclusive)
   assert.equal(numericMatch('not-a-number', 0, 1), false);
+  assert.equal(numericMatch('', -0.01, 0.01), false); // empty string is not a match even when interval contains 0
+  assert.equal(numericMatch('   ', -1, 1), false);     // whitespace-only too
 });
 
 test('parseCommittedInterval reads "[l, u] (basis)"; null on malformed', () => {

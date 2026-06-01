@@ -147,7 +147,9 @@ export function externalHashFromB64(b64) {
 // Inclusive bounds, NaN => false. A raw-string compare would render every row
 // OUTSIDE on the trustworthy surface.
 export function numericMatch(value, lower, upper) {
-  const v = Number(String(value).replace('%', '').trim());
+  const s = String(value).replace('%', '').trim();
+  if (s === '') return false;            // Python float('') raises -> match_value returns False
+  const v = Number(s);
   if (Number.isNaN(v)) return false;
   return lower <= v && v <= upper;
 }
