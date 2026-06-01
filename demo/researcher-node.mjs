@@ -21,6 +21,7 @@
 import { createServer } from 'node:http';
 import {
   withSession, readBody, loadHcClient, externalHashFromB64,
+  buildNumericConvergence, executionAgreementNote,
 } from './node-lib.mjs';
 
 const PORT = parseInt(process.env.NODE_API_PORT || '3001', 10);
@@ -272,15 +273,55 @@ const server = createServer(async (req, res) => {
       const entryB64 = record?.entry?.Present?.entry?.__bytes ?? null;
       const hr       = entryB64 ? (msgpackDecode(Buffer.from(entryB64, 'base64')) ?? {}) : {};
 
-      res.writeHead(200, { 'Cache-Control': 'public, max-age=3600' });
-      res.end(JSON.stringify({
+      const base = {
         harmony_record_hash: hashB64,
         outcome:         hr.outcome         ?? null,
         agreement_level: hr.agreement_level ?? null,
         discipline:      hr.discipline      ?? null,
         validator_count: Array.isArray(hr.participating_validators)
                            ? hr.participating_validators.length : 0,
-      }, null, 2));
+      };
+
+      // Enrich with the numeric-convergence headline. Degrade, never 500:
+      //  - revealed (reveal + attestations present) -> full panel
+      //  - pre-reveal (no reveal / no attestations)  -> numeric_convergence: "pending"
+      //  - any error on the extra calls              -> base fields only
+      let enrichment = {};
+      try {
+        const [reveal, attRecords] = await withSession(async ({ call }) => {
+          const rv = await call('attestation', 'attestation_coordinator', 'get_researcher_reveal', hashBytes);
+          const at = await call('attestation', 'attestation_coordinator', 'get_attestations_for_request', hashBytes);
+          return [rv, at];
+        });
+
+        const decodeEntry = (rec) => {
+          const b64 = rec?.entry?.Present?.entry?.__bytes ?? null;
+          return b64 ? (msgpackDecode(Buffer.from(b64, 'base64')) ?? {}) : null;
+        };
+
+        const revealEntry = reveal ? decodeEntry(reveal) : null;
+        const attEntries  = Array.isArray(attRecords) ? attRecords.map(decodeEntry).filter(Boolean) : [];
+
+        enrichment.execution_agreement = {
+          level: hr.agreement_level ?? null,
+          means: executionAgreementNote(hr.agreement_level ?? 'unknown'),
+        };
+        if (revealEntry && attEntries.length > 0) {
+          const researcherMetrics = revealEntry.metrics ?? [];
+          enrichment.numeric_convergence = buildNumericConvergence(researcherMetrics, attEntries);
+          enrichment.committed_claim = researcherMetrics.map(m => ({
+            metric: m.metric_name, value: m.produced_value, interval: m.expected_value,
+          }));
+        } else {
+          enrichment.numeric_convergence = 'pending';
+        }
+      } catch (e) {
+        console.error('[/record] enrichment skipped:', e.message);
+        // base fields only
+      }
+
+      res.writeHead(200, { 'Cache-Control': 'public, max-age=3600' });
+      res.end(JSON.stringify({ ...base, ...enrichment }, null, 2));
     } catch (err) {
       console.error('[/record]', err.message);
       res.writeHead(502);
