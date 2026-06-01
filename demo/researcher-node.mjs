@@ -273,9 +273,15 @@ const server = createServer(async (req, res) => {
       const entryB64 = record?.entry?.Present?.entry?.__bytes ?? null;
       const hr       = entryB64 ? (msgpackDecode(Buffer.from(entryB64, 'base64')) ?? {}) : {};
 
+      // AttestationOutcome is adjacent-tagged serde, so msgpack-decodes to
+      // { type: "Reproduced" }. Normalize to the bare string for display
+      // (mirrors the runner-side normalization).
+      const outcomeStr = (o) =>
+        (o && typeof o === 'object' && 'type' in o) ? o.type : (o ?? null);
+
       const base = {
         harmony_record_hash: hashB64,
-        outcome:         hr.outcome         ?? null,
+        outcome:         outcomeStr(hr.outcome),
         agreement_level: hr.agreement_level ?? null,
         discipline:      hr.discipline      ?? null,
         validator_count: Array.isArray(hr.participating_validators)
