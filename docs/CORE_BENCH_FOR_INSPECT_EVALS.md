@@ -131,7 +131,57 @@ Two precision rules we hold to, and ask you to hold us to:
 
 ## Reproduce it yourself
 
-<!-- written in a later task -->
+Everything runs on your own machine — nothing depends on our servers.
+
+**Prerequisites**
+
+- **Docker, privileged.** The inspect sandbox's `compose.yaml` sets
+  `privileged: true`.
+- **A paid provider API key.** Agentic reproduction needs a capable model; free
+  tiers are not enough (OpenAI free → `insufficient_quota`; Google free excludes
+  `gemini-2.5-pro`). The cheapest working setup is all-Anthropic (one key).
+- **~30 GB free disk** (each sandbox grows to ~14 GB; validators run sequentially,
+  one at a time).
+- **`git` on the host** — the `inspect_evals` pin is a `git+` URL.
+- ~30–45 min wall-clock for a full run.
+
+**Steps**
+
+```bash
+# 1. Install the demo deps (kept out of the web requirements on purpose)
+cd demo
+pip install -r requirements-core-bench.txt
+
+# 2. (optional) confirm the capsule reproduces before a full run (~10 min)
+python3 core_bench_spike.py --capsule capsule-0851068 \
+    --model anthropic/claude-sonnet-4-6
+
+# 3. Bring up YOUR OWN 5-conductor stack. The happs ship prebuilt, so there is
+#    no Rust/Holochain build step.
+docker compose -f docker-compose.yml up --build -d
+until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node API →')" -ge 4 ]; do sleep 3; done && echo Ready
+
+# 4. Point the runner at your local stack (so the record is written to YOUR DHT)
+export VALICHORD_RESEARCHER_URL=http://localhost:3001
+export VALICHORD_VALIDATOR_1_URL=http://localhost:3002
+export VALICHORD_VALIDATOR_2_URL=http://localhost:3003
+export VALICHORD_VALIDATOR_3_URL=http://localhost:3004
+
+# 5. Full run (all-Sonnet: one key, deterministic capsule, same-model label)
+python3 core_bench_runner.py --capsule capsule-0851068 --researcher-runs 1 \
+    --researcher-model anthropic/claude-sonnet-4-6 \
+    --validator-models anthropic/claude-sonnet-4-6 anthropic/claude-sonnet-4-6 anthropic/claude-sonnet-4-6
+
+# 6. Verify the record yourself, from your own node
+curl "http://localhost:3001/record?hash=<external_hash_from_the_run_output>"
+
+# 7. Tear down between runs
+docker compose -f docker-compose.yml down -v
+```
+
+For a genuine *independence* claim rather than a "the protocol works"
+demonstration, pass three different models to `--validator-models` (e.g. Claude /
+GPT-4o / Gemini) — see "How it fills the gap".
 
 ## What still needs doing
 
