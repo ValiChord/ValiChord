@@ -1,9 +1,69 @@
 """Pre-round blinding gate: prove the target answer is not readable from any file
 the agent retains in CORE-Bench hard mode, so 'independent execution' cannot
 reduce to 'read the number'. Pure functions + a tarball loader; no protocol code."""
+import re
 from typing import NamedTuple
 
 from inspect_evals.core_bench.dataset import CAPSULE_PATHS_TO_REMOVE
+
+
+_DOC_EXTS = (".md", ".txt", ".rst", ".ipynb")  # interval signal only here
+_NUM_TOKEN = re.compile(r"-?\d+\.\d+|-?\d+")
+
+
+class Leak(NamedTuple):
+    file: str
+    token: str
+    signal: str  # "rounded_form" | "interval"
+
+
+class CapsuleLeakError(RuntimeError):
+    pass
+
+
+def _rounded_forms(value: float) -> set[str]:
+    """Specific-enough textual forms of a point value: exact repr, 3/4 dp, and the
+    percentage form to 1/2 dp. 2 dp is deliberately excluded — too coarse, it would
+    false-positive on unrelated constants in code/data."""
+    forms = {repr(value), str(value), f"{value:.3f}", f"{value:.4f}",
+             f"{value * 100:.1f}", f"{value * 100:.2f}"}
+    return {f for f in forms if f}
+
+
+def find_answer_leaks(retained_files: dict, committed_claim: dict) -> list:
+    """Scan retained file text for the committed answer. Signal 1 (rounded point
+    forms) runs on all files; signal 2 (interval membership) only on doc-like
+    files, where an approximate *stated* result lives — on raw data/code it is
+    noise. Returns at most one leak per (file, metric, signal)."""
+    leaks = []
+    for spec in committed_claim.values():
+        value, lower, upper = spec["value"], spec["lower"], spec["upper"]
+        forms = _rounded_forms(value)
+        half = (upper - lower) / 2 if upper > lower else 0.0
+        lo, hi = lower - half, upper + half
+        for fname, text in retained_files.items():
+            if any(form in text for form in forms):
+                hit = next(form for form in forms if form in text)
+                leaks.append(Leak(fname, hit, "rounded_form"))
+            if fname.lower().endswith(_DOC_EXTS):
+                for m in _NUM_TOKEN.finditer(text):
+                    try:
+                        num = float(m.group())
+                    except ValueError:
+                        continue
+                    if lo <= num <= hi:
+                        leaks.append(Leak(fname, m.group(), "interval"))
+                        break
+    return leaks
+
+
+def assert_capsule_blind(retained_files: dict, committed_claim: dict) -> None:
+    leaks = find_answer_leaks(retained_files, committed_claim)
+    if leaks:
+        detail = "\n  - ".join(f"{lk.file}: '{lk.token}' ({lk.signal})" for lk in leaks)
+        raise CapsuleLeakError(
+            "Capsule answer leaks into retained agent inputs — blinding is broken:\n  - " + detail
+        )
 
 
 def is_retained(rel_path: str, difficulty: str = "hard") -> bool:
