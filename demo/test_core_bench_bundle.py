@@ -60,6 +60,8 @@ def test_emit_writes_one_bundle_per_validator(tmp_path, monkeypatch):
     assert doc["bundle"]["meta"]["validator_model"] == "anthropic/claude-opus-4-8"
     assert doc["samples"]  # non-empty
     assert len(doc["_source"]["bundle_sha256"]) == 64
+    assert doc["bundle"]["harness_version"].startswith("inspect_ai==")
+    assert "sample_0_proof" in doc["_source"]
     names = sorted(p.name for p in paths)
     assert names == [
         "bundle_capsule-0851068_anthropic_claude-opus-4-8.json",
@@ -94,6 +96,28 @@ def test_samples_from_eee_log_maps_jsonl(monkeypatch):
         "model_answer": "0.9158",
         "correct": True,
     }]
+
+
+def test_samples_from_eee_log_orders_by_numeric_sample_id(monkeypatch):
+    from pathlib import Path as _P
+
+    class FakeAdapter:
+        def transform_from_file(self, path, metadata_args=None):
+            outdir = _P(metadata_args["parent_eval_output_dir"])
+            lines = []
+            for sid in ("10", "2", "1"):
+                lines.append(json.dumps({
+                    "sample_id": sid,
+                    "input": {"raw": f"q{sid}", "reference": ["t"]},
+                    "output": {"raw": ["a"]},
+                    "evaluation": {"is_correct": True},
+                }))
+            (outdir / "samples.jsonl").write_text("\n".join(lines) + "\n")
+            return object()
+
+    monkeypatch.setattr(cbb, "_eee_adapter", lambda: FakeAdapter())
+    samples = cbb._samples_from_eee_log("/ignored.eval")
+    assert [s["sample_id"] for s in samples] == ["1", "2", "10"]
 
 
 def test_eee_adapter_raises_actionable_error_when_missing(monkeypatch):

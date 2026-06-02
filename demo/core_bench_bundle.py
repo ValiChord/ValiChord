@@ -10,7 +10,14 @@ import json
 import tempfile
 from pathlib import Path
 
-from valichord_attestation import build_bundle, hash_bundle
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
+try:
+    _INSPECT_VERSION = _pkg_version("inspect_ai")
+except PackageNotFoundError:  # pragma: no cover
+    _INSPECT_VERSION = "unknown"
+
+from valichord_attestation import build_bundle, hash_bundle, merkle_proof
 from valichord_attestation.canonical import bundle_to_dict
 from inspect_evals.core_bench.dataset import CAPSULE_CHECKSUMS
 
@@ -51,9 +58,13 @@ def _eee_adapter():
 
 def _samples_from_eee_log(eval_log_path):
     """Parse a CORE-Bench .eval log into bundle samples via EEE's
-    InspectAIAdapter. Real EEE call; unit tests monkeypatch this function."""
+    InspectAIAdapter. Real EEE call; unit tests monkeypatch this function.
+
+    Records are ordered by numeric sample_id when possible (matching EEE's
+    canonical extract_bundle_samples_from_eee), so outputs_merkle_root is
+    stable regardless of JSONL file/line order."""
     adapter = _eee_adapter()
-    samples = []
+    records = []
     with tempfile.TemporaryDirectory() as tmpdir:
         adapter.transform_from_file(
             str(eval_log_path),
@@ -66,21 +77,30 @@ def _samples_from_eee_log(eval_log_path):
         )
         for jf in sorted(Path(tmpdir).rglob("*.jsonl")):
             for line in jf.read_text().splitlines():
-                if not line.strip():
-                    continue
-                rec = json.loads(line)
-                inp = rec.get("input") or {}
-                out = rec.get("output") or {}
-                ev = rec.get("evaluation") or {}
-                reference = inp.get("reference") or []
-                raw_outputs = out.get("raw") or []
-                samples.append({
-                    "sample_id": rec.get("sample_id"),
-                    "input": (inp.get("raw") or "")[:200].strip(),
-                    "target": reference[0].strip() if reference else "",
-                    "model_answer": raw_outputs[0].strip() if raw_outputs else "",
-                    "correct": bool(ev.get("is_correct", False)),
-                })
+                if line.strip():
+                    records.append(json.loads(line))
+
+    def _sort_key(rec):
+        sid = rec.get("sample_id", "")
+        try:
+            return (0, int(sid))
+        except (ValueError, TypeError):
+            return (1, str(sid))
+
+    samples = []
+    for rec in sorted(records, key=_sort_key):
+        inp = rec.get("input") or {}
+        out = rec.get("output") or {}
+        ev = rec.get("evaluation") or {}
+        reference = inp.get("reference") or []
+        raw_outputs = out.get("raw") or []
+        samples.append({
+            "sample_id": rec.get("sample_id"),
+            "input": (inp.get("raw") or "")[:200].strip(),
+            "target": reference[0].strip() if reference else "",
+            "model_answer": raw_outputs[0].strip() if raw_outputs else "",
+            "correct": bool(ev.get("is_correct", False)),
+        })
     return samples
 
 
@@ -109,7 +129,7 @@ def build_one_bundle(*, capsule_id, researcher_model, validator_model, label,
         task_id=f"{TASK_PREFIX}:{capsule_id}",
         raw_metrics=raw_metrics,
         samples=samples,
-        harness_version=TASK_PREFIX,
+        harness_version=f"inspect_ai=={_INSPECT_VERSION}",
         meta=meta,
     )
     return bundle, samples
@@ -146,6 +166,7 @@ def emit_core_bench_bundles(*, capsule_id, researcher_model, validator_models,
                 ),
                 "eee_commit": EEE_COMMIT,
                 "bundle_sha256": hash_bundle(bundle),
+                "sample_0_proof": merkle_proof(samples, 0),
             },
             "bundle": bundle_to_dict(bundle),
             "samples": samples,
