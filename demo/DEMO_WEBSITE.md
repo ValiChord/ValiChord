@@ -8,12 +8,13 @@ Built on **Holochain** — a peer-to-peer network where no single node is in cha
 
 ## What it is
 
-A browser interface to the full ValiChord commit-reveal protocol running on live Holochain nodes on Oracle Cloud. Two demos run on the same page:
+A browser interface to the full ValiChord commit-reveal protocol running on live Holochain nodes on Oracle Cloud. One demo runs on the page:
 
 | Demo | Who pays | Validators | Hypothesis |
 |---|---|---|---|
 | **Your Hypothesis** | User (own Anthropic key) | 3 CMA agents with live web search | Any claim the user writes |
-| **Free Demo** | Server (capped budget) | 3 Claude Haiku agents | Pre-loaded ecology study |
+
+> **Note:** A server-funded "Free Demo" (3 Claude Haiku validators on a pre-loaded ecology study) was removed in June 2026 because every visitor run drew on the server's own Anthropic key. The page now runs exclusively on the visitor's own `sk-ant-` key — the server key is never used to serve demo traffic.
 
 The page includes a skeptic-proof verify section after every run: the HarmonyRecord hash is unique to that run, generated on the Oracle DHT, and fetchable from any machine with a single `curl` command that has nothing to do with this website.
 
@@ -114,27 +115,11 @@ One custom run at a time, enforced by `_custom_running` bool + `_custom_lock`. A
 
 ---
 
-## Free demo
+## Free demo (removed)
 
-A pre-loaded synthetic ecology study. Linear regression across 20 climate sampling sites — the researcher claims slope ≈ 2.4086, intercept ≈ 1.1742, R² ≈ 0.9991.
+The server-funded free demo was removed in June 2026. It used the server's `ANTHROPIC_API_KEY` for every visitor run, so public traffic spent the operator's own quota — the cause of repeated rate-limit alerts. The `/demo/run` and `/demo/result/<id>` routes, their job state, and the per-IP/monthly-budget rate-limit logic are all gone from `app.py`.
 
-Three Claude Haiku agents act as independent validators. Each reads the study README and execution output and forms a verdict without seeing each other's response. Verdicts are committed blind to the DHT before any reveal. Uses the server's Anthropic key.
-
-### Protocol steps
-
-| Step | What happens |
-|---|---|
-| 1 | Load study deposit — README + data hash with per-run UUID salt |
-| 2 | Execute `synthetic_study/study.py`, parse slope/intercept/R² |
-| 3 | Form 3 independent verdicts via Claude Haiku (5-retry correction loop each) |
-| 4 | Researcher locks result on DNA 1; all 3 validators commit blind to DNA 3 |
-| 5 | All 3 CommitmentAnchors confirmed on DHT |
-| 6 | Researcher + all 3 validators reveal; each cryptographically verified |
-| 7 | HarmonyRecord written to DNA 4; shareable URL returned |
-
-### Concurrency
-
-One free run at a time, enforced by `_demo_lock` + `_demo_running` bool. Lock always released in a `finally` block.
+`demo/demo_runner.py` (the old free-demo study logic) is **not** deleted — it is still imported by `core_bench_runner.py` for its node HTTP helpers (`_node_post`, `_node_get`, URL config) and is exercised by `tests/test_demo_runner.py`. It is simply no longer reachable from the website.
 
 ---
 
@@ -142,18 +127,16 @@ One free run at a time, enforced by `_demo_lock` + `_demo_running` bool. Lock al
 
 | Demo | Limit | Enforcement |
 |---|---|---|
-| Free | Once per IP per day | `_ip_last_free` dict, 86 400 s cooldown — recorded only on successful completion |
-| Free | ~50 runs/month server budget | `_free_run_count × $0.10 ≥ $5.00` → 429 — counted only on success |
 | Custom | 1 concurrent run (global) | `_custom_running` bool + 30-min watchdog |
 
-A visitor who hits either limit gets a 429 with a human-readable explanation. The free demo rate limit is per IP, not per session — VPNs can bypass it but that's accepted.
+The custom demo runs on the visitor's own key, so there is no server-cost budget to enforce — only the single-concurrent-run lock.
 
 ---
 
 ## UI design
 
-- **No tabs** — linear scroll layout. Your Hypothesis is the primary hero section at the top; Free Demo sits below a visual section divider.
-- **Five expandable accordions** (`<details>`/`<summary>`) between the two demos explain the protocol, why it's remarkable, why Holochain instead of a blockchain, why a centralised server can't provide the same trust layer, and why validator disagreement is a feature not a failure.
+- **No tabs** — linear scroll layout. Your Hypothesis is the single hero section at the top, followed by the explainer accordions.
+- **Five expandable accordions** (`<details>`/`<summary>`) below the demo explain the protocol, why it's remarkable, why Holochain instead of a blockchain, why a centralised server can't provide the same trust layer, and why validator disagreement is a feature not a failure.
 - **Holochain logo** in the header — "Built on / [logo]" badge links to holochain.org.
 - **Google Fonts** — DM Sans (body) + Newsreader (headings) loaded from fonts.googleapis.com.
 - **Reveal button** — greyed out until all 3 validators have committed, then turns green with a pulsing box-shadow animation (`readyPulse` keyframe).
@@ -166,7 +149,7 @@ A visitor who hits either limit gets a 429 with a human-readable explanation. Th
 | File | Purpose |
 |---|---|
 | `demo/app.py` | Flask server — all routes, job state, background threads, HTML |
-| `demo/demo_runner.py` | Free demo logic — load study, execute, form Haiku verdicts, run protocol |
+| `demo/demo_runner.py` | Node HTTP helpers + Oracle URL config (reused by `core_bench_runner.py`). Formerly the free-demo study logic; no longer reachable from the website. |
 | `demo/custom_runner.py` | Your Hypothesis logic — CMA sessions, classify_discipline, compare_answers, two-phase protocol |
 | `demo/ai_validator_cma.py` | CMA session helpers — `_node_post`, `_node_get`, `BETAS`, `MODEL_CMA`, `detect_key_type` |
 | `demo/synthetic_study/study.py` | The actual study code validators reproduce |
@@ -194,7 +177,7 @@ python app.py
 # opens at http://localhost:8080/demo
 ```
 
-This runs against the live Oracle nodes — no local Docker setup needed. Both the free demo and the Your Hypothesis demo will work. For the custom demo, paste a `sk-ant-` key into the form; the server's `ANTHROPIC_API_KEY` is only used for the free demo.
+This runs against the live Oracle nodes — no local Docker setup needed. The Your Hypothesis demo runs entirely on the `sk-ant-` key the visitor pastes into the form. The server's `ANTHROPIC_API_KEY` is **no longer used to serve any demo traffic** — `export` it locally only if you also run CLI tools like `core_bench_runner.py`.
 
 ---
 
@@ -202,10 +185,9 @@ This runs against the live Oracle nodes — no local Docker setup needed. Both t
 
 1. Connect `topeuph-ai/ValiChord` to Render
 2. Render picks up `render.yaml` and builds from `demo/Dockerfile` (context: repo root)
-3. Set `ANTHROPIC_API_KEY` manually in the Render dashboard under **Environment** — do not commit it
-4. Every push to `main` triggers an automatic redeploy
+3. Every push to `main` triggers an automatic redeploy
 
-The Oracle node URLs are set in `render.yaml` and are not secrets.
+The Oracle node URLs are set in `render.yaml` and are not secrets. **Do not set `ANTHROPIC_API_KEY` on the Render service** — the website no longer uses a server key, and setting one would expose the operator's quota to public traffic (the exact problem the free-demo removal fixed). The custom demo runs only on the key each visitor pastes in.
 
 **Dockerfile notes:**
 - `python:3.12-slim`, runs as non-root `appuser`

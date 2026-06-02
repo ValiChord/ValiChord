@@ -5,41 +5,12 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
-from collections import defaultdict
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-
-# ── Free demo state ────────────────────────────────────────────────────────────
-_jobs:        dict  = {}
-_demo_lock         = threading.Lock()
-_demo_running      = False
-
-FREE_COST_ESTIMATE  = 0.10   # conservative upper bound per run (Haiku × 3)
-FREE_MONTHLY_BUDGET = 5.00   # ~50 free runs per month
-FREE_IP_COOLDOWN    = 86400  # one free run per IP per day
-
-_free_run_count = 0
-_free_run_lock  = threading.Lock()
-_ip_last_free: dict = defaultdict(float)
-
-
-def _free_rate_check(ip: str) -> tuple[bool, str]:
-    now = time.time()
-    wait = FREE_IP_COOLDOWN - (now - _ip_last_free[ip])
-    if wait > 0:
-        hours = int(wait // 3600)
-        mins  = int((wait % 3600) // 60)
-        label = f"{hours}h {mins}m" if hours else f"{mins} minutes"
-        return False, f"Free demo is limited to once per day per visitor. Try again in ~{label}."
-    with _free_run_lock:
-        if _free_run_count * FREE_COST_ESTIMATE >= FREE_MONTHLY_BUDGET:
-            return False, "Free demo has reached its monthly limit. Check back next month."
-    return True, ""
-
 
 # ── Custom demo state ──────────────────────────────────────────────────────────
 _custom_jobs:   dict  = {}
@@ -64,39 +35,7 @@ def demo_page():
     return Response(_DEMO_HTML, mimetype='text/html')
 
 
-# Free demo ────────────────────────────────────────────────────────────────────
-
-@app.route('/demo/run', methods=['POST'])
-def demo_run():
-    global _demo_running, _free_run_count
-
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
-    allowed, reason = _free_rate_check(ip)
-    if not allowed:
-        return jsonify({"status": "rate_limited", "message": reason}), 429
-
-    with _demo_lock:
-        if _demo_running:
-            return jsonify({
-                "status":  "busy",
-                "message": "Demo in progress — check back in ~2 minutes",
-            }), 409
-        _demo_running = True
-
-    job_id = str(uuid.uuid4())
-    _jobs[job_id] = {"step": 0, "status": "running", "result": None, "error": None, "_ip": ip}
-
-    threading.Thread(target=_run_free_job, args=(job_id,), daemon=True).start()
-    return jsonify({"job_id": job_id}), 202
-
-
-@app.route('/demo/result/<job_id>')
-def demo_result(job_id):
-    job = _jobs.get(job_id)
-    if not job:
-        return jsonify({'error': 'Unknown job'}), 404
-    return jsonify(job)
-
+# Shared — Oracle record proxy ───────────────────────────────────────────────────
 
 @app.route('/demo/record/<path:hash_b64>')
 def demo_record(hash_b64):
@@ -108,35 +47,6 @@ def demo_record(hash_b64):
             return Response(resp.read(), mimetype='application/json')
     except Exception as e:
         return jsonify({'error': str(e)}), 502
-
-
-def _run_free_job(job_id: str):
-    global _demo_running, _free_run_count
-    job = _jobs[job_id]
-    ip  = job.pop("_ip", "")
-    try:
-        import demo_runner
-        job["step"] = 1
-        readme, data_hash, _ = demo_runner.load_study()
-        job["step"] = 2
-        output  = demo_runner.execute_study()
-        metrics = demo_runner.parse_metrics(output)
-        job["step"] = 3
-        verdicts = demo_runner.form_verdicts(readme, output)
-        job["step"] = 4
-        result = demo_runner.run_protocol(data_hash, metrics, verdicts, job)
-        job["step"]   = 7
-        job["status"] = "done"
-        job["result"] = result
-        # Record usage only on success so failed runs don't burn the daily quota
-        _ip_last_free[ip] = time.time()
-        with _free_run_lock:
-            _free_run_count += 1
-    except Exception as e:
-        job["status"] = "error"
-        job["error"]  = str(e)
-    finally:
-        _demo_running = False
 
 
 # Custom demo ──────────────────────────────────────────────────────────────────
@@ -323,13 +233,7 @@ main{max-width:680px;margin:0 auto;padding:3rem 1.5rem 5rem}
 textarea,input[type=password]{width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;color:var(--text);font-size:.85rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .2s}
 textarea:focus,input[type=password]:focus{border-color:var(--accent)}
 textarea{min-height:76px}
-.key-note,.rate-note{font-size:.75rem;color:var(--dim);margin-top:.35rem;line-height:1.55}
-.steps{list-style:none;margin-top:1rem}
-.steps li{display:flex;align-items:center;gap:.75rem;padding:.35rem 0;font-size:.875rem;color:var(--dim)}
-.dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
-li.active .dot{border-color:var(--accent);background:var(--accent);animation:pulse 1.2s infinite}
-li.done .dot{border-color:var(--green);background:var(--green)}
-li.active,li.done{color:var(--text)}
+.key-note{font-size:.75rem;color:var(--dim);margin-top:.35rem;line-height:1.55}
 .commit-row{display:flex;align-items:center;gap:.75rem;padding:.35rem 0;font-size:.875rem;color:var(--dim)}
 .commit-row.done{color:var(--text)}
 .vdot{width:13px;height:13px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;transition:all .3s}
@@ -366,9 +270,6 @@ details[open]>summary::after{transform:rotate(90deg)}
 .expand-body p{color:var(--dim);font-size:.875rem;line-height:1.72;margin-top:.65rem}
 .expand-body strong{color:var(--text);font-weight:500}
 .expand-body em{color:var(--text);font-style:normal;font-weight:500}
-/* section divider */
-.section-divider{display:flex;align-items:center;gap:1rem;margin:2.5rem 0 1.25rem;color:var(--dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em}
-.section-divider::before,.section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
@@ -474,76 +375,9 @@ details[open]>summary::after{transform:rotate(90deg)}
 
 </div>
 
-<!-- ── Free demo — secondary ──────────────────────────────────────────────── -->
-<div class="section-divider">Free demo — no API key needed</div>
-
-<div class="card" id="section-free">
-  <h2>Study: Temperature–Species Richness</h2>
-  <p>A pre-loaded synthetic ecology study. Linear regression across 20 sampling sites — the researcher claims slope ≈ 2.4086, R² ≈ 0.9991. Three AI validators independently reproduce the computation and commit their verdicts blind before anyone reveals. Runs on the server's key at no cost to you.</p>
-  <p class="rate-note">Free · once per visitor per day · uses the server's Anthropic key (~$0.10/run)</p>
-  <button class="btn btn-muted" id="runBtn" onclick="startDemo()">Run Protocol (~2 min)</button>
-  <div id="busyMsg" class="busy" style="display:none"></div>
-</div>
-
-<div class="card" id="progressCard" style="display:none">
-  <h2>Protocol progress</h2>
-  <ul class="steps">
-    <li id="s1"><span class="dot"></span>Loading study deposit</li>
-    <li id="s2"><span class="dot"></span>Executing study code</li>
-    <li id="s3"><span class="dot"></span>Forming 3 independent verdicts</li>
-    <li id="s4"><span class="dot"></span>Committing to DHT — blind phase</li>
-    <li id="s5"><span class="dot"></span>All commitments sealed</li>
-    <li id="s6"><span class="dot"></span>Researcher + validators revealed</li>
-    <li id="s7"><span class="dot"></span>HarmonyRecord written</li>
-  </ul>
-  <div id="resultArea"></div>
-</div>
-
 </main>
 <script>
-// ── Free demo ─────────────────────────────────────────────────────────────────
-let poll=null,pollStart=null;
 const MAX_POLL_MS=8*60*1000;
-function startDemo(){
-  const btn=document.getElementById('runBtn');
-  btn.disabled=true;
-  document.getElementById('busyMsg').style.display='none';
-  const pc=document.getElementById('progressCard');
-  pc.style.display='block';
-  document.getElementById('resultArea').innerHTML='';
-  for(let i=1;i<=7;i++){const li=document.getElementById('s'+i);li.className='';li.querySelector('.dot').className='dot';}
-  fetch('/demo/run',{method:'POST'}).then(r=>r.json()).then(d=>{
-    if(d.status==='busy'||d.status==='rate_limited'){
-      document.getElementById('busyMsg').textContent=d.message;
-      document.getElementById('busyMsg').style.display='block';
-      btn.disabled=false;pc.style.display='none';return;
-    }
-    if(!d.job_id){showErr('resultArea','Failed to start: '+JSON.stringify(d));btn.disabled=false;return;}
-    pollStart=Date.now();poll=setInterval(()=>doPoll(d.job_id),2000);
-  }).catch(e=>{showErr('resultArea','Network error: '+e.message);btn.disabled=false;});
-}
-function doPoll(id){
-  if(pollStart&&Date.now()-pollStart>MAX_POLL_MS){
-    clearInterval(poll);
-    showErr('resultArea','Demo timed out after 8 minutes. The run may still be processing — refresh to check.');
-    document.getElementById('runBtn').disabled=false;
-    return;
-  }
-  fetch('/demo/result/'+id).then(r=>r.json()).then(j=>{
-    setSteps(j.step,false);
-    if(j.status==='done'){clearInterval(poll);setSteps(7,true);showFreeResult(j.result);document.getElementById('runBtn').disabled=false;}
-    else if(j.status==='error'){clearInterval(poll);showErr('resultArea',j.error||'Unknown error');document.getElementById('runBtn').disabled=false;}
-  }).catch(e=>console.error('poll:',e));
-}
-function setSteps(cur,done){
-  for(let i=1;i<=7;i++){
-    const li=document.getElementById('s'+i),dot=li.querySelector('.dot');
-    if(i<cur){li.className='done';dot.className='dot';}
-    else if(i===cur&&!done){li.className='active';dot.className='dot';}
-    else if(i===cur&&done){li.className='done';dot.className='dot';}
-    else{li.className='';dot.className='dot';}
-  }
-}
 
 // ── Custom demo ───────────────────────────────────────────────────────────────
 let customPoll=null,customJobId=null,customPollStart=null;
@@ -641,21 +475,6 @@ function triggerReveal(){
 // ── Results ───────────────────────────────────────────────────────────────────
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 const OUTCOME_LABEL={'Reproduced':'Aligned with validators','PartiallyReproduced':'Partially aligned','NotReproduced':'Diverged from validators','FailedToReproduce':'Failed to reproduce','UnableToAssess':'Unable to assess'};
-function showFreeResult(r){
-  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`).join('');
-  const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
-  document.getElementById('resultArea').innerHTML=`<div class="result-box">
-    <div class="outcome">${esc(r.outcome)} — ${esc(r.agreement_level)}</div>
-    <div class="detail">${esc(r.validator_count)}/3 validators · Temperature–Species Richness</div>
-    <div class="verdicts">${rows}</div>
-    ${shareUrl?`<div class="share">Permanent record: <a href="${shareUrl}" target="_blank">${shareUrl}</a></div>`:''}
-    <div class="verify-section">
-      <p><strong>Is this real?</strong> The hash lives on the Oracle DHT — not generated by this page. Fetch it yourself from any node:</p>
-      ${curlCmd?`<div class="curl-cmd">${esc(curlCmd)}</div>`:''}
-      ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('resultArea','${hashB64}')">Fetch raw record from Oracle →</button>`:''}
-      <pre class="raw-json" id="rawJson"></pre>
-    </div></div>`;
-}
 function showCustomResult(r){
   const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`).join('');
   const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
@@ -670,12 +489,12 @@ function showCustomResult(r){
     <div class="verify-section">
       <p><strong>Is this real?</strong> Your answer hash was committed to the Oracle DHT before the validators started. Independently fetchable from any node:</p>
       ${curlCmd?`<div class="curl-cmd">${esc(curlCmd)}</div>`:''}
-      ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('customResultArea','${hashB64}')">Fetch raw record from Oracle →</button>`:''}
+      ${hashB64?`<button class="btn-ghost" onclick="fetchRaw('${hashB64}')">Fetch raw record from Oracle →</button>`:''}
       <pre class="raw-json" id="customRawJson"></pre>
     </div></div>`;
 }
-function fetchRaw(areaId,hashB64){
-  const jsonId=areaId==='resultArea'?'rawJson':'customRawJson',pre=document.getElementById(jsonId);
+function fetchRaw(hashB64){
+  const pre=document.getElementById('customRawJson');
   pre.style.display='block';pre.textContent='Fetching…';
   fetch('/demo/record/'+hashB64).then(r=>r.json()).then(d=>{pre.textContent=JSON.stringify(d,null,2);}).catch(e=>{pre.textContent='Error: '+e.message;});
 }
