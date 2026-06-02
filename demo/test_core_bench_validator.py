@@ -42,12 +42,28 @@ def test_extract_report_from_log_handles_no_samples():
     assert cbv.extract_report_from_log([fake_log]) is None
 
 
-def test_run_validator_eval_returns_report():
+def test_run_validator_eval_returns_report_and_log_path():
+    good = mock.Mock(status="success", location="/logs/run.eval")
     with mock.patch.object(cbv, "build_validator_task", lambda cid: "TASK"), \
-         mock.patch.object(cbv, "inspect_eval", lambda *a, **k: ["LOG"]) as ev, \
+         mock.patch.object(cbv, "inspect_eval", lambda *a, **k: [good]), \
          mock.patch.object(cbv, "extract_report_from_log", lambda logs: {"Q": 2.0}):
-        report = cbv.run_validator_eval("capsule-5507257", "anthropic/claude-opus-4-8")
+        report, path = cbv.run_validator_eval("capsule-5507257", "anthropic/claude-opus-4-8")
     assert report == {"Q": 2.0}
+    assert path == "/logs/run.eval"
+
+
+def test_run_validator_eval_passes_log_dir_to_inspect_eval():
+    captured = {}
+
+    def fake_eval(task, model=None, log_dir=None):
+        captured["log_dir"] = log_dir
+        return [mock.Mock(status="success", location="/l/x.eval")]
+
+    with mock.patch.object(cbv, "build_validator_task", lambda cid: "TASK"), \
+         mock.patch.object(cbv, "inspect_eval", fake_eval), \
+         mock.patch.object(cbv, "extract_report_from_log", lambda logs: {"Q": 1.0}):
+        cbv.run_validator_eval("capsule-5507257", "m", log_dir="/l")
+    assert captured["log_dir"] == "/l"
 
 
 def test_run_validator_eval_raises_on_non_success_eval():
@@ -67,11 +83,11 @@ def test_run_validator_eval_raises_on_non_success_eval():
 def test_run_validator_eval_returns_none_when_success_but_no_report():
     """A *successful* eval that produced no report.json is a genuine
     no-reproduction (-> FailedToReproduce later), distinct from an infra
-    failure -- so it returns None rather than raising."""
-    good_log = mock.Mock(status="success", samples=[])
+    failure -- so report is None rather than raising."""
+    good_log = mock.Mock(status="success", samples=[], location="/l/x.eval")
     with mock.patch.object(cbv, "build_validator_task", lambda cid: "TASK"), \
          mock.patch.object(cbv, "inspect_eval", lambda *a, **k: [good_log]):
-        report = cbv.run_validator_eval("capsule-5507257", "anthropic/claude-opus-4-8")
+        report, _ = cbv.run_validator_eval("capsule-5507257", "anthropic/claude-opus-4-8")
     assert report is None
 
 
@@ -80,7 +96,7 @@ def test_run_researcher_claim_runs_n_times_and_derives():
 
     def fake_eval(cid, model):
         calls.append(model)
-        return {"Q": 96.125}
+        return {"Q": 96.125}, None
 
     with mock.patch.object(cbv, "run_validator_eval", fake_eval):
         claim = cbv.run_researcher_claim("capsule-5507257", "anthropic/claude-opus-4-8", n_runs=3)
@@ -89,6 +105,6 @@ def test_run_researcher_claim_runs_n_times_and_derives():
 
 
 def test_run_researcher_claim_raises_on_failed_run():
-    with mock.patch.object(cbv, "run_validator_eval", lambda c, m: None):
+    with mock.patch.object(cbv, "run_validator_eval", lambda c, m: (None, None)):
         with pytest.raises(RuntimeError):
             cbv.run_researcher_claim("capsule-5507257", "m", n_runs=2)

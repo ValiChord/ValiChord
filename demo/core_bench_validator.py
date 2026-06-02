@@ -48,24 +48,29 @@ def extract_report_from_log(logs) -> Optional[dict]:
     return None
 
 
-def run_validator_eval(capsule_id: str, model: str) -> Optional[dict]:
-    """Run one CORE-Bench eval with `model` and return the agent's report.json.
+def run_validator_eval(capsule_id: str, model: str, log_dir: Optional[str] = None):
+    """Run one CORE-Bench eval with `model`; return (report, eval_log_path).
 
-    Returns None only when the eval *succeeded* but the agent produced no
-    report.json (a genuine no-reproduction). An infra failure (rate limit,
-    quota, auth error, interruption) yields a non-success EvalLog with no
-    samples; that must raise so the round aborts with the real error, never be
-    silently turned into a FailedToReproduce verdict on a published
-    HarmonyRecord."""
+    report is the agent's report.json (or None for a genuine no-reproduction —
+    a *successful* eval that produced no report.json). eval_log_path is the
+    written .eval log location (set `log_dir` to control where inspect writes
+    it), or None when unavailable.
+
+    An infra failure (rate limit, quota, auth, interruption) yields a
+    non-success EvalLog; that still raises so the round aborts with the real
+    error and is never recorded as a bogus FailedToReproduce verdict.
+    """
     task = build_validator_task(capsule_id)
-    logs = inspect_eval(task, model=model)
+    logs = inspect_eval(task, model=model, log_dir=log_dir)
     if logs:
         status = getattr(logs[0], "status", None)
         if status is not None and status != "success":
             err = getattr(logs[0], "error", None)
             detail = getattr(err, "message", None) or (str(err) if err else "no error detail")
             raise RuntimeError(f"eval did not complete (status={status}): {detail}")
-    return extract_report_from_log(logs)
+    report = extract_report_from_log(logs)
+    eval_log_path = getattr(logs[0], "location", None) if logs else None
+    return report, eval_log_path
 
 
 def run_researcher_claim(capsule_id: str, model: str, n_runs: int = 3,
@@ -74,7 +79,7 @@ def run_researcher_claim(capsule_id: str, model: str, n_runs: int = 3,
     95% prediction interval, or explicit tolerance for deterministic output)."""
     runs = []
     for _ in range(n_runs):
-        report = run_validator_eval(capsule_id, model)
+        report, _ = run_validator_eval(capsule_id, model)
         if not report:
             raise RuntimeError(
                 f"Researcher run for {capsule_id} produced no report.json -- "
