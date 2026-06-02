@@ -1,3 +1,6 @@
+import sys
+import types
+
 import pytest
 
 # core_bench_runner imports CAPSULE_CHECKSUMS from inspect_evals at module load.
@@ -62,7 +65,7 @@ def test_run_protocol_drives_full_sequence(monkeypatch):
     monkeypatch.setattr(cbr, "run_researcher_claim",
                         lambda cid, model, n_runs, rel_tolerance:
                         {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "explicit_tolerance"}})
-    monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model: {"Q": 96.125})
+    monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model, log_dir=None: ({"Q": 96.125}, None))
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
     monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
 
@@ -114,14 +117,14 @@ def test_validators_run_sequentially_not_concurrently(monkeypatch):
     lock = threading.Lock()
     state = {"in_flight": 0, "max_in_flight": 0}
 
-    def tracking_eval(cid, model):
+    def tracking_eval(cid, model, log_dir=None):
         with lock:
             state["in_flight"] += 1
             state["max_in_flight"] = max(state["max_in_flight"], state["in_flight"])
         time.sleep(0.05)  # hold the slot so any overlap is observable
         with lock:
             state["in_flight"] -= 1
-        return {"Q": 96.125}
+        return {"Q": 96.125}, None
 
     monkeypatch.setattr(cbr, "run_validator_eval", tracking_eval)
 
@@ -149,10 +152,10 @@ def test_run_protocol_aborts_when_a_validator_fails(monkeypatch):
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
     monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
 
-    def flaky_eval(cid, model):
+    def flaky_eval(cid, model, log_dir=None):
         if model == "openai/gpt-4o":
             raise RuntimeError("sandbox build failed")
-        return {"Q": 96.125}
+        return {"Q": 96.125}, None
 
     monkeypatch.setattr(cbr, "run_validator_eval", flaky_eval)
 
@@ -220,7 +223,7 @@ def _full_run(monkeypatch, harmony_response):
     monkeypatch.setattr(cbr, "run_researcher_claim",
                         lambda cid, model, n_runs, rel_tolerance:
                         {"AUC": {"value": 96.0, "lower": 95.9, "upper": 96.1, "basis": "x"}})
-    monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model: {"AUC": 96.0})
+    monkeypatch.setattr(cbr, "run_validator_eval", lambda cid, model, log_dir=None: ({"AUC": 96.0}, None))
     monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
     monkeypatch.setattr(cbr, "_sleep", lambda s: None)
 
@@ -249,3 +252,65 @@ def test_labels_recompute_when_record_fields_absent(monkeypatch):
     res = _full_run(monkeypatch, {"harmony_record_hash": "uhC8kHARM"})  # no outcome/agreement
     assert res["agreement_level"] == "ExactMatch"     # recomputed from 3x Reproduced
     assert res["agreement_recomputed"] is True
+
+
+def _emit_run(monkeypatch, emitter):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+    monkeypatch.setattr(cbr, "load_retained_capsule_text", lambda cid: {})
+    monkeypatch.setattr(cbr, "run_researcher_claim",
+                        lambda cid, model, n_runs, rel_tolerance:
+                        {"Q": {"value": 96.125, "lower": 96.0, "upper": 96.25, "basis": "x"}})
+    monkeypatch.setattr(cbr, "run_validator_eval",
+                        lambda cid, model, log_dir=None: ({"Q": 96.125}, f"/l/{model}.eval"))
+    monkeypatch.setattr(cbr, "_node_get", lambda url, timeout=30: {"phase": "RevealOpen"})
+    monkeypatch.setattr(cbr, "_sleep", lambda s: None)
+
+    def fake_post(url, payload, timeout=600):
+        if url.endswith("/lock-result"): return {"external_hash_b64": "uhC8kEXT"}
+        if url.endswith("/reveal"): return {"researcher_reveal_hash": "uhCkkREV"}
+        if url.endswith("/create-harmony-record"): return {"harmony_record_hash": "uhC8kHARM"}
+        return {}
+    monkeypatch.setattr(cbr, "_node_post", fake_post)
+
+    # Inject a fake core_bench_bundle so the runner's lazy import picks it up
+    # without requiring valichord_attestation to be installed.
+    fake_mod = types.SimpleNamespace(emit_core_bench_bundles=emitter)
+    monkeypatch.setitem(sys.modules, "core_bench_bundle", fake_mod)
+
+    return cbr.run_core_bench_protocol(
+        capsule_id="capsule-0851068",
+        researcher_model="anthropic/claude-opus-4-8",
+        validator_models=["anthropic/claude-opus-4-8", "openai/gpt-4o", "google/gemini-2.5-pro"],
+        emit_bundles=True,
+        bundle_dir="bundles",
+    )
+
+
+def test_emit_bundles_calls_emitter_with_collected_logs(monkeypatch):
+    seen = {}
+
+    def emitter(**kwargs):
+        seen.update(kwargs)
+        return ["bundles/b1.json", "bundles/b2.json", "bundles/b3.json"]
+
+    res = _emit_run(monkeypatch, emitter)
+    assert res["bundles"] == ["bundles/b1.json", "bundles/b2.json", "bundles/b3.json"]
+    assert seen["validator_eval_logs"] == [
+        "/l/anthropic/claude-opus-4-8.eval",
+        "/l/openai/gpt-4o.eval",
+        "/l/google/gemini-2.5-pro.eval",
+    ]
+    assert "bundles_error" not in res
+
+
+def test_emit_failure_does_not_break_the_round(monkeypatch):
+    def emitter(**kwargs):
+        raise RuntimeError("EEE not installed")
+
+    res = _emit_run(monkeypatch, emitter)
+    # The published round still succeeds; the failure is reported, not fatal.
+    assert res["harmony_record_hash"] == "uhC8kHARM"
+    assert "EEE not installed" in res["bundles_error"]
+    assert "bundles" not in res

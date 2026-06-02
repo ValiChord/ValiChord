@@ -7,6 +7,7 @@ outcome matches the on-chain HarmonyRecord by construction."""
 import argparse
 import hashlib
 import os
+from pathlib import Path
 import time
 import urllib.parse
 import uuid
@@ -73,21 +74,23 @@ def _sleep(seconds):  # indirection so tests can stub out real waiting
     time.sleep(seconds)
 
 
-def _run_one_validator(capsule_id, required_keys, model):
-    """Run a validator eval (one retry with a fresh sandbox) -> (report, verdict)."""
+def _run_one_validator(capsule_id, required_keys, model, log_dir=None):
+    """Run a validator eval (one retry with a fresh sandbox)
+    -> (report, verdict, eval_log_path)."""
     last_err = None
     for _ in range(_MAX_VALIDATOR_ATTEMPTS):
         try:
-            report = run_validator_eval(capsule_id, model)
+            report, eval_log_path = run_validator_eval(capsule_id, model, log_dir=log_dir)
             verdict = report_to_verdict(report, required_keys)
-            return report, verdict
+            return report, verdict, eval_log_path
         except Exception as exc:  # noqa: BLE001 - surfaced below with model context
             last_err = exc
     raise RuntimeError(f"Validator model '{model}' failed after {_MAX_VALIDATOR_ATTEMPTS} attempts: {last_err}")
 
 
 def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
-                            discipline=None, n_researcher_runs=3, rel_tolerance=0.001):
+                            discipline=None, n_researcher_runs=3, rel_tolerance=0.001,
+                            emit_bundles=False, bundle_dir="bundles"):
     """Drive the full CORE-Bench commit-reveal round. Returns a result dict with
     harmony_record_hash, outcome, agreement_level, numeric_panel, record_url."""
     if len(validator_models) != 3:
@@ -119,17 +122,21 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
     # sandbox, blind to the sealed answer and to the others) and does not depend
     # on wall-clock parallelism; sequential also keeps only one ~14 GB sandbox
     # on disk at a time.
+    log_dir = None
+    if emit_bundles:
+        log_dir = str(Path(bundle_dir) / "logs" / uuid.uuid4().hex)
     results = {}
     errors = []
     for i, m in enumerate(validator_models):
         try:
-            results[i] = _run_one_validator(capsule_id, required_keys, m)
+            results[i] = _run_one_validator(capsule_id, required_keys, m, log_dir=log_dir)
         except Exception as exc:  # noqa: BLE001
             errors.append(str(exc))
     if errors:
         raise RuntimeError("Validator reproduction failed; round aborted:\n  - " + "\n  - ".join(errors))
     validator_reports = [(f"V{i+1}-{validator_models[i].split('/')[-1]}", results[i][0]) for i in range(3)]
     verdicts = [results[i][1] for i in range(3)]
+    validator_eval_logs = [results[i][2] for i in range(3)]
 
     # 3. Commit each verdict blind.
     for i, (vurl, verdict) in enumerate(zip(VALIDATOR_URLS, verdicts)):
@@ -178,7 +185,7 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
         recomputed = True
 
     # 7. Display + the verifiable numeric headline.
-    return {
+    result = {
         "harmony_record_hash": harmony_hash,
         "external_hash_b64": ext,
         "outcome": display_outcome,
@@ -193,6 +200,22 @@ def run_core_bench_protocol(capsule_id, researcher_model, validator_models,
             for i in range(3)
         ],
     }
+    if emit_bundles:
+        try:
+            import core_bench_bundle
+            paths = core_bench_bundle.emit_core_bench_bundles(
+                capsule_id=capsule_id,
+                researcher_model=researcher_model,
+                validator_models=validator_models,
+                validator_reports=validator_reports,
+                validator_eval_logs=validator_eval_logs,
+                result=result,
+                out_dir=bundle_dir,
+            )
+            result["bundles"] = [str(p) for p in paths]
+        except Exception as exc:  # noqa: BLE001 - a derived artifact must never fail a published round
+            result["bundles_error"] = str(exc)
+    return result
 
 
 # gemini-1.5-pro was retired from the Google API; 2.5-pro is the current "pro" tier.
@@ -234,6 +257,10 @@ def main(argv=None):
                         help="three model strings, e.g. anthropic/claude-opus-4-8 openai/gpt-4o google/gemini-2.5-pro")
     parser.add_argument("--researcher-runs", type=int, default=3)
     parser.add_argument("--tolerance", type=float, default=0.001, help="relative tolerance for deterministic capsules")
+    parser.add_argument("--emit-bundles", action="store_true",
+                        help="after the round, write one valichord_attestation bundle per validator")
+    parser.add_argument("--bundle-dir", default="bundles",
+                        help="directory for emitted bundles (default: ./bundles, relative to CWD)")
     args = parser.parse_args(argv)
 
     result = run_core_bench_protocol(
@@ -242,6 +269,8 @@ def main(argv=None):
         validator_models=args.validator_models,
         n_researcher_runs=args.researcher_runs,
         rel_tolerance=args.tolerance,
+        emit_bundles=args.emit_bundles,
+        bundle_dir=args.bundle_dir,
     )
     print(format_result(result))
     return 0
