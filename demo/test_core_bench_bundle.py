@@ -66,3 +66,46 @@ def test_emit_writes_one_bundle_per_validator(tmp_path, monkeypatch):
         "bundle_capsule-0851068_google_gemini-2.5-pro.json",
         "bundle_capsule-0851068_openai_gpt-4o.json",
     ]
+
+
+def test_samples_from_eee_log_maps_jsonl(monkeypatch):
+    """_samples_from_eee_log drives EEE's adapter, which writes per-sample JSONL
+    into parent_eval_output_dir; we map those records to bundle samples."""
+    from pathlib import Path as _P
+
+    class FakeAdapter:
+        def transform_from_file(self, path, metadata_args=None):
+            outdir = _P(metadata_args["parent_eval_output_dir"])
+            rec = {
+                "sample_id": "1",
+                "input": {"raw": "compute the AUC", "reference": ["0.9158"]},
+                "output": {"raw": ["0.9158"]},
+                "evaluation": {"is_correct": True},
+            }
+            (outdir / "samples.jsonl").write_text(json.dumps(rec) + "\n")
+            return object()
+
+    monkeypatch.setattr(cbb, "_eee_adapter", lambda: FakeAdapter())
+    samples = cbb._samples_from_eee_log("/ignored/path.eval")
+    assert samples == [{
+        "sample_id": "1",
+        "input": "compute the AUC",
+        "target": "0.9158",
+        "model_answer": "0.9158",
+        "correct": True,
+    }]
+
+
+def test_eee_adapter_raises_actionable_error_when_missing(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def blocked_import(name, *a, **k):
+        if name.startswith("every_eval_ever"):
+            raise ImportError("no every_eval_ever")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+    with pytest.raises(RuntimeError) as exc:
+        cbb._eee_adapter()
+    assert "every-eval-ever" in str(exc.value) and "pip install" in str(exc.value)
