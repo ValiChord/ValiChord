@@ -60,3 +60,9 @@ def test_emit_writes_one_bundle_per_validator(tmp_path, monkeypatch):
     assert doc["bundle"]["meta"]["validator_model"] == "anthropic/claude-opus-4-8"
     assert doc["samples"]  # non-empty
     assert len(doc["_source"]["bundle_sha256"]) == 64
+    names = sorted(p.name for p in paths)
+    assert names == [
+        "bundle_capsule-0851068_anthropic_claude-opus-4-8.json",
+        "bundle_capsule-0851068_google_gemini-2.5-pro.json",
+        "bundle_capsule-0851068_openai_gpt-4o.json",
+    ]

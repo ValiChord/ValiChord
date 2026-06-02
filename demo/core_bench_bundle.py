@@ -121,6 +121,12 @@ def emit_core_bench_bundles(*, capsule_id, researcher_model, validator_models,
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     committed_claim = result["committed_claim"]
+    n = len(validator_reports)
+    if not (len(validator_models) >= n and len(validator_eval_logs) >= n):
+        raise ValueError(
+            f"emit_core_bench_bundles: need >= {n} models and eval-log paths, "
+            f"got {len(validator_models)} models and {len(validator_eval_logs)} logs"
+        )
     paths = []
     for i, (label, report) in enumerate(validator_reports):
         validator_model = validator_models[i]
