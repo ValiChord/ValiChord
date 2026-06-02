@@ -186,6 +186,27 @@ Flags: `--researcher-runs` (default 3; use `1` for a deterministic capsule),
 `--tolerance` (default `0.001` = ±0.1%, the committed band for deterministic
 capsules), `--researcher-model`, `--validator-models` (three model strings).
 
+### Attestation bundles (`--emit-bundles`, landed 2026-06-02)
+
+```bash
+python3 core_bench_runner.py --capsule capsule-0851068 --emit-bundles
+# bundles written to ./bundles/  (override with --bundle-dir <path>)
+```
+
+After a successful round, writes **one `valichord_attestation` bundle per
+validator** to `--bundle-dir` (default `bundles/`): file
+`bundle_<capsule>_<model>.json`. Each bundle's `raw_metrics` are that
+validator's reproduced numbers (via `build_numeric_panel`, so they equal the
+on-chain panel by construction); its `samples` are parsed from the run's `.eval`
+log through **EveryEvalEver's `InspectAIAdapter`**; and `meta.attestation_uri`
+points at the shared HarmonyRecord — so all three per-validator records share one
+tamper-evident anchor. Emission is **opt-in and isolated**: any failure (e.g.
+`every_eval_ever` not installed) is recorded in `result["bundles_error"]` and
+never invalidates the committed round. Requires `every-eval-ever[inspect]`
+(see `core_bench_bundle.py` for the pinned commit / install line). Module:
+`demo/core_bench_bundle.py`; spec/plan under `docs/superpowers/` dated
+2026-06-02.
+
 ## Chosen capsule
 
 **`capsule-0851068`** (Medical Sciences, Python, MLP COVID/skin classification).

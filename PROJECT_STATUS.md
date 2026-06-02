@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-02
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
@@ -86,6 +86,10 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### CORE-Bench attestation bundle-emit (`--emit-bundles`) — 2026-06-02 ✓ (merged to main + pushed)
+
+Opt-in flag on the CORE-Bench runner that, after a successful commit-reveal round, emits **one `valichord_attestation` bundle per validator**. Each bundle is a `model × task` record: `raw_metrics` from that validator's reproduced report (via `build_numeric_panel`, so they equal the on-chain panel by construction), `samples` parsed from the validator's `.eval` log through **EveryEvalEver's `InspectAIAdapter`** (so "built on EEE" is real + visible), and `meta.attestation_uri` pointing at the one shared HarmonyRecord — i.e. several independent cross-model reproductions of the same capsule, each provably blind, all anchored to one tamper-evident record. Emission is isolated: a bundle failure sets `result["bundles_error"]` and never invalidates the committed round. New module `demo/core_bench_bundle.py`; `run_validator_eval` now returns `(report, eval_log_path)`. Built TDD via subagent-driven-development (implementer + spec + code-quality review per task, plus a final whole-feature review). Full demo suite **77 passed**. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-02-core-bench-bundle-emit*.md`; usage in `demo/CORE_BENCH_DEMO.md` → "Attestation bundles". **Strategic purpose:** these bundles are the artifact for the EveryEvalEver convergence — submit a CORE-Bench reproduction to EEE as a record carrying a ValiChord `attestation_uri` (shared contact: MattFisher, maintainer of both inspect_evals and EEE). **Next (deferred):** (1) generate real bundles from a live run + eyeball; (2) draft the EEE issue around the worked example; (3) wire EEE submission.
 
 ### CORE-Bench demo review-hardening — 2026-06-01 ✓
 
