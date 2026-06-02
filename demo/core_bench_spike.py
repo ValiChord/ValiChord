@@ -22,7 +22,7 @@ def main(argv=None):
 
     print(f"[spike] running {args.capsule} with {args.model} (hard mode)...")
     t0 = time.time()
-    report = run_validator_eval(args.capsule, args.model)
+    report, _ = run_validator_eval(args.capsule, args.model)
     elapsed = time.time() - t0
     print(f"[spike] elapsed: {elapsed:.0f}s")
     if not report:

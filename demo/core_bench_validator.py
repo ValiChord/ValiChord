@@ -48,7 +48,7 @@ def extract_report_from_log(logs) -> Optional[dict]:
     return None
 
 
-def run_validator_eval(capsule_id: str, model: str, log_dir: Optional[str] = None):
+def run_validator_eval(capsule_id: str, model: str, log_dir: Optional[str] = None) -> tuple[Optional[dict], Optional[str]]:
     """Run one CORE-Bench eval with `model`; return (report, eval_log_path).
 
     report is the agent's report.json (or None for a genuine no-reproduction —
@@ -69,6 +69,7 @@ def run_validator_eval(capsule_id: str, model: str, log_dir: Optional[str] = Non
             detail = getattr(err, "message", None) or (str(err) if err else "no error detail")
             raise RuntimeError(f"eval did not complete (status={status}): {detail}")
     report = extract_report_from_log(logs)
+    # `.location` is inspect_ai's EvalLog field for the written .eval file path.
     eval_log_path = getattr(logs[0], "location", None) if logs else None
     return report, eval_log_path
 
