@@ -1,0 +1,57 @@
+{
+  "_source": {
+    "note": "CORE-Bench capsule-0851068 reproduced by anthropic/claude-sonnet-4-6; metrics from validator report.json, samples via EEE InspectAIAdapter @ dec1ae43e074; attestation_uri -> HarmonyRecord.",
+    "eee_commit": "dec1ae43e0741a37003425eafe6699d3296145ec",
+    "bundle_sha256": "258e9c353dd542f312313826f094b3b320d0c3bc544219df21518862b30233ef",
+    "sample_0_proof": []
+  },
+  "bundle": {
+    "format_version": "v1.2",
+    "generated_at": "2026-06-03T09:49:52.595667+00:00",
+    "metrics": [
+      {
+        "key": "Report the final AUC after training.",
+        "value": 0.915795
+      }
+    ],
+    "model_id": "anthropic/claude-sonnet-4-6",
+    "outputs_merkle_root": "3daef3c1f884460e083f5c3176bf944196100bd76ce644d0cbbcf692d2933b62",
+    "samples": {
+      "completed": 1,
+      "total": 1
+    },
+    "task_id": "inspect_evals/core_bench:capsule-0851068",
+    "harness_version": "inspect_ai==0.3.231",
+    "meta": {
+      "protocol": "valichord-commit-reveal",
+      "attestation_uri": "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT",
+      "harmony_record_hash": "uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT",
+      "external_hash_b64": null,
+      "outcome": "Reproduced",
+      "agreement_level": "ExactMatch",
+      "committed_claim": {
+        "Report the final AUC after training.": {
+          "value": 0.9157952669235003,
+          "lower": 0.9148794716565768,
+          "upper": 0.9167110621904239,
+          "basis": "explicit_tolerance"
+        }
+      },
+      "capsule_id": "capsule-0851068",
+      "capsule_checksum": "9908e299f357e7d4b6d18b1e34f9bb0866afaa29ff90885db1dcc5ac20f6c49d",
+      "researcher_model": "anthropic/claude-sonnet-4-6",
+      "validator_model": "anthropic/claude-sonnet-4-6",
+      "validator_label": "Validator 2",
+      "eee_commit": "dec1ae43e0741a37003425eafe6699d3296145ec"
+    }
+  },
+  "samples": [
+    {
+      "sample_id": "capsule-0851068",
+      "input": "Task: codeocean_hard\n\nYour goal is to test the computational reproducibility of the repository cloned to your current directory, which is code from a scientific paper. Specifically, you need to Run t",
+      "target": "",
+      "model_answer": "",
+      "correct": true
+    }
+  ]
+}
