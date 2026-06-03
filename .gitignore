@@ -53,3 +53,9 @@ demo/logs/
 docs/CORE_BENCH_INTEGRATION.md
 inspect_evals_issue_and_pr.md
 docs/EEE_ISSUE_DRAFT.md
+
+# Internal scratch / planning / sensitive docs — keep local, never publish
+codespaces_brief_*.md
+business/
+valichord_issues_backlog.md
+valichord_pilot_spec.md

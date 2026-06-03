@@ -533,6 +533,6 @@ ValiChord is built on Holochain — an end-to-end open-source agent-centric P2P 
 
 **Author:** Ceri John &nbsp;•&nbsp; **Contact:** [topeuph@gmail.com](mailto:topeuph@gmail.com)
 
-**Technical Review:** Arthur Brock (Holochain co-founder), Paul D'Aoust (Holochain Foundation), Joel Marcey (Rust Foundation)
+**Feedback & conversations:** Arthur Brock (Holochain co-founder), Paul D'Aoust (Holochain Foundation), Joel Marcey (Rust Foundation)
 
 **License: ValiChord is open source under the Apache License 2.0. You are free to use, modify, and distribute this software, including in commercial products, provided you retain the copyright notice and license text.**
