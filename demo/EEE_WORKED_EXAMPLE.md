@@ -4,7 +4,7 @@ A small, end-to-end worked example that produces **EveryEvalEver (EEE)-compatibl
 attestation bundles** from a real ValiChord commit–reveal round, and anchors them
 to a live, tamper-evident HarmonyRecord.
 
-It is the artifact behind the EEE outreach (`docs/EEE_ISSUE_DRAFT.md`). The point
+It is the artifact behind the EEE outreach (issue [#156](https://github.com/evaleval/every_eval_ever/issues/156)). The point
 it demonstrates, concretely:
 
 > Several validators reproduced one CORE-Bench capsule **independently and blind**,
@@ -157,7 +157,7 @@ python3 -c "import json; b=json.load(open('bundles_worked_example/bundle_capsule
 | `demo/report_to_verdict.py` | `derive_committed_claim`, `build_numeric_panel` (committed interval + metrics) |
 | `demo/bundles_worked_example/` | the generated bundles |
 | `demo/logs/*.eval` | input inspect_ai logs (run artifacts; `.gitignore`d by default) |
-| `docs/EEE_ISSUE_DRAFT.md` | the outreach issue this example supports |
+| [EEE issue #156](https://github.com/evaleval/every_eval_ever/issues/156) | the outreach issue this example supports |
 
 ### Making Path A portable
 

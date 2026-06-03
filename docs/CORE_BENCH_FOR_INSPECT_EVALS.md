@@ -5,8 +5,7 @@
 > verification layer on top. Composition, not competition — Inspect runs the
 > reproduction; this makes the result independently checkable.
 >
-> Related (internal) docs in this repo: `demo/CORE_BENCH_DEMO.md` (run guide),
-> `docs/CORE_BENCH_INTEGRATION.md` (architecture & rationale).
+> Run guide in this repo: `demo/CORE_BENCH_DEMO.md`.
 
 ## The gap this fills
 

@@ -48,3 +48,8 @@ docs/zeroclaw_investigation.md
 # CORE-Bench demo run artifacts
 demo/spike-*.log
 demo/logs/
+
+# Internal outreach/strategy docs — keep local, never publish
+docs/CORE_BENCH_INTEGRATION.md
+inspect_evals_issue_and_pr.md
+docs/EEE_ISSUE_DRAFT.md

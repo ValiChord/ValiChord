@@ -9,7 +9,6 @@ verdict is decided by **recomputable arithmetic, not LLM opinion**.
 
 Design spec: `docs/superpowers/specs/2026-05-31-core-bench-demo-design.md`
 Implementation plan: `docs/superpowers/plans/2026-05-31-core-bench-demo.md`
-Strategy/architecture: `docs/CORE_BENCH_INTEGRATION.md`
 Review-hardening (3 units, landed 2026-06-01): `docs/superpowers/specs/2026-05-31-core-bench-review-hardening-design.md` + `docs/superpowers/plans/2026-05-31-core-bench-review-hardening.md` — see "Review-hardening" below.
 
 ---
@@ -68,8 +67,8 @@ Numeric panel: each validator's value vs the researcher's committed interval
   `agreement.py`, which mirrors the Rust `derive_agreement_level`, so what's
   printed can never diverge from the HarmonyRecord.
 
-See `docs/CORE_BENCH_INTEGRATION.md` §"Where the independence actually comes
-from" and §"The outcome-semantics decision" (spec §7) for the full rationale.
+See `docs/CORE_BENCH_FOR_INSPECT_EVALS.md` for the full rationale on where the
+independence comes from and the outcome semantics.
 
 ---
 
