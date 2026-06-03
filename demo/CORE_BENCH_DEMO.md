@@ -195,7 +195,9 @@ python3 core_bench_runner.py --capsule capsule-0851068 --emit-bundles
 
 After a successful round, writes **one `valichord_attestation` bundle per
 validator** to `--bundle-dir` (default `bundles/`): file
-`bundle_<capsule>_<model>.json`. Each bundle's `raw_metrics` are that
+`bundle_<capsule>_v<n>_<model>.json` (the `v<n>` 1-based validator index keeps
+filenames distinct when several validators share one model, e.g. an all-Sonnet
+round). Each bundle's `raw_metrics` are that
 validator's reproduced numbers (via `build_numeric_panel`, so they equal the
 on-chain panel by construction); its `samples` are parsed from the run's `.eval`
 log through **EveryEvalEver's `InspectAIAdapter`**; and `meta.attestation_uri`

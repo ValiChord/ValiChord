@@ -64,10 +64,38 @@ def test_emit_writes_one_bundle_per_validator(tmp_path, monkeypatch):
     assert "sample_0_proof" in doc["_source"]
     names = sorted(p.name for p in paths)
     assert names == [
-        "bundle_capsule-0851068_anthropic_claude-opus-4-8.json",
-        "bundle_capsule-0851068_google_gemini-2.5-pro.json",
-        "bundle_capsule-0851068_openai_gpt-4o.json",
+        "bundle_capsule-0851068_v1_anthropic_claude-opus-4-8.json",
+        "bundle_capsule-0851068_v2_openai_gpt-4o.json",
+        "bundle_capsule-0851068_v3_google_gemini-2.5-pro.json",
     ]
+
+
+def test_emit_same_model_round_writes_distinct_files(tmp_path, monkeypatch):
+    """A same-model round must still write one distinct file per validator.
+
+    Regression: filenames were keyed by model alone, so three sonnet validators
+    collided onto one path and only the last bundle survived on disk."""
+    monkeypatch.setattr(cbb, "_samples_from_eee_log",
+                        lambda path: [{"sample_id": "1", "input": "i",
+                                       "target": "t", "model_answer": "a", "correct": True}])
+    model = "anthropic/claude-sonnet-4-6"
+    validator_reports = [("V1-sonnet", {"Q": 96.125, "R": 0.5}),
+                         ("V2-sonnet", {"Q": 96.13, "R": 0.5}),
+                         ("V3-sonnet", {"Q": 96.12, "R": 0.5})]
+    paths = cbb.emit_core_bench_bundles(
+        capsule_id="capsule-0851068",
+        researcher_model=model,
+        validator_models=[model, model, model],
+        validator_reports=validator_reports,
+        validator_eval_logs=["/l/v1.eval", "/l/v2.eval", "/l/v3.eval"],
+        result=_result(),
+        out_dir=tmp_path,
+    )
+    names = sorted(p.name for p in paths)
+    assert len(names) == 3
+    assert len(set(names)) == 3, f"filenames collided: {names}"
+    assert all(p.exists() for p in paths)          # none overwritten
+    assert len(list(tmp_path.glob("*.json"))) == 3
 
 
 def test_samples_from_eee_log_maps_jsonl(monkeypatch):

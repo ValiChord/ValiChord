@@ -171,8 +171,11 @@ def emit_core_bench_bundles(*, capsule_id, researcher_model, validator_models,
             "bundle": bundle_to_dict(bundle),
             "samples": samples,
         }
+        # 1-based validator index keeps filenames distinct even when several
+        # validators share one model (a same-model round would otherwise collide
+        # on bundle_<capsule>_<model>.json and overwrite all but the last).
         safe_model = validator_model.replace("/", "_")
-        p = out_dir / f"bundle_{capsule_id}_{safe_model}.json"
+        p = out_dir / f"bundle_{capsule_id}_v{i + 1}_{safe_model}.json"
         p.write_text(json.dumps(wrapper, indent=2) + "\n")
         paths.append(p)
     return paths
