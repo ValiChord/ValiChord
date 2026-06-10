@@ -1058,7 +1058,19 @@ pub fn get_attestations_for_request(
     // CommitmentAnchor entry to extract the validator field.
     let request_tag = LinkTag::new(request_ref.as_ref().to_vec());
     let mut attestations = Vec::new();
+    let mut seen_validators: HashSet<AgentPubKey> = HashSet::new();
     for link in commit_links {
+        // Deduplicate by committing validator.  A single agent running modified
+        // code can publish multiple RequestToCommitment links (integrity does
+        // not constrain link creation on this path — see
+        // check_all_commitments_sealed_inner), which without this guard would
+        // push the same validator's attestation records once per link. The
+        // governance HarmonyRecord duplicate-validator HashSet check is the
+        // downstream backstop, but deduping here avoids handing governance a
+        // malformed, duplicate-laden attestation list in the first place.
+        if !seen_validators.insert(link.author.clone()) {
+            continue;
+        }
         let att_links = get_links(
             LinkQuery::try_new(link.author, LinkTypes::ValidatorToAttestation)?
                 .tag_prefix(request_tag.clone()),
@@ -1844,6 +1856,21 @@ fn check_all_commitments_sealed_inner(
         )?,
         GetStrategy::Network,
     )?;
+    // Count DISTINCT committing validators, not raw links.  Each
+    // RequestToCommitment link is authored by the validator who committed
+    // (`link.author` IS the validator pubkey — cryptographically signed and
+    // unforgeable).  Counting `links.len()` would let a single agent running
+    // modified code inflate the quorum: the integrity zome does NOT constrain
+    // RequestToCommitment link *creation* (it only makes existing links
+    // immutable), so an insider writing DHT ops directly could publish N links
+    // and trip this gate with one real participant — opening the reveal phase
+    // before honest validators have committed (a liveness/griefing vector; it
+    // forges no outcome).  Deduping by author collapses any number of links
+    // from one agent to a single vote.  Defence-in-depth: Guard 3 in
+    // notify_commitment_sealed already rejects duplicate commits via the
+    // coordinator, but that does not bind an agent bypassing the coordinator.
+    let distinct_validators: HashSet<AgentPubKey> =
+        commitment_links.into_iter().map(|l| l.author).collect();
     // If the ValidationRequest has not propagated yet (or does not exist),
     // treat the phase as not-yet-sealed rather than propagating an error.
     // This is conservative: no PhaseMarker is written until the quorum can
@@ -1852,7 +1879,7 @@ fn check_all_commitments_sealed_inner(
         Ok(n) => n,
         Err(_) => return Ok(false),
     };
-    Ok(commitment_links.len() >= required as usize)
+    Ok(distinct_validators.len() >= required as usize)
 }
 
 // ---------------------------------------------------------------------------
