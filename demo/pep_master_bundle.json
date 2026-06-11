@@ -1,0 +1,59 @@
+{
+  "_version_a_disclaimer": "VERSION A — PROTOCOL DEMONSTRATION. The readings below are ILLUSTRATIVE STAND-IN numbers (from the worked example §5), NOT three real independent physical builds. This proves the ValiChord commit-reveal protocol carries hardware-shaped measurement data end-to-end to a HarmonyRecord; it does NOT prove medical correctness or regulatory approval. To produce Version B, replace the three entries in `readings` with real measured max-deviations — a single-file edit, no code change.",
+
+  "device": {
+    "name": "PEP Master — Organic Controller 3V Pressure Device",
+    "designer": "Breathing Games / Sensorica (2024)",
+    "type": "PEP (positive expiratory pressure) therapy device",
+    "source": "Breathing Games GitLab; DIY instructables — BG pressure device 2024; PEP Master R&D"
+  },
+
+  "test_protocol": {
+    "device_design": "bg_device",
+    "controller": "ESP32 / Adafruit Feather (Bluefruit LE)",
+    "firmware_commit": "0000000000000000000000000000000000000000",
+    "_firmware_commit_note": "STAND-IN (Version A). Replace with the pinned git SHA of the exact built sketch for a real round.",
+    "sensor": "differential_pressure (MPXV5010DP @5V / MP3V5010DP @3V / LPS35HW); 0-10 kPa; datasheet accuracy +/-5%",
+    "measurand": "expiratory_pressure_cmH2O",
+    "measurand_range_cmH2O": [0, 20],
+    "sampling": "every 0.2 s",
+    "per_unit_calibration": {
+      "zero": "At atmospheric pressure (not blowing), reported value must read 0.",
+      "span": "Fit the firmware map() endpoints — scaledPressure = constrain(map(sensorValue,140,580,0,100),0,100) — so reported pressure matches the reference gauge across 0-20 cmH2O.",
+      "reference_for_calibration": "PariPEP pressure gauge (recommended) or water-column manometer. A 20-50 mL syringe is used only to GENERATE pressure, not as a volume standard."
+    },
+    "reference_input": {
+      "instrument": "PariPEP pressure gauge (or calibrated water-column manometer)",
+      "setpoints_cmH2O": [5, 10, 15, 20]
+    },
+    "procedure": "At each setpoint, hold the generated pressure; record the device's reported cmH2O and the reference gauge's cmH2O simultaneously. Report max |device - reference| across setpoints.",
+    "tolerance": {
+      "type": "relative_percent",
+      "value": 5.0,
+      "basis": "of-reading",
+      "_assumption": "ASSUMPTION (Version A): +/-5% of-reading; confirm with Breathing Games (of-reading vs of-full-scale changes the pass band at low pressures)."
+    },
+    "outcome_rule": "Reproduced if every setpoint within +/-5% of the reference; PartiallyReproduced if every setpoint within +/-10% but some outside +/-5%; FailedToReproduce otherwise; UnableToAssess if build/test could not be completed (state why)."
+  },
+
+  "readings": [
+    {
+      "name": "Builder A",
+      "location": "Montreal lab",
+      "max_deviation_pct": 3.1,
+      "_note": "STAND-IN (worked example §5). Swap for a real measured max-deviation across setpoints 5/10/15/20 for Version B."
+    },
+    {
+      "name": "Builder B",
+      "location": "Lyon hospital",
+      "max_deviation_pct": 4.4,
+      "_note": "STAND-IN (worked example §5)."
+    },
+    {
+      "name": "Builder C",
+      "location": "Seoul makerspace",
+      "max_deviation_pct": 2.7,
+      "_note": "STAND-IN (worked example §5)."
+    }
+  ]
+}

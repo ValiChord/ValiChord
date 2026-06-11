@@ -336,9 +336,17 @@ def _wait_for_nodes():
         print(f' {label} ready.')
 
 
-def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) -> dict:
+def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
+                               discipline: dict | None = None) -> dict:
     """
     Run the commit-reveal protocol across four separate node APIs.
+
+    `discipline` is an optional adjacent-tagged Discipline dict (e.g.
+    {'type': 'Other', 'content': 'Open-Hardware Engineering'}). When omitted it
+    defaults to ComputationalBiology, preserving the original AI-validator demo
+    behaviour. Callers driving non-computational data (e.g. the PEP Master
+    hardware round) pass their own discipline so the HarmonyRecord is labelled
+    honestly.
 
     Each node API talks only to its local Holochain conductor; the conductors
     communicate through the shared DHT.  This mirrors a real multi-party
@@ -363,7 +371,7 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list) ->
 
     _wait_for_nodes()
 
-    disc = {'type': 'ComputationalBiology'}
+    disc = discipline or {'type': 'ComputationalBiology'}
     validator_urls = VALIDATOR_URLS
 
     # (0) Researcher locks result
