@@ -15,6 +15,7 @@ from pep_master_round import (
     build_researcher_metrics,
     build_validator_verdict,
     build_round_inputs,
+    require_matching_reading_count,
 )
 
 DEMO_DIR = Path(__file__).parent
@@ -127,6 +128,23 @@ def test_build_round_inputs_from_bundle():
     # discipline must NOT be ComputationalBiology — this is a hardware device
     assert discipline["type"] == "Other"
     assert "ardware" in discipline["content"]
+
+
+def test_reading_count_matching_validator_count_is_ok():
+    # equal counts: no error, returns None
+    assert require_matching_reading_count(3, 3) is None
+
+
+def test_too_few_readings_raises_with_clear_message():
+    with pytest.raises(ValueError) as exc:
+        require_matching_reading_count(2, 3)
+    msg = str(exc.value)
+    assert "2" in msg and "3" in msg  # both counts named so the cause is obvious
+
+
+def test_too_many_readings_raises():
+    with pytest.raises(ValueError):
+        require_matching_reading_count(4, 3)
 
 
 def test_committed_bundle_file_yields_three_reproduced():

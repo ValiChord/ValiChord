@@ -186,6 +186,11 @@ A builder whose worst deviation exceeds ±5% will come out `PartiallyReproduced`
 protocol does not force agreement. Also update `firmware_commit` to the real pinned git SHA
 of the sketch that was flashed.
 
+**Keep one reading per validator.** This stack runs **3** validator conductors, so the bundle
+must contain **exactly 3 readings**. The driver checks this up front and exits with a clear
+message if they don't match — so editing `readings` to 2 or 4 entries fails fast rather than
+silently committing the wrong number and stalling the reveal phase gate.
+
 To produce a **permanent, publicly shareable** record (rather than a local one that's wiped on
 `down -v`), the same round can be pointed at always-on ValiChord nodes — ask the ValiChord
 maintainer for the current node URLs.

@@ -124,6 +124,20 @@ def build_round_inputs(bundle: dict):
     return metrics, verdicts, DISCIPLINE
 
 
+def require_matching_reading_count(n_readings: int, n_validators: int) -> None:
+    """Guard: the bundle must carry exactly one reading per validator the round
+    will drive. Otherwise the commit loop silently `zip`-truncates to the shorter
+    list — committing too few would stall the phase gate (commits < quorum), and
+    too many would drop readings. Raise a clear error instead. This is the check
+    that matters when someone edits `readings` for Version B."""
+    if n_readings != n_validators:
+        raise ValueError(
+            f"bundle has {n_readings} readings but the round drives {n_validators} "
+            f"validators — they must match. Edit `readings` in the bundle so there "
+            f"is exactly one reading per validator."
+        )
+
+
 def load_bundle(path) -> dict:
     return json.loads(Path(path).read_text())
 
@@ -146,6 +160,7 @@ def run(bundle_path: str) -> dict:
     bundle_path = Path(bundle_path)
     bundle = load_bundle(bundle_path)
     metrics, verdicts, discipline = build_round_inputs(bundle)
+    require_matching_reading_count(len(verdicts), len(ai_validator.VALIDATOR_URLS))
     setpoints = bundle["test_protocol"]["reference_input"]["setpoints_cmH2O"]
 
     print("=" * 64)
