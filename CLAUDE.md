@@ -261,12 +261,12 @@ Run `holochain --version`. Current: 0.6.1.
 - `must_get_agent_activity` response types changed
 - `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
 - `get_links_details` renamed from `get_link_details`
-- CI: update `BASE=` URL and `key: hc-bin-0.6.1` in **both** jobs in `.github/workflows/ci.yml` (4 edits total)
+- CI: update `BASE=` URL and `key: hc-bin-0.6.1` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
 
 Ignore `0.7.0-dev.*` and `0.6.1-rc.*` tags — stable only.
 
 ### CI binary upgrade (any Holochain version bump)
-Update 4 places in `.github/workflows/ci.yml`:
+Update 4 places in `.github/workflows/tests.yml`:
 1. `BASE=…/releases/download/holochain-X.Y.Z` — `test` job
 2. `key: ${{ runner.os }}-hc-bin-X.Y.Z` — `test` job
 3. Same `BASE=` — `sweettest` job

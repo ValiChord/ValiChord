@@ -4,7 +4,7 @@
 
 **An Immune System for Trust: Distributed Integrity Infrastructure for Independent Verification**
 
-[![CI](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/ci.yml)
+[![Integration Tests](https://github.com/topeuph-ai/ValiChord/actions/workflows/tests.yml/badge.svg)](https://github.com/topeuph-ai/ValiChord/actions/workflows/tests.yml)
 [![Status](https://img.shields.io/badge/Status-Browser_Tested-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-166_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/topeuph-ai/ValiChord/blob/main/valichord/tests/)
