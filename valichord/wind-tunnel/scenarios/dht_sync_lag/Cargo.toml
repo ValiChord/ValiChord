@@ -1,0 +1,46 @@
+[package]
+name = "dht_sync_lag"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Measures true CROSS-AGENT DHT propagation latency of a real ValiChord entry:
+# how long after a "write" agent authors a ValidationRequest does it become
+# visible to the "record_lag" reader agents.
+#
+# This is the ValiChord-specific complement to kitsune_dht_propagation: that one
+# benchmarks the raw kitsune2 gossip substrate (no ValiChord code); this one
+# measures propagation of an actual ValiChord DHT entry through the real zome
+# read path — i.e. the latency that the `DepMissingFromDht` transient-gossip-lag
+# noise in the app-level scenarios is actually made of.
+#
+# Modelled on upstream wind-tunnel's `dht_sync_lag` (writer/reader split + a
+# per-agent seen-set + a `sync_lag` metric), but with ZERO DNA changes: it reuses
+# the existing zome fns (submit_validation_request, get_pending_request_refs,
+# get_validation_request_for_data_hash) and derives the send-time from each
+# record's Action timestamp rather than adding a created_at field. No integrity
+# change, no DNA-hash change; runs against the existing packed valichord.happ.
+#
+# Pre-requisite: pack valichord.happ (see ../../Cargo.toml header). Run with one
+# writer and N readers, e.g.:
+#   cargo run -p dht_sync_lag -- --agents 3 --duration 60 \
+#     --behaviour=write:1 --behaviour=record_lag:2
+#
+# Single-host assumption: wind-tunnel runs all agents on one machine, so author
+# and reader share a wall clock — `now - authored_at` is an honest latency with
+# no cross-machine clock skew to correct for.
+
+[[bin]]
+name = "dht_sync_lag"
+path = "src/main.rs"
+
+[dependencies]
+holochain_wind_tunnel_runner = "0.7"
+holo_hash = "0.6"
+holochain_types = "0.6"        # Record + Action timestamp (the send-time source)
+serde = { version = "1", features = ["derive"] }
+
+# ValiChord type crates — compiled as native rlibs (same pattern as the other
+# scenarios). Path is relative to this crate's Cargo.toml.
+attestation_integrity  = { path = "../../../dnas/attestation/zomes/attestation_integrity" }
+valichord_shared_types = { path = "../../../shared_types" }

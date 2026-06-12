@@ -1016,6 +1016,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dht_sync_lag"
+version = "0.1.0"
+dependencies = [
+ "attestation_integrity",
+ "holo_hash",
+ "holochain_types",
+ "holochain_wind_tunnel_runner",
+ "serde",
+ "valichord_shared_types",
+]
+
+[[package]]
 name = "diatomic-waker"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

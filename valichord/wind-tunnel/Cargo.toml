@@ -4,6 +4,7 @@ members = [
     "scenarios/phase_observation_latency",
     "scenarios/concurrent_reveal_throughput",
     "scenarios/kitsune_dht_propagation",
+    "scenarios/dht_sync_lag",
 ]
 resolver = "2"
 
