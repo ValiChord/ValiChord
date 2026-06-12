@@ -44,6 +44,31 @@ instead (see its section below).
 
 ---
 
+## Running — required environment (runner 0.7.0)
+
+Two things the scenario args alone don't cover:
+
+- **`WT_METRICS_DIR` must be set** (a writable dir for conductor telemetry) or
+  every agent panics at startup — this is new in runner 0.7.0.
+- **Custom scenario metrics** (`sync_lag`, `sent_count`, `recv_count`, …) are
+  only written when you pass **`--reporter=influx-file`**. They land in
+  `$WT_METRICS_DIR/<scenario>-<timestamp>.influx`, each prefixed
+  `wt.custom.<name>` (e.g. `wt.custom.sync_lag`). Without the flag you still get
+  the printed "Summary of operations" (per-call latencies) but not the custom
+  metrics.
+
+```bash
+export WT_METRICS_DIR=/tmp/wt_metrics && mkdir -p "$WT_METRICS_DIR"
+# …then any command below, adding --reporter=influx-file to capture wt.custom.* metrics
+```
+
+The credential-gated attestation DNA is installed with a **dev-mode
+membrane-proof bypass** automatically — the shared `valichord_wt_common` crate
+ports the bypass from valichord-ui's `dev-setup.mjs` (empty issuer + 64×0x42
+proof) and installs against the `attestation` role. No manual step.
+
+---
+
 ## Scenarios
 
 There are five scenarios. The first three measure **protocol throughput /
@@ -85,12 +110,19 @@ Run with one writer and N readers:
 
 ```bash
 cargo run -p dht_sync_lag -- --agents 3 --duration 60 \
-  --behaviour=write:1 --behaviour=record_lag:2
+  --behaviour=write:1 --behaviour=record_lag:2 --reporter=influx-file
 ```
 
 Key metrics: `sync_lag` (per request, seconds), `sent_count`, `recv_count`.
 Single-host assumption: all agents share a wall clock, so `now − authored_at`
 needs no clock-skew correction.
+
+**Verified live (2026-06-12, 3 agents, 45s):** the writer submitted 288
+requests; two readers on **separate conductors** observed them propagate
+(287/288 and 232/288), recording 525 `sync_lag` samples — **median ≈ 185 ms**,
+p90 ≈ 8.7 s (the gossip-under-load tail). This was the first live run of any
+ValiChord wind-tunnel scenario; it's what surfaced the membrane-proof install
+fix now shared across all four Holochain scenarios.
 
 #### `kitsune_dht_propagation` — raw Kitsune2 substrate (prototype)
 

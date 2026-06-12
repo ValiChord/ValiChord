@@ -602,6 +602,7 @@ dependencies = [
  "holochain_wind_tunnel_runner",
  "serde",
  "valichord_shared_types",
+ "valichord_wt_common",
 ]
 
 [[package]]
@@ -1025,6 +1026,7 @@ dependencies = [
  "holochain_wind_tunnel_runner",
  "serde",
  "valichord_shared_types",
+ "valichord_wt_common",
 ]
 
 [[package]]
@@ -4027,6 +4029,7 @@ dependencies = [
  "holochain_wind_tunnel_runner",
  "serde",
  "valichord_shared_types",
+ "valichord_wt_common",
 ]
 
 [[package]]
@@ -6381,6 +6384,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "valichord_wt_common"
+version = "0.1.0"
+dependencies = [
+ "holochain_types",
+ "holochain_wind_tunnel_runner",
+ "serde_yaml",
+]
+
+[[package]]
 name = "validation_request_throughput"
 version = "0.1.0"
 dependencies = [
@@ -6389,6 +6401,7 @@ dependencies = [
  "holochain_wind_tunnel_runner",
  "serde",
  "valichord_shared_types",
+ "valichord_wt_common",
 ]
 
 [[package]]

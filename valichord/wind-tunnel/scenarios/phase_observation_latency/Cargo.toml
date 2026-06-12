@@ -27,6 +27,7 @@ path = "src/main.rs"
 holochain_wind_tunnel_runner = "0.7"
 holo_hash = "0.6"
 serde = { version = "1", features = ["derive"] }
+valichord_wt_common = { path = "../valichord_wt_common" }
 
 attestation_integrity  = { path = "../../../dnas/attestation/zomes/attestation_integrity" }
 valichord_shared_types = { path = "../../../shared_types" }

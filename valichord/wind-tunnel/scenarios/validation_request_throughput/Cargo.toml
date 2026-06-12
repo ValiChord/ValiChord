@@ -19,6 +19,7 @@ path = "src/main.rs"
 holochain_wind_tunnel_runner = "0.7"
 holo_hash = "0.6"
 serde = { version = "1", features = ["derive"] }
+valichord_wt_common = { path = "../valichord_wt_common" }
 
 # ValiChord type crates — compiled as native rlibs (same pattern as
 # sweettest_integration).  Path is relative to this crate's Cargo.toml.

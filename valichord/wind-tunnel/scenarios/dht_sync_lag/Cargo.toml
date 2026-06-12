@@ -40,6 +40,9 @@ holo_hash = "0.6"
 holochain_types = "0.6"        # Record + Action timestamp (the send-time source)
 serde = { version = "1", features = ["derive"] }
 
+# Shared dev-mode install bypass (membrane proof + role name + happ path).
+valichord_wt_common = { path = "../valichord_wt_common" }
+
 # ValiChord type crates — compiled as native rlibs (same pattern as the other
 # scenarios). Path is relative to this crate's Cargo.toml.
 attestation_integrity  = { path = "../../../dnas/attestation/zomes/attestation_integrity" }

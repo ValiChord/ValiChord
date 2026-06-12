@@ -93,15 +93,6 @@ fn make_validation_request(data_hash: ExternalHash) -> ValidationRequest {
     }
 }
 
-fn valichord_happ_path() -> std::path::PathBuf {
-    std::env::var("VALICHORD_HAPP_PATH")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../workdir/valichord.happ")
-        })
-}
-
 // ---------------------------------------------------------------------------
 // Lifecycle hooks
 // ---------------------------------------------------------------------------
@@ -110,7 +101,9 @@ fn agent_setup(
     ctx: &mut AgentContext<HolochainRunnerContext, HolochainAgentContext<ScenarioValues>>,
 ) -> HookResult {
     start_conductor_and_configure_urls(ctx)?;
-    install_app(ctx, valichord_happ_path(), &"valichord".to_string())?;
+    // Install with the shared dev-mode bypass (membrane proof + "attestation"
+    // role + happ path) — see valichord_wt_common.
+    valichord_wt_common::install_valichord_app(ctx)?;
     Ok(())
 }
 

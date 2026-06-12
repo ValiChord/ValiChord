@@ -1,0 +1,19 @@
+[package]
+name = "valichord_wt_common"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Shared install helper for the ValiChord Holochain wind-tunnel scenarios.
+# Single source of truth for the dev-mode credential bypass, the "attestation"
+# role name, and the packed-hApp path — so the four Holochain scenarios don't
+# each carry their own copy. (kitsune_dht_propagation does not install a hApp and
+# does not depend on this crate.)
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+holochain_wind_tunnel_runner = "0.7"
+holochain_types = "0.6"
+serde_yaml = "0.9"
