@@ -16,7 +16,7 @@ name = "validation_request_throughput"
 path = "src/main.rs"
 
 [dependencies]
-holochain_wind_tunnel_runner = "0.6"
+holochain_wind_tunnel_runner = "0.7"
 holo_hash = "0.6"
 serde = { version = "1", features = ["derive"] }
 

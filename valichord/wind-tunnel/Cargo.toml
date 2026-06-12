@@ -3,6 +3,7 @@ members = [
     "scenarios/validation_request_throughput",
     "scenarios/phase_observation_latency",
     "scenarios/concurrent_reveal_throughput",
+    "scenarios/kitsune_dht_propagation",
 ]
 resolver = "2"
 
