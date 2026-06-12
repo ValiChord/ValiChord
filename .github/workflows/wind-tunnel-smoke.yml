@@ -1,0 +1,152 @@
+name: Wind-Tunnel smoke (manual)
+
+# Manual-only: this is a non-gating live smoke of the dht_sync_lag wind-tunnel
+# scenario. It boots real conductors and exercises cross-agent DHT gossip, which
+# is heavier and flakier than the unit/integration suites (multi-conductor
+# gossip on a small runner), so it is NOT run on push/PR — trigger it by hand
+# from the Actions tab when you want a live propagation check.
+on:
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: 'Total agents (1 writer + the rest readers; must be >= 2)'
+        default: '3'
+      duration:
+        description: 'Run duration in seconds'
+        default: '45'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  smoke:
+    name: dht_sync_lag live smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ──────────────────────────────────────────────────────
+      - name: Install Rust (stable + wasm32 target)
+        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
+
+      # ── Caches ─────────────────────────────────────────────────────────────
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('valichord/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      # Shares the static key with the Integration Tests workflow — whichever
+      # runs first populates it. Bump in lockstep with tests.yml on a HC upgrade.
+      - name: Cache Holochain binaries
+        uses: actions/cache@v4
+        id: cache-hc-bin
+        with:
+          path: ~/.local/bin/hc-tools
+          key: ${{ runner.os }}-hc-bin-0.6.1
+
+      - name: Cache WASM build artifacts
+        uses: actions/cache@v4
+        id: cache-wasm
+        with:
+          path: valichord/target
+          key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wasm-
+
+      # Native wind-tunnel build (full native holochain) is the slow part on a
+      # cold cache — cache it separately from the wasm build.
+      - name: Cache wind-tunnel build
+        uses: actions/cache@v4
+        with:
+          path: valichord/wind-tunnel/target
+          key: ${{ runner.os }}-wt-${{ hashFiles('valichord/wind-tunnel/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-wt-
+
+      # ── Download pre-built Holochain binaries (skipped on cache hit) ────────
+      - name: Download Holochain binaries
+        if: steps.cache-hc-bin.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin/hc-tools
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.1
+          curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
+          curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
+          curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
+          curl -sSL $BASE/kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/kitsune2-bootstrap-srv
+          chmod +x ~/.local/bin/hc-tools/*
+
+      - name: Add Holochain tools to PATH
+        run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
+
+      # ── Build WASMs + pack hApp (the scenario installs valichord.happ) ──────
+      - name: Build WASM zomes
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
+        working-directory: valichord
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Pack DNAs and bundle hApp
+        working-directory: valichord
+        run: |
+          hc dna pack dnas/attestation            -o workdir/attestation.dna
+          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+          hc dna pack dnas/governance             -o workdir/governance.dna
+          hc app pack .                           -o workdir/valichord.happ
+
+      # ── Build + run the scenario ───────────────────────────────────────────
+      - name: Build dht_sync_lag scenario
+        working-directory: valichord/wind-tunnel
+        run: cargo build -p dht_sync_lag
+
+      - name: Run dht_sync_lag live smoke
+        working-directory: valichord/wind-tunnel
+        env:
+          WT_METRICS_DIR: ${{ github.workspace }}/wt-metrics
+        run: |
+          set -euo pipefail
+          mkdir -p "$WT_METRICS_DIR"
+          AGENTS="${{ github.event.inputs.agents }}"
+          DURATION="${{ github.event.inputs.duration }}"
+          if [ "$AGENTS" -lt 2 ]; then
+            echo "::error::agents must be >= 2 (need at least 1 writer + 1 reader)"; exit 1
+          fi
+          READERS=$((AGENTS - 1))
+          echo "Running dht_sync_lag: $AGENTS agents (1 writer + $READERS readers), ${DURATION}s"
+          cargo run -p dht_sync_lag -- \
+            --agents "$AGENTS" --duration "$DURATION" \
+            --behaviour=write:1 --behaviour=record_lag:"$READERS" \
+            --reporter=influx-file
+
+      # ── Assert cross-agent propagation actually happened ───────────────────
+      - name: Assert sync_lag samples were recorded
+        env:
+          WT_METRICS_DIR: ${{ github.workspace }}/wt-metrics
+        run: |
+          set -euo pipefail
+          F=$(ls -t "$WT_METRICS_DIR"/dht_sync_lag-*.influx 2>/dev/null | head -1 || true)
+          if [ -z "$F" ]; then
+            echo "::error::No custom-metrics influx file produced (run did not complete)"; exit 1
+          fi
+          N=$(grep -c "wt.custom.sync_lag" "$F" || true)
+          echo "sync_lag samples recorded: ${N:-0}"
+          if [ "${N:-0}" -lt 1 ]; then
+            echo "::error::No sync_lag samples — cross-agent DHT propagation did not occur"; exit 1
+          fi
+          grep "wt.custom.sync_lag" "$F" | grep -oE 'value=[0-9.]+' | sed 's/value=//' \
+            | sort -n | awk '{a[NR]=$1} END{
+                print "sync_lag median (s):", a[int(NR/2)];
+                print "sync_lag max (s):   ", a[NR];
+              }'
+
+      # ── Keep the metrics for inspection ────────────────────────────────────
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wind-tunnel-metrics
+          path: ${{ github.workspace }}/wt-metrics/*.influx
+          if-no-files-found: warn
