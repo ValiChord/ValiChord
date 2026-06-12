@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-12
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
@@ -86,6 +86,22 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Wind-Tunnel 0.7.0 bump + two propagation scenarios — 2026-06-12 ✓ (pushed to main)
+
+Bumped `holochain_wind_tunnel_runner` 0.6.0 → **0.7.0** (still targets our Holochain 0.6.1 / Kitsune2 0.4.1 stack; runner Rust API is source-compatible, so the three existing scenarios only needed the pin bump). Added **two new scenarios** and a wind-tunnel `README.md` documenting all five. Commits `3c88605` (bump + Kitsune), `bd38b48` (dht_sync_lag), `a355444` (README).
+
+The wind-tunnel suite now has a **propagation-latency ladder** — raw network substrate → real ValiChord entry → app-logic — alongside the original throughput/latency scenarios:
+
+| Scenario | Layer | Measures |
+|---|---|---|
+| `kitsune_dht_propagation` *(new, prototype)* | Kitsune2 substrate (no ValiChord code) | Raw peer-to-peer message gossip latency — the network baseline |
+| `dht_sync_lag` *(new)* | ValiChord entry, cross-agent | `sync_lag` = how long a `ValidationRequest` authored by a `write` agent takes to become visible to `record_lag` readers |
+| `phase_observation_latency` *(existing)* | ValiChord app logic, single agent | `CommitmentAnchor` → observable `PhaseMarker(RevealOpen)` |
+
+- **`dht_sync_lag`** has **zero DNA changes** — it reuses existing zome fns (`submit_validation_request`, `get_pending_request_refs`, `get_validation_request_for_data_hash`) and derives send-time from each record's **Action timestamp** (no `created_at` field, no integrity change, no DNA-hash change). Run: `--agents 3 --behaviour=write:1 --behaviour=record_lag:2`. Verified: compiles + 4 pure-logic unit tests pass + binary runs.
+- **`kitsune_dht_propagation`** uses the new Kitsune2 bindings (`kitsune_wind_tunnel_runner`); needs a bootstrap server **and** an Iroh relay (not the hApp). **Pin gotcha:** its iroh stack pulls `ed25519-dalek 3.0.0-pre.1`, which only builds against RC `pkcs8`/`ed25519` — those RC versions are pinned in its `Cargo.toml`; an unconstrained `cargo update` will try to undo this. See `memory/project_wind_tunnel_07.md`.
+- **Not run live yet** — both need a packed `valichord.happ` + conductor (and the Kitsune one a relay); left for CI / a beefy machine, per the standing "leave long runs for CI" rule. Full detail + run commands in `valichord/wind-tunnel/README.md`.
 
 ### CORE-Bench attestation bundle-emit (`--emit-bundles`) — 2026-06-02 ✓ (merged to main + pushed)
 
