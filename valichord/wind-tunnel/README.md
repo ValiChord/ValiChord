@@ -67,6 +67,18 @@ membrane-proof bypass** automatically — the shared `valichord_wt_common` crate
 ports the bypass from valichord-ui's `dev-setup.mjs` (empty issuer + 64×0x42
 proof) and installs against the `attestation` role. No manual step.
 
+### CI vs local
+
+CI (`.github/workflows/wind-tunnel-smoke.yml`) **builds all scenarios + runs the
+unit tests** — a deterministic check that catches compile / dependency /
+install-path regressions. It does **not** run a live scenario: a live
+multi-conductor run was tried in CI twice and both failed for environment (not
+code) reasons on a standard 2-core/7 GB GitHub runner — the per-agent conductors
+either couldn't peer (the 0.7.0 runner uses the default public bootstrap, no
+local-bootstrap knob) or couldn't all start before a setup timeout. **Live runs
+are a local / well-resourced-machine activity** (they work — see the dht_sync_lag
+result below); CI gates on build + unit tests only.
+
 ---
 
 ## Scenarios

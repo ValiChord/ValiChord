@@ -1,37 +1,47 @@
-name: Wind-Tunnel smoke (manual)
+name: Wind-Tunnel build + unit tests
 
-# Manual-only: this is a non-gating live smoke of the dht_sync_lag wind-tunnel
-# scenario. It boots real conductors and exercises cross-agent DHT gossip, which
-# is heavier and flakier than the unit/integration suites (multi-conductor
-# gossip on a small runner), so it is NOT run on push/PR — trigger it by hand
-# from the Actions tab when you want a live propagation check.
+# Deterministic CI signal for the wind-tunnel scenarios: compile every scenario
+# (against the native holochain stack) and run the pure-logic unit tests.
+#
+# Why not a live run? A live multi-conductor run was tried in CI twice and both
+# failed for environment (not code) reasons on a standard 2-core/7GB GitHub
+# runner: (1) the per-agent conductors couldn't peer (the wind-tunnel 0.7.0
+# Holochain runner uses the default public bootstrap with no local-bootstrap
+# knob), and (2) the runner couldn't bring up three 4-DNA conductors before a
+# startup timeout cancelled setup. The live run works on a well-resourced machine
+# (median ~185ms cross-agent propagation) — see valichord/wind-tunnel/README.md —
+# so it stays local. CI gates on what's reliable: it builds and unit-tests.
+#
+# Path-filtered so it only runs when wind-tunnel code changes; also manually
+# dispatchable.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'valichord/wind-tunnel/**'
+      - '.github/workflows/wind-tunnel-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'valichord/wind-tunnel/**'
+      - '.github/workflows/wind-tunnel-smoke.yml'
   workflow_dispatch:
-    inputs:
-      agents:
-        description: 'Total agents (1 writer + the rest readers; must be >= 2)'
-        default: '3'
-      duration:
-        description: 'Run duration in seconds'
-        default: '45'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  smoke:
-    name: dht_sync_lag live smoke
+  build-and-test:
+    name: build all scenarios + unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── Rust toolchain ──────────────────────────────────────────────────────
-      - name: Install Rust (stable + wasm32 target)
-        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
+      - name: Install Rust (stable)
+        run: rustup toolchain install stable
 
-      # ── Caches ─────────────────────────────────────────────────────────────
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -41,25 +51,8 @@ jobs:
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('valichord/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-registry-
 
-      # Shares the static key with the Integration Tests workflow — whichever
-      # runs first populates it. Bump in lockstep with tests.yml on a HC upgrade.
-      - name: Cache Holochain binaries
-        uses: actions/cache@v4
-        id: cache-hc-bin
-        with:
-          path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.6.1
-
-      - name: Cache WASM build artifacts
-        uses: actions/cache@v4
-        id: cache-wasm
-        with:
-          path: valichord/target
-          key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-wasm-
-
-      # Native wind-tunnel build (full native holochain) is the slow part on a
-      # cold cache — cache it separately from the wasm build.
+      # Native wind-tunnel build (full native holochain) is the long pole on a
+      # cold cache; cache it keyed on the wind-tunnel lockfile.
       - name: Cache wind-tunnel build
         uses: actions/cache@v4
         with:
@@ -67,104 +60,15 @@ jobs:
           key: ${{ runner.os }}-wt-${{ hashFiles('valichord/wind-tunnel/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-wt-
 
-      # ── Download pre-built Holochain binaries (skipped on cache hit) ────────
-      - name: Download Holochain binaries
-        if: steps.cache-hc-bin.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.1
-          curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
-          curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
-          curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
-          curl -sSL $BASE/kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/kitsune2-bootstrap-srv
-          chmod +x ~/.local/bin/hc-tools/*
-
-      - name: Add Holochain tools to PATH
-        run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
-
-      # ── Build WASMs + pack hApp (the scenario installs valichord.happ) ──────
-      - name: Build WASM zomes
-        if: steps.cache-wasm.outputs.cache-hit != 'true'
-        working-directory: valichord
-        run: cargo build --target wasm32-unknown-unknown --release
-
-      - name: Pack DNAs and bundle hApp
-        working-directory: valichord
-        run: |
-          hc dna pack dnas/attestation            -o workdir/attestation.dna
-          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
-          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
-          hc dna pack dnas/governance             -o workdir/governance.dna
-          hc app pack .                           -o workdir/valichord.happ
-
-      # ── Build + run the scenario ───────────────────────────────────────────
-      - name: Build dht_sync_lag scenario
+      # Compiles all five scenarios + the shared valichord_wt_common crate against
+      # the native conductor stack — catches API / dependency / install-path
+      # regressions (e.g. the runner 0.7 bump, the pkcs8/ed25519 pins).
+      - name: Build all scenarios
         working-directory: valichord/wind-tunnel
-        run: cargo build -p dht_sync_lag
+        run: cargo build
 
-      - name: Run dht_sync_lag live smoke
+      # Pure-logic unit tests (no conductor): unique_data_hash collision-freedom
+      # + the propagation-lag math incl. the saturating-skew guard.
+      - name: Unit tests (dht_sync_lag)
         working-directory: valichord/wind-tunnel
-        env:
-          WT_METRICS_DIR: ${{ github.workspace }}/wt-metrics
-        run: |
-          set -euo pipefail
-          mkdir -p "$WT_METRICS_DIR"
-          AGENTS="${{ github.event.inputs.agents }}"
-          DURATION="${{ github.event.inputs.duration }}"
-          if [ "$AGENTS" -lt 2 ]; then
-            echo "::error::agents must be >= 2 (need at least 1 writer + 1 reader)"; exit 1
-          fi
-          READERS=$((AGENTS - 1))
-          echo "Running dht_sync_lag: $AGENTS agents (1 writer + $READERS readers), ${DURATION}s"
-          cargo run -p dht_sync_lag -- \
-            --agents "$AGENTS" --duration "$DURATION" \
-            --behaviour=write:1 --behaviour=record_lag:"$READERS" \
-            --reporter=influx-file
-
-      # ── Assert the scenario ran and the writer wrote ───────────────────────
-      # GATED (deterministic): the run produced metrics and the writer submitted
-      # ValidationRequests — i.e. build + happ pack + the dev-mode membrane-proof
-      # install + the zome-call path all work. This is what catches real
-      # regressions (a broken build, the "valichord" role / missing-memproof bug,
-      # a scenario panic).
-      #
-      # BEST-EFFORT (reported, NOT gated): cross-agent `sync_lag`. The wind-tunnel
-      # 0.7.0 Holochain runner builds each conductor with ConductorConfig::default
-      # (the public bootstrap + iroh relay) and exposes no local-bootstrap knob, so
-      # whether the separate per-agent conductors actually peer depends on the
-      # runner's reachability of that public infra — non-deterministic on a GitHub
-      # runner, reliable on a well-connected machine. Propagation is verified
-      # locally (see README); here we surface it when it happens but don't fail on
-      # its absence.
-      - name: Assert scenario ran + writer wrote (propagation best-effort)
-        env:
-          WT_METRICS_DIR: ${{ github.workspace }}/wt-metrics
-        run: |
-          set -euo pipefail
-          F=$(ls -t "$WT_METRICS_DIR"/dht_sync_lag-*.influx 2>/dev/null | head -1 || true)
-          if [ -z "$F" ]; then
-            echo "::error::No custom-metrics influx file produced (run did not complete)"; exit 1
-          fi
-          SENT=$(grep "wt.custom.sent_count" "$F" | grep -oE 'value=[0-9.]+' | sed 's/value=//' | sort -n | tail -1 || true)
-          SENT=${SENT:-0}
-          echo "writer sent_count (final): $SENT"
-          if ! awk "BEGIN{exit !($SENT >= 1)}"; then
-            echo "::error::Writer recorded no sent_count — install or zome-call path broke"; exit 1
-          fi
-          echo "OK: scenario ran, app installed (dev bypass), writer wrote $SENT requests."
-          N=$(grep -c "wt.custom.sync_lag" "$F" || true)
-          if [ "${N:-0}" -ge 1 ]; then
-            grep "wt.custom.sync_lag" "$F" | grep -oE 'value=[0-9.]+' | sed 's/value=//' | sort -n \
-              | awk '{a[NR]=$1} END{print "cross-agent propagation OK: "NR" sync_lag samples; median(s)="a[int(NR/2)]" max(s)="a[NR]}'
-          else
-            echo "::warning::No sync_lag samples — cross-agent gossip did not occur in this CI environment (public-bootstrap peering is non-deterministic on GitHub runners). Scenario + install path are verified; propagation is verified locally (see valichord/wind-tunnel/README.md)."
-          fi
-
-      # ── Keep the metrics for inspection ────────────────────────────────────
-      - name: Upload metrics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wind-tunnel-metrics
-          path: ${{ github.workspace }}/wt-metrics/*.influx
-          if-no-files-found: warn
+        run: cargo test -p dht_sync_lag
