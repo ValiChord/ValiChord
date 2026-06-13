@@ -37,8 +37,8 @@
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
-use governance_integrity::ValidatorReputation;
-use valichord_shared_types::{AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorType};
+use governance_integrity::{HarmonyRecord, ValidatorReputation};
+use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorType};
 
 // ---------------------------------------------------------------------------
 // Internal helpers — shared attestation round setup
@@ -927,28 +927,61 @@ async fn gold_badge_issued_with_seven_validators() {
         .await;
     assert!(harmony.is_some(), "7-agent round must produce a HarmonyRecord");
 
-    // Sync again so the badge propagates before querying.
-    await_consistency(gov_cells.iter().copied()).await.unwrap();
+    // Diagnostic gate: a Gold badge requires the record itself to be ExactMatch with
+    // all 7 validators counted. Assert that *first* so that if the badge ever comes
+    // back wrong-tier (rather than merely lagging), the failure names the real cause —
+    // a mis-derived HarmonyRecord — instead of a bare "Gold index empty".
+    let record: Option<Record> = conductors[0]
+        .call(&apps[0].governance_zome(), "get_harmony_record", request_ref.clone())
+        .await;
+    let harmony_record: HarmonyRecord = record
+        .expect("HarmonyRecord must be retrievable after finalisation")
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        harmony_record.participating_validators.len(),
+        N,
+        "the finalised record must count all 7 validators (else a sub-Gold badge is issued)"
+    );
+    assert_eq!(
+        harmony_record.agreement_level,
+        AgreementLevel::ExactMatch,
+        "7/7 Reproduced must derive ExactMatch (the Gold precondition)"
+    );
 
     // GoldReproducible: ExactMatch (7/7) + count=7 ≥ 7.
-    let badges: Vec<Record> = conductors[0]
-        .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
-        .await;
+    //
+    // Read the badge back through two indexes: get_badges_for_study (study-specific
+    // anchor, light) and get_badges_by_type (the GLOBAL badge.gold anchor — a heavier
+    // Network get_links). On a loaded CI runner with 7 in-process conductors the global
+    // type-index can lag the study index by a gossip round, which made this test flaky
+    // (badge present via study, momentarily empty via type). The badge is already issued
+    // by the call above; re-sync + retry so a transient index-visibility lag can't fail
+    // the assertion. A persistent empty after the retries is a real failure.
+    let mut badges: Vec<Record> = Vec::new();
+    let mut by_type: Vec<Record> = Vec::new();
+    for _ in 0..5 {
+        await_consistency(gov_cells.iter().copied()).await.unwrap();
+        badges = conductors[0]
+            .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
+            .await;
+        by_type = conductors[0]
+            .call(&apps[0].governance_zome(), "get_badges_by_type", BadgeType::GoldReproducible)
+            .await;
+        if !badges.is_empty() && !by_type.is_empty() {
+            break;
+        }
+    }
     assert!(
         !badges.is_empty(),
         "GoldReproducible badge should be issued for ExactMatch + count=7"
     );
-
-    let by_type: Vec<Record> = conductors[0]
-        .call(
-            &apps[0].governance_zome(),
-            "get_badges_by_type",
-            BadgeType::GoldReproducible,
-        )
-        .await;
     assert!(
         !by_type.is_empty(),
-        "get_badges_by_type(GoldReproducible) should return the issued badge"
+        "get_badges_by_type(GoldReproducible) should return the issued badge \
+         (retried with re-sync; a persistent empty here is a real failure, not gossip lag)"
     );
 }
 
