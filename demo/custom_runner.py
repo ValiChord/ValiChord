@@ -381,6 +381,43 @@ def compare_answers(
     }
 
 
+def _claim_headline(outcomes: list, comparison_outcome: str) -> str:
+    """Human headline for the claim demo: a verdict on the hypothesis + how
+    unanimous the validators were + whether the researcher's sealed answer aligned.
+
+    The reproducibility-framed outcome/agreement_level are kept for the record but
+    read confusingly for a free-text claim — a *unanimous refutation* scores zero
+    'reproduction', so the agreement scale bottoms out at "UnableToAssess" even
+    though the validators assessed it clearly and agreed. This headline speaks the
+    claim vocabulary instead.
+    """
+    from collections import Counter
+
+    def _bucket(o: str) -> str:
+        if o == "Reproduced":          return "Supported"
+        if o == "PartiallyReproduced": return "Partially supported"
+        if o in ("NotReproduced", "FailedToReproduce"): return "Refuted"
+        return "Inconclusive"
+
+    total = len(outcomes) or 1
+    verdict, top_n = Counter(_bucket(o) for o in outcomes).most_common(1)[0]
+    if top_n >= total:
+        agreement = "validators unanimous"
+    elif top_n <= 1:
+        agreement = "validators split"
+    else:
+        agreement = f"{top_n} of {total} validators agree"
+
+    align = {
+        "Reproduced":          "matches your sealed answer",
+        "PartiallyReproduced": "partly matches your sealed answer",
+        "NotReproduced":       "diverges from your sealed answer",
+    }.get(comparison_outcome, "")
+
+    headline = f"{verdict} — {agreement}"
+    return f"{headline} ({align})" if align else headline
+
+
 def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) -> None:
     """
     Phase 1 — called in a background thread.
@@ -509,6 +546,7 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -
         "external_hash_b64":      external_hash_b64,
         "outcome":                derive_majority_outcome(outcomes),
         "agreement_level":        derive_agreement_level(outcomes),
+        "headline":               _claim_headline(outcomes, comparison["outcome"]),
         "comparison_summary":     comparison["summary"],
         "researcher_answer":      user_answer,
         "validator_count":        3,

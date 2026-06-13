@@ -480,7 +480,7 @@ function showCustomResult(r){
   const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
   const outcomeLabel=OUTCOME_LABEL[r.outcome]||esc(r.outcome);
   document.getElementById('customResultArea').innerHTML=`<div class="result-box">
-    <div class="outcome">${outcomeLabel} — ${esc(r.agreement_level)}</div>
+    <div class="outcome">${r.headline?esc(r.headline):outcomeLabel+' — '+esc(r.agreement_level)}</div>
     <div class="detail">${esc(r.validator_count)}/3 validators · your hypothesis</div>
     ${r.comparison_summary?`<div class="comparison-summary">${esc(r.comparison_summary)}</div>`:''}
     <div class="researcher-reveal"><strong>Your sealed answer (revealed now)</strong>${esc(r.researcher_answer||'')}</div>
