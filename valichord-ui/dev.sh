@@ -36,12 +36,20 @@ rm -rf "$DATA_DIR"
 mkdir -p "$DATA_DIR"
 
 echo "Starting conductor (logs → $CONDUCTOR_LOG)…"
-echo "" | holochain \
+# Tie the conductor to this script: if dev.sh dies (Ctrl-C, crash, SIGKILL, OOM,
+# closed terminal) the kernel SIGTERMs the conductor so it can't orphan and hold
+# the admin/app ports for the next run. setpriv --pdeathsig is the bash-native
+# equivalent of prctl(PR_SET_PDEATHSIG); degrade gracefully if it's unavailable.
+if command -v setpriv >/dev/null 2>&1; then REAP=(setpriv --pdeathsig TERM); else REAP=(); fi
+"${REAP[@]}" holochain \
   --config-path "$SCRIPT_DIR/dev-conductor.yaml" \
   --piped \
+  <<< "" \
   > "$CONDUCTOR_LOG" 2>&1 &
 CONDUCTOR_PID=$!
 echo "Conductor PID: $CONDUCTOR_PID"
+# Clean-exit reaper (fallback when setpriv is absent; redundant-but-harmless with pdeathsig)
+trap 'kill "$CONDUCTOR_PID" 2>/dev/null' EXIT INT TERM
 
 # Run setup: waits for admin port, installs app, issues auth token
 node "$SCRIPT_DIR/dev-setup.mjs"
