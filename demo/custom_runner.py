@@ -6,6 +6,7 @@ manually triggers the reveal once all validators have committed.
 import hashlib
 import json
 import logging
+import threading
 import time
 import urllib.parse
 import uuid
@@ -15,7 +16,9 @@ import os
 
 import anthropic
 
-from ai_validator_cma import _node_post, _node_get, BETAS, MODEL_CMA
+from ai_validator_cma import (
+    _node_post, _node_get, BETAS, MODEL_CMA, MAX_TOOL_CALLS, SESSION_DEADLINE_S,
+)
 from agreement import derive_agreement_level, derive_majority_outcome
 
 RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://132.145.34.27:3001")
@@ -91,6 +94,39 @@ Reply with ONLY valid JSON — no markdown fences, no explanation:
 }}"""
 
 
+_CLAIM_AGENT_ENV_CACHE: dict = {}
+_CLAIM_AGENT_ENV_LOCK  = threading.Lock()
+
+
+def _get_or_create_agent_env(api_key: str) -> tuple:
+    """Return (agent_id, agent_version, env_id) for the claim-evaluation validator
+    config — shared by all 3 validators, cached by API key (the server key reuses
+    them across runs). Each session still provisions its own isolated container."""
+    with _CLAIM_AGENT_ENV_LOCK:
+        cached = _CLAIM_AGENT_ENV_CACHE.get(api_key)
+        if cached is not None:
+            return cached
+
+        client = anthropic.Anthropic(api_key=api_key)
+        env = client.beta.environments.create(
+            name=f"valichord-claim-{int(time.time())}",
+            config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
+        )
+        agent = client.beta.agents.create(
+            name="valichord-claim-validator",
+            model=MODEL_CMA,
+            system=VALIDATOR_CLAIM_SYSTEM,
+            tools=[{
+                "type": "agent_toolset_20260401",
+                "configs": [{"name": "web_search"}, {"name": "web_fetch"}, {"name": "write"}],
+            }],
+            betas=BETAS,
+        )
+        result = (agent.id, agent.version, env.id)
+        _CLAIM_AGENT_ENV_CACHE[api_key] = result
+        return result
+
+
 def _run_cma_claim_session(
     idx: int,
     validator_url: str,
@@ -99,26 +135,15 @@ def _run_cma_claim_session(
     claim: str,
     api_key: str,
     job: dict,
+    agent_id: str,
+    agent_version,
+    env_id: str,
 ) -> dict:
-    """Run one CMA validator session for a free-text claim. Commits to DHT when done."""
+    """Run one CMA validator session for a free-text claim (shared agent + environment,
+    own session/container). Commits to DHT when done."""
     client = anthropic.Anthropic(api_key=api_key)
 
     time.sleep((idx - 1) * 8)
-
-    env = client.beta.environments.create(
-        name=f"valichord-claim-v{idx}-{int(time.time())}",
-        config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
-    )
-    agent = client.beta.agents.create(
-        name=f"valichord-claim-validator-{idx}",
-        model=MODEL_CMA,
-        system=VALIDATOR_CLAIM_SYSTEM,
-        tools=[{
-            "type": "agent_toolset_20260401",
-            "configs": [{"name": "web_search"}, {"name": "web_fetch"}, {"name": "write"}],
-        }],
-        betas=BETAS,
-    )
 
     last_error = ""
     t0 = time.time()
@@ -126,8 +151,8 @@ def _run_cma_claim_session(
 
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         session = client.beta.sessions.create(
-            agent={"type": "agent", "id": agent.id, "version": agent.version},
-            environment_id=env.id,
+            agent={"type": "agent", "id": agent_id, "version": agent_version},
+            environment_id=env_id,
             betas=BETAS,
         )
 
@@ -145,12 +170,33 @@ def _run_cma_claim_session(
         )
 
         n_tool_calls = 0
+        stop_reason  = ""
+        stream_start = time.monotonic()
         with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
             for ev in stream:
                 if ev.type == "agent.tool_use":
                     n_tool_calls += 1
+                    if n_tool_calls >= MAX_TOOL_CALLS:
+                        stop_reason = f"tool-call ceiling ({MAX_TOOL_CALLS}) hit"
+                        break
+                elif ev.type in ("session.status_terminated", "session.error"):
+                    stop_reason = f"session ended early ({ev.type})"
+                    break
                 elif ev.type == "session.status_idle":
                     break
+                # Per-chunk read timeout isn't a total deadline; enforce one here.
+                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
+                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    break
+
+        # Cut short → interrupt so the agent stops running/billing server-side.
+        if stop_reason:
+            try:
+                client.beta.sessions.events.send(
+                    session.id, betas=BETAS, events=[{"type": "user.interrupt"}],
+                )
+            except Exception:
+                pass
 
         verdict_content = ""
         for ev in client.beta.sessions.events.list(session.id, limit=1000, betas=BETAS):
@@ -168,9 +214,11 @@ def _run_cma_claim_session(
         elapsed = time.time() - t0
 
         if not verdict_content:
+            detail = f", {stop_reason}" if stop_reason else ""
             last_error = (
                 f"Validator {idx} session ended without writing verdict.json "
-                f"(attempt={attempt}/{_MAX_ATTEMPTS}, tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
+                f"(attempt={attempt}/{_MAX_ATTEMPTS}, tool_calls={n_tool_calls}, "
+                f"duration={elapsed:.0f}s{detail})"
             )
             log.warning(last_error + (" — retrying with fresh session" if attempt < _MAX_ATTEMPTS else ""))
             continue
@@ -375,11 +423,14 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
     job["phase"]               = "committing"
     job["validators_committed"] = 0
 
+    # One shared agent + environment for all three validators (created once / cached).
+    agent_id, agent_version, env_id = _get_or_create_agent_env(api_key)
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
             pool.submit(
                 _run_cma_claim_session,
                 idx + 1, url, external_hash_b64, disc, claim, api_key, job,
+                agent_id, agent_version, env_id,
             ): idx
             for idx, url in enumerate(VALIDATOR_URLS)
         }

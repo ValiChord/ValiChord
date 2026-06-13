@@ -27,6 +27,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -47,6 +48,10 @@ STUDY_DIR = DEMO_DIR / "synthetic_study"
 
 BETAS     = ["managed-agents-2026-04-01"]
 MODEL_CMA = "claude-sonnet-4-6"
+
+# Per-session safety caps — CMA has no native turn/cost/timeout ceiling.
+MAX_TOOL_CALLS     = 40   # hard tool-call ceiling per validator session
+SESSION_DEADLINE_S = 300  # wall-clock cap per validator session attempt
 
 RESEARCHER_URL  = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://localhost:3001")
 VALIDATOR_URLS  = [
@@ -208,6 +213,48 @@ def parse_metrics(output: str) -> list:
 
 # ── CMA validator session ──────────────────────────────────────────────────────
 
+# One agent + one environment are shared by all 3 validators in a run — their config
+# is identical (only the per-validator user message differs). Cached by API key so the
+# server key reuses them across runs instead of minting a fresh pair every time; user
+# (bring-your-own) keys get one pair per process. Each session still provisions its own
+# isolated container, so the validators' /mnt/session/verdict.json files never collide.
+_AGENT_ENV_CACHE: dict = {}
+_AGENT_ENV_LOCK  = threading.Lock()
+
+
+def _get_or_create_agent_env(api_key: str) -> tuple:
+    """Return (agent_id, agent_version, env_id) for the standard validator config,
+    creating + caching them on first use for a given key."""
+    with _AGENT_ENV_LOCK:
+        cached = _AGENT_ENV_CACHE.get(api_key)
+        if cached is not None:
+            return cached
+
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        env = client.beta.environments.create(
+            name=f"valichord-{int(time.time())}",
+            config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
+        )
+        agent = client.beta.agents.create(
+            name="valichord-validator",
+            model=MODEL_CMA,
+            system=VALIDATOR_SYSTEM,
+            tools=[{
+                "type": "agent_toolset_20260401",
+                "configs": [
+                    {"name": "web_search"},
+                    {"name": "web_fetch"},
+                    {"name": "write"},
+                ],
+            }],
+            betas=BETAS,
+        )
+        result = (agent.id, agent.version, env.id)
+        _AGENT_ENV_CACHE[api_key] = result
+        return result
+
+
 def _run_cma_session(
     idx: int,
     validator_url: str,
@@ -217,35 +264,17 @@ def _run_cma_session(
     readme: str,
     study_output: str,
     api_key: str,
+    agent_id: str,
+    agent_version,
+    env_id: str,
 ) -> dict:
-    """Run one CMA validator session. Commits to DHT when the agent calls seal_attestation."""
+    """Run one CMA validator session (shared agent + environment, own session/container).
+    Commits to DHT once the agent has written its verdict."""
     import anthropic
     client = anthropic.Anthropic(api_key=api_key)
 
     # Stagger starts slightly so commits don't all hit the DHT simultaneously
     time.sleep((idx - 1) * 8)
-
-    env = client.beta.environments.create(
-        name=f"valichord-v{idx}-{int(time.time())}",
-        config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
-    )
-
-    agent = client.beta.agents.create(
-        name=f"valichord-validator-{idx}",
-        model=MODEL_CMA,
-        system=VALIDATOR_SYSTEM,
-        tools=[
-            {
-                "type": "agent_toolset_20260401",
-                "configs": [
-                    {"name": "web_search"},
-                    {"name": "web_fetch"},
-                    {"name": "write"},
-                ],
-            },
-        ],
-        betas=BETAS,
-    )
 
     MAX_ATTEMPTS = 2
     last_error   = ""
@@ -254,8 +283,8 @@ def _run_cma_session(
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         session = client.beta.sessions.create(
-            agent={"type": "agent", "id": agent.id, "version": agent.version},
-            environment_id=env.id,
+            agent={"type": "agent", "id": agent_id, "version": agent_version},
+            environment_id=env_id,
             betas=BETAS,
         )
 
@@ -281,13 +310,37 @@ def _run_cma_session(
         )
 
         n_tool_calls = 0
+        stop_reason  = ""            # "" = clean idle; else why we cut the stream short
+        stream_start = time.monotonic()
 
         with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
             for ev in stream:
                 if ev.type == "agent.tool_use":
                     n_tool_calls += 1
+                    if n_tool_calls >= MAX_TOOL_CALLS:
+                        stop_reason = f"tool-call ceiling ({MAX_TOOL_CALLS}) hit"
+                        break
+                elif ev.type in ("session.status_terminated", "session.error"):
+                    stop_reason = f"session ended early ({ev.type})"
+                    break
                 elif ev.type == "session.status_idle":
                     break
+                # Wall-clock guard: the SDK stream read timeout is per-chunk, not a
+                # total deadline. Heartbeat events keep this loop ticking so the check
+                # fires; a fully silent hang is still bounded by the SDK read timeout.
+                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
+                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    break
+
+        # If we cut the stream short, interrupt the session so the agent stops
+        # running (and billing) server-side after we've stopped listening.
+        if stop_reason:
+            try:
+                client.beta.sessions.events.send(
+                    session.id, betas=BETAS, events=[{"type": "user.interrupt"}],
+                )
+            except Exception:
+                pass
 
         # Reconstruct verdict.json from event log (handles write + edit sequences)
         verdict_content = ""
@@ -305,9 +358,11 @@ def _run_cma_session(
         elapsed = time.time() - t0
 
         if not verdict_content:
+            detail = f", {stop_reason}" if stop_reason else ""
             last_error = (
                 f"Validator {idx} CMA session ended without writing verdict.json "
-                f"(attempt={attempt}/{MAX_ATTEMPTS}, tool_calls={n_tool_calls}, duration={elapsed:.0f}s)"
+                f"(attempt={attempt}/{MAX_ATTEMPTS}, tool_calls={n_tool_calls}, "
+                f"duration={elapsed:.0f}s{detail})"
             )
             log.warning(last_error + (" — retrying" if attempt < MAX_ATTEMPTS else ""))
             continue
@@ -404,12 +459,14 @@ def form_verdicts_cma(
     api_key: str,
 ) -> list:
     """Run 3 CMA validators in parallel. Each commits to DHT when it seals."""
+    # One shared agent + environment for all three validators (created once / cached).
+    agent_id, agent_version, env_id = _get_or_create_agent_env(api_key)
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
             pool.submit(
                 _run_cma_session,
                 idx + 1, url, external_hash_b64, metrics, discipline,
-                readme, study_output, api_key,
+                readme, study_output, api_key, agent_id, agent_version, env_id,
             ): idx
             for idx, url in enumerate(validator_urls)
         }
