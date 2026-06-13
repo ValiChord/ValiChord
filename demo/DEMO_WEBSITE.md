@@ -89,6 +89,7 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
   "external_hash_b64": "…",
   "outcome": "Reproduced | PartiallyReproduced | FailedToReproduce | UnableToAssess",
   "agreement_level": "ExactMatch | WithinTolerance | DirectionalMatch | Divergent | UnableToAssess",
+  "headline": "Refuted — validators unanimous (matches your sealed answer)",
   "comparison_summary": "…",
   "researcher_answer": "…",
   "validator_count": 3,
@@ -102,6 +103,8 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
 ```
 
 Note: `outcome` and `agreement_level` are derived from the validator verdicts with the same logic as the on-chain HarmonyRecord, so the displayed label always matches the record you can fetch yourself (validator-to-validator consensus). `comparison_summary` is the separate researcher-to-validator narrative from `compare_answers` — it explains how the panel's finding relates to the researcher's sealed answer, but does not drive the outcome label.
+
+`headline` is a **display-only** field (`_claim_headline` in `custom_runner.py`) that translates the result into claim vocabulary for the badge. The reproducibility scale bottoms out at "UnableToAssess" for a unanimous *refutation* — technically correct (zero "reproduction") but confusing, because the validators clearly assessed the claim and agreed. The headline buckets the validator outcomes into **Supported / Partially supported / Refuted / Inconclusive**, notes unanimity (e.g. "validators unanimous", "2 of 3 validators agree", "validators split"), and appends whether the researcher's sealed answer aligned (from the `compare_answers` outcome: "matches / partly matches / diverges from your sealed answer"). The badge in `app.py` uses `headline` when present and falls back to the old `{outcome} — {agreement_level}` format. Nothing on-chain changes — the HarmonyRecord still records the reproducibility vocabulary, and `outcome`/`agreement_level` remain in the result dict for the raw-record view.
 
 ### Concurrency
 
