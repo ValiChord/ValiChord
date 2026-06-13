@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-12
+**Last updated:** 2026-06-13
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
 
 ---
@@ -86,6 +86,25 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Maintenance + ecosystem triage — 2026-06-13 ✓ (pushed to main)
+
+A round of small, durable fixes plus a wide sweep of the Holochain ecosystem for patterns and current tooling. All code/doc changes are on `main`.
+
+**Code & config changes (pushed):**
+- **Governance gold-badge sweettest hardened** (`9627699`) — `gold_badge_issued_with_seven_validators` was an intermittent CI failure (the only failing `Sweettest (governance)` test). Diagnosed as a **flake, not a regression**: identical governance bytes passed and failed across runs whose commits touched no governance code. Root cause = the global `badge.gold` type-index lagging the study-specific index by a gossip round under CI load (7 in-process conductors on a 2-core runner). Fix (test-only, no DNA/production change): assert the HarmonyRecord is `ExactMatch` + 7 validators *before* the badge checks (so a real wrong-tier is diagnostic, not a bare "Gold empty"), and wrap both badge queries in a 5-iteration `await_consistency` + re-query loop. Compile-verified before push.
+- **`valichord-ui/dev.sh` conductor auto-reap** (`4955771`) — the dev conductor is now spawned under `setpriv --pdeathsig TERM` (+ `EXIT/INT/TERM` trap), so if `dev.sh` dies for any reason (Ctrl-C, crash, SIGKILL, OOM, closed terminal) the kernel SIGTERMs the conductor — no orphan holding `:4444`/`:8888`. Pattern borrowed from `topeuph-ai/flowsta-vault-app`. The `pkill` at the top of the script is now a fallback, not load-bearing.
+- **`@holochain/client` bump** (`077ecb3`) — `valichord-ui` floor moved `^0.20.4-rc.0` → `^0.20.5` (current stable; lockfile regenerated). Stays on the 0.20.x line for our Holochain 0.6.1 stack; 0.21 remains dev-only.
+- **`memory/reference_unyt_tools.md` created** (`baa4770`, `e67f953`) — resolved a dangling `CLAUDE.md` reference and documented the Unyt/desktop tooling (see "Ecosystem findings" below).
+
+**Upgrade-check result (CLAUDE.md mandate):** **Holochain 0.7.0 is still not stable** — the line is at `0.7.0-dev.28`; **0.6.1 remains current stable → hold, no upgrade action.** Estimated 0.7.0 stable ≈ **Q3 2026 (most likely ~September; range Aug–Oct)** based on the 0.6 dev-cycle base rate (~31 weeks, 33 dev releases) and an in-flight major feature ("Source chain restore") still landing on `develop`. **Tell to watch: the first `0.7.0-rc.0` tag** — in the 0.6 cycle rc.0→stable was just ~2 weeks. lair (0.6.3) and kitsune2 (0.4.1 stable) unchanged for our stack.
+
+**Ecosystem findings (research → memory, no code change):**
+- **Validator desktop app front-runner identified: `darksoil-studio/tauri-plugin-holochain`.** Now public (supersedes the CLAUDE.md "not yet open-source" note), on **Holochain 0.6.1 stable**, full runtime (bundles lair + conductor). Decisively, its `install_app`/`install_web_app` take `roles_settings` (membrane_proof + DNA `modifiers.properties`) + `membrane_proofs` + `network_seed`, so it reproduces our dev membrane-proof bypass directly **and** supports real joining-service proofs into the existing `authorized_joining_certificate_issuer` gate — the thing `hc-spin` could not. Evaluate it **first** vs kangaroo-electron. Full detail in `memory/reference_unyt_tools.md`.
+- **Production onboarding blueprint mapped** — `Holo-Host/joining-service` (membrane-proof issuer + `joining-cli`) + HWC `@holo-host/web-conductor-client` (drop-in `@holochain/client` → browser users as real zero-arc agents) + `h2hc-linker`; the operational layer for our already-built credential gate, demonstrated end-to-end by `GeekGene/mewsfeed`. All alpha → forward-looking, for the production-onboarding/desktop phase.
+- **`Tryorama` is officially deprecated** (as of Holochain 0.6; moved to `holochain-open-dev/tryorama`, now `@holochain/tryorama` v0.19.2). Sweettest is the recommended harness — we already use it. Implication: don't invest new coverage in our 96-test Tryorama suite; factor the community-fork lineage into the 0.7 upgrade.
+- **Deferred-work leads:** the **kitsune2 bootstrap-srv also provides relay fallback** (may remove the separate-Iroh-relay blocker for the deferred wind-tunnel kitsune live run and halve the kangaroo bootstrap/relay deployment); `holochain/network-services` is the Pulumi bootstrap-srv + sbd deploy recipe. **Tooling to remember:** `zits` (auto-generate `types.ts` from Rust zomes — handles our serde tag conventions, but pinned a HC-minor behind, needs a 0.6.x compat check); `hc-spin` (dev runner, needs a pre-baked empty-issuer dev happ to handle our bypass).
+- Noise filtered out: a trojanized "holochain-agent-skill" repo (anonymous account, README pushes `iwr … | sh` on a binary zip — **do not install**) and a star-farm spam repo were flagged and discarded.
 
 ### Wind-Tunnel 0.7.0 bump + two propagation scenarios — 2026-06-12 ✓ (pushed to main)
 
