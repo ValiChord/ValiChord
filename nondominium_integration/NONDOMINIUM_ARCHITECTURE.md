@@ -457,6 +457,32 @@ validators — HarmonyRecord uhC8k…"), with the `LifecycleTransitionModal` sur
 HarmonyRecord as the justification for the transition. This is the front-end pairing for the
 capability-slot-link approach in the zome_resource section above.
 
+### Re-look 2026-06-16 — the design system has NO evidence/validation concept (sharpened finding)
+
+Re-reviewed given the confirmed integration. **The repo is unchanged since 2026-06-06** (recent
+commits are only Sensorica's "Complexity Oriented Programming" / "Associative CryptoEconomics"
+house-philosophy docs), so the above is current. Two checks, with the integration lens, found the
+front-end half of the same gap as the backend gate-verification point:
+
+1. **Repo-wide code search → zero hits** for `valichord`, `harmony`, `attestation`, `external`,
+   `evidence`, `validat*`, `reproduc*`, `verif*`, `review`. The design system models no concept of
+   external validation evidence anywhere.
+2. **`LifecycleTransitionModal.svelte` is a pure stage-picker.** It gates a transition only on
+   `allowedTransitions()` (is the stage-move structurally legal) — it requires **no evidence or
+   justification**. The `onconfirm` payload is just `{ newStage, successorHash? }` (successor only
+   for `Deprecated`). So today a custodian can advance a resource `Prototype → Stable` by selecting
+   the stage and confirming — nothing backs it up. **This is the "trust the claimant" gap seen from
+   the UI side** — the front-end mirror of the slot-tag-vs-real-record point in the zome_resource
+   security caution above.
+
+**Implication (small, well-scoped — a blank to fill, not a rebuild):** the integration needs (a) an
+evidence/required-validation branch in `LifecycleTransitionModal` that surfaces the ValiChord
+`HarmonyRecord` and blocks confirm until a verified record is present for transitions that require
+it, and (b) the `NdoIdentityPanel` reproducibility badge above. The "some transitions must be backed
+by verified evidence" concept exists on **neither** side yet (backend or UI) — the capability slot +
+this modal branch are exactly where it gets wired. Frame on the call as *the natural place ValiChord
+plugs into their existing lifecycle modal*, not as a flaw in their MVP.
+
 ### Cross-checks against this doc
 
 - `domain/enums.ts` confirms the same 10 `LifecycleStage` variants and 5 `ResourceNature`
@@ -470,10 +496,15 @@ capability-slot-link approach in the zome_resource section above.
 
 ---
 
-*Last updated: 2026-06-14. Added the Nondominium Design System section (separate repo
-`Sensorica/nondominium-design-system`, reviewed 2026-06-14) — frontend-only, MVP, encodes the
-`LifecycleStage` transition machine + `LifecycleTransitionModal`; the ValiChord-badge-in-
-`NdoIdentityPanel` integration target identified. Previous update (2026-05-27): Group DNA
+*Last updated: 2026-06-16. Added companion scoping-note pointers (top) + the zome_resource security
+caution (gate must verify the real HarmonyRecord, not the researcher-written slot tag), and a
+re-look of the design system (unchanged since 2026-06-06): its `LifecycleTransitionModal` is a pure
+stage-picker with no evidence/validation concept anywhere in the repo — the front-end mirror of the
+gate-verification gap, and the blank ValiChord fills. Previous update (2026-06-14): added the
+Nondominium Design System section (separate repo `Sensorica/nondominium-design-system`) —
+frontend-only, MVP, encodes the `LifecycleStage` transition machine + `LifecycleTransitionModal`;
+the ValiChord-badge-in-`NdoIdentityPanel` integration target identified. Previous update
+(2026-05-27): Group DNA
 (PR #107) — per-group cloned cell, `SoftLink` (Lobby → Groups → NDOs hierarchy);
 `NdoAnnouncement` replaced by `GroupAnnouncement` in Lobby DNA; `ResourceValidationStatus`
 typed as enum (`Pending`/`Approved`/`Rejected`) in zome_gouvernance;
