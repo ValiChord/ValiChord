@@ -54,9 +54,11 @@ docs/CORE_BENCH_INTEGRATION.md
 inspect_evals_issue_and_pr.md
 docs/EEE_ISSUE_DRAFT.md
 docs/HARDWARE_VERIFICATION_WORKED_EXAMPLE.md
+nondominium_integration/CALL_PREP_BRIEF.md
 
 # Internal scratch / planning / sensitive docs — keep local, never publish
 codespaces_brief_*.md
 business/
+scratch/
 valichord_issues_backlog.md
 valichord_pilot_spec.md
