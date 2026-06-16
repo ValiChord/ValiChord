@@ -84,6 +84,15 @@ at this level"; reconstructing the per-lab numeric panel is a separate read acro
 tolerance pinned at commit, `derive_agreement_level` / `derive_majority_outcome`). The Holochain
 layer is source-agnostic — it doesn't care the number came from an electrical ping rig.
 
+**On-ramp — they already hash the design bundle (OKH manifest).** The deposit-and-hash step is not a
+new ask for PEP Master: the canonical "Organic Controller 2024" build already publishes an **OKH
+(Open Know-How) `okh-manifest.yml`** whose SHA-256 (`72986C99…57F6DA7`) covers all design files.
+That existing design-provenance hash is a natural fit for `ValidationRequest.protocol_ref` (the
+method/design anchor), with `data_hash` carrying the reference-signature dataset + pinned procedure.
+This also mirrors Sensorica's own two-part trust model — *"certainty of provenance for the design,
+plus an on-demand verification method for the fabrication"* — where the OKH hash is the
+design-provenance half and ValiChord is the fabrication-verification half.
+
 ---
 
 ## 4. The pinned-procedure crux

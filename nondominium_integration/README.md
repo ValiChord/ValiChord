@@ -8,6 +8,19 @@
 
 ---
 
+> **⚠️ Correction (2026-06-16) — the gate must verify the real `HarmonyRecord`, not the slot tag.**
+> Sections below (Step 5, Decision 1, Decision 5) describe NDO's governance rule checking the
+> capability-slot **tag** (`{agreement_level, validator_count}`) to permit a transition. That framing
+> is **superseded**: the slot link + tag are written by the *researcher* (who has incentive to inflate),
+> and NDO can't cross-verify the tag at validation time (separate DHTs), so a tag-only gate is
+> forgeable. At decision time the rule must **fetch and verify the actual `HarmonyRecord`** (its own
+> `agreement_level`/count meet threshold; its `request_ref` binds to *this* resource) — the tag is a
+> pre-filter/hint only. Principle: *sovereignty over **when**, not over **what** the record says.* Full
+> reasoning (and the offline signature-verification alternative): `GATE_CLAIM_MAPPING_SCOPING.md` §5 +
+> the `NONDOMINIUM_ARCHITECTURE.md` security caution. See also `REVIEWER_SOURCING_SCOPING.md`.
+
+---
+
 ## Why this document exists
 
 During early collaboration discussions with the Sensorica team, both codebases were read in parallel. What emerged was not a vague architectural compatibility — it was a specific, locatable gap in Nondominium that ValiChord's commit-reveal protocol is shaped to fill.

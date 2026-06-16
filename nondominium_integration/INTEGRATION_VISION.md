@@ -6,6 +6,18 @@
 
 ---
 
+> **⚠️ Correction (2026-06-16) — the gate must verify the real `HarmonyRecord`, not the slot tag.**
+> The integration path and Decision 5 below describe NDO's governance rule checking the capability-slot
+> **tag** (`{agreement_level, validator_count}`) to permit a transition. That framing is **superseded**:
+> the slot link + tag are written by the *researcher* (incentive to inflate), and NDO can't cross-verify
+> the tag at validation time (separate DHTs), so a tag-only gate is forgeable. At decision time the rule
+> must **fetch and verify the actual `HarmonyRecord`** (its own `agreement_level`/count meet threshold;
+> its `request_ref` binds to *this* resource) — the tag is a pre-filter/hint only. *Sovereignty over
+> **when**, not over **what**.* Full reasoning: `GATE_CLAIM_MAPPING_SCOPING.md` §5 +
+> `NONDOMINIUM_ARCHITECTURE.md` security caution; reviewer admission in `REVIEWER_SOURCING_SCOPING.md`.
+
+---
+
 ## The Core Thesis
 
 Nondominium is a decentralized resource-sharing commons. When someone contributes a resource — a tool, a manufacturing process, a computational workflow, a dataset — it enters `ResourceState::PendingValidation`. There is no mechanism to get it out of that state. The commented-out call to `validate_new_resource()` in `create_economic_resource()` marks exactly where that mechanism was always supposed to plug in.
