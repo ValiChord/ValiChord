@@ -3,6 +3,14 @@
 Quick reference for ValiChord integration work. Written March 2026 from reading the source at
 https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading the `dev` branch.
 
+> **Companion scoping notes** (pre-design, for Tiberius's integration build — written 2026-06-16,
+> closing the two open design questions from the 2026-06-14/15 Discord agreement):
+> - [`REVIEWER_SOURCING_SCOPING.md`](./REVIEWER_SOURCING_SCOPING.md) — *who validates*: credential
+>   membrane vs in-DHT moderation, and who operates the admission gate.
+> - [`GATE_CLAIM_MAPPING_SCOPING.md`](./GATE_CLAIM_MAPPING_SCOPING.md) — *what gets committed at the
+>   gate*: the reference-fingerprint claim + designer/reviewer roles mapped onto the commit-reveal
+>   data model. Feeds the capability-slot-link handoff in the `zome_resource` section below.
+
 ---
 
 ## Overview
@@ -153,15 +161,33 @@ capability slots instead:
 - NDO adds a `GovernanceRuleType::ExternalValidation` variant. When a resource is in
   `PendingValidation`, this rule specifies the required slot type and consensus threshold.
 - The researcher calls `update_resource_state()` as normal. The governance rule checks that a
-  matching slot link with threshold-meeting tag data is present — if yes, the transition proceeds.
+  matching slot link is present and that **the actual `HarmonyRecord` it points at** meets threshold
+  — see the security caution below; it must NOT decide from the slot tag alone.
+
+> **⚠️ Security caution — do not gate on the slot tag alone (corrects earlier "tag is sufficient"
+> framing).** The slot link and its `{agreement_level, validator_count}` tag are written by the
+> **researcher** — the party with incentive to inflate the result — and NDO's link `validate()`
+> cannot cross-fetch ValiChord's record at validation time (separate DHT networks, no network calls
+> in validation). A tag-only gate is therefore forgeable two ways: (i) a tag that overstates the
+> record it points at, and (ii) a target pointing at a real-but-unrelated good record from another
+> study. **At decision time the governance rule must fetch the real record** (Path 2,
+> `get_harmony_record_by_hash` via same-conductor `OtherCell`) and verify (a) the record's *own*
+> `agreement_level` + validator count meet threshold and (b) its `request_ref` binds to *this*
+> resource's deposited data. The tag is a fast pre-filter / display hint only. Principle:
+> *sovereignty over **when** (custodian keeps the trigger), never over **what** the record says.*
+> This closes the *forged-result* hole; the distinct *captured/fake-reviewer* hole is closed upstream
+> by reviewer admission + independence (see `REVIEWER_SOURCING_SCOPING.md`). Full scoping:
+> `GATE_CLAIM_MAPPING_SCOPING.md` §5.
 
 **DHT locality constraint:** `get(action_hash)` in an NDO zome searches NDO's DHT, not
-ValiChord's governance DHT — they are separate peer networks. The slot tag carries everything
-NDO needs for the threshold check without a cross-network fetch. For full record verification,
-NDO can call `get_harmony_record_by_hash(action_hash)` via `OtherCell` on a same-conductor
-ValiChord governance cell — both functions are `Unrestricted` and require no capability secret.
-`get_harmony_record(ExternalHash)` takes the data hash (ValiChord's `request_ref`);
-`get_harmony_record_by_hash(ActionHash)` takes the direct record hash from the slot link target.
+ValiChord's governance DHT — they are separate peer networks. So the gate's record verification
+uses a same-conductor cross-cell read, not a raw `get()`: NDO calls
+`get_harmony_record_by_hash(action_hash)` via `OtherCell` on a co-located ValiChord governance cell
+— both functions are `Unrestricted` and require no capability secret. The slot tag can carry the
+threshold fields for a cheap pre-filter, but (per the caution above) is not sufficient on its own
+for the gate decision. `get_harmony_record(ExternalHash)` takes the data hash (ValiChord's
+`request_ref`); `get_harmony_record_by_hash(ActionHash)` takes the direct record hash from the slot
+link target.
 
 ### Key functions
 - `create_ndo(NdoInput)` — creates a `NondominiumIdentity` (Layer 0 anchor)
@@ -389,4 +415,67 @@ Flowsta remains the cleanest path for cross-system attribution.
 
 ---
 
-*Last updated: 2026-05-27. Re-read against main branch of https://github.com/Sensorica/nondominium (9 commits since previous review). Key additions in this update: Group DNA (PR #107) — per-group cloned cell, `SoftLink` (Lobby → Groups → NDOs hierarchy); `NdoAnnouncement` replaced by `GroupAnnouncement` in Lobby DNA; `ResourceValidationStatus` typed as enum (`Pending`/`Approved`/`Rejected`) in zome_gouvernance; `GroupMembership.ndo_pubkey_map` noted as not yet implemented. Cross-zome call to `validate_new_resource` still commented out (TODO wording only changed).*
+## Nondominium Design System (separate repo, reviewed 2026-06-14)
+
+Repo: `https://github.com/Sensorica/nondominium-design-system` (default branch `master`, last
+pushed 2026-06-06). This is the **frontend design system for the Nondominium hApp — not the
+protocol**. It is the visual layer that sits on top of the three DNAs above; it deliberately
+contains **no Holochain wiring** (zome calls, Effect-TS services, stores all stay in the hApp —
+see its `docs/INTEGRATION.md`). MVP/early maturity: several tabs are explicit stubs, the built
+custom-element bundle is a `.gitkeep` placeholder.
+
+Stack: SvelteKit 2 + Svelte 5 + UnoCSS + Melt UI. Apache-2.0. **Same stack as `valichord-ui`** —
+if we ever render NDO entities in our own UI we could consume `@nondominium/ndo-ui` directly.
+
+Two delivery layers:
+- `@nondominium/ndo-ui` — Svelte 5 component library (primitives: `NdoBadge`, `NdoButton`,
+  `NdoCard`, `Modal`; patterns: `NdoDetailLayout`, `NdoIdentityPanel`, `LifecycleTransitionModal`,
+  lobby/group views).
+- `ndo-*` custom elements (`<ndo-badge>`, `<ndo-button>`, `<ndo-card>`, `<ndo-status-dot>`) —
+  framework-agnostic web components for plain-HTML embeds.
+
+### Why it matters for ValiChord — it is the visual counterpart to our integration hook
+
+Our backend hook drives two transitions from a ValiChord `HarmonyRecord`:
+1. `EconomicResource`: `PendingValidation → Active`
+2. `NondominiumIdentity.lifecycle_stage`: e.g. `Prototype → Stable`
+
+The design system now encodes **exactly that lifecycle as a UI state machine**. From
+`packages/ndo-ui/src/domain/lifecycle-transitions.ts` — and it matches our `LifecycleStage`
+flow almost exactly:
+
+```
+Ideation → Specification → Development → Prototype → Stable → Distributed → Active
+Active → Hibernating → Deprecated → EndOfLife   (Hibernating reversible to its origin stage)
+```
+
+There is a `LifecycleTransitionModal.svelte` — the UI a custodian uses to approve a stage
+transition. A ValiChord validation round is exactly the evidence that should gate
+`Prototype → Stable` (or `PendingValidation → Active`). **Concrete integration target:** a
+ValiChord reproducibility status/badge inside `NdoIdentityPanel.svelte` ("reproduced by N
+validators — HarmonyRecord uhC8k…"), with the `LifecycleTransitionModal` surfacing the
+HarmonyRecord as the justification for the transition. This is the front-end pairing for the
+capability-slot-link approach in the zome_resource section above.
+
+### Cross-checks against this doc
+
+- `domain/enums.ts` confirms the same 10 `LifecycleStage` variants and 5 `ResourceNature`
+  variants documented above — our architecture doc is current.
+- **Regime nuance:** the UI MVP surfaces **4** `PropertyRegime` values
+  (`Private, Commons, Nondominium, CommonPool`) and treats `Collective` and `Pool` as
+  "forward compatibility" only. Our 6-variant list is not wrong, just ahead of the UI.
+- The repo also carries Sensorica's own framing (`Associative-CryptoEconomics.md`, a
+  "complexity-oriented programming" methodology skill) — their house style, nothing we adopt,
+  and not aligned with how we frame ValiChord (de-crypto).
+
+---
+
+*Last updated: 2026-06-14. Added the Nondominium Design System section (separate repo
+`Sensorica/nondominium-design-system`, reviewed 2026-06-14) — frontend-only, MVP, encodes the
+`LifecycleStage` transition machine + `LifecycleTransitionModal`; the ValiChord-badge-in-
+`NdoIdentityPanel` integration target identified. Previous update (2026-05-27): Group DNA
+(PR #107) — per-group cloned cell, `SoftLink` (Lobby → Groups → NDOs hierarchy);
+`NdoAnnouncement` replaced by `GroupAnnouncement` in Lobby DNA; `ResourceValidationStatus`
+typed as enum (`Pending`/`Approved`/`Rejected`) in zome_gouvernance;
+`GroupMembership.ndo_pubkey_map` noted as not yet implemented. Cross-zome call to
+`validate_new_resource` still commented out (TODO wording only changed).*
