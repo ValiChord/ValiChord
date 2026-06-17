@@ -138,6 +138,25 @@ Per `NONDOMINIUM_ARCHITECTURE.md` (custodian gate stays intact; no new governanc
 > record says.* This closes the *forged-result* hole; the distinct *captured/fake-reviewer* hole is
 > closed upstream by reviewer admission + independence (`REVIEWER_SOURCING_SCOPING.md`), not by this fetch.
 
+> **Precedent confirms this design (added 2026-06-17, based on NDO branch `feat/ndo-layer0-ui-102` —
+> not yet merged to main, so subject to change).** The branch formalises the capability-slot surface
+> as a first-class, two-tier pattern (`ndo_prima_materia.md` §6; `requirements/governance.md` §3.3),
+> with **two worked external integrations already written into the spec: Unyt (`UnytAgreement` slot,
+> §6.6) and Flowsta (`FlowstaIdentity` slot, §6.7).** ValiChord maps onto the *same* pattern as a
+> third instance: **Tier 1** = the permissionless capability-slot link (step 2 — a discoverable
+> signal); **Tier 2** = a custodian-endorsed `GovernanceRule` that makes it a precondition (step 3).
+> Crucially, the Unyt rule is the direct template for our `ExternalValidation` rule: at full
+> enforcement Unyt does **not** trust the slot tag — the transition request carries a proof
+> (`rave_hash`) and the governance zome **queries the Unyt DHT via cross-DNA `call()` to retrieve and
+> validate the actual RAVE**, confirming its inputs match the transition context. That is structurally
+> identical to step 5's fetch-and-bind check. Two consequences: (i) our "verify the real record, not
+> the tag" stance is the *house pattern*, not a novel ask; (ii) the expected "but verifying means
+> reaching into ValiChord's separate network" objection is already answered — Unyt does exactly that
+> cross-DNA fetch. One gap to fill: the SlotType vocabulary (§6.2) has no validation/reproducibility
+> slot yet — ValiChord would add one (e.g. `ValidationAttestation`) pointing at the `HarmonyRecord`
+> `ActionHash`. **Framing for the call: ValiChord = a new SlotType + a Tier-2 `ExternalValidation`
+> GovernanceRule modelled on Unyt's `EconomicAgreement`/RAVE pattern.**
+
 The threshold in step 3 is **Nondominium's policy to set**, not a ValiChord constant — consistent
 with treating validator-count/badge-tier as a per-domain parameter, not a fixed ladder (the 3/5/7
 badge counts are illustrative placeholders, not statistically-derived thresholds).

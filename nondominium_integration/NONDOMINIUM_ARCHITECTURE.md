@@ -189,6 +189,27 @@ for the gate decision. `get_harmony_record(ExternalHash)` takes the data hash (V
 `request_ref`); `get_harmony_record_by_hash(ActionHash)` takes the direct record hash from the slot
 link target.
 
+**Capability-slot pattern now formalised + has precedents (added 2026-06-17 — based on branch
+`feat/ndo-layer0-ui-102`, NOT yet merged to main; verify before relying on it).** The branch promotes
+the capability slot to a first-class, two-tier governance concept (`ndo_prima_materia.md` §6;
+`requirements/governance.md` §3.3) and ships **two worked external integrations as templates: Unyt
+(`UnytAgreement`, §6.6) and Flowsta (`FlowstaIdentity`, §6.7).** ValiChord maps onto the identical
+pattern as a third instance:
+- **Tier 1 (permissionless):** the slot link above — a discoverable signal, not enforced.
+- **Tier 2 (mandatory):** the custodian endorses a `GovernanceRule` making the slot a precondition for
+  a transition. Our proposed `GovernanceRuleType::ExternalValidation` is the analogue of Unyt's
+  `EconomicAgreement` rule.
+- **The cross-DNA fetch above is the house pattern, not a novel ask.** Unyt's rule, at full
+  enforcement, does the same thing for the same reason: it does *not* trust the slot tag — the
+  transition request carries a `rave_hash` and the governance zome **queries the Unyt DHT via
+  cross-DNA `call()`** to retrieve and validate the actual RAVE proof. This both vindicates the
+  security caution above and pre-empts the "verifying means reaching into ValiChord's separate
+  network" objection.
+- **Gap to fill:** the SlotType vocabulary (`ndo_prima_materia.md` §6.2 —
+  `Documentation`/`IssueTracker`/`FabricationQueue`/`GovernanceDAO`/`UnytAgreement`/`FlowstaIdentity`/
+  `CustomApp`) has **no validation/reproducibility slot**. ValiChord would add one (e.g.
+  `ValidationAttestation`) targeting the `HarmonyRecord` `ActionHash`.
+
 ### Key functions
 - `create_ndo(NdoInput)` — creates a `NondominiumIdentity` (Layer 0 anchor)
 - `get_ndo(ActionHash)` / `get_all_ndos()` / `get_my_ndos()`
