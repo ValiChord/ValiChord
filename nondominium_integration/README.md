@@ -19,6 +19,17 @@
 > reasoning (and the offline signature-verification alternative): `GATE_CLAIM_MAPPING_SCOPING.md` §5 +
 > the `NONDOMINIUM_ARCHITECTURE.md` security caution. See also `REVIEWER_SOURCING_SCOPING.md`.
 
+> **📌 Update (2026-06-17) — and NDO's own codebase now confirms this is the house pattern.** Their
+> active branch `feat/ndo-layer0-ui-102` (not yet merged to main) formalises the capability slot as a
+> first-class **two-tier** governance concept with two worked external integrations as templates: Unyt
+> (`UnytAgreement`) and Flowsta (`FlowstaIdentity`). **ValiChord is the natural third instance** — a new
+> SlotType (e.g. `ValidationAttestation`) + a Tier-2 `ExternalValidation` rule modelled on Unyt's
+> `EconomicAgreement`. Notably, Unyt's rule already does exactly what the correction above requires: it
+> does *not* trust the slot tag — it carries a proof and **queries the Unyt DHT cross-DNA to validate
+> the real RAVE**. So "verify the real record, not the tag" is their existing pattern, and the
+> "verifying means reaching into ValiChord's network" objection is already answered. Detail (caveated as
+> branch-based): `GATE_CLAIM_MAPPING_SCOPING.md` §5 + `NONDOMINIUM_ARCHITECTURE.md` capability-slot section.
+
 ---
 
 ## Why this document exists
