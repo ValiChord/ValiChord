@@ -22,6 +22,7 @@ Bundles `.webhapp` + Holochain 0.6.1 conductor + Lair keystore into a single red
 | Holochain 0.6.1 | ✓ Done |
 | `.happ` build working | ✓ Done (`workdir/valichord.happ`) |
 | Bootstrap/relay servers | ✗ Needed for production; dev servers usable for pilot |
+| Kangaroo key-continuity patch | ✗ Required before any breaking upgrade ships to validators |
 
 The dev servers (`dev-test-bootstrap2.holochain.org`, `iroh-relay-hc.holochain.org`) work fine for a small trusted-validator pilot. For production, run `kitsune2-bootstrap-srv` on Oracle or use `holochain/network-services` Pulumi.
 
@@ -56,6 +57,32 @@ Dev setup bypasses membrane proofs with `0x42×64` + `authorized_joining_certifi
 ### Decision 4 — Network seed
 
 The network seed is set at app pack time and determines which DHT peers can find each other. Pick something intentional (e.g. `valichord-pilot-1`) rather than leaving the demo value (`valichord-demo-multi`). All builds for the same pilot must use the same seed.
+
+---
+
+## Breaking-upgrade key-continuity (critical for validator reputation)
+
+**Finding source:** `happenings-community/requests-and-offers` branch `docs/166-membrane-management`, §6 of `MEMBRANE_MANAGEMENT_OFF_DHT.md`, which audited the Kangaroo source directly.
+
+On stock Kangaroo, `holochainManager.ts → installHappIfNecessary` calls `generateAgentPubKey()` unconditionally whenever it installs the hApp on a fresh conductor — including after a breaking-version upgrade. `filesystem.ts → breakingVersion()` isolates data per breaking version (e.g. `0.6.x` vs `0.7.x`), so the old keystore is present on disk but the install flow ignores it and generates a brand-new key.
+
+**Why this matters for ValiChord:** validator reputation (`ValidatorReputation`, `ValidatorProfile`, `StudyClaim` history, badges) is all keyed by `AgentPubKey`. A breaking upgrade silently hands every validator a fresh identity, erasing their accumulated reputation and requiring re-credentialing. The `person_key: Option<AgentPubKey>` field exists precisely to bridge this gap, but it has no population logic yet — the gap is currently open.
+
+### Required fix before shipping a validator desktop app across a breaking boundary
+
+Patch `kangaroo-electron/src/main/holochainManager.ts`:
+
+1. **Capture the old agent pubkey** during a pre-upgrade "prep step" (the old app already knows its own pubkey — call `agent_info()` before shutting down the old conductor).
+2. **Patch `installHappIfNecessary`** so a migration installs with the recorded old pubkey instead of calling `generateAgentPubKey()`. This is the load-bearing step — without it the other steps are inert.
+3. **Stage the old keypair into the new lair.** Two mechanisms, pick by lair format compatibility:
+   - **Copy `data/{keystore,.pw}` forward** — works if the lair on-disk format is compatible across the version jump (verify empirically for the specific 0.6→0.7 lair versions). `lairKeystore.ts → keystoreInitialized()` means a pre-seeded store is used as-is.
+   - **`lair-keystore import-seed`** — format-independent fallback; exports the seed from the old lair and imports it into the new one.
+
+The prep step + keystore carry + patched install constitute the migration linchpin. Until this is built, every breaking upgrade is an identity reset for validators.
+
+### Interim mitigation (no code change required)
+
+If a breaking upgrade ships before the patch is ready, re-admit existing validators via **bulk-issued invites** delivered inside the old app version while they are still authenticated (no email required for in-app delivery). `applicant_ref` threads the old and new identities in the off-DHT correlation store. Reputation history does not survive this path — it is a reset with a paper trail, not continuity.
 
 ---
 
@@ -165,6 +192,7 @@ For cross-platform CI: push to `release` branch of the new repo — GitHub Actio
 | UI refactor breaks dev workflow | Low | Gate kangaroo IPC path on `import.meta.env.PROD` |
 | Wrong network seed | Medium | Set seed explicitly in happ.yaml before pack; document it |
 | macOS quarantine on unsigned build | Low (pilot) | Validators run `xattr -r -d com.apple.quarantine` or use Linux/Windows first |
+| Breaking upgrade wipes validator identity | **High** (production) | Patch `installHappIfNecessary` before shipping across a breaking boundary; see "Breaking-upgrade key-continuity" section |
 
 ---
 
