@@ -56,6 +56,8 @@ def bundle_to_dict(bundle: Bundle) -> dict:
         d["harness_version"] = bundle.harness_version
     if bundle.meta is not None:
         d["meta"] = bundle.meta
+    if bundle.prml_lock_hash is not None:
+        d["prml_lock_hash"] = bundle.prml_lock_hash
     if bundle.repo_commit is not None:
         d["repo_commit"] = bundle.repo_commit
     return d

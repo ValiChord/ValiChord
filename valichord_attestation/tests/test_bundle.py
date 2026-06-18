@@ -156,3 +156,47 @@ def test_bundle_meta_arbitrary_shape():
     b = _make_bundle(meta=meta)
     assert b.meta["nested"] == {"k": 1}
     assert b.meta["list_val"] == [1, 2, 3]
+
+
+# --- Bundle.prml_lock_hash ---
+
+def test_prml_lock_hash_default_none():
+    b = _make_bundle()
+    assert b.prml_lock_hash is None
+
+
+def test_prml_lock_hash_valid():
+    lock = "a" * 64
+    b = _make_bundle(prml_lock_hash=lock)
+    assert b.prml_lock_hash == lock
+
+
+def test_prml_lock_hash_valid_mixed_hex():
+    lock = "0123456789abcdef" * 4
+    b = _make_bundle(prml_lock_hash=lock)
+    assert b.prml_lock_hash == lock
+
+
+def test_prml_lock_hash_too_short_raises():
+    with pytest.raises(MalformedBundleError, match="prml_lock_hash"):
+        _make_bundle(prml_lock_hash="a" * 63)
+
+
+def test_prml_lock_hash_too_long_raises():
+    with pytest.raises(MalformedBundleError, match="prml_lock_hash"):
+        _make_bundle(prml_lock_hash="a" * 65)
+
+
+def test_prml_lock_hash_uppercase_raises():
+    with pytest.raises(MalformedBundleError, match="prml_lock_hash"):
+        _make_bundle(prml_lock_hash="A" * 64)
+
+
+def test_prml_lock_hash_non_hex_raises():
+    with pytest.raises(MalformedBundleError, match="prml_lock_hash"):
+        _make_bundle(prml_lock_hash="g" * 64)
+
+
+def test_prml_lock_hash_empty_string_raises():
+    with pytest.raises(MalformedBundleError, match="prml_lock_hash"):
+        _make_bundle(prml_lock_hash="")

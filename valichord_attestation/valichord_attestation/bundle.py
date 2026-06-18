@@ -67,6 +67,11 @@ class Bundle:
     harness_version: Optional[str] = None
     command: Optional[str] = None
     meta: Optional[dict] = None
+    # SHA-256 hex digest of a PRML pre-registered manifest (Falsify / studio-11-co/falsify).
+    # When set, proves the evaluation bar was committed before the run was observable.
+    # Must be exactly 64 lowercase hex characters if present.
+    # Included in both bundle_hash and content_hash (distinguishes pre-registered from post-hoc).
+    prml_lock_hash: Optional[str] = None
 
     def __post_init__(self) -> None:
         required = {
@@ -83,3 +88,10 @@ class Bundle:
             raise MalformedBundleError("Bundle.metrics must contain at least one entry")
         if self.samples_total < 0 or self.samples_completed < 0:
             raise MalformedBundleError("Bundle sample counts must be non-negative integers")
+        if self.prml_lock_hash is not None:
+            if len(self.prml_lock_hash) != 64 or not all(
+                c in "0123456789abcdef" for c in self.prml_lock_hash
+            ):
+                raise MalformedBundleError(
+                    "Bundle.prml_lock_hash must be exactly 64 lowercase hex characters"
+                )

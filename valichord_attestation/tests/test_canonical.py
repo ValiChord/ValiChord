@@ -345,3 +345,119 @@ def test_content_hash_identical_content_and_meta():
     b2 = _simple_bundle(generated_at=ts, meta=meta)
     assert content_hash(b1) == content_hash(b2)
     assert hash_bundle(b1) == hash_bundle(b2)
+
+
+# --- Bundle.prml_lock_hash in canonical encoding ---
+
+_LOCK = "c30dba8e0f566d1beebf4f8d468e6e07c821f0c72562dfb64ddf6596796f7797"
+
+
+def test_prml_lock_hash_absent_when_none():
+    d = bundle_to_dict(_simple_bundle())
+    assert "prml_lock_hash" not in d
+
+
+def test_prml_lock_hash_present_when_set():
+    d = bundle_to_dict(_simple_bundle(prml_lock_hash=_LOCK))
+    assert d["prml_lock_hash"] == _LOCK
+
+
+def test_prml_lock_hash_in_canonical_bytes():
+    b = _simple_bundle(prml_lock_hash=_LOCK)
+    data = json.loads(canonicalise(b).decode("utf-8"))
+    assert data["prml_lock_hash"] == _LOCK
+
+
+def test_prml_lock_hash_changes_bundle_hash():
+    b_without = _simple_bundle()
+    b_with = _simple_bundle(prml_lock_hash=_LOCK)
+    assert hash_bundle(b_without) != hash_bundle(b_with)
+
+
+def test_prml_lock_hash_changes_content_hash():
+    # prml_lock_hash is NOT excluded from content_hash (unlike meta).
+    # A pre-registered bundle and a post-hoc bundle are scientifically distinct.
+    b_without = _simple_bundle()
+    b_with = _simple_bundle(prml_lock_hash=_LOCK)
+    assert content_hash(b_without) != content_hash(b_with)
+
+
+def test_prml_lock_hash_not_excluded_by_content_hash():
+    # Explicit check: meta is excluded; prml_lock_hash is not.
+    b = _simple_bundle(prml_lock_hash=_LOCK, meta={"repo_commit": "abc"})
+    b_no_meta = _simple_bundle(prml_lock_hash=_LOCK)
+    # content_hash strips meta — these two bundles differ only in meta, so same content_hash
+    assert content_hash(b) == content_hash(b_no_meta)
+    # but a bundle without prml_lock_hash differs in content_hash
+    b_no_lock = _simple_bundle(meta={"repo_commit": "abc"})
+    assert content_hash(b) != content_hash(b_no_lock)
+
+
+def test_two_different_locks_produce_different_hashes():
+    lock_a = "a" * 64
+    lock_b = "b" * 64
+    b_a = _simple_bundle(prml_lock_hash=lock_a)
+    b_b = _simple_bundle(prml_lock_hash=lock_b)
+    assert hash_bundle(b_a) != hash_bundle(b_b)
+    assert content_hash(b_a) != content_hash(b_b)
+
+
+# --- Canonicalization edge cases (Falsify cross-language analysis) ---
+# Reference: studio-11-co/falsify spec/analysis/canonicalization-portability-v0.1.md
+# valichord_attestation uses JCS (RFC 8785), not YAML, so YAML-specific findings
+# (quoting heuristics, seed integer width) do not apply. The relevant findings are:
+# Finding 2 (integer-valued float type loss) and Finding 4 (small-magnitude floats).
+# These tests document JCS behaviour so cross-language verifiers have a reference.
+
+def test_integer_valued_metric_encodes_stably():
+    # Finding 2 (Falsify): integer-valued floats can lose decimal type across JSON
+    # parsers. JCS/RFC 8785 serializes 1.0 as 1 (no decimal) — integer form.
+    # Document this so a verifier in JS/Go/Rust expects "value":1, not "value":1.0.
+    b = _simple_bundle(metrics=[Metric(key="accuracy", value=1.0)])
+    raw = canonicalise(b).decode("utf-8")
+    parsed = json.loads(raw)
+    assert parsed["metrics"][0]["value"] == 1
+    # Hash is deterministic
+    assert hash_bundle(b) == hash_bundle(b)
+
+
+def test_integer_and_float_one_hash_identically():
+    # Because JCS serializes both int 1 and float 1.0 as the token 1,
+    # Metric(value=1) and Metric(value=1.0) produce the same canonical bytes.
+    b_int = _simple_bundle(metrics=[Metric(key="accuracy", value=1)])
+    b_float = _simple_bundle(metrics=[Metric(key="accuracy", value=1.0)])
+    assert canonicalise(b_int) == canonicalise(b_float)
+    assert hash_bundle(b_int) == hash_bundle(b_float)
+
+
+def test_small_magnitude_metric_encodes_stably():
+    # Finding 4 (Falsify): small-magnitude floats near the scientific-notation
+    # threshold can render differently across language stdlibs. RFC 8785 §3.2.2.3
+    # specifies IEEE 754 double serialization. Test that valichord_attestation
+    # produces consistent bytes and that the value round-trips correctly.
+    b = _simple_bundle(metrics=[Metric(key="loss", value=0.000001)])
+    h1 = hash_bundle(b)
+    h2 = hash_bundle(b)
+    assert h1 == h2
+    parsed = json.loads(canonicalise(b).decode("utf-8"))
+    assert abs(parsed["metrics"][0]["value"] - 1e-6) < 1e-15
+
+
+def test_pre_round_produces_cross_language_safe_value():
+    # pre_round clips to 6 dp before JCS encoding, so any IEEE 754 noise beyond
+    # 6 dp cannot affect the hash. A verifier applying the same pre_round gets
+    # an identical canonical representation and therefore an identical hash.
+    v_raw = 0.8471239      # 7 significant digits of noise
+    v_rounded = pre_round(v_raw)   # → 0.847124
+    b_via_preround = _simple_bundle(metrics=[Metric(key="accuracy", value=v_rounded)])
+    b_direct = _simple_bundle(metrics=[Metric(key="accuracy", value=0.847124)])
+    assert canonicalise(b_via_preround) == canonicalise(b_direct)
+    assert hash_bundle(b_via_preround) == hash_bundle(b_direct)
+
+
+def test_six_dp_boundary_values_hash_differently():
+    # Values that differ at the 6th decimal place produce distinct hashes —
+    # pre_round does not over-clip.
+    b1 = _simple_bundle(metrics=[Metric(key="accuracy", value=0.847124)])
+    b2 = _simple_bundle(metrics=[Metric(key="accuracy", value=0.847125)])
+    assert hash_bundle(b1) != hash_bundle(b2)
