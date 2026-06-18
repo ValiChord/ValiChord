@@ -257,10 +257,14 @@ Run `holochain --version`. Current: 0.6.1.
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes:
 - `hdk → 0.7.x`, `hdi → 0.8.x` (Cargo.toml across all zomes)
 - Wasmer flags renamed: `wasmer_sys → wasmer-sys-cranelift`, `wasmer_wamr → wasmer-wasmi`
-- Conductor DB migrated to `holochain_data` — no migration path, must clear state
-- `must_get_agent_activity` response types changed
+- Conductor DB migrated to `holochain_data` — no migration path, must clear state; Oracle demo nodes need `docker compose down -v` before upgrading, not just a binary swap
+- `must_get_agent_activity` response types changed — new variants: `UntilTimestampIndeterminate`, `UntilTimestampGreaterThanChainHead`, `IncompleteChain`; `ChainFilter` now constructed via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining
 - `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
 - `get_links_details` renamed from `get_link_details`
+- **`validate()` migration to `FlatOp v2`** — `flat_op_v2` module added to HDI (`crates/hdi/src/flat_op_v2`); v2 `FlatOp` is built over new `dht_v2::Action`/`Op` types with validating constructors. All four ValiChord integrity zomes use `op.flattened::<EntryTypes, LinkTypes>()` and will need migrating when v1 is deprecated. Watch the HDI CHANGELOG on `develop` for the deprecation notice. (Source: `holochain/holochain` branch `cascade-read-and-cutover`)
+- **New `AppStatus` variants from source-chain restore** — `AppStatus::AwaitingRestore` (restore in progress) and `AppStatus::Unrecoverable(cell_id, reason)` (terminal — chain forked or warrant validated). `dev-setup.mjs` and Svelte UI currently assume only `Running`/`Disabled`; both need updating. New `SystemSignal` variants: `RestoreComplete { cell_id }`, `AppRestoreComplete { installed_app_id }`, `RestoreFailed { cell_id, reason }`. New conductor config field: `restore_chain_quorum: u8` (default 2). (Source: `holochain/holochain` branch `cascade-read-and-cutover`, `docs/design/source_chain_restore.md`)
+- **Source-chain restore does NOT recover private entries** — `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private and absent after a restore. Validators who lose their machine mid-round lose their uncommitted private attestations silently.
+- `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field (excluded from `PartialEq`/`Hash` — deduplication unaffected). Check any match arm that destructures this variant in `reject_if_warranted`.
 - CI: update `BASE=` URL and `key: hc-bin-0.6.1` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
 
 Ignore `0.7.0-dev.*` and `0.6.1-rc.*` tags — stable only.
