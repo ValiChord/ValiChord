@@ -87,6 +87,16 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### LOOPCHii outreach — 2026-06-18 ✓
+
+Cazandra Aporbo (CEO | Principal Architect, LOOPCHii Technologies LLC — www.loopchii.com) replied warmly to a cold outreach the same day. She independently articulated the governance/verification distinction ("related problems, but not the same problem") and called out the commit-reveal mechanism by name. She's asked to see the demo and connect next week.
+
+Reply sent pointing to `valichord-demo.onrender.com/demo` (Anthropic key required) with the LinkedIn video as a fallback; noted the demo now completes in ~90 seconds vs the sped-up 5-minute video. Call to be scheduled for w/c 2026-06-22.
+
+**Why relevant:** LOOPCHii's PriorAuth Sovereign is exactly the high-stakes decision context where unverified accuracy claims matter. The two layers (Loopchii = rules/governance, ValiChord = independent verification of claimed results) are natural complements. Contact: cazandra@loopchii.com. Gmail thread ID: 19edaddbd8601fb4.
+
+---
+
 ### Maintenance + ecosystem triage — 2026-06-13 ✓ (pushed to main)
 
 A round of small, durable fixes plus a wide sweep of the Holochain ecosystem for patterns and current tooling. All code/doc changes are on `main`.
