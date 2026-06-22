@@ -460,6 +460,10 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
         'discipline_type':        disc['type'],
         'validator_count':        len(VALIDATOR_URLS),
         'researcher_reveal_hash': researcher_reveal_hash,
+        'record_url': (
+            f'{RESEARCHER_URL}/record?hash={urllib.parse.quote(external_hash_b64)}'
+            if external_hash_b64 else ''
+        ),
         'validator_verdicts': [
             {'validator': i + 1, 'outcome': v['outcome'],
              'confidence': v['confidence'], 'reasoning': v['reasoning']}
@@ -627,9 +631,12 @@ def main():
     # ── Mode selection ────────────────────────────────────────────────────────
     # --mode decentralised  : call four separate node APIs (docker-compose stack)
     # --mode centralised    : call single serve.mjs bridge (Oracle / legacy)
+    # --emit-oetp           : print an OETP disclosure JSON after the round
     # default               : decentralised if VALICHORD_RESEARCHER_URL is set,
     #                         otherwise centralised.
     args = sys.argv[1:]
+    emit_oetp = '--emit-oetp' in args
+
     if '--mode' in args:
         idx  = args.index('--mode')
         mode = args[idx + 1] if idx + 1 < len(args) else 'centralised'
@@ -662,6 +669,16 @@ def main():
         result = run_full_protocol(data_hash, metrics, verdicts)
 
     display_result(result)
+
+    if emit_oetp:
+        import json as _json
+        from oetp_bridge import minimal_disclosure
+        print('\n── OETP Disclosure (' + '─' * 40)
+        print(_json.dumps(minimal_disclosure(
+            product_url=os.environ.get('VALICHORD_PRODUCT_URL', RESEARCHER_URL),
+            round_result=result,
+        ), indent=2))
+        print('─' * 52 + ')')
 
 if __name__ == '__main__':
     main()

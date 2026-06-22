@@ -87,6 +87,25 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### OETP bridge — 2026-06-22 ✓ (pushed to main)
+
+`demo/oetp_bridge.py` — three pure functions for embedding a ValiChord HarmonyRecord into an [Open Ethics Transparency Protocol](https://github.com/OpenEthicsAI/OETP) disclosure (an IETF Internet-Draft JSON standard for AI transparency).
+
+**Integration point:** `snapshot.processing.source[]` — an existing OETP array of `{type, url, comments}` pointers. ValiChord adds a `"ValiChord Reproducibility Attestation"` entry whose `url` is the live DHT record and whose `comments` state outcome, agreement level, and validator count. Verified against the vNext schema before building.
+
+**API:**
+- `valichord_source_entry(round_result)` — builds the single source entry
+- `inject_into_disclosure(disclosure, round_result)` — non-mutating deepcopy injection into any existing OETP JSON
+- `minimal_disclosure(product_url, round_result)` — standalone valid OETP disclosure from a round result alone
+
+**`--emit-oetp` flag** added to `ai_validator.py`. Set `VALICHORD_PRODUCT_URL` to control the product URL; falls back to `RESEARCHER_URL`.
+
+28 tests, all pass. Works with both `demo_runner` result dicts (key `outcome`) and `ai_validator` result dicts (key `outcome_type`).
+
+**Usage context:** This is a general reusable capability — ValiChord emits attestations compatible with an IETF-track transparency standard. Whether a given partner uses OETP is a question to ask, not an assumption to build a pitch on. Surface only if they confirm they use it.
+
+---
+
 ### LOOPCHii outreach — 2026-06-18 ✓
 
 Cazandra Aporbo (CEO | Principal Architect, LOOPCHii Technologies LLC — www.loopchii.com) replied warmly to a cold outreach the same day. She independently articulated the governance/verification distinction ("related problems, but not the same problem") and called out the commit-reveal mechanism by name. She's asked to see the demo and connect next week.
