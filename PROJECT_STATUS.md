@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-13
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with three adapters (InspectAI, InspectEvals, PiSession) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 326 valichord_attestation tests, 99% line coverage.
+**Last updated:** 2026-06-23
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
 
@@ -86,6 +86,18 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Two new valichord_attestation adapters — 2026-06-23 ✓ (pushed to main)
+
+**`LmEvalAdapter`** (`valichord_attestation/adapters/lm_eval_adapter.py`) — reads lm-evaluation-harness `results_*.json` (v0.4+) and optional `samples_*.json` (from `--log_samples`) and converts them into a canonical Bundle. Field mapping: `pretty_model_name` / `model_source` / `pretrained=` parse / `config.model` (priority chain) → `model_id`; task name(s) `"|"`-joined when multi-task → `task_id`; per-metric values with `,none` suffix stripped and `_stderr` keys excluded → metrics; multi-task keys prefixed with task name (`hellaswag/acc`). Without `--log_samples`, one summary leaf per task is synthesised as a fallback. `task_names=`, `metric_keys=`, `task_id_override=` for caller control. 51 tests.
+
+**`AiluminateAdapter`** (`valichord_attestation/adapters/ailuminate_adapter.py`) — reads the `benchmark_run_*.json` report produced by MLCommons modelbench (AILuminate v1.0+) and optional per-item annotation dicts from `compile_annotations()`. Field mapping: `scores[i].sut.uid` → `model_id`; `benchmark.uid` → `task_id`; per-hazard `score.estimate` → `{code}_safe_rate` metrics (e.g. `cse_safe_rate`, `dfm_safe_rate`); `numeric_grade` 1-5 → `{code}_numeric_grade` (optional, on by default); top-level `score` → `overall_safe_rate`; `end_time` → `generated_at`; `_metadata.code.source.code_version` → `repo_commit`. When annotations are provided each `{hazard, prompt, response, is_safe, is_valid}` dict is used as a Merkle leaf, committing to the model response AND the grader ensemble verdict together. Multi-SUT reports require `sut_uid=` to select one model. Hazard short-code extraction strips version prefix (`safe_hazard-1_0-cse` → `cse`). 42 tests.
+
+**Why these two matter:** `LmEvalAdapter` covers the de-facto industry standard for LLM benchmarking (HuggingFace Open LLM Leaderboard, NVIDIA, Cohere etc.) — highest-value target for the "user is already running this" scenario. `AiluminateAdapter` covers the strongest ValiChord *value story*: AILuminate uses LLM-as-judge grading where honest validators can legitimately differ, so blind independent verification proves more than anti-fabrication — it proves independent judgment convergence. Natural fit for Justin (AISI/Arcadia AI-safety world).
+
+**Adapter priority tracking (from eval-landscape survey):** lm-eval-harness ✓ done → AILuminate ✓ done → HELM methodology (reference only, maintenance mode, no adapter planned) → everything else: skip.
+
+---
 
 ### OETP bridge — 2026-06-22 ✓ (pushed to main)
 
