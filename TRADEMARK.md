@@ -28,5 +28,8 @@ ValiChord is currently maintained by **Ceri John** (founder and maintainer). Dec
 ## Commercial use and licensing
 The Apache 2.0 licence already permits commercial use of the code. Separately, the project may offer **commercial licences, certification, hosting, and support** for organisations that need them (for example, the right to use the ValiChord name in a commercial offering, or operation of independent verification on their behalf). These are arranged through direct agreement and do not change the open licence on the code. To discuss commercial use, see Contact.
 
+## Maintainer's note on IP structure
+I've structured the IP deliberately — open core, trademark, contributor relicensing to keep the commercial option open — and I'll have counsel finalize the binding pieces before anything gets signed.
+
 ## Contact
 For trademark permission, commercial licensing, or governance questions: **topeuph@gmail.com**.
