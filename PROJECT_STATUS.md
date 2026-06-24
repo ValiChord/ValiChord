@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-24
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
@@ -86,6 +86,24 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Governance / IP files — 2026-06-24 ✓ (pushed to main)
+
+Three root-level files establishing the open-core IP structure:
+
+- **`CONTRIBUTING.md`** — contributor guide + lightweight CLA. Point 3 grants the maintainer a perpetual right to re-license contributions, preserving the commercial/dual-licence option without requiring future contributor contact.
+- **`NOTICE`** — standard Apache 2.0 copyright notice; scopes the licence to source code only and cross-references `TRADEMARK.md`.
+- **`TRADEMARK.md`** — trademark policy, independence commitment, governance statement, and commercial-licensing terms. Includes a "Maintainer's note on IP structure" confirming the deliberate open-core design; binding pieces to be finalized with counsel before anything is signed.
+
+Contact email (`topeuph@gmail.com`) wired into both `CONTRIBUTING.md` and `TRADEMARK.md`.
+
+---
+
+### Meeting with Cazandra Aporbo (LOOPCHii) — 2026-06-24
+
+Meeting went well. Transcript being prepared. See `memory/reference_loopchii_cazandra.md` for contact and thread details.
+
+---
 
 ### Two new valichord_attestation adapters — 2026-06-23 ✓ (pushed to main)
 
