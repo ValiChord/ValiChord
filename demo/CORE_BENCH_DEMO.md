@@ -159,16 +159,16 @@ export GOOGLE_API_KEY=...             # mixed-model only
 # (optional) confirm a capsule reproduces before a full run:
 python3 core_bench_spike.py --capsule capsule-0851068 --model anthropic/claude-opus-4-8
 
-# The commit-reveal half targets the node HTTP APIs from demo_runner, which
-# default to the permanently-live Oracle nodes (132.145.34.27:3001-3004). To run
-# the DHT half on a LOCAL stack instead, bring it up and point the runner at it:
+# The commit-reveal half targets localhost by default. Bring up the local stack:
 docker compose -f docker-compose.yml up --build -d
 until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node API ->')" -ge 4 ]; do sleep 3; done && echo Ready
-export VALICHORD_RESEARCHER_URL=http://localhost:3001
-export VALICHORD_VALIDATOR_1_URL=http://localhost:3002
-export VALICHORD_VALIDATOR_2_URL=http://localhost:3003
-export VALICHORD_VALIDATOR_3_URL=http://localhost:3004
-# (omit the four exports to record on the public Oracle DHT instead — no local stack needed)
+# (or: bash run_local_demo.sh — starts the stack AND runs the demo in one command)
+
+# To record on the public Oracle DHT instead (no local stack needed), set:
+# export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
+# export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
+# export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
+# export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
 
 # full protocol run (mixed-model default: claude-opus-4-8 / gpt-4o / gemini-2.5-pro):
 python3 core_bench_runner.py --capsule capsule-0851068
@@ -231,9 +231,8 @@ The match is **recomputable from the record** — you don't have to trust the
 demo, the researcher, or any validator:
 
 ```bash
-# researcher node URL — the public Oracle by default, or localhost:3001 if you
-# set the VALICHORD_*_URL exports above to run on a local stack:
-curl "http://132.145.34.27:3001/record?hash=<external_hash>"
+# localhost by default; replace with the Oracle URL if you recorded there:
+curl "http://localhost:3001/record?hash=<external_hash>"
 ```
 
 The researcher's committed value + interval live in the `ResearcherReveal`

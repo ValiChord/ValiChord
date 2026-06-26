@@ -221,9 +221,10 @@ is exactly what we'd want. Pass or fail, we'd love to hear how it goes.
 
 ## What still needs doing
 
-- **Make the local stack the default run target.** The runner currently defaults
-  to hosted nodes; a maintainer should never accidentally write to ours. Flip the
-  default to localhost (or ship a one-command `make demo`).
+- ~~**Make the local stack the default run target.**~~ Done — the runner now
+  defaults to `localhost:3001–3004`, and `demo/run_local_demo.sh` brings up the
+  stack and runs the demo in one command. To record on the Oracle DHT instead,
+  set the `VALICHORD_*_URL` env vars explicitly.
 - **Exercise mixed-model and a hosted, public record.** The local all-Sonnet
   end-to-end is verified (2026-06-01); still to do: a mixed-model run (Claude /
   GPT-4o / Gemini) and a hosted node running the current code so there is a

@@ -21,11 +21,11 @@ from ai_validator_cma import (
 )
 from agreement import derive_agreement_level, derive_majority_outcome
 
-RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://132.145.34.27:3001")
+RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://localhost:3001")
 VALIDATOR_URLS = [
-    os.environ.get("VALICHORD_VALIDATOR_1_URL", "http://132.145.34.27:3002"),
-    os.environ.get("VALICHORD_VALIDATOR_2_URL", "http://132.145.34.27:3003"),
-    os.environ.get("VALICHORD_VALIDATOR_3_URL", "http://132.145.34.27:3004"),
+    os.environ.get("VALICHORD_VALIDATOR_1_URL", "http://localhost:3002"),
+    os.environ.get("VALICHORD_VALIDATOR_2_URL", "http://localhost:3003"),
+    os.environ.get("VALICHORD_VALIDATOR_3_URL", "http://localhost:3004"),
 ]
 
 log = logging.getLogger(__name__)
