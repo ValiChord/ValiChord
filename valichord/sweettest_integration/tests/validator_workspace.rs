@@ -14,9 +14,11 @@
 //!   3. get_all_tasks (empty + multi)
 //!   4. get_all_private_attestations — empty + multi (new — previously untested)
 //!   5. ValidatorPrivateAttestation immutability — no delete function in API (new)
+//!   6. record_deliberate_abstention + get_abstention_for_request (new)
 
 use valichord_sweettest::*;
 use validator_workspace_coordinator::SealAttestationInput;
+use validator_workspace_integrity::DeliberateAbstention;
 
 // ---------------------------------------------------------------------------
 // 1. receive_task + get_task
@@ -229,4 +231,69 @@ async fn private_attestation_immutability_no_delete_fn_in_api() {
         .call_fallible(&zome, "delete_attestation_for_test", attestation_hash)
         .await;
     assert!(result.is_err(), "calling a nonexistent delete function must be rejected");
+}
+
+// ---------------------------------------------------------------------------
+// 6. record_deliberate_abstention + get_abstention_for_request (new)
+// ---------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_abstention_returns_none_before_recording() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.validator_zome();
+
+    let request_ref = fake_external_hash(0x40);
+    let result: Option<Record> = conductor
+        .call(&zome, "get_abstention_for_request", request_ref)
+        .await;
+    assert!(result.is_none(), "get_abstention_for_request should return None before any abstention is recorded");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn record_and_retrieve_deliberate_abstention() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.validator_zome();
+
+    let request_ref = fake_external_hash(0x50);
+    let abstention = DeliberateAbstention {
+        request_ref: request_ref.clone(),
+        reason: Some("Conflict of interest — co-author on a prior study with the researcher".into()),
+    };
+
+    let abstention_hash: ActionHash = conductor
+        .call(&zome, "record_deliberate_abstention", abstention)
+        .await;
+
+    let record: Option<Record> = conductor
+        .call(&zome, "get_abstention_for_request", request_ref)
+        .await;
+    assert!(record.is_some(), "recorded abstention should be retrievable by request_ref");
+    assert_eq!(
+        *record.unwrap().action_address(),
+        abstention_hash,
+        "retrieved record ActionHash must match the one returned by record_deliberate_abstention"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn duplicate_abstention_is_rejected() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.validator_zome();
+
+    let request_ref = fake_external_hash(0x60);
+    let abstention = DeliberateAbstention {
+        request_ref: request_ref.clone(),
+        reason: None,
+    };
+
+    // First abstention succeeds.
+    let _: ActionHash = conductor
+        .call(&zome, "record_deliberate_abstention", abstention.clone())
+        .await;
+
+    // Second abstention on the same request must be rejected.
+    let result: Result<ActionHash, _> = conductor
+        .call_fallible(&zome, "record_deliberate_abstention", abstention)
+        .await;
+    assert!(result.is_err(), "recording a second abstention for the same request must fail");
 }

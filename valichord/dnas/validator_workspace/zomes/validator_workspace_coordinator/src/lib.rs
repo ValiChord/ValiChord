@@ -1,5 +1,5 @@
 use hdk::prelude::*;
-use validator_workspace_integrity::{EntryTypes, LinkTypes, ValidationTask, ValidatorPrivateAttestation};
+use validator_workspace_integrity::{DeliberateAbstention, EntryTypes, LinkTypes, ValidationTask, ValidatorPrivateAttestation};
 use valichord_shared_types::{CommitmentSealedInput, ValidationAttestation};
 use sha2::{Digest, Sha256};
 
@@ -132,6 +132,36 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
     Ok(attestation_hash)
 }
 
+/// Record a deliberate abstention from a study — the validator's conscious recusal.
+///
+/// Distinguishes "never showed up" from "stepped back with a reason" — e.g.
+/// a late-discovered conflict of interest or a study outside the validator's
+/// competence.  The Action timestamp is the authoritative abstention time.
+///
+/// One abstention per request_ref is enforced: a second call returns an error.
+#[hdk_extern]
+pub fn record_deliberate_abstention(input: DeliberateAbstention) -> ExternResult<ActionHash> {
+    // One abstention per request: guard against duplicate entries.
+    let existing = get_links(
+        LinkQuery::try_new(input.request_ref.clone(), LinkTypes::RequestToAbstention)?,
+        GetStrategy::Local,
+    )?;
+    if !existing.is_empty() {
+        return Err(wasm_error!(WasmErrorInner::Guest(
+            "A deliberate abstention already exists for this request".into()
+        )));
+    }
+
+    let abstention_hash = create_entry(EntryTypes::DeliberateAbstention(input.clone()))?;
+    create_link(
+        input.request_ref,
+        abstention_hash.clone(),
+        LinkTypes::RequestToAbstention,
+        (),
+    )?;
+    Ok(abstention_hash)
+}
+
 // ---------------------------------------------------------------------------
 // Read functions
 // ---------------------------------------------------------------------------
@@ -189,6 +219,33 @@ pub fn get_all_private_attestations(_: ()) -> ExternResult<Vec<Record>> {
         })
         .collect();
     Ok(attestations)
+}
+
+/// Return the deliberate abstention for a request, if one was recorded.
+#[hdk_extern]
+pub fn get_abstention_for_request(request_ref: ExternalHash) -> ExternResult<Option<Record>> {
+    let links = get_links(
+        LinkQuery::try_new(request_ref, LinkTypes::RequestToAbstention)?,
+        GetStrategy::Local,
+    )?;
+    match links.first() {
+        Some(link) => {
+            let target = link
+                .target
+                .clone()
+                .into_action_hash()
+                .ok_or(wasm_error!(WasmErrorInner::Guest(
+                    "Invalid RequestToAbstention link target".into()
+                )))?;
+            let records = query(
+                ChainQueryFilter::new()
+                    .action_type(ActionType::Create)
+                    .include_entries(true),
+            )?;
+            Ok(records.into_iter().find(|r| *r.action_address() == target))
+        }
+        None => Ok(None),
+    }
 }
 
 /// Return all ValidationTask records from the local source chain.

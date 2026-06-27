@@ -46,6 +46,22 @@ pub struct ValidationTask {
     pub compensation_tier: CompensationTier,
 }
 
+/// A validator's conscious decision not to participate in a specific study.
+///
+/// Distinguishes "never showed up" from "deliberately stepped back" —
+/// the equivalent of a reasoned recusal in scientific peer review.
+/// The Action timestamp is the authoritative abstention time.
+///
+/// IMMUTABLE after creation — validate() blocks all updates and deletes.
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct DeliberateAbstention {
+    /// References the ValidationRequest in the Attestation DNA.
+    pub request_ref: ExternalHash,
+    /// Optional reason — e.g. conflict of interest, outside competence.
+    pub reason: Option<String>,
+}
+
 /// THE COMMIT PHASE — the validator's sealed private attestation.
 ///
 /// Stored as a private entry: invisible to all peers and the shared DHT.
@@ -100,6 +116,8 @@ pub enum EntryTypes {
     ValidationTask(ValidationTask),
     #[entry_type(visibility = "private")]
     ValidatorPrivateAttestation(ValidatorPrivateAttestation),
+    #[entry_type(visibility = "private")]
+    DeliberateAbstention(DeliberateAbstention),
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +128,8 @@ pub enum EntryTypes {
 pub enum LinkTypes {
     /// ValidationTask ActionHash → ValidatorPrivateAttestation ActionHash
     TaskToPrivateAttestation,
+    /// ExternalHash (request_ref) → DeliberateAbstention ActionHash
+    RequestToAbstention,
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +152,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "ValidatorPrivateAttestation is immutable — updates are not permitted".into(),
         )),
 
+        // --- DeliberateAbstention immutability (updates) --------------------
+
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::DeliberateAbstention(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "DeliberateAbstention is immutable — updates are not permitted".into(),
+        )),
+
         // --- ValidatorPrivateAttestation immutability (deletes) -------------
 
         FlatOp::RegisterDelete(OpDelete { ref action }) => {
@@ -143,10 +171,18 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         app_def.entry_index,
                         entry,
                     )?;
-                    if let Some(EntryTypes::ValidatorPrivateAttestation(_)) = entry_type {
-                        return Ok(ValidateCallbackResult::Invalid(
-                            "ValidatorPrivateAttestation is immutable — deletes are not permitted".into(),
-                        ));
+                    match entry_type {
+                        Some(EntryTypes::ValidatorPrivateAttestation(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "ValidatorPrivateAttestation is immutable — deletes are not permitted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::DeliberateAbstention(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "DeliberateAbstention is immutable — deletes are not permitted".into(),
+                            ));
+                        }
+                        _ => {}
                     }
                 }
             }
