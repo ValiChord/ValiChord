@@ -40,7 +40,7 @@ jobs:
         id: cache-hc-bin
         with:
           path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.6.1
+          key: ${{ runner.os }}-hc-bin-0.6.2
 
       - name: Cache WASM build artifacts
         uses: actions/cache@v4
@@ -57,7 +57,7 @@ jobs:
         if: steps.cache-hc-bin.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.1
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.2
           curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
           curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
           curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
@@ -191,13 +191,13 @@ jobs:
         id: cache-hc-bin-sweettest
         with:
           path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.6.1
+          key: ${{ runner.os }}-hc-bin-0.6.2
 
       - name: Download Holochain binaries
         if: steps.cache-hc-bin-sweettest.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.1
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.2
           curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
           curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
           curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
