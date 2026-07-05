@@ -21,7 +21,7 @@
 import { createServer } from 'node:http';
 import {
   withSession, readBody, loadHcClient, externalHashFromB64,
-  buildNumericConvergence, executionAgreementNote,
+  buildNumericConvergence, executionAgreementNote, checkNodeKey, capMap,
 } from './node-lib.mjs';
 
 const PORT = parseInt(process.env.NODE_API_PORT || '3001', 10);
@@ -35,8 +35,12 @@ const server = createServer(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-ValiChord-Node-Key');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // Write endpoints require the shared node key when NODE_API_KEY is set.
+  // Reads (/health, /phase, /record) stay open — public record URLs are the point.
+  if (req.method === 'POST' && !checkNodeKey(req, res)) return;
 
   // ── GET /health ─────────────────────────────────────────────────────────────
   if (req.method === 'GET' && url === '/health') {
@@ -94,6 +98,7 @@ const server = createServer(async (req, res) => {
 
       const externalHashB64 = encodeHashToBase64(externalHash);
       lockedResults.set(externalHashB64, { nonce: lockedNonce, externalHash });
+      capMap(lockedResults);
 
       console.log(`[lock-result] locked ${externalHashB64.slice(0, 20)}…`);
       res.writeHead(200);

@@ -282,9 +282,11 @@ Reply with ONLY a JSON object — no markdown, no explanation:
 def _node_post(url, payload, timeout=600):
     """POST JSON to a node API endpoint; raise on HTTP error."""
     data = json.dumps(payload).encode()
-    req  = urllib.request.Request(
-        url, data=data, headers={'Content-Type': 'application/json'}, method='POST',
-    )
+    headers = {'Content-Type': 'application/json'}
+    node_key = os.environ.get('VALICHORD_NODE_KEY', '')
+    if node_key:
+        headers['X-ValiChord-Node-Key'] = node_key
+    req  = urllib.request.Request(url, data=data, headers=headers, method='POST')
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read())

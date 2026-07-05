@@ -19,6 +19,7 @@
 import { createServer } from 'node:http';
 import {
   withSession, retryOnNetworkError, readBody, loadHcClient, externalHashFromB64,
+  checkNodeKey, capMap,
 } from './node-lib.mjs';
 
 const PORT = parseInt(process.env.NODE_API_PORT || '3001', 10);
@@ -32,8 +33,12 @@ const server = createServer(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-ValiChord-Node-Key');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // Write endpoints require the shared node key when NODE_API_KEY is set.
+  // /health stays open as a liveness probe.
+  if (req.method === 'POST' && !checkNodeKey(req, res)) return;
 
   // ── GET /health ─────────────────────────────────────────────────────────────
   if (req.method === 'GET' && url === '/health') {
@@ -179,6 +184,7 @@ const server = createServer(async (req, res) => {
       });
 
       tasks.set(body.external_hash_b64, { taskHash: taskHashSerialized, nonce, va });
+      capMap(tasks);
 
       console.log(`[/commit] sealed commitment for ${body.external_hash_b64.slice(0, 20)}…`);
       res.writeHead(200);

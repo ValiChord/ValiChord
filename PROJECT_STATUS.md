@@ -101,12 +101,16 @@ Full read-only audit of all workspaces (4 DNA zomes, Flask demo, Node bridges, a
 
 **Verified:** UI `npm run check` 0 errors; demo suite 52 tests pass; scrub/eviction/cache-cap logic unit-tested inline.
 
-**Deferred (decision needed):**
-1. **Live demo skips commit-reveal hash verification** — Oracle installs with empty issuer (`demo/node-setup.mjs:78`), and `submit_attestation` only verifies SHA-256(msgpack‖nonce) when the issuer key is non-empty. Website copy claims on-chain verification. Fix = decouple hash check from issuer bypass (coordinator-only change, no DNA hash) + Oracle redeploy, or soften copy.
-2. **Oracle node APIs (3001–3004) accept unauthenticated writes** + unbounded in-memory Maps. Needs shared-secret header + redeploy.
-3. StudyClaim update/delete guards (integrity change → DNA hash bump — batch with next integrity work).
-4. Merkle leaf/node domain separation (RFC 6962 prefixes) — attestation format v2 consideration.
-5. `demo/Dockerfile.node` runs as root (Python Dockerfile drops privileges; untested volume permissions kept me from changing it).
+**Demo follow-up round (same day, after user approval):**
+- **Website copy corrected** (`demo/app.py` accordion) — no longer claims on-chain reveal verification; now says commitments are public and immutable before reveal (true on the demo network) and that production networks enforce the hash match at reveal time (true). Root cause: Oracle installs with empty issuer (`demo/node-setup.mjs:78`) and `submit_attestation` skips SHA-256 verification in that mode. **The coordinator fix was investigated and deliberately NOT made:** the empty-nonce bypass is load-bearing for both test suites (`sweettest attestation.rs:55`, `governance.test.ts:238` — tests fabricate commitments and reveal with empty nonces). Making verification unconditional breaks ~165 tests. Proper fix = decouple verification from the issuer key via a dedicated test-mode flag + migrate tests to the full seal→nonce→reveal flow — needs its own session.
+- **Node API write auth shipped (off by default)** — `checkNodeKey` in `node-lib.mjs`: when `NODE_API_KEY` is set in the container env, all POST endpoints on researcher/validator nodes require a matching `X-ValiChord-Node-Key` header (timing-safe compare). Reads (`/health`, `/phase`, `/record`) stay open — public record URLs are the point. All three Python callers (`ai_validator.py`, `ai_validator_cma.py`, `demo_runner.py`) send the header when `VALICHORD_NODE_KEY` is set. **Enabling it is an ops step:** set `NODE_API_KEY` on the 4 Oracle containers AND `VALICHORD_NODE_KEY` on Render + any local runner — rolling out one side only breaks the demo.
+- **In-memory Map caps** — `capMap` (200 entries, oldest-evicted) on `lockedResults` (researcher) and `tasks` (validator); unauthenticated spam can no longer grow node memory without bound.
+- **`Dockerfile.node` root user — investigated, WON'T FIX:** conductor keystores live in named volumes that are root-owned on Oracle today. Adding `USER` would crash-loop all 4 nodes on any future image rebuild that doesn't `down -v` — and `down -v` destroys the publicly shared HarmonyRecord URLs. Container-root in an isolated bridge network is the lesser risk.
+
+**Still deferred (core, batch with future work):**
+1. Commit-reveal verification decoupled from issuer bypass (coordinator + test migration — dedicated session; see above).
+2. StudyClaim update/delete guards (integrity change → DNA hash bump — batch with next integrity work).
+3. Merkle leaf/node domain separation (RFC 6962 prefixes) — attestation format v2 consideration.
 
 ### DeliberateAbstention entry type (validator_workspace DNA) — 2026-06-27 ✓ (pushed to main)
 

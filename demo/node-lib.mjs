@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 
 export const ADMIN_PORT = parseInt(process.env.ADMIN_PORT || '4444', 10);
 export const APP_PORT   = parseInt(process.env.APP_PORT   || '4500', 10);
@@ -57,6 +58,35 @@ export function deserialize(v) {
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ── Write-endpoint auth (optional) ───────────────────────────────────────────
+//
+// The node APIs are exposed on public Oracle ports. When NODE_API_KEY is set,
+// write endpoints require a matching X-ValiChord-Node-Key header. Empty/unset
+// key = open mode (current behaviour) so existing deployments keep working
+// until the secret is rolled out to both Oracle (containers) and callers
+// (Render app / ai_validator env).
+
+const NODE_API_KEY = process.env.NODE_API_KEY || '';
+
+export function checkNodeKey(req, res) {
+  if (!NODE_API_KEY) return true;
+  const supplied = Buffer.from(String(req.headers['x-valichord-node-key'] || ''));
+  const expected = Buffer.from(NODE_API_KEY);
+  const ok = supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  if (!ok) {
+    res.writeHead(401);
+    res.end(JSON.stringify({ error: 'Invalid or missing X-ValiChord-Node-Key' }));
+  }
+  return ok;
+}
+
+// Cap an in-memory Map by evicting oldest-inserted entries. The node APIs key
+// run state by external_hash_b64; unauthenticated spam must not grow memory
+// without bound.
+export function capMap(map, max = 200) {
+  while (map.size > max) map.delete(map.keys().next().value);
+}
 
 export function readBody(req) {
   return new Promise((resolve, reject) => {

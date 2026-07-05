@@ -126,9 +126,11 @@ def _server_api_key() -> str:
 
 def _node_post(url: str, payload: dict, timeout: int = 600) -> dict:
     data = json.dumps(payload).encode()
-    req  = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}, method="POST",
-    )
+    headers = {"Content-Type": "application/json"}
+    node_key = os.environ.get("VALICHORD_NODE_KEY", "")
+    if node_key:
+        headers["X-ValiChord-Node-Key"] = node_key
+    req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read())
