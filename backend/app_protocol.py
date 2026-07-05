@@ -31,6 +31,7 @@ Environment variables (all optional):
   HOLOCHAIN_APP_ID             — installed app ID (default valichord-demo)
 """
 
+import hmac
 import os
 import re
 import hashlib
@@ -99,7 +100,9 @@ def _require_api_key(f):
             or request.form.get('api_key', '')
             or request.args.get('api_key', '')
         )
-        if key not in _API_KEYS:
+        # Constant-time comparison against every configured key — a plain set
+        # lookup would leak key-prefix timing information to a remote attacker.
+        if not any(hmac.compare_digest(key, k) for k in _API_KEYS):
             return jsonify({
                 'error': 'Invalid or missing API key.',
                 'hint': 'Pass your key in the X-ValiChord-Key request header.',

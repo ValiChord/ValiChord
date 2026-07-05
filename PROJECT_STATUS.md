@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-06-27
+**Last updated:** 2026-07-05
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
@@ -86,6 +86,27 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Security/efficiency audit + spring-cleaning fixes — 2026-07-05 ✓
+
+Full read-only audit of all workspaces (4 DNA zomes, Flask demo, Node bridges, attestation library, UI, CI), then targeted fixes. **No DNA or protocol changes; nothing repacked.**
+
+**Fixed:**
+- **`ws` high-severity vulns** — `npm audit fix` in `valichord-ui` (now 0 vulns) and `valichord/tests` (ws fixed; remaining 4 vulns are the esbuild→vite→vitest dev-tooling chain, fix requires breaking vitest 3→4 — deliberately deferred, dev-only exposure)
+- **GovernanceView badge display bug** — `inferBadge`/`badgeEmoji`/`badgeClass` compared against stale short names ("Gold"/"Silver"/"Bronze"/"Failed"); every badge rendered "—". Now uses canonical `BadgeType` literals. Same class of bug as the v0.5.4 types.ts fix, missed in the view. `npm run check` now 0 errors (was 14; also added required `keyType: "ed25519"` in holochain.ts dev credentials)
+- **Demo API-key hygiene (`demo/app.py`)** — `_custom_jobs` entries scrub `_api_key`/`_claim`/`_user_answer` on terminal state and evict after 1 h TTL; watchdog sweep is now exception-guarded (dict-mutation race could previously kill the thread → demo stuck "busy" until redeploy); `_custom_running` cleared under lock
+- **`custom_runner.py` agent-env cache** — now keyed by SHA-256 of the API key (raw visitor keys no longer persist in memory) and size-capped at 32
+- **CI supply chain** — `jlumbroso/free-disk-space@main` pinned to SHA `54081f1` (= v1.3.1, same commit; zero behaviour change)
+- **`backend/app_protocol.py`** — API key check now constant-time (`hmac.compare_digest`)
+
+**Verified:** UI `npm run check` 0 errors; demo suite 52 tests pass; scrub/eviction/cache-cap logic unit-tested inline.
+
+**Deferred (decision needed):**
+1. **Live demo skips commit-reveal hash verification** — Oracle installs with empty issuer (`demo/node-setup.mjs:78`), and `submit_attestation` only verifies SHA-256(msgpack‖nonce) when the issuer key is non-empty. Website copy claims on-chain verification. Fix = decouple hash check from issuer bypass (coordinator-only change, no DNA hash) + Oracle redeploy, or soften copy.
+2. **Oracle node APIs (3001–3004) accept unauthenticated writes** + unbounded in-memory Maps. Needs shared-secret header + redeploy.
+3. StudyClaim update/delete guards (integrity change → DNA hash bump — batch with next integrity work).
+4. Merkle leaf/node domain separation (RFC 6962 prefixes) — attestation format v2 consideration.
+5. `demo/Dockerfile.node` runs as root (Python Dockerfile drops privileges; untested volume permissions kept me from changing it).
 
 ### DeliberateAbstention entry type (validator_workspace DNA) — 2026-06-27 ✓ (pushed to main)
 
@@ -763,7 +784,7 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | `demo/researcher-node.mjs` | Node.js HTTP API for researcher conductor |
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
 | `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
-| `backend/app.py` | Flask REST API |
+| `backend/app_protocol.py` | Flask REST API integration layer (its `holochain_bridge` import lives in the deployment repo, not here) |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
 | `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
 | `valichord-ui/src/lib/` | Svelte components: ResearcherView, ValidatorView, GovernanceView, types.ts, holochain.ts |

@@ -17,6 +17,17 @@ _custom_jobs:   dict  = {}
 _custom_lock         = threading.Lock()
 _custom_running      = False
 _CUSTOM_TIMEOUT_SECS = 1800  # release lock if user never clicks Reveal after 30 min
+_CUSTOM_JOB_TTL_SECS = 3600  # evict finished jobs (results included) after 1 h
+
+
+def _scrub_job_secrets(job: dict) -> None:
+    """Drop the user's API key and raw inputs once a run reaches a terminal state.
+
+    The public /demo page promises the key is "used only for this run, never
+    stored" — that must include process memory after the run finishes.
+    """
+    for field in ("_api_key", "_claim", "_user_answer"):
+        job.pop(field, None)
 
 
 def _server_api_key() -> str:
@@ -143,7 +154,9 @@ def _run_custom_commit_phase(job_id: str):
         job["status"] = "error"
         job["error"]  = str(e)
         job["phase"]  = "error"
-        _custom_running = False
+        _scrub_job_secrets(job)
+        with _custom_lock:
+            _custom_running = False
 
 
 def _run_custom_reveal_phase(job_id: str):
@@ -159,19 +172,34 @@ def _run_custom_reveal_phase(job_id: str):
         job["error"]  = str(e)
         job["phase"]  = "error"
     finally:
-        _custom_running = False
+        _scrub_job_secrets(job)
+        with _custom_lock:
+            _custom_running = False
 
 
 def _custom_timeout_watchdog():
-    """Release the custom demo lock if a run gets stuck in any non-terminal phase."""
+    """Release the custom demo lock if a run gets stuck in any non-terminal phase.
+
+    Also scrubs secrets from finished jobs and evicts them after the TTL, so
+    the process never accumulates API keys or job state across its lifetime.
+    The whole sweep is exception-guarded: this thread must never die — a dead
+    watchdog means a stuck run holds the demo lock until the next redeploy.
+    """
     global _custom_running
     while True:
         time.sleep(60)
-        if _custom_running:
-            for job in _custom_jobs.values():
+        try:
+            now = time.time()
+            # list() snapshot: request threads insert into _custom_jobs
+            # concurrently, and dict mutation during iteration raises.
+            for job_id, job in list(_custom_jobs.items()):
                 phase = job.get("phase", "")
-                age   = time.time() - job.get("_started_at", 0)
-                if phase not in ("done", "error") and age > _CUSTOM_TIMEOUT_SECS:
+                age   = now - job.get("_started_at", 0)
+                if phase in ("done", "error"):
+                    _scrub_job_secrets(job)
+                    if age > _CUSTOM_JOB_TTL_SECS:
+                        _custom_jobs.pop(job_id, None)
+                elif _custom_running and age > _CUSTOM_TIMEOUT_SECS:
                     print(f"Watchdog: releasing stuck job in phase={phase!r} after {age:.0f}s", flush=True)
                     job["phase"]  = "error"
                     job["status"] = "error"
@@ -179,8 +207,11 @@ def _custom_timeout_watchdog():
                         f"Session timed out in phase '{phase}' after "
                         f"{_CUSTOM_TIMEOUT_SECS // 60} minutes."
                     )
-                    _custom_running = False
-                    break  # only one lock to release; re-check next minute
+                    _scrub_job_secrets(job)
+                    with _custom_lock:
+                        _custom_running = False
+        except Exception as e:
+            print(f"Watchdog sweep error (ignored): {e}", flush=True)
 
 
 threading.Thread(target=_custom_timeout_watchdog, daemon=True).start()

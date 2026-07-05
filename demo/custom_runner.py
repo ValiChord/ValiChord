@@ -96,14 +96,19 @@ Reply with ONLY valid JSON — no markdown fences, no explanation:
 
 _CLAIM_AGENT_ENV_CACHE: dict = {}
 _CLAIM_AGENT_ENV_LOCK  = threading.Lock()
+_CLAIM_AGENT_ENV_CACHE_MAX = 32  # visitor keys are one-shot; bound the cache
 
 
 def _get_or_create_agent_env(api_key: str) -> tuple:
     """Return (agent_id, agent_version, env_id) for the claim-evaluation validator
-    config — shared by all 3 validators, cached by API key (the server key reuses
-    them across runs). Each session still provisions its own isolated container."""
+    config — shared by all 3 validators, cached per API key (the server key reuses
+    them across runs). Each session still provisions its own isolated container.
+
+    Keyed by SHA-256 of the key — raw visitor keys must not persist in process
+    memory — and size-capped so one-shot visitor keys don't accumulate."""
+    cache_key = hashlib.sha256(api_key.encode()).hexdigest()
     with _CLAIM_AGENT_ENV_LOCK:
-        cached = _CLAIM_AGENT_ENV_CACHE.get(api_key)
+        cached = _CLAIM_AGENT_ENV_CACHE.get(cache_key)
         if cached is not None:
             return cached
 
@@ -123,7 +128,9 @@ def _get_or_create_agent_env(api_key: str) -> tuple:
             betas=BETAS,
         )
         result = (agent.id, agent.version, env.id)
-        _CLAIM_AGENT_ENV_CACHE[api_key] = result
+        while len(_CLAIM_AGENT_ENV_CACHE) >= _CLAIM_AGENT_ENV_CACHE_MAX:
+            _CLAIM_AGENT_ENV_CACHE.pop(next(iter(_CLAIM_AGENT_ENV_CACHE)))
+        _CLAIM_AGENT_ENV_CACHE[cache_key] = result
         return result
 
 

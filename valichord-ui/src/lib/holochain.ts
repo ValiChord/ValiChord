@@ -68,6 +68,7 @@ function loadDevSigningCredentials() {
         capSecret: Uint8Array.from(atob(c.capSecret), ch => ch.charCodeAt(0)),
         signingKey: decodeHashFromBase64(c.signingKey as HoloHashB64),
         keyPair: {
+          keyType: "ed25519",
           publicKey: Uint8Array.from(atob(c.pubKey), ch => ch.charCodeAt(0)),
           privateKey: Uint8Array.from(atob(c.privKey), ch => ch.charCodeAt(0)),
         },

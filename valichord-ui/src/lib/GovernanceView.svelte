@@ -82,11 +82,11 @@
   function inferBadge(record: HarmonyRecord): BadgeType | null {
     const n = record.participating_validators.length;
     const ag = record.agreement_level;
-    if (n >= 7 && ag === "ExactMatch") return "Gold";
-    if (n >= 5 && (ag === "ExactMatch" || ag === "WithinTolerance")) return "Silver";
+    if (n >= 7 && ag === "ExactMatch") return "GoldReproducible";
+    if (n >= 5 && (ag === "ExactMatch" || ag === "WithinTolerance")) return "SilverReproducible";
     if (n >= 3 && (ag === "ExactMatch" || ag === "WithinTolerance" || ag === "DirectionalMatch"))
-      return "Bronze";
-    if (n >= 3 && (ag === "Divergent" || ag === "UnableToAssess")) return "Failed";
+      return "BronzeReproducible";
+    if (n >= 3 && (ag === "Divergent" || ag === "UnableToAssess")) return "FailedReproduction";
     return null;
   }
 
@@ -116,18 +116,18 @@
   }
 
   function badgeEmoji(badge: BadgeType | null): string {
-    if (badge === "Gold") return "🥇";
-    if (badge === "Silver") return "🥈";
-    if (badge === "Bronze") return "🥉";
-    if (badge === "Failed") return "✗";
+    if (badge === "GoldReproducible") return "🥇";
+    if (badge === "SilverReproducible") return "🥈";
+    if (badge === "BronzeReproducible") return "🥉";
+    if (badge === "FailedReproduction") return "✗";
     return "—";
   }
 
   function badgeClass(badge: BadgeType | null): string {
-    if (badge === "Gold") return "badge-gold";
-    if (badge === "Silver") return "badge-silver";
-    if (badge === "Bronze") return "badge-bronze";
-    if (badge === "Failed") return "badge-failed";
+    if (badge === "GoldReproducible") return "badge-gold";
+    if (badge === "SilverReproducible") return "badge-silver";
+    if (badge === "BronzeReproducible") return "badge-bronze";
+    if (badge === "FailedReproduction") return "badge-failed";
     return "badge-none";
   }
 
@@ -229,7 +229,7 @@
         {@const hash = hashFromRecord(record)}
         {#if entry}
           {@const badge = inferBadge(entry)}
-          <div class="harmony-card" class:card-failed={badge === "Failed"}>
+          <div class="harmony-card" class:card-failed={badge === "FailedReproduction"}>
             <!-- Badge -->
             <div class="badge-row">
               <span class="badge {badgeClass(badge)}">{badgeEmoji(badge)}</span>
