@@ -87,6 +87,20 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### UI e2e suite + form-blocking bug fix + CI job — 2026-07-06 ✓ (same day as v0.6.0; folded into the v0.6.0 release notes, no new release)
+
+Ported the real-conductor Playwright e2e pattern from `happenings-community/requests-and-offers` (`feat/e2e-real-conductor-infrastructure`) to `valichord-ui` — the UI's first automated browser coverage. Commits `f550ba1` (bug fix), `1cf6b5d` (harness), `bf17555` (CI job).
+
+**The harness** (`valichord-ui/tests/e2e/`): Playwright globalSetup starts one throwaway conductor per run (admin `:4445`, app `:8889`, `/tmp/valichord-e2e-data` — never clashes with dev.sh), installs the hApp with the dev-mode membrane-proof bypass (mirrors dev-setup.mjs — **update both files if DNA properties change**), issues auth token + per-cell signing credentials, and hands them to the browser via URL hash params `#APP_PORT=&TOKEN=&CREDS=` (the Launcher channel App.svelte already read; `holochain.ts` gained the `CREDS` fallback). Six tests as one serial story: connect → validator profile via UI → researcher request via form → validator browse list → zome-seeded request renders → governance view. Hybrid seeding via a Node-side AppWebsocket client. `npm run test:e2e`; ~1.3 min locally.
+
+**Production bug caught on the suite's first run:** `ResearcherView.svelte` had `pattern="[0-9a-f]{64}"` on the data-hash input — Svelte parses `{64}` in a quoted attribute as a template expression, so the DOM got `pattern="[0-9a-f]64"` and native form validation silently rejected every real 64-char hash: **the Submit button did nothing for every user of the form** (no toast, no error). Fixed with `pattern={"[0-9a-f]{64}"}`. Diagnosis path worth remembering: zome-call failures surface as 4-second toasts that failure screenshots miss — `gotoApp` now pipes browser console errors into test output, and durable assertions (screen transitions) are preferred over toast text.
+
+**CI:** new `ui-e2e` job in `tests.yml` — independent fast-signal job using the **committed** `workdir/valichord.happ` (no Rust toolchain), shared `hc-bin-0.6.2` cache, Node 22, Playwright chromium. **Passed first CI run in 1 m 19 s.** Traces/screenshots uploaded on failure; one CI-only retry. CLAUDE.md CI-upgrade checklist now lists 6 edit sites (3 jobs).
+
+**README refresh (same session):** repo links `topeuph-ai/ValiChord` → `ValiChord/ValiChord` (49 links; Pages + valichord_at_home untouched); stale free-demo description replaced with the current Your Hypothesis demo (visitor's own key); test counts corrected to 183 across three suites (97 Tryorama / 80 sweettest / 6 Playwright); wind-tunnel 3 → 5 scenarios; quickstart 0.6.1 → 0.6.2; valichord_attestation 259/100% → 537/97% + five adapters; broken Funding & Research table fixed.
+
+---
+
 ### v0.6.0 release — core hardening merged (PR #26) — 2026-07-06 ✓
 
 Branch `core-hardening-0.6.2` merged to main (`c934497`) after its first fully green CI run, and published as **GitHub release v0.6.0** — the first tag since v0.5.4 (2026-05-24), covering 194 commits.
