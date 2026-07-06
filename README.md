@@ -178,39 +178,23 @@ valichord-ui/               — Svelte 5 + TypeScript browser UI
 └── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
-**183 automated tests across three suites (97 Tryorama, 80 Rust sweettest, 6 Playwright browser e2e) — all running in CI.** The GoldReproducible badge (7 validators) is fully covered by sweettest test 15 (`gold_badge_issued_with_seven_validators`); the Tryorama equivalent remains `test.skip` due to RAM constraints in Codespaces. The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
-Test coverage includes:
+**183 automated tests across three suites (97 Tryorama, 80 Rust sweettest, 6 Playwright browser e2e) — all running in CI.** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
-- Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at coordinator init
-- Full blind commit-reveal protocol end-to-end across all four DNAs
-- DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
-- Immutability enforcement on ValidationAttestation, CommitmentAnchor, PhaseMarker, ResearcherResultCommitment, ResearcherReveal, and PreRegisteredProtocol
-- Author key enforcement on GovernanceDecision (HarmonyRecord/Badge/Reputation open to any participant — fully decentralised)
-- Privacy across agents — private attestations are not readable by peers
-- Reproducibility badge issuance (Bronze, Silver, Failed thresholds)
-- Cross-DNA post_commit chain: DNA 2 seal (generates nonce + SHA-256 commitment_hash) → DNA 3 notify (CommitmentAnchor carries hash) → phase open
-- Full symmetric commit-reveal: researcher `lock_researcher_result` (DNA 1) → `publish_researcher_commitment` (DNA 3 hash only) → `reveal_researcher_result` (DNA 3, hash-verified) → `ResearcherReveal` on DHT for comparison against validator outputs
-- Mixed outcome HarmonyRecord assembly — Divergent agreement level from split validator results
-- Validator discovery by discipline via real path index
-- Difficulty assessment storage and retrieval via DifficultyPath link index
-- Commit phase state detection — check_all_commitments_sealed verified at partial and full threshold
-- Source-chain list queries (`get_all_studies`, `get_all_tasks`, `get_all_private_attestations`) using type-safe deserialization filter — no hardcoded ZomeIndex
-- Governance decision creation, multi-record listing, and author enforcement
-- BadgePath cross-study analytics index — written at badge issuance, queryable by type via `get_badges_by_type`
-- Delete-immutability at API level — no delete functions exposed for HarmonyRecord, GovernanceDecision, or ReproducibilityBadge
-- `get_validation_request_for_data_hash` — resolves ValidationRequest from study path anchor by data hash
-- `InstitutionPath` index — validators indexed by institution for conflict-of-interest detection (`get_validators_for_institution`)
-- `DisciplinePath` attestation index — attestations indexed by discipline for cross-study analytics (`get_attestations_for_discipline`)
-- Validator self-assignment (`StudyClaim`) — validators claim studies from the queue via `claim_study(request_ref)`; coordinator enforces capacity and duplicate checks; integrity zome's `validate()` enforces conflict-of-interest (same institution as researcher → rejected); `release_claim` frees the slot while preserving the audit record
-- Dropout recovery — `reclaim_abandoned_claim` frees a slot held by a validator who has gone dark (any participant, after configurable timeout); `force_finalize_round` closes a stuck round after 7 days subject to `min_attestations_for_finalization` (governance DNA property — set equal to panel size for ≤4-validator panels, one lower for larger panels), producing a normal HarmonyRecord identifiable as reduced-quorum by validator count
-- Security protocol guards — duplicate attestation rejection, duplicate commitment rejection, researcher commitment idempotency, reclaim timeout floor enforcement, force_finalize_round conservative abort, self-claim prevention (researcher cannot validate own study — no dev bypass), researcher reveal authorisation, PhaseMarker write idempotency (TOCTOU-safe), deterministic link resolution (all `links.last()` → `max_by_key(timestamp)`), O(N) DHT round-trip elimination in claim functions
-- Conductor-free unit tests for pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`) in `shared_types` — run in < 1 s with `cargo test -p valichord_shared_types`
-- Native Rust sweettest suite (`valichord/sweettest_integration/`) in 5 parallel CI matrix jobs alongside Tryorama
-- On-chain commit-reveal enforcement proven by test: a real-nonce reveal passes hash verification, and a verdict altered between sealing and reveal is rejected with a hash mismatch (security sweettests S7/S8, added v0.6.0)
-- Browser e2e suite (`valichord-ui/tests/e2e/`) — Playwright drives the real Svelte UI against a live conductor (no mocks): connection bootstrap, validator profile via the UI form, request submission via the researcher form, pending-request rendering, governance view; runs on every push/PR as a ~2-minute CI job
-- Wind-Tunnel load-test scenarios (`valichord/wind-tunnel/`) — three performance scenarios measuring CommitmentAnchor write throughput, DHT phase-observation latency, and full commit-reveal round throughput under N-agent concurrent load; separate Cargo workspace (same isolation pattern as sweettest); run with `cargo run -p <scenario> -- --agents N --duration S`
+What the tests prove, in brief:
+
+- **The full blind commit-reveal protocol, end to end across all four DNAs** — sealing, public commitment anchors, DHT-poll-driven phase transitions, symmetric dual reveal, and HarmonyRecord assembly including mixed/Divergent outcomes
+- **On-chain enforcement is real, not aspirational** — a verdict altered between sealing and reveal is rejected with a hash mismatch (security sweettests S7/S8); all public record types are immutable, with no delete functions exposed
+- **The membrane works** — real Ed25519 membrane-proof verification: issuer-signed proofs accepted, forged signatures rejected
+- **Privacy holds across agents** — private attestations and locked results are unreadable by peers and never enter the DHT
+- **The study lifecycle survives real-world failure** — claims with conflict-of-interest rejection at the integrity layer, capacity checks, dropout reclaim, reduced-quorum force-finalisation, and deliberate abstention as a first-class recorded act
+- **Discovery and analytics indexes resolve correctly** — by discipline, institution (conflict-of-interest), badge type, difficulty, and data hash
+- **Adversarial inputs are guarded** — duplicate commitments/attestations rejected, self-claim prevented with no dev bypass, TOCTOU-safe phase writes, deterministic link resolution
+- **The browser UI drives the real protocol** — Playwright exercises the Svelte forms against a live conductor with no mocks, on every push, in ~2 minutes
+- **Performance is measured, not assumed** — five Wind-Tunnel load scenarios; a live 3-conductor run measured median cross-agent DHT propagation at ≈ 185 ms
+
+📄 **[Full test inventory, per-suite run commands, and CI layout → TESTING.md](TESTING.md)**
 
 ---
 
@@ -429,6 +413,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | AI eval attestation library (Python) | [`valichord_attestation/`](https://github.com/ValiChord/ValiChord/tree/main/valichord_attestation) |
 | Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/ValiChord/ValiChord/tree/main/valichord-ui) |
 | Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/ValiChord/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
+| Testing guide — all four layers, run commands, coverage inventory | [`TESTING.md`](https://github.com/ValiChord/ValiChord/blob/main/TESTING.md) |
 | Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/ValiChord/ValiChord/blob/main/valichord/tests/README.md) |
 | Wind-Tunnel performance scenarios | [`valichord/wind-tunnel/`](https://github.com/ValiChord/ValiChord/tree/main/valichord/wind-tunnel) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/ValiChord/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
