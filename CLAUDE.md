@@ -97,6 +97,9 @@ cd valichord-ui && npm run dev -- --host
 
 # Type-check only
 npm run check
+
+# E2E (Playwright + real conductor on :4445/:8889 — no clash with dev.sh; needs packed happ)
+npm run test:e2e
 ```
 
 `dev.sh` starts a fresh conductor (admin `:4444`), installs the hApp with dev-mode bypass (no real credential check), attaches app interface on `:8888`, and writes `VITE_HC_TOKEN` + `VITE_HC_SIGNING_CREDENTIALS` to `.env.local`. Conductor state lives in `/tmp/valichord-dev-data` — wiped on each `dev.sh` run.

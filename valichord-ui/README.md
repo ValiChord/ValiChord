@@ -65,6 +65,28 @@ npm run build   # outputs to dist/
 
 The `dist/` folder is a static site that can be bundled into a `.webhapp` for Holochain Launcher.
 
+### End-to-end tests (Playwright + real conductor)
+
+```bash
+# One-time browser setup
+npx playwright install chromium
+sudo npx playwright install-deps chromium   # Chromium system libraries
+
+# Run (needs valichord.happ packed — see repo CLAUDE.md build commands)
+npm run test:e2e
+```
+
+No mocks anywhere: `tests/e2e/setup/conductor-manager.ts` starts a throwaway
+conductor (admin `:4445`, app `:8889`, data in `/tmp/valichord-e2e-data`),
+installs the hApp with the dev-mode membrane-proof bypass, and issues the auth
+token + signing credentials. Specs receive them via URL hash params
+(`#APP_PORT=&TOKEN=&CREDS=`) — the same channel Holochain Launcher uses — so
+the e2e run never touches `.env.local` and coexists with a running `dev.sh`
+session. One conductor per run; the spec is a single serial story
+(connect → validator profile → researcher request → validator browse →
+zome-seeded record → governance view). Pattern ported from
+happenings-community/requests-and-offers.
+
 ---
 
 ## Environment variables

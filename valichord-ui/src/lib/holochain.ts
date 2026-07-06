@@ -55,7 +55,12 @@ interface DevCellCred {
 }
 
 function loadDevSigningCredentials() {
-  const raw = import.meta.env.VITE_HC_SIGNING_CREDENTIALS as string | undefined;
+  // URL hash first (e2e harness injects #CREDS= alongside #APP_PORT= and #TOKEN=),
+  // then the dev-setup.mjs env var. The hash value is URI-encoded base64.
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  const raw =
+    hashParams.get("CREDS") ??
+    (import.meta.env.VITE_HC_SIGNING_CREDENTIALS as string | undefined);
   if (!raw) return;
   try {
     const creds: DevCellCred[] = JSON.parse(atob(raw));
