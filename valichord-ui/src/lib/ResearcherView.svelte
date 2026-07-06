@@ -358,7 +358,7 @@
             bind:value={form.data_hash_hex}
             placeholder="64-character lowercase hex"
             maxlength="64"
-            pattern="[0-9a-f]{64}"
+            pattern={"[0-9a-f]{64}"}
             required
             class="mono"
           />
