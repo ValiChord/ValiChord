@@ -1,7 +1,7 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-07-05
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.5.7** — Demo website redesign: Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is now the primary hero section; five accordion explainers sell the protocol; Holochain logo in header; discipline classification via Claude (no more hardcoded ComputationalBiology); DEMO_WEBSITE.md fully rewritten. v0.5.5: CMA upgrade — AI validators use Claude Managed Agents (web search, multi-step reasoning); users bring their own Anthropic key; rate limiting on server key. Holochain 0.6.1 (hdk/hdi/holo_hash/holochain_serialized_bytes; iroh/QUIC transport; full test suite green). `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
+**Last updated:** 2026-07-06
+**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
 
@@ -86,6 +86,21 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### v0.6.0 release — core hardening merged (PR #26) — 2026-07-06 ✓
+
+Branch `core-hardening-0.6.2` merged to main (`c934497`) after its first fully green CI run, and published as **GitHub release v0.6.0** — the first tag since v0.5.4 (2026-05-24), covering 194 commits.
+
+**What the branch shipped** (commit `a757441`):
+- **Commit-reveal verification enforced for real nonces** — `submit_attestation`'s hash-verification bypass narrowed from "issuer empty" to "issuer empty AND nonce empty", mirroring `reveal_researcher_result`. Real-nonce reveals (demo bridges, UI dev) are now verified on-chain even on dev-mode networks; empty-nonce test flows unaffected. Coordinator-only for that file. New sweettests S7 (real-nonce reveal passes verification) and S8 (tampered reveal rejected with "Hash mismatch") — the first tests to exercise both paths, running the genuine workspace seal flow.
+- **StudyClaim immutability** — integrity-zome update/delete guards; claims vacate via `StudyClaimRelease` as the architecture doc states. Integrity change → **attestation DNA hash bumped** (dev-only impact; existing dev conductors need reinstall).
+- **Holochain 0.6.2 toolchain** — hdk 0.6.2, hdi 0.7.2, holochain/holochain_types/holochain_keystore/holo_hash 0.6.2; CI BASE + cache keys updated; hApp repacked.
+
+**CI flake diagnosis + fix** (commit `136ae8f`): run 28753458422 failed `silver_badge_issued_with_five_validators` and `get_badges_by_type_bronze_with_three_validators` — diagnosed as the documented badge-index gossip-lag flake (same class as the gold-test flake fixed 2026-06-13), not a regression: the branch touched no governance code and the already-hardened gold test passed. Fix (test-only): ported the gold test's 5-iteration re-sync + re-query loop to silver and bronze; widened bronze's `await_consistency_s` windows 20 s → 60 s (3-conductor test was using the 2-agent standard). Next run: all 6 CI jobs green.
+
+**Also this session:** Future AGI outreach — Nikhil Pareek (founder, future-agi/future-agi eval platform) cold-emailed; replied with a repo-specific gap analysis (eval-result verifiability) + two-page integration brief. See `memory/reference_futureagi_nikhil.md`. Do not build their adapter on spec.
+
+---
 
 ### Security/efficiency audit + spring-cleaning fixes — 2026-07-05 ✓
 

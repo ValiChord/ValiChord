@@ -66,7 +66,7 @@ cargo test --test security
 cargo test --test governance silver_badge_issued_with_five_validators -- --test-threads=1
 ```
 
-`sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "0.6.1"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
+`sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "0.6.2"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
 
 ### valichord_attestation (Python)
 
@@ -252,7 +252,7 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ## Pending upgrade checks (run at every session start)
 
 ### Holochain version
-Run `holochain --version`. Current: 0.6.1.
+Run `holochain --version`. Current: 0.6.2.
 
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes:
 - `hdk → 0.7.x`, `hdi → 0.8.x` (Cargo.toml across all zomes)
@@ -265,9 +265,9 @@ Run `holochain --version`. Current: 0.6.1.
 - **New `AppStatus` variants from source-chain restore** — `AppStatus::AwaitingRestore` (restore in progress) and `AppStatus::Unrecoverable(cell_id, reason)` (terminal — chain forked or warrant validated). `dev-setup.mjs` and Svelte UI currently assume only `Running`/`Disabled`; both need updating. New `SystemSignal` variants: `RestoreComplete { cell_id }`, `AppRestoreComplete { installed_app_id }`, `RestoreFailed { cell_id, reason }`. New conductor config field: `restore_chain_quorum: u8` (default 2). (Source: `holochain/holochain` branch `cascade-read-and-cutover`, `docs/design/source_chain_restore.md`)
 - **Source-chain restore does NOT recover private entries** — `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private and absent after a restore. Validators who lose their machine mid-round lose their uncommitted private attestations silently.
 - `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field (excluded from `PartialEq`/`Hash` — deduplication unaffected). Check any match arm that destructures this variant in `reject_if_warranted`.
-- CI: update `BASE=` URL and `key: hc-bin-0.6.1` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
+- CI: update `BASE=` URL and `key: hc-bin-0.6.2` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
 
-Ignore `0.7.0-dev.*` and `0.6.1-rc.*` tags — stable only.
+Ignore `0.7.0-dev.*` and `0.6.x-rc.*` tags — stable only.
 
 ### CI binary upgrade (any Holochain version bump)
 Update 4 places in `.github/workflows/tests.yml`:
