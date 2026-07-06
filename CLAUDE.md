@@ -273,11 +273,13 @@ Run `holochain --version`. Current: 0.6.2.
 Ignore `0.7.0-dev.*` and `0.6.x-rc.*` tags — stable only.
 
 ### CI binary upgrade (any Holochain version bump)
-Update 4 places in `.github/workflows/tests.yml`:
+Update 6 places in `.github/workflows/tests.yml` (3 jobs × BASE + cache key):
 1. `BASE=…/releases/download/holochain-X.Y.Z` — `test` job
 2. `key: ${{ runner.os }}-hc-bin-X.Y.Z` — `test` job
 3. Same `BASE=` — `sweettest` job
 4. Same `key:` — `sweettest` job
+5. Same `BASE=` — `ui-e2e` job
+6. Same `key:` — `ui-e2e` job
 
 Verify binary names (`holochain-x86_64-unknown-linux-gnu`, etc.) exist on the release before pushing.
 

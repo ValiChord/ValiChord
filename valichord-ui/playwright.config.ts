@@ -15,7 +15,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: isCI,
-  retries: 0,
+  // One CI retry absorbs conductor-startup flakes on loaded 2-core runners;
+  // locally a failure should fail immediately for fast iteration.
+  retries: isCI ? 1 : 0,
 
   // Holochain is slow on cold start: first zome call after install can hit
   // WASM JIT (minutes on a Codespace). Individual expects set their own

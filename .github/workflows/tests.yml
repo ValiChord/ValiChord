@@ -106,6 +106,76 @@ jobs:
         working-directory: valichord/tests
         run: npm test
 
+  # ── UI E2E: Playwright against a real conductor ──────────────────────────────
+  # Fast independent signal (~5–10 min): uses the COMMITTED workdir/valichord.happ
+  # (repo convention: always repack + commit after source changes), so no Rust
+  # toolchain is needed. One throwaway conductor per run, managed by Playwright
+  # globalSetup/globalTeardown (valichord-ui/tests/e2e/setup/conductor-manager.ts).
+  ui-e2e:
+    name: UI E2E (Playwright + real conductor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Holochain binary — shared cache with the other jobs ─────────────────
+      - name: Cache Holochain binaries
+        uses: actions/cache@v4
+        id: cache-hc-bin-e2e
+        with:
+          path: ~/.local/bin/hc-tools
+          key: ${{ runner.os }}-hc-bin-0.6.2
+
+      - name: Download Holochain binaries
+        if: steps.cache-hc-bin-e2e.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin/hc-tools
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.2
+          curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
+          curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
+          curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
+          curl -sSL $BASE/kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/kitsune2-bootstrap-srv
+          chmod +x ~/.local/bin/hc-tools/*
+
+      - name: Add Holochain tools to PATH
+        run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
+
+      # ── Node / Playwright ────────────────────────────────────────────────────
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: valichord-ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: valichord-ui
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: valichord-ui
+        run: npx playwright install --with-deps chromium
+
+      # ── Run ──────────────────────────────────────────────────────────────────
+      - name: Kill any orphaned Holochain processes
+        run: |
+          pkill -f holochain     || true
+          pkill -f lair-keystore || true
+          sleep 2
+
+      - name: Run UI e2e tests
+        working-directory: valichord-ui
+        run: npx playwright test
+
+      - name: Upload traces and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: valichord-ui/test-results/
+          retention-days: 7
+
   # ── Sweettest: one parallel job per test binary ──────────────────────────────
   # Each matrix leg runs a single --test binary so all five run concurrently.
   # Wall-clock is ~the slowest binary (governance ≈170 min) not their serial sum.
