@@ -48,7 +48,7 @@ ssh -i path/to/ssh-key.key ubuntu@132.145.34.27
 cd ValiChord && git pull && python3 demo/ai_validator.py --mode decentralised
 ```
 
-**Option A (remote) — Run against Oracle from your own machine:**
+**Option B — Run against Oracle from your own machine:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
@@ -58,7 +58,7 @@ export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-**Option B — Run locally:**
+**Option C — Run locally:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 docker compose -f demo/docker-compose.yml up --build -d
@@ -150,19 +150,9 @@ valichord/
 │   ├── researcher_repository/ — DNA 1: private, single-agent
 │   ├── validator_workspace/   — DNA 2: private, single-agent  
 │   └── governance/         — DNA 4: public DHT, HTTP Gateway
-├── tests/
-│   ├── attestation.test.ts          — 46 tests (1 Tryorama-skipped; sweettest equivalent passes)
-│   ├── governance.test.ts           — 22 tests
-│   ├── researcher_repository.test.ts — 14 tests
-│   ├── security.test.ts             — 9 tests
-│   └── validator_workspace.test.ts   — 7 tests
-├── sweettest_integration/  — 80 Rust sweettest tests (native conductor)
-├── wind-tunnel/            — 5 Wind-Tunnel performance scenarios
-│   ├── scenarios/validation_request_throughput/  — CommitmentAnchor write throughput
-│   ├── scenarios/phase_observation_latency/      — commit → RevealOpen DHT lag
-│   ├── scenarios/concurrent_reveal_throughput/   — full round under N-agent load
-│   ├── scenarios/dht_sync_lag/                   — cross-agent entry propagation latency
-│   └── scenarios/kitsune_dht_propagation/        — raw Kitsune2 substrate baseline (prototype)
+├── tests/                  — Tryorama integration suite (one .test.ts per DNA + security)
+├── sweettest_integration/  — Rust sweettest suite (native conductor)
+├── wind-tunnel/            — Wind-Tunnel performance scenarios (throughput, DHT propagation, load)
 └── happ.yaml               — all four DNA roles bundled
 
 valichord-ui/               — Svelte 5 + TypeScript browser UI
@@ -174,7 +164,7 @@ valichord-ui/               — Svelte 5 + TypeScript browser UI
 │   ├── lib/ResearcherView.svelte
 │   ├── lib/ValidatorView.svelte
 │   └── lib/GovernanceView.svelte
-├── tests/e2e/              — 6 Playwright tests against a real conductor (runs in CI)
+├── tests/e2e/              — Playwright suite against a real conductor (runs in CI)
 └── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
@@ -467,7 +457,7 @@ npm test
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI browser-tested on Holochain 0.6.1 (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
-Probabilistic challenge-response is shipped (`valichord_attestation` v0.5.0). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
+Probabilistic challenge-response is shipped in `valichord_attestation` (format v1.2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
 
 ---
 
