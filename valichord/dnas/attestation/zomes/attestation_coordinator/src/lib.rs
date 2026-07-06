@@ -273,13 +273,20 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
              seal_private_attestation must be committed before reveal".into()
         )))?;
 
-    // Production: verify SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
+    // Verify SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash.
     // commitment_msgpack_bytes() normalises commitment_anchor_hash to None before serialising,
     // matching exactly what seal_private_attestation hashed in the Validator Workspace.
     //
-    // Dev/test bypass: skipped when authorized_joining_certificate_issuer is empty.
+    // Dev/test bypass: skipped only when authorized_joining_certificate_issuer is
+    // empty AND the nonce is empty — the same pattern as reveal_researcher_result.
+    // Tests fabricate commitments and reveal with an empty nonce; any caller that
+    // supplies a real nonce gets full verification even on a dev-mode network, so
+    // the demo's seal→nonce→reveal flow is enforced on-chain, not just by policy.
+    // On production networks (issuer set) verification always runs.
     let reveal_props = DnaProperties::try_from_dna_properties()?;
-    if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
+    if !reveal_props.authorized_joining_certificate_issuer.is_empty()
+        || !input.nonce.is_empty()
+    {
         let msgpack_bytes = attestation.commitment_msgpack_bytes()?;
         let mut hasher = Sha256::new();
         hasher.update(&msgpack_bytes);

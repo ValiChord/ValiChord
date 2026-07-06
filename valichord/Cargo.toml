@@ -15,8 +15,8 @@ members = [
 
 [workspace.dependencies]
 valichord_coordinator_utils = { path = "coordinator_utils" }
-hdi = "=0.7.1"
-hdk = "=0.6.1"
+hdi = "=0.7.2"
+hdk = "=0.6.2"
 serde = { version = "1", features = ["derive"] }
 holochain_serialized_bytes = "=0.0.57"
 # getrandom 0.3 requires an explicit backend for wasm32-unknown-unknown.

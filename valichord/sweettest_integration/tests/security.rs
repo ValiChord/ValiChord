@@ -14,6 +14,8 @@
 //!       S4b. no floor (0) → timeout_secs=0 succeeds
 //!   S5. force_finalize_round conservative abort when no ValidationRequest
 //!   S6. reveal_researcher_result idempotency — second call rejected
+//!   S7. Real-nonce reveal passes hash verification (genuine seal flow)
+//!   S8. Tampered reveal rejected by hash verification ("Hash mismatch")
 
 use valichord_sweettest::*;
 use holochain_types::prelude::YamlProperties;
@@ -483,5 +485,171 @@ async fn s6_reveal_researcher_result_idempotency() {
     assert!(
         result.is_err(),
         "second reveal_researcher_result for the same study must be rejected"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S7. Commit-reveal hash verification — happy path with a REAL nonce
+// ---------------------------------------------------------------------------
+//
+// Runs the genuine flow: seal_private_attestation (workspace DNA generates a
+// random 32-byte nonce, computes commitment_hash, post_commit writes the
+// CommitmentAnchor), then submit_attestation with the SAME attestation and the
+// real nonce.  Because the nonce is non-empty, the coordinator recomputes
+// SHA-256(msgpack(attestation) || nonce) and compares it to the anchor — this
+// exercises the verification branch even on a dev-mode network (empty issuer).
+//
+// Before this test, no automated test anywhere exercised the verification
+// branch: every other test reveals with an empty nonce (dev bypass).
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s7_real_nonce_reveal_passes_hash_verification() {
+    let (conductor, app) = setup_single().await;
+    let att_zome = app.attestation_zome();
+    let vw_zome  = app.validator_zome();
+    let request_ref = fake_external_hash(0x57);
+
+    // Researcher side: publish the ValidationRequest.
+    conductor
+        .call::<_, ActionHash>(&att_zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+        .await;
+
+    // Validator side: receive task, then seal — the workspace DNA generates the
+    // nonce and post_commit fires notify_commitment_sealed on the attestation DNA.
+    let attestation = make_validation_attestation(request_ref.clone());
+    let task_hash: ActionHash = conductor
+        .call(&vw_zome, "receive_task", make_task(request_ref.clone()))
+        .await;
+    let _sealed: ActionHash = conductor
+        .call(
+            &vw_zome,
+            "seal_private_attestation",
+            validator_workspace_coordinator::SealAttestationInput {
+                task_hash: task_hash.clone(),
+                attestation: attestation.clone(),
+            },
+        )
+        .await;
+
+    // Extract the real nonce from the private entry.
+    let private_record: Option<Record> = conductor
+        .call(&vw_zome, "get_private_attestation_for_task", task_hash)
+        .await;
+    let private_att: validator_workspace_integrity::ValidatorPrivateAttestation = private_record
+        .expect("sealed private attestation must be retrievable")
+        .entry()
+        .to_app_option()
+        .expect("entry must deserialize")
+        .expect("entry must be a ValidatorPrivateAttestation");
+    assert_eq!(private_att.nonce.len(), 32, "seal must generate a 32-byte nonce");
+
+    // Reveal with the SAME attestation + the real nonce.  post_commit's
+    // notify_commitment_sealed runs asynchronously after seal returns, so
+    // retry while the anchor has not landed yet.
+    let mut last: Option<Result<ActionHash, _>> = None;
+    for _ in 0..20 {
+        let attempt = conductor
+            .call_fallible(
+                &att_zome,
+                "submit_attestation",
+                RevealInput {
+                    attestation: attestation.clone(),
+                    nonce: private_att.nonce.clone(),
+                },
+            )
+            .await;
+        let anchor_pending = matches!(
+            &attempt,
+            Err(e) if format!("{e:?}").contains("No CommitmentAnchor")
+        );
+        last = Some(attempt);
+        if !anchor_pending { break; }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    let last = last.expect("at least one submit_attestation attempt");
+    assert!(
+        last.is_ok(),
+        "reveal with the sealed attestation and real nonce must pass hash \
+         verification, got: {:?}",
+        last.err(),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S8. Commit-reveal hash verification — TAMPERED reveal rejected
+// ---------------------------------------------------------------------------
+//
+// Same genuine seal flow as S7, but the reveal submits an attestation whose
+// content differs from what was sealed.  The recomputed hash cannot match the
+// CommitmentAnchor and the coordinator must reject with "Hash mismatch".
+// This is the structural guarantee the protocol advertises: a validator
+// cannot change their verdict between commit and reveal.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s8_tampered_reveal_rejected_by_hash_verification() {
+    let (conductor, app) = setup_single().await;
+    let att_zome = app.attestation_zome();
+    let vw_zome  = app.validator_zome();
+    let request_ref = fake_external_hash(0x58);
+
+    conductor
+        .call::<_, ActionHash>(&att_zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+        .await;
+
+    let sealed_attestation = make_validation_attestation(request_ref.clone());
+    let task_hash: ActionHash = conductor
+        .call(&vw_zome, "receive_task", make_task(request_ref.clone()))
+        .await;
+    let _sealed: ActionHash = conductor
+        .call(
+            &vw_zome,
+            "seal_private_attestation",
+            validator_workspace_coordinator::SealAttestationInput {
+                task_hash: task_hash.clone(),
+                attestation: sealed_attestation.clone(),
+            },
+        )
+        .await;
+
+    let private_record: Option<Record> = conductor
+        .call(&vw_zome, "get_private_attestation_for_task", task_hash)
+        .await;
+    let private_att: validator_workspace_integrity::ValidatorPrivateAttestation = private_record
+        .expect("sealed private attestation must be retrievable")
+        .entry()
+        .to_app_option()
+        .expect("entry must deserialize")
+        .expect("entry must be a ValidatorPrivateAttestation");
+
+    // Tamper: change the verdict content after sealing.
+    let mut tampered = sealed_attestation;
+    tampered.time_invested_secs = 1; // any content change breaks the hash
+
+    let mut last: Option<Result<ActionHash, _>> = None;
+    for _ in 0..20 {
+        let attempt = conductor
+            .call_fallible(
+                &att_zome,
+                "submit_attestation",
+                RevealInput {
+                    attestation: tampered.clone(),
+                    nonce: private_att.nonce.clone(),
+                },
+            )
+            .await;
+        let anchor_pending = matches!(
+            &attempt,
+            Err(e) if format!("{e:?}").contains("No CommitmentAnchor")
+        );
+        last = Some(attempt);
+        if !anchor_pending { break; }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    let err = last
+        .expect("at least one submit_attestation attempt")
+        .expect_err("tampered reveal with a real nonce must be rejected");
+    assert!(
+        format!("{err:?}").contains("Hash mismatch"),
+        "rejection must come from hash verification, got: {err:?}",
     );
 }

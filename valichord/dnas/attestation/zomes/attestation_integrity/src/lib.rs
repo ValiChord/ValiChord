@@ -477,6 +477,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             "StudyClaimRelease is immutable — the release record cannot be altered".into(),
         )),
 
+        // StudyClaim is immutable — a validator must not be able to rewrite
+        // their claim (e.g. change validator_institution after the fact to
+        // erase COI evidence).  Claims are vacated via StudyClaimRelease.
+        FlatOp::RegisterUpdate(OpUpdate::Entry {
+            app_entry: EntryTypes::StudyClaim(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "StudyClaim is immutable — claims are vacated via StudyClaimRelease, not edited".into(),
+        )),
+
         // Generic update: only the original author may update other entry types.
         FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
@@ -544,6 +553,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         Some(EntryTypes::StudyClaimRelease(_)) => {
                             return Ok(ValidateCallbackResult::Invalid(
                                 "StudyClaimRelease is immutable — cannot be deleted".into(),
+                            ));
+                        }
+                        Some(EntryTypes::StudyClaim(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "StudyClaim is immutable — claims are vacated via \
+                                 StudyClaimRelease, not deleted".into(),
                             ));
                         }
                         // AgentIdentityAttestation: either named agent may revoke.
