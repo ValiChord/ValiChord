@@ -380,7 +380,7 @@ python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_respo
 | [Harmony Records](https://github.com/ValiChord/ValiChord/blob/main/docs/10_Harmony_Records.md) | What a Harmony Record is and why it matters |
 | [How a Validation Round Works](https://github.com/ValiChord/ValiChord/blob/main/docs/15_How_a_Validation_Round_Works.md) | Step-by-step narrative from submission to Harmony Record |
 | [Validator Guide](https://github.com/ValiChord/ValiChord/blob/main/docs/16_ValiChord_Validator_Guide.md) | What it means to be a ValiChord validator |
-| [Why Holochain?](https://github.com/ValiChord/ValiChord/blob/main/docs/11_Why_Holochain?.md) | Non-technical explanation of the architectural choice |
+| [Why Holochain?](https://github.com/ValiChord/ValiChord/blob/main/docs/11_Why_Holochain.md) | Non-technical explanation of the architectural choice |
 | [Other Potential Use Cases](https://github.com/ValiChord/ValiChord/blob/main/docs/12_Other_potential_use_cases.md) | Where else the ValiChord pattern applies |
 | [ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home) | Self-service deposit quality checker — 100+ automated checks, draft generation |
 
