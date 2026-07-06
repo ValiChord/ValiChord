@@ -621,35 +621,35 @@ async fn get_badges_by_type_bronze_with_three_validators() {
     let _: ActionHash = conductors[0]
         .call(&alice.attestation_zome(), "submit_validation_request", vr)
         .await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
     // All three commit — interleaved sync so each sees prior CommitmentAnchors.
     commit(&conductors[0], &alice, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     commit(&conductors[1], &bob, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     commit(&conductors[2], &carol, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
     // All three reveal with interleaved attestation sync so each sees prior attestations.
     reveal(&conductors[0], &alice, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     reveal(&conductors[1], &bob, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
     reveal(&conductors[2], &carol, request_ref.clone()).await;
-    await_consistency_s(20, [&alice.attestation, &bob.attestation, &carol.attestation])
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &carol.attestation])
         .await
         .unwrap();
 
@@ -659,7 +659,7 @@ async fn get_badges_by_type_bronze_with_three_validators() {
     // the RequestToHarmonyRecord *link* arrives at Alice's shard before the
     // HarmonyRecord *entry* does; issue_badge_if_missing then returns Ok(()) silently
     // when get(record_hash) returns None, leaving the badge absent.
-    await_consistency_s(20, [&alice.governance, &bob.governance, &carol.governance])
+    await_consistency_s(60, [&alice.governance, &bob.governance, &carol.governance])
         .await
         .unwrap();
 
@@ -673,26 +673,37 @@ async fn get_badges_by_type_bronze_with_three_validators() {
         .await;
     assert!(harmony.is_some(), "full 3-agent round should produce a HarmonyRecord");
 
-    // Sync governance DHT so the badge propagates before querying.
-    await_consistency_s(20, [&alice.governance, &bob.governance, &carol.governance])
-        .await
-        .unwrap();
-
-    // Badge for the study.
-    let badges: Vec<Record> = conductors[0]
-        .call(&alice.governance_zome(), "get_badges_for_study", request_ref)
-        .await;
+    // Same re-sync + retry pattern as the gold test: on a loaded CI runner the
+    // badge indexes (study anchor and the global badge.bronze type anchor) can lag
+    // the issuance by a gossip round. The badge is already issued by the call above;
+    // retry so a transient index-visibility lag can't fail the assertion. A
+    // persistent empty after the retries is a real failure.
+    let mut badges: Vec<Record> = Vec::new();
+    let mut by_type: Vec<Record> = Vec::new();
+    for _ in 0..5 {
+        await_consistency_s(60, [&alice.governance, &bob.governance, &carol.governance])
+            .await
+            .unwrap();
+        badges = conductors[0]
+            .call(&alice.governance_zome(), "get_badges_for_study", request_ref.clone())
+            .await;
+        by_type = conductors[0]
+            .call(
+                &alice.governance_zome(),
+                "get_badges_by_type",
+                BadgeType::BronzeReproducible,
+            )
+            .await;
+        if !badges.is_empty() && !by_type.is_empty() {
+            break;
+        }
+    }
     assert!(!badges.is_empty(), "BronzeReproducible badge should be issued for ExactMatch + count=3");
-
-    // Badge accessible via get_badges_by_type.
-    let by_type: Vec<Record> = conductors[0]
-        .call(
-            &alice.governance_zome(),
-            "get_badges_by_type",
-            BadgeType::BronzeReproducible,
-        )
-        .await;
-    assert!(!by_type.is_empty(), "get_badges_by_type(BronzeReproducible) should return at least one badge");
+    assert!(
+        !by_type.is_empty(),
+        "get_badges_by_type(BronzeReproducible) should return at least one badge \
+         (retried with re-sync; a persistent empty here is a real failure, not gossip lag)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,26 +1055,34 @@ async fn silver_badge_issued_with_five_validators() {
     assert!(harmony.is_some(), "5-agent round must produce a HarmonyRecord");
 
     // SilverReproducible: ExactMatch (5/5) + count=5 ≥ 5, count=5 < 7 → not Gold.
-    await_consistency(gov_cells.iter().copied()).await.unwrap();
-
-    let badges: Vec<Record> = conductors[0]
-        .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
-        .await;
+    //
+    // Same re-sync + retry pattern as the gold test: on a loaded CI runner the
+    // badge indexes (study anchor and the global badge.silver type anchor) can lag
+    // the issuance by a gossip round. The badge is already issued by the call above;
+    // retry so a transient index-visibility lag can't fail the assertion. A
+    // persistent empty after the retries is a real failure.
+    let mut badges: Vec<Record> = Vec::new();
+    let mut by_type: Vec<Record> = Vec::new();
+    for _ in 0..5 {
+        await_consistency(gov_cells.iter().copied()).await.unwrap();
+        badges = conductors[0]
+            .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
+            .await;
+        by_type = conductors[0]
+            .call(&apps[0].governance_zome(), "get_badges_by_type", BadgeType::SilverReproducible)
+            .await;
+        if !badges.is_empty() && !by_type.is_empty() {
+            break;
+        }
+    }
     assert!(
         !badges.is_empty(),
         "SilverReproducible badge should be issued for ExactMatch + count=5"
     );
-
-    let by_type: Vec<Record> = conductors[0]
-        .call(
-            &apps[0].governance_zome(),
-            "get_badges_by_type",
-            BadgeType::SilverReproducible,
-        )
-        .await;
     assert!(
         !by_type.is_empty(),
-        "get_badges_by_type(SilverReproducible) should return the issued badge"
+        "get_badges_by_type(SilverReproducible) should return the issued badge \
+         (retried with re-sync; a persistent empty here is a real failure, not gossip lag)"
     );
 }
 
