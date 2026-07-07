@@ -39,12 +39,16 @@ version: '3.9'
 
 services:
   bootstrap:
-    image: debian:bookworm-slim
+    # Reuses the node image (built once, shared by all 5 services) instead of
+    # bind-mounting the committed x86_64 binary — Dockerfile.node installs an
+    # arch-matched kitsune2-bootstrap-srv, so this also runs on aarch64
+    # (Oracle Ampere A1).
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.node
     restart: unless-stopped
-    volumes:
-      - ./bin/kitsune2-bootstrap-srv:/kitsune2-bootstrap-srv:ro
     command:
-      - /kitsune2-bootstrap-srv
+      - kitsune2-bootstrap-srv
       - --listen
       - 0.0.0.0:9000
       - --sbd-disable-rate-limiting

@@ -32,7 +32,7 @@ Each is a `valichord_attestation` v1.2 bundle. The parts that matter:
 |---|---|---|
 | `metrics` | the validator's reproduced `report.json` | AUC `0.915795` |
 | `samples` | parsed from the run's `.eval` log via **EEE `InspectAIAdapter`** | 1 sample (`capsule-0851068`) |
-| `meta.attestation_uri` | the shared, live HarmonyRecord | `http://132.145.34.27:3001/record?hash=uhC8k4j2…` |
+| `meta.attestation_uri` | the shared, live HarmonyRecord | `http://152.67.153.149:3001/record?hash=uhC8k4j2…` |
 | `meta.committed_claim` | researcher's pre-committed interval | `[0.9148794716565768, 0.9167110621904239]` |
 | `outputs_merkle_root` | Merkle tree over the samples | (per bundle) |
 
@@ -85,7 +85,7 @@ bundle_capsule-0851068_v1_anthropic_claude-sonnet-4-6.json
   bundle_sha256 : f34c1d08…
   metrics       : [{'key': 'Report the final AUC after training.', 'value': 0.915795}]
   samples       : 1  -> ['capsule-0851068']
-  attestation   : http://132.145.34.27:3001/record?hash=uhC8k4j2…
+  attestation   : http://152.67.153.149:3001/record?hash=uhC8k4j2…
 …
 3 bundles written to bundles_worked_example/
 ```
@@ -116,7 +116,7 @@ The shared record the bundles point at is live and self-verifying — anyone can
 fetch it without running anything:
 
 ```bash
-curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
+curl "http://152.67.153.149:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
 # -> { "outcome": {"type":"Reproduced"}, "agreement_level": "ExactMatch", "validator_count": 3, ... }
 ```
 

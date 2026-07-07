@@ -43,7 +43,7 @@ Five Docker containers — one researcher, three validators, one kitsune2 bootst
 
 **Option A — SSH into Oracle and run (simplest — no env vars needed):**
 ```bash
-ssh -i path/to/ssh-key.key ubuntu@132.145.34.27
+ssh -i path/to/ssh-key.key ubuntu@152.67.153.149
 # then on the server:
 cd ValiChord && git pull && python3 demo/ai_validator.py --mode decentralised
 ```
@@ -51,10 +51,10 @@ cd ValiChord && git pull && python3 demo/ai_validator.py --mode decentralised
 **Option B — Run against Oracle from your own machine:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 

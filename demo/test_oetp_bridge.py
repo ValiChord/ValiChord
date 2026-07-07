@@ -10,7 +10,7 @@ ROUND_AI_VALIDATOR = {
     'outcome_type': 'Reproduced',
     'agreement_level': 'ExactMatch',
     'validator_count': 3,
-    'record_url': 'http://132.145.34.27:3001/record?hash=uhC8kABC',
+    'record_url': 'http://152.67.153.149:3001/record?hash=uhC8kABC',
     'harmony_record_hash': 'uhC8kABC',
 }
 
@@ -18,7 +18,7 @@ ROUND_DEMO_RUNNER = {
     'outcome': 'Reproduced',
     'agreement_level': 'WithinTolerance',
     'validator_count': 5,
-    'record_url': 'http://132.145.34.27:3001/record?hash=uhC8kDEF',
+    'record_url': 'http://152.67.153.149:3001/record?hash=uhC8kDEF',
     'harmony_record_hash': 'uhC8kDEF',
 }
 

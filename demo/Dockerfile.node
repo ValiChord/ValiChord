@@ -10,13 +10,13 @@
 # No manual setup required — docker compose up --build handles everything.
 # Requires: Docker, Docker Compose, and ANTHROPIC_API_KEY in the environment.
 
-ARG HOLOCHAIN_VERSION=0.6.1
-ARG HOLOCHAIN_URL=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}/holochain-x86_64-unknown-linux-gnu
+ARG HOLOCHAIN_VERSION=0.6.2
+ARG HOLOCHAIN_BASE=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}
 
 FROM node:20-bookworm-slim
 
 ARG HOLOCHAIN_VERSION
-ARG HOLOCHAIN_URL
+ARG HOLOCHAIN_BASE
 
 # Runtime dependencies for the Holochain binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -33,15 +33,26 @@ RUN cd /app/demo && npm install --omit=dev
 COPY demo/bin/ /app/demo/bin/
 RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv
 
-# Use the pre-built holochain binary if present; otherwise download from GitHub releases.
-RUN if [ -f /app/demo/bin/holochain ]; then \
-        echo "Using bundled holochain binary."; \
-        chmod +x /app/demo/bin/holochain; \
-    else \
-        echo "Downloading holochain ${HOLOCHAIN_VERSION} from GitHub releases..."; \
-        curl -fsSL "${HOLOCHAIN_URL}" -o /app/demo/bin/holochain \
-            && chmod +x /app/demo/bin/holochain; \
-    fi
+# Use bundled binaries when they run on this architecture; otherwise download
+# the arch-matched build from the Holochain release (which also ships
+# kitsune2-bootstrap-srv). A bundled x86_64 binary on an aarch64 host (e.g.
+# Oracle Ampere A1) fails the exec test and triggers the download instead.
+RUN set -e; \
+    case "$(uname -m)" in \
+        x86_64)  target="x86_64-unknown-linux-gnu" ;; \
+        aarch64) target="aarch64-unknown-linux-gnu" ;; \
+        *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    for bin in holochain kitsune2-bootstrap-srv; do \
+        if [ -f "/app/demo/bin/$bin" ] && chmod +x "/app/demo/bin/$bin" \
+            && "/app/demo/bin/$bin" --version >/dev/null 2>&1; then \
+            echo "Using bundled $bin binary."; \
+        else \
+            echo "Downloading $bin ${HOLOCHAIN_VERSION} ($target)..."; \
+            curl -fsSL "${HOLOCHAIN_BASE}/$bin-$target" -o "/app/demo/bin/$bin"; \
+            chmod +x "/app/demo/bin/$bin"; \
+        fi; \
+    done
 
 # Copy the compiled role-filtered happs.
 COPY valichord/workdir/ /app/valichord/workdir/

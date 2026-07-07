@@ -165,10 +165,10 @@ until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node
 # (or: bash run_local_demo.sh — starts the stack AND runs the demo in one command)
 
 # To record on the public Oracle DHT instead (no local stack needed), set:
-# export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-# export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-# export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-# export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+# export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+# export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+# export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+# export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
 
 # full protocol run (mixed-model default: claude-opus-4-8 / gpt-4o / gemini-2.5-pro):
 python3 core_bench_runner.py --capsule capsule-0851068
@@ -270,7 +270,7 @@ tests always run; the inspect-dependent ones `importorskip`.
   `--researcher-runs 1`) → clean **`Reproduced` / `ExactMatch`** HarmonyRecord;
   all 3 validators independently produced `0.9157952669235003` → MATCH.
 - ✅ Record is public and recomputable on the Oracle DHT:
-  `curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`
+  `curl "http://152.67.153.149:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`
 - ✅ Full validator path: dataset download → privileged Docker sandbox →
   model-as-agent installs deps + runs the paper's code → `report.json` captured →
   `extract_report_from_log` pulls the value out of the real `EvalLog`.

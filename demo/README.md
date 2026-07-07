@@ -15,18 +15,18 @@ Three independent Claude instances act as validators. **The validators are compl
 
 ## Option A — Run against the live Oracle server (no Docker setup)
 
-A permanent instance of the 5-container stack runs on Oracle Cloud (132.145.34.27). The containers restart automatically after any reboot. You only need an Anthropic API key:
+A permanent instance of the 5-container stack runs on Oracle Cloud (152.67.153.149). The containers restart automatically after any reboot. You only need an Anthropic API key:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-The shareable HarmonyRecord URL in the output will point to `http://132.145.34.27:3001/record?hash=...` — publicly readable, no authentication required.
+The shareable HarmonyRecord URL in the output will point to `http://152.67.153.149:3001/record?hash=...` — publicly readable, no authentication required.
 
 ## Option B — Run locally with Docker
 

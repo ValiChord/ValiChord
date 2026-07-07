@@ -9,10 +9,10 @@ Usage
 -----
     # Against Oracle (already running):
     export ANTHROPICAPIKEY=sk-ant-...
-    export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-    export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-    export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-    export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+    export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+    export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+    export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+    export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
     python3 demo/ai_validator_cma.py --mode decentralised
 
     # With another provider's key:

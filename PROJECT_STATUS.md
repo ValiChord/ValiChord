@@ -1,6 +1,6 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-07-06
+**Last updated:** 2026-07-07
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
@@ -24,10 +24,10 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Decentralised demo | **Permanently live on Oracle** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server (132.145.34.27); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. Oracle: containers already up. |
+| Decentralised demo | **Live on Oracle (rebuilt 2026-07-07)** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server **152.67.153.149** (Ampere A1 ARM, PAYG account, Always Free shape); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. **Previous server 132.145.34.27 was reclaimed by Oracle when the free trial ended 2026-06-11 — its DHT state and every HarmonyRecord URL on that IP are gone.** |
 | Public web demo | **Live on Render** | Flask app at `valichord-demo.onrender.com/demo`. **One demo: *Your Hypothesis*** — user enters any claim + their own sealed answer + their own Anthropic key; 3 CMA validators research it blind in parallel; user clicks a pulsing green Reveal button once all 3 commit; adjudicator Claude call compares answers; HarmonyRecord written to DHT. (The server-funded *Free Demo* was **removed June 2026** — every visitor run drew on the server's own Anthropic key, causing rate-limit/cost problems; the site now runs **exclusively on the visitor's `sk-ant-` key**, no server key. The `/demo/run` + `/demo/result` routes are gone from `app.py`. Full detail in `demo/DEMO_WEBSITE.md`.) Linear scroll layout with five expandable accordion explainers (how it works, why remarkable, why Holochain not blockchain, why not central server, why disagreement is fine). Holochain logo in header. |
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
-| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://132.145.34.27:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
+| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://152.67.153.149:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
 | valichord-ui (Svelte/TS frontend) | **Working end-to-end** | Full UI for all three roles (researcher, validator, governance). Wired to a live local conductor: `bash dev.sh` starts conductor + installs app + writes auth token; `npm run dev` serves at `:5173`. `submit_validation_request` → DHT → `get_validation_request_for_data_hash` verified. See `valichord-ui/README.md` and `FRONTEND.md`. |
 
@@ -48,10 +48,10 @@ python3 demo/ai_validator.py --mode decentralised
 **Run against Oracle (already running — no Docker setup needed):**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
@@ -70,7 +70,7 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://132.145.34.27:3001/record?hash=uhC8k…
+  http://152.67.153.149:3001/record?hash=uhC8k…
 
   Verifying record is readable…
   Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
@@ -86,6 +86,25 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Oracle demo outage + full rebuild on new server — 2026-07-07 ✓
+
+**Outage:** the original Oracle VM (132.145.34.27) was reclaimed when the account's free trial ended **2026-06-11** — discovered only 2026-07-07 when grant-application demo links failed. All DHT state on that box (including every published HarmonyRecord URL) is unrecoverable. The Render web demo itself never went down; it just couldn't reach the nodes.
+
+**Rebuild (same day):** account upgraded to **Pay-As-You-Go** (required for A1 capacity; a £1 budget alert is set — the instance itself is an Always Free shape, £0/month). New instance `instance-20260707-1610` = **152.67.153.149**, Oracle Linux 9, **Ampere A1 ARM, 1 OCPU / 6 GB** (+4 GB swap; free-tier capacity capped the shape — resize to 4/24 pending an A1 service-limit increase). SSH: key `oracle_valichord` (user `opc`). Stack deployed from a repo clone + two ARM-patched files; all four node APIs verified healthy from the public internet.
+
+**ARM compatibility changes (in working tree, to be committed):**
+- `demo/Dockerfile.node` — arch-detects via `uname -m`, exec-tests bundled binaries, downloads `holochain` + `kitsune2-bootstrap-srv` for the right target from the Holochain 0.6.2 release (conductor bumped 0.6.1 → 0.6.2)
+- `demo/docker-compose.yml` — bootstrap service now runs from the shared node image instead of bind-mounting the committed x86-only `demo/bin/kitsune2-bootstrap-srv`
+- IP sweep 132.145.34.27 → 152.67.153.149 across `render.yaml`, `demo/ai_validator_cma.py`, README + demo docs
+
+**Ops facts for next time:** Oracle Linux 9 default user is `opc` (not `ubuntu`); demo ports need opening in BOTH the VCN Security List (console) and host firewalld (`firewall-cmd --permanent --add-port=3001-3004/tcp`); OCI ephemeral public IPs survive stop/start but die with the instance — reserve the IP; **never keep work on a fork's main — "Sync fork" force-pushes it away** (bit us twice today: lm-eval ValiChordLogger rescued to branch `valichord-logger`).
+
+**Still pending at time of writing:** IP reservation confirmation, fresh verification round + new shareable HarmonyRecord URL, Render env-var update/redeploy, commit + push of the ARM fixes.
+
+### Future AGI public issue — verifiable eval-run exports — 2026-07-07 ✓
+
+Filed [future-agi/future-agi#1368](https://github.com/future-agi/future-agi/issues/1368) — *"feat(evals): verifiable eval-run exports — canonical JSON + content hash so shared results can be independently checked"*. Follows their CONTRIBUTING issue-first rule; complements the 2026-07-06 email to Nikhil Pareek (context: `memory/reference_futureagi_nikhil.md`). Proposes an RFC 8785 canonical export + SHA-256 content hash + per-datapoint Merkle root (selective disclosure), names `valichord_attestation` as prior art (adapters: lm-eval-harness, Inspect AI, AILuminate), offers adapter or endpoint PR. Their self-run benchmark claims (AgentCompass/TRAIL) addressed gain-framed: "first eval platform whose headline numbers are independently checkable" — deliberately no deficit-framing (see `memory/feedback_outreach_tone.md`). Repo evidence behind the issue: `Evaluation` results = mutable JSONFields (`futureagi/model_hub/models/evaluation.py`), only export surface = annotation-queue CSV, SDK `BatchRunResult` has no canonical serialization. Filed via gh CLI so the form's auto-labels weren't applied (cosmetic; we lack triage permission). Their CONTRIBUTING promises maintainer response in ~3 business days. **Adapter still not to be built on spec** — wait for engagement.
 
 ### UI e2e suite + form-blocking bug fix + CI job — 2026-07-06 ✓ (same day as v0.6.0; folded into the v0.6.0 release notes, no new release)
 
@@ -361,10 +380,10 @@ AI validators upgraded from one-shot Claude calls to **Claude Managed Agents** (
 **Run against Oracle:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://132.145.34.27:3001
-export VALICHORD_VALIDATOR_1_URL=http://132.145.34.27:3002
-export VALICHORD_VALIDATOR_2_URL=http://132.145.34.27:3003
-export VALICHORD_VALIDATOR_3_URL=http://132.145.34.27:3004
+export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
+export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
+export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
+export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
 python3 demo/ai_validator_cma.py --mode decentralised
 ```
 
@@ -702,7 +721,7 @@ API keys are in. No per-key rate limiting yet.
 ### 5. CORE-Bench + ValiChord demo — ✓ FULL RUN DONE (2026-05-31); ✓ REVIEW-HARDENING LANDED (2026-06-01)
 Live CLI demo combining ValiChord's commit-reveal protocol with the inspect_evals CORE-Bench task — AI agents that actually run research-paper code in isolated Docker sandboxes. On `main` (demo + 3-unit review-hardening); see `demo/CORE_BENCH_DEMO.md`. Hardening detail in "Recently completed" above.
 
-**Full commit-reveal run complete (2026-05-31, 128 GB Codespace):** end-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`, `--researcher-runs 1`) produced a clean **`Reproduced` / `ExactMatch`** HarmonyRecord — all 3 validators independently got `0.9157952669235003`. Public + recomputable on the Oracle DHT: `curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`. Both Opus 4.8 and Sonnet 4.6 reproduce the capsule exactly. **31 tests pass.**
+**Full commit-reveal run complete (2026-05-31, 128 GB Codespace):** end-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`, `--researcher-runs 1`) produced a clean **`Reproduced` / `ExactMatch`** HarmonyRecord — all 3 validators independently got `0.9157952669235003`. Was public + recomputable on the old Oracle DHT (`curl "http://132.145.34.27:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`) — **that record was lost with the 2026-06-11 Oracle reclamation**; re-run the demo to mint a fresh record on 152.67.153.149. Both Opus 4.8 and Sonnet 4.6 reproduce the capsule exactly. **31 tests pass.**
 
 **Four bugs fixed live (each only surfaces with 3 real validators):** (1) validators ran in a `ThreadPoolExecutor` but inspect_ai forbids concurrent `eval_async` → made sequential; (2) `google-genai` missing from `requirements.txt` → added; (3) `gemini-1.5-pro` retired by Google → `gemini-2.5-pro`; (4) infra failure (rate-limit/quota/auth/interrupt → empty `EvalLog` → `None` report) was minting a bogus `FailedToReproduce` HarmonyRecord → `run_validator_eval` now raises on non-`success` status so the round aborts with the real error. (Earlier: `filter_out_gpu` empties the dataset; `anthropic>=0.105.0`.)
 

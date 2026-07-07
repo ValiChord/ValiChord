@@ -7,10 +7,10 @@ services:
     healthCheckPath: /health
     envVars:
       - key: VALICHORD_RESEARCHER_URL
-        value: http://132.145.34.27:3001
+        value: http://152.67.153.149:3001
       - key: VALICHORD_VALIDATOR_1_URL
-        value: http://132.145.34.27:3002
+        value: http://152.67.153.149:3002
       - key: VALICHORD_VALIDATOR_2_URL
-        value: http://132.145.34.27:3003
+        value: http://152.67.153.149:3003
       - key: VALICHORD_VALIDATOR_3_URL
-        value: http://132.145.34.27:3004
+        value: http://152.67.153.149:3004

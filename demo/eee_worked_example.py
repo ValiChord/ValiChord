@@ -37,7 +37,7 @@ RESEARCHER_VALUE = 0.9157952669235003  # researcher --researcher-runs 1, capsule
 # Real, live, publicly-curl-able HarmonyRecord on the Oracle DHT for this round.
 RECORD_HASH = "uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
 RESULT = {
-    "record_url": f"http://132.145.34.27:3001/record?hash={RECORD_HASH}",
+    "record_url": f"http://152.67.153.149:3001/record?hash={RECORD_HASH}",
     "harmony_record_hash": RECORD_HASH,
     # The ValidationRequest data hash is held on the authoring node; the public
     # /record endpoint does not expose it. The verifiable anchor is the record.
