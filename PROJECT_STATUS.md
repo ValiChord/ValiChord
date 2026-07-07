@@ -93,14 +93,19 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 **Rebuild (same day):** account upgraded to **Pay-As-You-Go** (required for A1 capacity; a £1 budget alert is set — the instance itself is an Always Free shape, £0/month). New instance `instance-20260707-1610` = **152.67.153.149**, Oracle Linux 9, **Ampere A1 ARM, 1 OCPU / 6 GB** (+4 GB swap; free-tier capacity capped the shape — resize to 4/24 pending an A1 service-limit increase). SSH: key `oracle_valichord` (user `opc`). Stack deployed from a repo clone + two ARM-patched files; all four node APIs verified healthy from the public internet.
 
-**ARM compatibility changes (in working tree, to be committed):**
+**ARM compatibility changes (committed `2ff064d`, pushed to main):**
 - `demo/Dockerfile.node` — arch-detects via `uname -m`, exec-tests bundled binaries, downloads `holochain` + `kitsune2-bootstrap-srv` for the right target from the Holochain 0.6.2 release (conductor bumped 0.6.1 → 0.6.2)
 - `demo/docker-compose.yml` — bootstrap service now runs from the shared node image instead of bind-mounting the committed x86-only `demo/bin/kitsune2-bootstrap-srv`
 - IP sweep 132.145.34.27 → 152.67.153.149 across `render.yaml`, `demo/ai_validator_cma.py`, README + demo docs
 
-**Ops facts for next time:** Oracle Linux 9 default user is `opc` (not `ubuntu`); demo ports need opening in BOTH the VCN Security List (console) and host firewalld (`firewall-cmd --permanent --add-port=3001-3004/tcp`); OCI ephemeral public IPs survive stop/start but die with the instance — reserve the IP; **never keep work on a fork's main — "Sync fork" force-pushes it away** (bit us twice today: lm-eval ValiChordLogger rescued to branch `valichord-logger`).
+**Verified live end-to-end:** full commit-reveal round runs on the new box (Reproduced 3/3, ExactMatch); the public Render site (`valichord-demo.onrender.com/demo`) proxies to the new nodes and returns the signed record. Fresh shareable HarmonyRecord for grant applications: `http://152.67.153.149:3001/record?hash=uhC8kCnUE040sim58_Ae84Y_QIoOEPBZ3XQLNEqii_mG-IpddkA-n` (also via the site at `/demo/record/<hash>`).
 
-**Still pending at time of writing:** IP reservation confirmation, fresh verification round + new shareable HarmonyRecord URL, Render env-var update/redeploy, commit + push of the ARM fixes.
+**Ops facts for next time:**
+- Oracle Linux 9 default user is `opc` (not `ubuntu`).
+- Demo ports need opening in BOTH the VCN Security List (console) AND host firewalld (`firewall-cmd --permanent --add-port=3001-3004/tcp`).
+- OCI ephemeral public IPs survive stop/start but die with the instance. Reserving `152.67.153.149` is **deferred housekeeping** — the console wouldn't convert ephemeral→reserved in place (would change the IP), and the ephemeral address is stable unless the instance is terminated. Do it calmly later (accept the new IP + re-sweep) before the next round of published links.
+- **The Render `valichord-demo` service reads env vars from the DASHBOARD, not `render.yaml`** — the blueprint file is inert for it. The four `VALICHORD_*_URL` vars had to be set/edited in Render → service → Environment tab (dashboard values always win). `render.yaml` was updated too for correctness/future blueprint use, but editing it alone does nothing to the live site. Symptom of a missing var: the app falls back to `localhost:3001` and the record proxy returns "Connection refused" (errno 111); a wrong-but-set IP gives "Connection timed out" (errno 110).
+- **Never keep work on a fork's main — "Sync fork" force-pushes it away** (bit us twice today: lm-eval ValiChordLogger rescued to branch `valichord-logger`).
 
 ### Future AGI public issue — verifiable eval-run exports — 2026-07-07 ✓
 
