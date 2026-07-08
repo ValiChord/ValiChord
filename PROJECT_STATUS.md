@@ -87,6 +87,28 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### First live coordinator hot-swap on Oracle (local-read change) — 2026-07-08 ✓
+
+The flowsta "local reads for self-authored lookups" pattern (commit `7e8b2e6`) was rolled onto all
+four live Oracle demo nodes via `AdminRequest::UpdateCoordinators` — **zero downtime, zero DNA-hash
+change, no container restarts, all HarmonyRecord URLs preserved.** First production use of the
+coordinator hot-swap mechanism.
+
+- **Code:** `release_claim`, `get_my_claimed_studies`, and the duplicate-commitment guard in
+  `notify_commitment_sealed` now use `GetStrategy::Local` for self-authored lookups (quorum counts and
+  reclaimer-release checks stay `Network`). Read-strategy rule added to CLAUDE.md hard constraints.
+- **Test evidence:** all four sweettests covering the changed functions pass serially; CI ran the full
+  matrix on the push (Tryorama 97 + UI e2e + 5 sweettest suites). Local full-suite serial runs were
+  twice killed by an unexplained external SIGTERM ~1.5 h in (8/8 passing at kill both times; 2-core
+  Codespace) — the "only run the tests that matter, let CI do the matrix" approach is the documented
+  workaround.
+- **Tooling:** `demo/hotswap-coordinators.mjs` — rehearse locally with `REHEARSAL=1` against a
+  throwaway conductor, then `docker exec` per container (researcher first, verify between nodes).
+  Runbook in the script header.
+- **Live verification:** post-swap `get_my_claimed_studies` returned 2 real claimed-study records on
+  each validator through the new Local-read path; all four `/health` endpoints green; public record
+  URL (`uhC8kCnUE…`) still serving `Reproduced`/`ExactMatch`.
+
 ### Oracle demo outage + full rebuild on new server — 2026-07-07 ✓
 
 **Outage:** the original Oracle VM (132.145.34.27) was reclaimed when the account's free trial ended **2026-06-11** — discovered only 2026-07-07 when grant-application demo links failed. All DHT state on that box (including every published HarmonyRecord URL) is unrecoverable. The Render web demo itself never went down; it just couldn't reach the nodes.
