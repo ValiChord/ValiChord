@@ -846,9 +846,12 @@ pub fn claim_study(request_ref: ExternalHash) -> ExternResult<Option<ActionHash>
 pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
     let agent = agent_info()?.agent_initial_pubkey;
 
+    // Local is safe: the loop below keeps only links authored by this agent,
+    // and self-authored links are always in the local source chain.  A Network
+    // walk here can hang on a cold cell without ever finding more of *our* links.
     let request_links = get_links(
         LinkQuery::try_new(request_ref.clone(), LinkTypes::RequestToClaim)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     // Each claim release is three create_link calls after a create_entry.
     // Holochain has no transactions — if a link write fails mid-release, the
@@ -860,7 +863,9 @@ pub fn release_claim(request_ref: ExternalHash) -> ExternResult<()> {
     // signal — a partial write therefore never permits a phantom commitment.
     for link in request_links.iter().filter(|l| l.author == agent) {
         if let Some(claim_hash) = link.target.clone().into_action_hash() {
-            // Skip if already released.
+            // Skip if already released.  Stays Network (unlike the my-claims
+            // read above): a release may have been written by a reclaimer,
+            // not by us, so the local chain is not authoritative here.
             let existing = get_links(
                 LinkQuery::try_new(claim_hash.clone(), LinkTypes::ClaimToRelease)?,
                 GetStrategy::Network,
@@ -912,13 +917,22 @@ pub fn get_claims_for_request(request_ref: ExternalHash) -> ExternResult<Vec<Rec
 }
 
 /// Return all active (non-released) studies this validator has claimed.
+///
+/// Reads are Local throughout: every ValidatorToClaim link and StudyClaim
+/// entry here is authored by the caller, so the source chain is complete by
+/// construction — a Network walk adds nothing except a hang risk on a fresh
+/// or cold cell.  The one asymmetry is ValidatorToRelease: a release written
+/// by a *reclaimer* (reclaim_abandoned_claim, ≥7-day timeout) reaches us via
+/// gossip rather than authorship, so this view may briefly show a reclaimed
+/// claim as active.  That staleness is display-only — the authoritative
+/// release check in notify_commitment_sealed stays on Network.
 #[hdk_extern]
 pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
     let agent = agent_info()?.agent_initial_pubkey;
     // One call for releases, one call for claims — filter in memory.
     let release_links = get_links(
         LinkQuery::try_new(agent.clone(), LinkTypes::ValidatorToRelease)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     let released: HashSet<ActionHash> = release_links
         .iter()
@@ -927,13 +941,13 @@ pub fn get_my_claimed_studies(_: ()) -> ExternResult<Vec<Record>> {
 
     let claim_links = get_links(
         LinkQuery::try_new(agent, LinkTypes::ValidatorToClaim)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     let mut records = Vec::new();
     for link in claim_links {
         if let Some(claim_hash) = link.target.into_action_hash() {
             if !released.contains(&claim_hash) {
-                if let Some(record) = get(claim_hash, GetOptions::network())? {
+                if let Some(record) = get(claim_hash, GetOptions::local())? {
                     records.push(record);
                 }
             }
@@ -1313,9 +1327,13 @@ pub fn notify_commitment_sealed(
         .typed(LinkTypes::RequestToCommitment)?;
     commit_path.ensure()?;
     let commit_anchor = commit_path.path_entry_hash()?;
+    // Local is safe: this guard only looks for OUR OWN prior link on the
+    // anchor (`l.author == agent`), and self-authored links are always in the
+    // local source chain.  Others' links are irrelevant here — the quorum
+    // count below does its own Network read.
     let existing_links = get_links(
         LinkQuery::try_new(commit_anchor.clone(), LinkTypes::RequestToCommitment)?,
-        GetStrategy::Network,
+        GetStrategy::Local,
     )?;
     if existing_links.iter().any(|l| l.author == agent) {
         return Err(wasm_error!(WasmErrorInner::Guest(

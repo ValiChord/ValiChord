@@ -23,7 +23,9 @@ export PATH="/home/codespace/.cargo/bin:$PATH"
 
 ```bash
 # Kill stale conductors first — always
-pkill -f holochain; pkill -f lair-keystore; sleep 2
+# (-x = exact process-name match. -f would match this very shell's own
+#  command line and SIGTERM it — exit code 144, compound command dies.)
+pkill -x holochain; pkill -x lair-keystore; sleep 2
 
 # Build all WASM zomes (~5–10 min clean, ~1 min incremental)
 cd valichord
@@ -236,8 +238,9 @@ Used by: `ValidationTier`, `AttestationConfidence`, `ValidationPhase`, `Agreemen
 
 - Never use `pack_dna.py` — broken (embeds same DNA bytes for all four roles)
 - Always use `hc dna pack` + `hc app pack`
-- Before any test run: `pkill -f holochain; pkill -f lair-keystore; sleep 2`
+- Before any test run: `pkill -x holochain; pkill -x lair-keystore; sleep 2` (never `-f` — it matches the invoking shell itself)
 - Private entries in single-agent DNAs: use `query()` not `get()` — `get()` in a test conductor can leak across cell boundaries
+- **Read-strategy rule (coordinators):** lookups whose results are entirely self-authored (my links, my entries) use `GetStrategy::Local` / `GetOptions::local()` — the source chain is complete by construction, and a Network walk on a fresh/cold cell can hang past the read budget without finding anything new. Anything that can include *other agents'* writes (quorum counts, phase markers, releases by reclaimers, protocol guards) stays `Network`. When one function mixes both, comment each read. (Pattern source: flowsta-signing-dna v1.4 "self-authored lookups read locally".)
 
 ## Coordinator-only upgrade (zero DNA hash change)
 
