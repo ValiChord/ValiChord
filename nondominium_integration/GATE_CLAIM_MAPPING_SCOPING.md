@@ -138,6 +138,16 @@ Per `NONDOMINIUM_ARCHITECTURE.md` (custodian gate stays intact; no new governanc
 > record says.* This closes the *forged-result* hole; the distinct *captured/fake-reviewer* hole is
 > closed upstream by reviewer admission + independence (`REVIEWER_SOURCING_SCOPING.md`), not by this fetch.
 
+> **Update 2026-07-08:** the branch caveat below is lifted — the two-tier capability-slot pattern is
+> now formalised in NDO's v1.0 architecture design (`documentation/specifications/ndo-v1-architecture-design.md`
+> on their active branch `ndo-layer1`), with `SlotType` grown to include `VersionGraph`, `DigitalAsset`,
+> `WeaveWAL` (still no validation slot — the gap stands). **Two flags for the call:** (1) their v1.0
+> `GovernanceRuleType` enum does **not** include `ExternalValidation` — step 3's "Nondominium adds" is a
+> request we must make explicitly, not something already planned; (2) governance-as-operator (the
+> machinery that evaluates any rule at transition time) is specified but **unimplemented** (their
+> #41–#44), so no Tier-2 rule of any kind is enforceable until it lands — sequencing dependency, not a
+> design problem.
+
 > **Precedent confirms this design (added 2026-06-17, based on NDO branch `feat/ndo-layer0-ui-102` —
 > not yet merged to main, so subject to change).** The branch formalises the capability-slot surface
 > as a first-class, two-tier pattern (`ndo_prima_materia.md` §6; `requirements/governance.md` §3.3),

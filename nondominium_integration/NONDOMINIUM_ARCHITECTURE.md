@@ -13,6 +13,43 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 
 ---
 
+> **🔄 Re-check 2026-07-08 — branch `ndo-layer1` (their active dev line, 66 commits ahead of a stale `main`).**
+> The `feat/ndo-layer0-ui-102` work referenced below is merged into this line (#103 Lobby DNA, #107 Group
+> DNA, #108 Layer 0 UI). Key movements since the 2026-06-16 update:
+>
+> 1. **The capability-slot two-tier pattern is now formalised in their v1.0 architecture design**
+>    (`documentation/specifications/ndo-v1-architecture-design.md`, with ADR-001–006) — no longer
+>    branch-caveated requirements material. The `SlotType` vocabulary grew (`VersionGraph`,
+>    `DigitalAsset`, `WeaveWAL` added alongside `FlowstaIdentity`, `UnytAgreement(String)`,
+>    `CustomApp(String)`) but **still has no validation/reproducibility slot** — our gap-to-fill stands.
+> 2. **⚠️ `GovernanceRuleType` in the v1.0 design has NO `ExternalValidation` variant** (it has
+>    `AccessRequirement`, `MaintenanceSchedule`, `RoleRequirement`, `UsageLimit`, `TransferCondition`,
+>    `IdentityVerification` (Flowsta), `EconomicAgreement` (Unyt stub)). The variant Decision 5 assumes
+>    NDO "adds" is not in their design doc — it must be explicitly requested/PR'd, or ValiChord rides
+>    `CustomApp` semantics. Raise this with Tiberius before any gate implementation.
+> 3. **Governance-as-operator is still NOT implemented** (their #41–#44; specified in
+>    `documentation/specifications/governance/`). This is the machinery any Tier-2 gate rule executes
+>    inside — **the ValiChord gate cannot be enforced until it lands**, whichever rule variant is used.
+> 4. **`PropertyRegime` officially reduced to 4 variants** — `Collective` and `Pool` were *removed from
+>    the Rust + shared-types* after design review (stronger than the "UI surfaces 4, others
+>    forward-compat" note below): `Private`, `Commons`, `Nondominium`, `CommonPool`.
+> 5. **v1.0 commits to dual-DNA hREA delegation (ADR-006):** VF core types (EconomicResource,
+>    EconomicEvent, Commitment, Agreement, Process) move to the vendored hREA DNA; NDO keeps only
+>    governance/identity/accountability extensions. Integration implication: `create_economic_resource`
+>    and `log_economic_event` call shapes will change when that migration lands — but the PPR system
+>    (our Step 6 sink) is explicitly "preserved unchanged" (design §8), and it stays NDO-side.
+> 6. **Layer 1 (Specification activation) has not started** despite the branch name; Layer 0 is complete
+>    (#80, #84 categorization anchors). `validate_new_resource` **still commented out** — re-verified in
+>    `economic_resource.rs` on `ndo-layer1` 2026-07-08.
+> 7. Device management is implemented in `zome_person/src/device_management.rs` (register/list/
+>    deactivate devices per person, DeviceUpdates chains) — the within-NDO half of the identity story;
+>    cross-system resolution still Flowsta. Push-based group signals landed on the branch
+>    ("feat(signals)" commit) though their own IMPLEMENTATION_STATUS still says not started.
+>
+> Full recon notes: memory `project_nondominium_recon_2026-07-08.md`.
+
+---
+
 ## Overview
 
 Three DNAs as of May 2026: `nondominium` (core) + `lobby` (cross-NDO federation, added PR #103) + `group` (per-group coordination DHT, added PR #107).
@@ -138,7 +175,8 @@ Ideation → Specification → Development → Prototype → Stable → Distribu
                                                                   EndOfLife (terminal)
 ```
 
-`PropertyRegime`: `Private`, `Commons`, `Collective`, `Pool`, `CommonPool`, `Nondominium`  
+`PropertyRegime`: `Private`, `Commons`, `Nondominium`, `CommonPool` — 4 variants as of `ndo-layer1`
+(`Collective` and `Pool` removed from Rust + shared-types after design review; earlier 6-variant list obsolete)  
 `ResourceNature`: `Physical`, `Digital`, `Service`, `Hybrid`, `Information`
 
 **Integration implication:** ValiChord's `HarmonyRecord` can drive BOTH layers:
@@ -517,7 +555,13 @@ plugs into their existing lifecycle modal*, not as a flaw in their MVP.
 
 ---
 
-*Last updated: 2026-06-16. Added companion scoping-note pointers (top) + the zome_resource security
+*Last updated: 2026-07-08. Re-check against branch `ndo-layer1` (their active line): capability-slot
+pattern formalised in the v1.0 architecture design (ADRs); `GovernanceRuleType` v1.0 enum has NO
+`ExternalValidation` variant (Decision 5 assumption — must be requested explicitly);
+governance-as-operator still unimplemented (#41–#44) and is the enforcement dependency for any gate
+rule; `PropertyRegime` reduced to 4 variants in code; dual-DNA hREA delegation committed (ADR-006, PPR
+preserved); `validate_new_resource` still commented out; Layer 1 not started. Previous update
+(2026-06-16): added companion scoping-note pointers (top) + the zome_resource security
 caution (gate must verify the real HarmonyRecord, not the researcher-written slot tag), and a
 re-look of the design system (unchanged since 2026-06-06): its `LifecycleTransitionModal` is a pure
 stage-picker with no evidence/validation concept anywhere in the repo — the front-end mirror of the

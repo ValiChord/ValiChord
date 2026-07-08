@@ -19,6 +19,16 @@
 > reasoning (and the offline signature-verification alternative): `GATE_CLAIM_MAPPING_SCOPING.md` §5 +
 > the `NONDOMINIUM_ARCHITECTURE.md` security caution. See also `REVIEWER_SOURCING_SCOPING.md`.
 
+> **🔄 Re-check (2026-07-08) — against their active branch `ndo-layer1` (66 commits ahead of a stale `main`).**
+> Three things to carry into any implementation conversation: (1) the capability-slot two-tier pattern
+> is now **formalised in their v1.0 architecture design doc** (no longer branch-caveated), but the
+> `SlotType` vocabulary still has no validation slot; (2) **their v1.0 `GovernanceRuleType` enum does
+> NOT include the `ExternalValidation` variant** that resolved Decision 5 assumes NDO will add — it
+> needs to be explicitly requested or PR'd; (3) **governance-as-operator (the rule-enforcement
+> machinery) is still unimplemented** on their side (#41–#44), so no gate rule of any kind can be
+> enforced yet. Also: `GroupMembership.ndo_pubkey_map` does not exist — see the Decision 4 correction
+> below. Full re-check: `NONDOMINIUM_ARCHITECTURE.md` (top) + memory `project_nondominium_recon_2026-07-08.md`.
+
 > **📌 Update (2026-06-17) — and NDO's own codebase now confirms this is the house pattern.** Their
 > active branch `feat/ndo-layer0-ui-102` (not yet merged to main) formalises the capability slot as a
 > first-class **two-tier** governance concept with two worked external integrations as templates: Unyt
@@ -255,7 +265,17 @@ See Decision 4 below.
 
 ### Decision 4 — Flowsta as shared identity layer
 
-**Updated May 2026:** Nondominium's new **Lobby DNA** (PR #103) changes this picture. `GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey` for each NDO a validator belongs to. This is Nondominium's own MVP bridge for cross-DHT identity — without Flowsta.
+> **⚠️ Correction (2026-07-08) — `GroupMembership.ndo_pubkey_map` does not exist.** Verified in
+> `zome_group_integrity` source on their active branch `ndo-layer1`: `GroupMembership` carries only
+> `{group_hash, role: Option<String>}`. The May 2026 paragraph below was written from a pre-#107
+> design draft; `NONDOMINIUM_ARCHITECTURE.md` caught this on 2026-05-27 but this file was not
+> corrected. Consequence: **Option A as written has no existing mapping to query** — it would require
+> NDO to add the field (ask, don't assume), leaving Option B (Flowsta `IsSamePersonEntry`) or a
+> same-key convention as the paths that exist today. Note NDO now ships within-NDO device management
+> (`device_management.rs`: register/deactivate devices per person) — useful precedent, but it does not
+> solve cross-system (ValiChord ↔ NDO) key resolution either.
+
+**Updated May 2026 (superseded — see correction above):** Nondominium's new **Lobby DNA** (PR #103) changes this picture. `GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey` for each NDO a validator belongs to. This is Nondominium's own MVP bridge for cross-DHT identity — without Flowsta.
 
 This means: if a validator's ValiChord key and their NDO key are both registered in the same Nondominium Group, the mapping already exists in the Group DHT. The integration layer can query `GroupMembership.ndo_pubkey_map` to resolve the ValiChord key → NDO key for PPR attribution.
 
@@ -289,4 +309,7 @@ ValiChord is also designed to remain independent: usable outside any single ecos
 
 ---
 
-*Written March 2026 after reading both codebases. Updated May 2026: version table corrected (ValiChord now 0.6.1), Decision 4 updated for Nondominium Lobby DNA (PR #103) and GroupMembership identity bridge. Decisions 1 and 5 marked resolved following NDO team response (May 2026): capability slot approach confirmed, custodian gate preserved. Integration path Step 5 rewritten to reflect slot-based activation. DHT locality constraint documented.*
+*Written March 2026 after reading both codebases. Updated 2026-07-08: re-check against branch
+`ndo-layer1` — Decision 4's `GroupMembership.ndo_pubkey_map` premise corrected (field does not exist),
+Decision 5's `ExternalValidation` variant flagged as absent from their v1.0 design enum,
+governance-as-operator noted as the unimplemented enforcement dependency. Updated May 2026: version table corrected (ValiChord now 0.6.1), Decision 4 updated for Nondominium Lobby DNA (PR #103) and GroupMembership identity bridge. Decisions 1 and 5 marked resolved following NDO team response (May 2026): capability slot approach confirmed, custodian gate preserved. Integration path Step 5 rewritten to reflect slot-based activation. DHT locality constraint documented.*

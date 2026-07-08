@@ -186,9 +186,9 @@ ValiChord knows validators by their ValiChord device `AgentPubKey`. Nondominium 
 
 **Within ValiChord** (implemented, 2026-03-25): `AgentIdentityAttestation` — both device keys jointly sign a canonical 78-byte payload (sorted pubkeys). `get_linked_agents()` resolves any key to all linked alternates. Reputation continuity is maintained across device rotation.
 
-**Within Nondominium** (implemented, May 2026): The new Lobby DNA provides a three-layer identity model. `GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey` per NDO for every validator in a Group. This is the MVP bridge for cross-DHT identity within Nondominium — without Flowsta.
+**Within Nondominium** (corrected 2026-07-08): ~~`GroupMembership.ndo_pubkey_map` records `lobby_pubkey → ndo_pubkey`~~ — **this field does not exist.** Verified in `zome_group_integrity` on their active branch `ndo-layer1`: `GroupMembership` carries only `{group_hash, role}`. What Nondominium *does* have is within-NDO device management (`zome_person/src/device_management.rs`: register/list/deactivate devices per person) — multi-device tracking inside their own DHT, but no cross-DHT key mapping.
 
-**Across systems** (Decision 4, updated): When `log_economic_event(VfAction::Work, provider: X)` fires, X must be the validator's NDO key. The Lobby DNA's `GroupMembership.ndo_pubkey_map` can resolve this if both the ValiChord key and the NDO key are registered in a shared Nondominium Group — the likely case for single-device validators. Flowsta Vault's `IsSamePersonEntry` remains the cleanest path for multi-device validators where keys differ across systems. See Decision 4 in `README.md` for the three options.
+**Across systems** (Decision 4, corrected 2026-07-08): When `log_economic_event(VfAction::Work, provider: X)` fires, X must be the validator's NDO key. With `ndo_pubkey_map` off the table, the paths that exist today are: a same-key convention (validator registers the same keypair in both systems), or Flowsta Vault's `IsSamePersonEntry` for multi-device validators where keys differ. Asking NDO to add a cross-DHT key map to `GroupMembership` is a possible third path, but it is a feature request, not an existing capability. See the corrected Decision 4 in `README.md`.
 
 ---
 
@@ -197,10 +197,10 @@ ValiChord knows validators by their ValiChord device `AgentPubKey`. Nondominium 
 | # | Question | Resolution / Status |
 |---|---|---|
 | 1 | Who owns validation state? | ✓ **Resolved (May 2026):** `HarmonyRecord` is canonical. NDO governance rules check a capability slot link + tag. `ResourceValidation` not used. |
-| 5 | Who drives the state transition? | ✓ **Resolved (May 2026):** Custodian gate stays intact. Researcher writes slot link from NDO agent context, then calls existing `update_resource_state()`. NDO adds `GovernanceRuleType::ExternalValidation`. Open sub-question: slot-writing function location (`zome_resource` vs `zome_gouvernance`). |
+| 5 | Who drives the state transition? | ✓ **Resolved (May 2026):** Custodian gate stays intact. Researcher writes slot link from NDO agent context, then calls existing `update_resource_state()`. NDO adds `GovernanceRuleType::ExternalValidation`. **Flag (2026-07-08):** that variant is absent from NDO's v1.0 `GovernanceRuleType` design enum — must be explicitly requested/PR'd; and governance-as-operator (rule enforcement) is still unimplemented on their side (#41–#44), so the gate is unenforceable until it lands. Open sub-question: slot-writing function location (`zome_resource` vs `zome_gouvernance`). |
 | 2 | Membrane proofs vs NDO roles | Open: auto-promote on ValiChord credential vs independent enrollment |
 | 3 | Who creates the NDO resource? | Open: researcher-first in NDO (Option A, less coupling) vs ValiChord cross-app call (Option B) |
-| 4 | Cross-system identity | Open: NDO Lobby `GroupMembership` as MVP bridge (Option A) vs Flowsta required (Option B) vs both with fallback (Option C) |
+| 4 | Cross-system identity | Open — **Option A invalidated 2026-07-08** (`GroupMembership.ndo_pubkey_map` does not exist; would be a feature request to NDO). Remaining today: same-key convention, or Flowsta `IsSamePersonEntry` (Option B), or layered fallback (Option C). |
 
 **Deployment note:** ValiChord's `round_timeout_secs` is a DNA property (default 604800 s / 7 days). Rounds that have not reached full quorum within this window can be force-finalised by `force_finalize_round()` on the governance DNA. Sensorica should decide at deployment time whether 7 days is appropriate for their validation workflows — it is set in `governance/dna.yaml` and baked into the DNA hash, so changing it requires a new DNA.
 
