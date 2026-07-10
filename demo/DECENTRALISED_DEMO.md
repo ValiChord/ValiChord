@@ -336,6 +336,12 @@ The `-v` flag removes the named volumes (each conductor's keystore and DHT cache
 | Network isolation | Docker bridge network `valichord`; containers reach each other by service name, not host network |
 | DHT seed | `valichord-demo-decentralised` — all five conductors join the same network seed; data is visible to all five |
 
+### Bootstrap-container loss is non-fatal
+
+The bootstrap server only does peer *discovery* — it introduces conductors to each other. Once the four nodes are connected, they hold direct iroh/QUIC connections that do not depend on the bootstrap server, so gossip (and a demo run in progress) continues through a bootstrap-container crash. `restart: unless-stopped` brings the container back within seconds, and it is only needed again when a conductor restarts and has to rediscover its peers.
+
+A remote-bootstrap fallback list (the Flowsta Vault 1.0 pattern — probe the primary's `/health` at startup, fall back to alternates, start anyway if all are dark) was evaluated on 2026-07-10 and deliberately **not** added here: the bootstrap is a sibling container sharing fate with the nodes on one VM, so there is no failure mode where the nodes are up but need a *different* bootstrap server. The pattern belongs to the future desktop-validator phase, where validators on their own machines depend on a remote bootstrap server we host.
+
 ### Role-filtered happs (demo only — not the production model)
 
 The demo uses two role-filtered `.happ` bundles:
