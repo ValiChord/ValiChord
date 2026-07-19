@@ -258,22 +258,32 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ## Pending upgrade checks (run at every session start)
 
 ### Holochain version
-Run `holochain --version`. Current: 0.6.2.
+Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-15 — trivial `reqwest`/native-tls build-feature patch in `holochain_metrics`, nothing for us; no reason to bump.)
 
-**If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes:
+**⚠️ 0.7.0 IS NOW IN RELEASE-CANDIDATE (sighted 2026-07-19):** `0.7.0-rc.0` tagged 2026-07-15, `0.7.0-rc.1` tagged 2026-07-16. This is the "watch for rc.0" trigger firing. On the 0.6-cycle base rate (rc.0→stable ≈ 2 weeks), **0.7.0 stable ETA ≈ end-July / early-August 2026** — ahead of the earlier ~September estimate. Crate lines confirmed: `hdk 0.7.0-rc.1`, `hdi 0.8.0-rc.1`, `@holochain/client 0.9.0-rc.1`. Still HOLD on 0.6.2 until *stable*; then a deliberate planned migration, never auto.
+
+**If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes (⬤ = CONFIRMED landed in 0.7.0-rc.0, verified from the crate CHANGELOGs 2026-07-19):
 - `hdk → 0.7.x`, `hdi → 0.8.x` (Cargo.toml across all zomes)
 - Wasmer flags renamed: `wasmer_sys → wasmer-sys-cranelift`, `wasmer_wamr → wasmer-wasmi`
 - Conductor DB migrated to `holochain_data` — no migration path, must clear state; Oracle demo nodes need `docker compose down -v` before upgrading, not just a binary swap
 - `must_get_agent_activity` response types changed — new variants: `UntilTimestampIndeterminate`, `UntilTimestampGreaterThanChainHead`, `IncompleteChain`; `ChainFilter` now constructed via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining
 - `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
 - `get_links_details` renamed from `get_link_details`
-- **`validate()` migration to `FlatOp v2`** — `flat_op_v2` module added to HDI (`crates/hdi/src/flat_op_v2`); v2 `FlatOp` is built over new `dht_v2::Action`/`Op` types with validating constructors. All four ValiChord integrity zomes use `op.flattened::<EntryTypes, LinkTypes>()` and will need migrating when v1 is deprecated. Watch the HDI CHANGELOG on `develop` for the deprecation notice. (Source: `holochain/holochain` branch `cascade-read-and-cutover`)
+- ⬤ **v2 Action model is now canonical (rc.0)** — the legacy per-variant action structs (`Create`, `Update`, `Delete`, `Dna`, `CreateLink`, `DeleteLink`, `OpenChain`, `CloseChain`, `AgentValidationPkg`, `InitZomesComplete`), the `ActionBuilder`/`ActionBuilderCommon`, and the `EntryCreationAction`/`NewEntryAction`/`NewEntryActionRef` wrapper enums are all **removed** (PR #5860). This is the FlatOp-v2 migration below, now landed. Audit any code that names those types.
+- **`validate()` migration to `FlatOp v2`** — `flat_op_v2` module added to HDI (`crates/hdi/src/flat_op_v2`); v2 `FlatOp` is built over new `dht_v2::Action`/`Op` types with validating constructors. All four ValiChord integrity zomes use `op.flattened::<EntryTypes, LinkTypes>()` and will need migrating when v1 is deprecated. (Now that v2 Action is canonical in rc.0, treat this as required, not "when deprecated".) (Source: `holochain/holochain` branch `cascade-read-and-cutover`)
+- ⬤ **`rate_limit` module REMOVED (rc.0)** — `RateWeight`/`EntryRateWeight` and the action-weight machinery are gone (PR #5860). No code impact (we don't use them) but Holochain knowledge-base §43 is now stale for 0.7.
+- ⬤ **`holochain_sqlite` crate REMOVED (rc.0)** — persistence moved to `holochain_data`; databases renamed; legacy DBs unused (reinforces the must-clear-state / `down -v` note above). New `encryption` feature replaces the old `sqlite-encrypted` (which now has no effect).
+- ⬤ **`transport-iroh` feature flag REMOVED (rc.0)** — iroh/QUIC is the sole transport, compiled in unconditionally. Downstream crates that built `default-features = false` + explicitly listed `transport-iroh` must drop it. No impact for us (we don't gate on it).
+- ⬤ **`DnaStorageInfo` (StorageInfo admin call) fields changed (rc.0)** — drops `authored_data_size`/`_on_disk` and `cache_data_size`/`_on_disk`; source-chain data now counts under `dht_data_size`/`_on_disk` (PR #5844). Only matters if we read storage metrics.
+- `@holochain/client` bumps to the **0.9.x** line (0.9.0-rc.1) — valichord-ui currently pins 0.20.x against 0.6.x; check the client-version ↔ conductor-version compatibility matrix before bumping.
 - **New `AppStatus` variants from source-chain restore** — `AppStatus::AwaitingRestore` (restore in progress) and `AppStatus::Unrecoverable(cell_id, reason)` (terminal — chain forked or warrant validated). `dev-setup.mjs` and Svelte UI currently assume only `Running`/`Disabled`; both need updating. New `SystemSignal` variants: `RestoreComplete { cell_id }`, `AppRestoreComplete { installed_app_id }`, `RestoreFailed { cell_id, reason }`. New conductor config field: `restore_chain_quorum: u8` (default 2). (Source: `holochain/holochain` branch `cascade-read-and-cutover`, `docs/design/source_chain_restore.md`)
 - **Source-chain restore does NOT recover private entries** — `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private and absent after a restore. Validators who lose their machine mid-round lose their uncommitted private attestations silently.
 - `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field (excluded from `PartialEq`/`Hash` — deduplication unaffected). Check any match arm that destructures this variant in `reject_if_warranted`.
 - CI: update `BASE=` URL and `key: hc-bin-0.6.2` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
 
-Ignore `0.7.0-dev.*` and `0.6.x-rc.*` tags — stable only.
+Ignore `0.7.0-dev.*` and `0.6.x-rc.*` tags. **`0.7.0-rc.*` is NOT ignored** — rc.0 was the watch signal and it has now fired (see the ⚠️ note above). Next tell: the plain `holochain-0.7.0` stable tag — report to user the moment it appears.
+
+**Blocker-remover to watch (relevant to our deferred work):** branch `fix/491-stabilize-the-iroh-relay-hosted-in-bootstrap_srv` stabilises an iroh relay hosted *inside* `kitsune2-bootstrap-srv`. If it lands, it likely removes the "need a separate Iroh relay" blocker for both the deferred wind-tunnel kitsune live run and kangaroo desktop packaging. Also active on `develop`: `feat/per-space-bootstrap-override` + `feat/space-network-override-conductor-config` (per-app network overrides), `feat/generate-ts-types-ts-rs` (Rust→TS type gen, possible replacement for the hand-maintained valichord-ui `types.ts` mirror), `feat/5800-source-chain-restore-workflow` (the marquee 0.7 feature — still does NOT recover private entries).
 
 ### CI binary upgrade (any Holochain version bump)
 Update 6 places in `.github/workflows/tests.yml` (3 jobs × BASE + cache key):

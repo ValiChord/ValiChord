@@ -87,6 +87,16 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### Holochain 0.7.0 reached release-candidate — watch signal fired — 2026-07-19 ✓ (report-only, no upgrade)
+
+Routine version check surfaced that **0.7.0 is now in RC**: `0.7.0-rc.0` (2026-07-15) and `0.7.0-rc.1` (2026-07-16). This is the "watch for rc.0" trigger from the 2026-06-13 estimate firing. On the 0.6-cycle base rate (rc.0→stable ≈ 2 weeks), **0.7.0 stable ETA ≈ end-July / early-August 2026** — ahead of the earlier ~September forecast. Crate lines: `hdk 0.7.0-rc.1`, `hdi 0.8.0-rc.1`, `@holochain/client 0.9.0-rc.1`. **We stay on 0.6.2 until 0.7.0 is *stable*; the migration is deliberate and planned, never auto.**
+
+RC changelogs confirmed several breaking changes have now actually landed (previously anticipated): the **v2 Action model is canonical** (legacy per-variant action structs + `ActionBuilder` + `EntryCreationAction`/`NewEntryAction` enums removed — the FlatOp-v2 migration our four integrity zomes need); **`holochain_sqlite` removed**, persistence in `holochain_data`, DBs renamed → **must clear state / `docker compose down -v`** on the Oracle demo, not a binary swap; **`rate_limit` module removed** (`RateWeight`/`EntryRateWeight` — no code impact, but Holochain KB §43 now stale for 0.7); `transport-iroh` feature flag removed; `DnaStorageInfo` size fields changed. Full, verified checklist lives in `CLAUDE.md` → "Pending upgrade checks" (⬤ = confirmed-in-rc.0).
+
+**0.6.3** also shipped (2026-07-15) on our stable line — a one-line `reqwest`/native-tls build patch in `holochain_metrics`; nothing for us, no bump.
+
+**Blocker-remover to watch:** branch `fix/491-stabilize-the-iroh-relay-hosted-in-bootstrap_srv` puts an iroh relay *inside* `kitsune2-bootstrap-srv` — if it lands it likely clears the "separate Iroh relay" prerequisite for both the deferred wind-tunnel kitsune live run and kangaroo desktop packaging. Also watching `feat/generate-ts-types-ts-rs` (Rust→TS type gen, possible replacement for the hand-maintained valichord-ui `types.ts`) and `feat/5800-source-chain-restore-workflow` (marquee 0.7 feature; still does not recover private entries → `ValidatorPrivateAttestation`/`LockedResult` lost on restore).
+
 ### First live coordinator hot-swap on Oracle (local-read change) — 2026-07-08 ✓
 
 The flowsta "local reads for self-authored lookups" pattern (commit `7e8b2e6`) was rolled onto all
