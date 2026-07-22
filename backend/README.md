@@ -45,9 +45,8 @@ returns a structured report of issues.
 
 **Endpoints:** `/validate`, `/upload-chunk`, `/result`, `/download`, `/status`, `/health`, `/attest`*
 
-**Deployment:** Render (`valichord.onrender.com`). The demo at
-[topeuph-ai.github.io/ValiChord/valichord-at-home.html](https://topeuph-ai.github.io/ValiChord/valichord-at-home.html)
-calls this deployment.
+**Deployment:** Render (`valichord.onrender.com`). The live public demo is at
+[valichord-demo.onrender.com/demo](https://valichord-demo.onrender.com/demo).
 
 ```bash
 # Render runs this automatically via render.yaml:

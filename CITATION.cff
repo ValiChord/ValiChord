@@ -16,7 +16,7 @@ abstract: >
   among independent credentialed validators. GDPR compliance is structural:
   researcher data never leaves the researcher's own environment.
 repository-code: "https://github.com/topeuph-ai/ValiChord"
-url: "https://topeuph-ai.github.io/ValiChord"
+url: "https://valichord.github.io/ValiChord"
 license: Apache-2.0
 keywords:
   - reproducibility

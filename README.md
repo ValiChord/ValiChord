@@ -5,7 +5,7 @@
 **An Immune System for Trust: Distributed Integrity Infrastructure for Independent Verification**
 
 [![Integration Tests](https://github.com/ValiChord/ValiChord/actions/workflows/tests.yml/badge.svg)](https://github.com/ValiChord/ValiChord/actions/workflows/tests.yml)
-[![Status](https://img.shields.io/badge/Status-E2E_Tested_in_CI-brightgreen?style=for-the-badge)](https://topeuph-ai.github.io/ValiChord)
+[![Status](https://img.shields.io/badge/Status-E2E_Tested_in_CI-brightgreen?style=for-the-badge)](https://valichord.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/valichord/)
 [![Tests](https://img.shields.io/badge/Tests-182_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/valichord/tests/)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
@@ -94,7 +94,7 @@ cd valichord-ui && npm run dev
 
 ---
 
-[ **[Project Website](https://topeuph-ai.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/ValiChord/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/ValiChord/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home)** ]
+[ **[Project Website](https://valichord.github.io/ValiChord)** ] &nbsp;•&nbsp; [ **[Governance Framework](https://github.com/ValiChord/ValiChord/blob/main/docs/2_ValiChord_Governance_Framework.md)** ] &nbsp;•&nbsp; [ **[4-DNA Architecture](https://github.com/ValiChord/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md)** ] &nbsp;•&nbsp; [ **[ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home)** ]
 
 </div>
 
