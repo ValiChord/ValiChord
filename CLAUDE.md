@@ -260,7 +260,7 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ### Holochain version
 Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-15 — trivial `reqwest`/native-tls build-feature patch in `holochain_metrics`, nothing for us; no reason to bump.)
 
-**⚠️ 0.7.0 IS NOW IN RELEASE-CANDIDATE (sighted 2026-07-19):** `0.7.0-rc.0` tagged 2026-07-15, `0.7.0-rc.1` tagged 2026-07-16. This is the "watch for rc.0" trigger firing. On the 0.6-cycle base rate (rc.0→stable ≈ 2 weeks), **0.7.0 stable ETA ≈ end-July / early-August 2026** — ahead of the earlier ~September estimate. Crate lines confirmed: `hdk 0.7.0-rc.1`, `hdi 0.8.0-rc.1`, `@holochain/client 0.9.0-rc.1`. Still HOLD on 0.6.2 until *stable*; then a deliberate planned migration, never auto.
+**⚠️ 0.7.0 IS NOW IN RELEASE-CANDIDATE (RC iterating; rechecked 2026-07-22):** `0.7.0-rc.0` tagged 2026-07-15, `0.7.0-rc.1` 2026-07-16, **`0.7.0-rc.2` and `0.7.0-rc.3` since** (rc.3 is the latest release as of 2026-07-22). This is the "watch for rc.0" trigger firing. Still NO plain `holochain-0.7.0` stable tag. On the 0.6-cycle base rate (rc.0→stable ≈ 2 weeks) the RC-through-rc.3 churn is fix-iteration, not a stall — **0.7.0 stable ETA ≈ end-July / early-August 2026**, ahead of the earlier ~September estimate. Crate lines confirmed: `hdk 0.7.0-rc.x`, `hdi 0.8.0-rc.x`, `@holochain/client 0.9.0-rc.x`. Still HOLD on 0.6.2 until *stable*; then a deliberate planned migration, never auto.
 
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes (⬤ = CONFIRMED landed in 0.7.0-rc.0, verified from the crate CHANGELOGs 2026-07-19):
 - `hdk → 0.7.x`, `hdi → 0.8.x` (Cargo.toml across all zomes)
