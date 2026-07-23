@@ -37,6 +37,8 @@
 //   AUTOUPDATE_ROLE           this node's role, for logging + ordering
 //   AUTOUPDATE_ROLE_DELAY_S   wait before applying (validators > researcher so
 //                             the researcher node lands first; default 0)
+//   AUTOUPDATE_MAX_REVISION   pin ceiling — never auto-apply a revision above
+//                             this (rollback/hold valve); unset = no ceiling
 //   ADMIN_PORT                conductor admin port (default 4444)
 //   APP_ID                    installed app id (default: first "valichord*")
 //   CLIENT_PATH               path to @holochain/client entry (lib/index.js)
@@ -55,6 +57,10 @@ const INTERVAL_S = parseInt(process.env.AUTOUPDATE_INTERVAL_S || '21600', 10);
 const MARKER = process.env.AUTOUPDATE_MARKER || '/app/demo/conductor_data/.coordinator-revision';
 const ROLE = process.env.AUTOUPDATE_ROLE || '';
 const ROLE_DELAY_S = parseInt(process.env.AUTOUPDATE_ROLE_DELAY_S || '0', 10);
+// Pin ceiling (rollback safety valve): when set, never auto-apply a revision
+// above this. Holds the fleet at a known-good even if a newer (bad) manifest is
+// published. Unset (default) = no ceiling. See docs/AUTO_UPDATER_SIDECAR_PLAN.md.
+const MAX_REVISION = process.env.AUTOUPDATE_MAX_REVISION ? parseInt(process.env.AUTOUPDATE_MAX_REVISION, 10) : null;
 const CLIENT_PATH = process.env.CLIENT_PATH || null;
 let APP_ID = process.env.APP_ID || '';
 
@@ -120,6 +126,12 @@ async function cycle() {
     return 'noop';
   }
   log(`new revision ${manifest.revision} available (applied ${applied})`);
+
+  // Pin ceiling: hold at a known-good, ignoring anything above the pin.
+  if (MAX_REVISION != null && manifest.revision > MAX_REVISION) {
+    log(`revision ${manifest.revision} exceeds pin AUTOUPDATE_MAX_REVISION=${MAX_REVISION} — holding (not applying)`);
+    return 'noop';
+  }
 
   // Guard: conductor version must match what the WASMs were built against.
   const running = runningHolochainVersion();

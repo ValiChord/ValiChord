@@ -1,6 +1,6 @@
 # Coordinator Auto-Updater Sidecar — Plan
 
-**Status:** Phases 1–2 built + locally tested — 2026-07-23 (most Phase 3 rails folded into Phase 2; full Phase 3 + live rollout pending)
+**Status:** Phases 1–3 built + tested — 2026-07-23 (end-to-end rehearsal PASS on a real conductor; only the first live Oracle rollout remains — an ops step, not code)
 **Author:** Ceri John (scoped with Claude Code)
 **Source of pattern:** `WeAreFlowsta/flowsta-dht-node` (Eric Doriean) — checksum-verified DNA
 auto-updater sidecar. Adapted, not copied: see the "Critical reframe" below for why
@@ -157,29 +157,45 @@ changes and no exposed admin port are needed.** (Alternative considered and reje
 now: a separate sidecar container per node via `network_mode: service:<node>` — more moving
 parts for no benefit at demo scale.)
 
-### Phase 3 — safety rails
+### Phase 3 — safety rails + rollout tooling — ✓ DONE 2026-07-23
 
-- **Coordinator-only guard.** The manifest carries only coordinator WASMs; the updater has
-  no `InstallApp` path. Assert that applying the manifest leaves the DNA hash unchanged
-  (compare `AppInfo` DNA hashes before/after; abort + alert if any changed).
-- **Ordering.** Researcher first, then validators — mirroring the manual runbook. For the
-  in-container loop this is naturally per-node; a `AUTOUPDATE_ROLE_DELAY_S` lets validators
-  wait a beat so the researcher lands first when a fleet updates near-simultaneously.
-- **Rollback.** Keep the previous WASM + previous revision; a bad revision is reverted by
-  pinning the marker to the old revision and re-running (or `AUTOUPDATE=off` + manual swap).
-- **Kill-switch.** `AUTOUPDATE=off` (default `on` for Oracle, `off` for local dev) — opt-in
-  per deployment.
+Rails (all shipped; most folded into `coordinator-autoupdate.mjs` during Phase 2):
+- **Coordinator-only guard.** ✓ The manifest carries only coordinator WASMs; the updater has
+  no `InstallApp` path. After each swap it re-reads `AppInfo` and asserts the cell's DNA hash
+  is unchanged (aborts if not) — exercised in the rehearsal below.
+- **Ordering.** ✓ `AUTOUPDATE_ROLE_DELAY_S` lets validators wait so the researcher node lands
+  first when a fleet updates near-simultaneously.
+- **Kill-switch.** ✓ `AUTOUPDATE=off` (the default) — opt-in per deployment.
+- **Rollback (pin ceiling).** ✓ `AUTOUPDATE_MAX_REVISION` halts auto-upgrades at a known-good
+  revision even if a newer (bad) manifest is published. To revert an already-applied bad
+  revision, **roll-forward**: re-pack the previous-good WASMs and publish them as a higher
+  revision (releases are immutable), or on a single node run `hotswap-coordinators.mjs` with
+  the old WASM + `AUTOUPDATE=off`. No local WASM cache is needed — published releases are the
+  durable store.
 
-### Verification / test plan
+Rollout tooling (new this phase):
+- **`demo/publish-coordinators.sh`** — packs → publishes the manifest + WASMs as an immutable
+  GitHub release (tag `coordinators-rev-<N>`) and prints the `AUTOUPDATE_MANIFEST_URL`. Refuses
+  to clobber an existing revision. `--dry-run` supported.
+- **`demo/rehearse-autoupdate.sh`** — end-to-end rehearsal against a throwaway conductor:
+  installs `valichord.happ` (dev bypass), serves the manifest, runs `--once`, asserts the
+  marker advanced. Self-cleaning (temp dir, isolated port, full teardown).
 
-- Reuse `REHEARSAL=1` throwaway-conductor mode for local end-to-end: publish a fake manifest
-  at revision N+1 pointing at a rebuilt coordinator WASM, confirm the loop applies it and
-  the marker advances, confirm a corrupted WASM is rejected on sha256, confirm a manifest
-  with a changed DNA hash is refused.
-- Dry-run against a local `docker compose up` stack before any Oracle rollout.
-- First Oracle rollout: set the manifest to the *currently applied* revision (a no-op the
-  nodes should recognise and skip), verify markers appear correctly, then publish a real
-  bump.
+### Verification — DONE
+
+- **Conductor-free (`--check`):** success verifies all four WASMs; noop at/below the marker;
+  **fail-closed** refusal (exit 1) on a tampered sha256; pin ceiling holds above / allows
+  at-or-below the pin.
+- **End-to-end rehearsal on a real conductor, 2026-07-23 — PASS:** installed `valichord.happ`,
+  applied `UpdateCoordinators` to **all four cells** (attestation, governance,
+  researcher_repository, validator_workspace), the **DNA-hash-unchanged assertion held on every
+  cell**, the attestation verify call returned OK, the marker advanced 0 → 1, exit 0.
+  (Gotcha found + fixed: a throwaway conductor config needs a `relay_url` field even for a
+  single no-peer node; and the in-proc lair socket path must stay short — `SUN_LEN` — so the
+  rehearsal uses `mktemp -d` under `/tmp`, not a long scratch path.)
+- **Still pending (ops, not code) — first live Oracle rollout:** publish a revision matching
+  the *currently-applied* coordinators (a no-op the nodes skip), set `AUTOUPDATE=on` +
+  `AUTOUPDATE_MANIFEST_URL` on the 4 containers, verify markers, then publish a real bump.
 
 ---
 
