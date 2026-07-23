@@ -1,6 +1,12 @@
 # Coordinator Auto-Updater Sidecar — Plan
 
-**Status:** Phases 1–3 built + tested — 2026-07-23 (end-to-end rehearsal PASS on a real conductor; only the first live Oracle rollout remains — an ops step, not code)
+**Status:** Phases 1–3 built + tested — 2026-07-23 (end-to-end rehearsal PASS on a real conductor;
+`coordinators-rev-1` published). Only the first live Oracle rollout remains — an ops step, not
+code, **but it is a container rebuild, not a config flip**: the Oracle clone is 18 commits behind
+and has no `coordinator-autoupdate.mjs` and no `AUTOUPDATE` block in its `node-entrypoint.sh`, so
+`AUTOUPDATE=on` alone is inert (verified on the box 2026-07-23). Not urgent — rev-1 is a **no-op**
+for Oracle, whose live nodes already run that coordinator code via the 2026-07-08 hot-swap.
+See PROJECT_STATUS.md → "Coordinator auto-updater" for the rollout options and the `down -v` warning.
 **Author:** Ceri John (scoped with Claude Code)
 **Source of pattern:** `WeAreFlowsta/flowsta-dht-node` (Eric Doriean) — checksum-verified DNA
 auto-updater sidecar. Adapted, not copied: see the "Critical reframe" below for why
