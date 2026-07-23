@@ -1,6 +1,6 @@
 # Coordinator Auto-Updater Sidecar — Plan
 
-**Status:** Phase 1 built — 2026-07-23 (Phases 2–3 pending)
+**Status:** Phases 1–2 built + locally tested — 2026-07-23 (most Phase 3 rails folded into Phase 2; full Phase 3 + live rollout pending)
 **Author:** Ceri John (scoped with Claude Code)
 **Source of pattern:** `WeAreFlowsta/flowsta-dht-node` (Eric Doriean) — checksum-verified DNA
 auto-updater sidecar. Adapted, not copied: see the "Critical reframe" below for why
@@ -110,7 +110,30 @@ servers**):
 > Coordinator WASMs are built with `hc dna pack --coordinator-only` (no integrity bytes),
 > per `CLAUDE.md`. This is what keeps the DNA hash identical.
 
-### Phase 2 — the updater loop (`demo/coordinator-autoupdate.mjs`)
+### Phase 2 — the updater loop (`demo/coordinator-autoupdate.mjs`) — ✓ DONE 2026-07-23
+
+Shipped as `demo/coordinator-autoupdate.mjs` (Node 20 built-ins + `@holochain/client`, no new
+deps) plus an **opt-in, default-OFF** launch hook in `node-entrypoint.sh`. Reuses the exact
+`updateCoordinators` bundle shape proven live in `hotswap-coordinators.mjs` (kept untouched to
+avoid regressing the working tool) but is manifest-driven, multi-cell, and looped.
+
+Behaviour per cycle: fetch manifest → compare `revision` to the marker
+(`/app/demo/conductor_data/.coordinator-revision`, on the persisted volume) → if newer,
+download every WASM and **sha256- + size-verify before applying anything** (any mismatch
+aborts the whole update) → guard `manifest.holochain` == running conductor → per cell present
+on this node: `updateCoordinators`, then **assert the DNA hash is unchanged** (published URLs
+must survive), then a read-only verify zome call where one is configured (attestation →
+`get_my_claimed_studies`) → write the marker. Modes: loop (default), `--once`, `--check`
+(conductor-free: fetch+verify only). Non-fatal in loop mode.
+
+**Phase 3 rails already folded in here:** coordinator-only by construction (never `InstallApp`),
+DNA-hash-unchanged assertion, role-ordering delay (`AUTOUPDATE_ROLE_DELAY_S`), kill-switch
+(`AUTOUPDATE=off`, the default), monotonic marker. Still outstanding for Phase 3: an explicit
+rollback helper (keep-previous-WASM + pin marker) and the first live Oracle rollout rehearsal.
+
+**Locally tested (conductor-free `--check`):** success path verifies all four WASMs and reports
+OK-to-apply; noop when marker ≥ manifest revision; **fail-closed** refusal (exit 1) on a
+tampered sha256. Entrypoint guard proven inert when `AUTOUPDATE` is unset/off.
 
 Generalise `hotswap-coordinators.mjs` into a poller. On each interval (default 6 h, matching
 Flowsta; configurable via `AUTOUPDATE_INTERVAL_S`):

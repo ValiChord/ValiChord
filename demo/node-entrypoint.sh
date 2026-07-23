@@ -72,6 +72,23 @@ HAPP_PATH="$HAPP_PATH" \
 ROLE="$ROLE" \
     node "$SCRIPT_DIR/node-setup.mjs"
 
+# ── Optional: coordinator auto-updater (opt-in; default OFF) ───────────────────
+# When AUTOUPDATE=on and AUTOUPDATE_MANIFEST_URL is set, launch the background
+# poller that checksum-verifies and hot-swaps coordinator zomes (zero DNA-hash
+# change, published HarmonyRecord URLs preserved). Default OFF → behaviour
+# identical to before. See docs/AUTO_UPDATER_SIDECAR_PLAN.md.
+if [ "${AUTOUPDATE:-off}" = "on" ]; then
+    if [ -z "${AUTOUPDATE_MANIFEST_URL:-}" ]; then
+        echo "  [autoupdate] AUTOUPDATE=on but AUTOUPDATE_MANIFEST_URL unset — not starting"
+    else
+        echo "  [autoupdate] launching background poller (interval ${AUTOUPDATE_INTERVAL_S:-21600}s)"
+        ADMIN_PORT="$ADMIN_PORT" \
+        AUTOUPDATE_ROLE="$ROLE" \
+        CLIENT_PATH="${CLIENT_PATH:-/app/demo/node_modules/@holochain/client/lib/index.js}" \
+            node "$SCRIPT_DIR/coordinator-autoupdate.mjs" &
+    fi
+fi
+
 # ── Start the role-specific node API ──────────────────────────────────────────
 ADMIN_PORT="$ADMIN_PORT" \
 APP_PORT="$APP_PORT" \
