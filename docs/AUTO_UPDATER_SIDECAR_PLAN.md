@@ -1,6 +1,6 @@
 # Coordinator Auto-Updater Sidecar — Plan
 
-**Status:** Scoped, not built — 2026-07-23
+**Status:** Phase 1 built — 2026-07-23 (Phases 2–3 pending)
 **Author:** Ceri John (scoped with Claude Code)
 **Source of pattern:** `WeAreFlowsta/flowsta-dht-node` (Eric Doriean) — checksum-verified DNA
 auto-updater sidecar. Adapted, not copied: see the "Critical reframe" below for why
@@ -69,7 +69,21 @@ ordering, and running it on a loop instead of by hand.
 
 ## Design
 
-### Phase 1 — `coordinators-manifest.json` + published WASMs (no new infra)
+### Phase 1 — `coordinators-manifest.json` + published WASMs (no new infra) — ✓ DONE 2026-07-23
+
+Shipped as `demo/pack-coordinators.mjs` (Node built-ins only, no npm deps). Reads the four
+built coordinator WASMs, computes a sha256 over each **raw** WASM (the exact bytes
+`UpdateCoordinators` consumes — cross-checked against `hotswap-coordinators.mjs`), and emits
+`coordinators-manifest.json` + WASM copies into `demo/coordinator-updates/` (self-ignored so
+binaries are never committed — they become GitHub release assets). Flags: `--dry-run`,
+`--revision N` (default: prior revision + 1), `--holochain X.Y.Z` (default: detected), `--only
+<roles>`, `--wasm-dir`, `--out`. Manifest grouped **per cell** (not the flat list sketched
+below) because `UpdateCoordinators` is per-cell; each zome entry carries
+`{name, integrity, wasm, sha256, bytes}` — everything Phase 2 needs to rebuild the bundle and
+verify a download. Default set = **all four** coordinators (attestation, governance,
+researcher_repository, validator_workspace); Phase 2 skips any cell a node doesn't run.
+Verified: sha256 matches independent `sha256sum`; auto-bump reads the prior revision; never
+opens a conductor socket.
 
 A small manifest, committed to / released from `ValiChord/ValiChord` and served as GitHub
 release assets over checksummed HTTPS (GitHub is already the source of truth — **zero new
