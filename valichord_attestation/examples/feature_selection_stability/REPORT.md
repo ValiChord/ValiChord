@@ -274,6 +274,70 @@ validators). A median-based or count-then-tiebreak variant might fare better. Th
 direction is consistent across all four rows, so the conclusion is not marginal,
 but it is not the last word on weighting either.*
 
+## Can recruitment be made adaptive? (`recruit.py`)
+
+The demonstration runs a fixed cohort — everyone does identical work whether the
+evidence settled after three validators or was still contested after eleven. In
+polite-shrink's terms that is the blunt fallback, the clamp that forces every
+survivor to a full arc. Validator time is the scarce resource in the real
+protocol, so: can the same standard be reached for fewer validator-rounds by
+recruiting in waves, commissioning more only where blocks stay ambiguous?
+
+Recruitment is then polite-shrink's own problem — autonomous actors deciding
+whether to act, on stale views, without a coordinator — so the encodings compare
+directly. **V0** counts only completed work, making everyone mid-round invisible.
+**V3** announces intent on a separate channel and defers to lower-id intenders.
+**V5** makes the claim itself the announcement on the channel that already
+exists. V5 is not hypothetical for ValiChord: `StudyClaim` / `release_claim` /
+`reclaim_abandoned_claim` is exactly that encoding.
+
+```
+  policy       validators  accuracy  resolved      beta    fixed-5   fixed-11        V5
+  fixed-3            3.00      78%        0%       1.00  5.0/ 100%  11.0/100%  6.0/100%
+  fixed-5            5.00      80%       94%       0.40  5.0/ 100%  11.0/100%  6.0/100%
+  fixed-11          11.00      76%       89%       0.20  5.0/  70%  11.0/ 67%  7.8/ 65%
+  V0 lag=0..4       15.00      77%       94%       0.12  5.0/  28%  11.0/ 12%  7.1/ 18%
+  V3 lag=0           6.57      77%       95%       0.00  5.0/ 100%  11.0/100%  6.0/100%
+  V5 lag=0           5.43      76%       99%
+```
+
+**The herd is real and politeness fixes it.** V0 consumes the whole pool every
+time — counting only finished work hides everyone currently working, so every
+candidate sees the same thin evidence and joins. V5 does the same job with 5.4
+validators. Staleness erodes that steadily (V5 rises to 9.7 at lag 4), so the
+encoding advantage is real but not magic.
+
+**Adaptive recruitment nevertheless does not earn its keep.** A fixed cohort of
+five matches it on cost and beats it on accuracy. The machinery buys nothing over
+choosing a sensible number and keeping it. Reported because it was worth testing,
+not because it worked.
+
+**Accuracy is signal-limited, not cohort-limited** — 76–80% everywhere from 3
+validators to 15. More witnesses do not buy correctness. At beta = 0.12 more
+witnesses actively hurt (28% at k=5, 12% at k=11): validators recover that block
+~47% of the time, so a small noisy cohort sometimes clears the 0.8 threshold by
+chance and is right by accident, while a large cohort estimates 47% precisely and
+is confidently wrong. **More evidence converges on the wrong answer when the
+decision threshold is mis-set.**
+
+**The finding worth keeping.** `fixed-3` resolved 0% of the time: three
+validators, however unanimous, cannot exclude an 80% threshold at a
+one-standard-error band. Three witnesses can be *right* as often as eleven (78%
+vs 76%) yet never *establish* the claim to this standard. Those are different
+properties, and a badge tier ought to encode which one it is asserting.
+
+*Two honesty notes. The V0-vs-polite gap is measured; the V5-vs-V3 gap is
+ASSUMED, by giving V3 one extra hop of staleness for its separate intent message
+— polite-shrink's own argument modelled, not evidence for it. And the stopping
+rule is pre-registered and hashed (`recruit.py`), because recruiting until the
+evidence looks acceptable is optional stopping: the same sin as lambda-shopping,
+in an artefact built to expose it. `is_resolved` keys only on whether coverage is
+unambiguous, never on which side it falls. An earlier fixed-margin version was
+degenerate — with three validators the attainable coverages are 0, 1/3, 2/3 and 1,
+so nearly everything sat "clear of" 0.8 and recruitment never fired. It scored
+distance from the threshold while ignoring how unreliable a three-sample estimate
+is; Wilson prices in the sample size.*
+
 ## Why the block is the right unit
 
 Counting at block level was introduced above for a practical reason — per-feature

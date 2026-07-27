@@ -39,6 +39,7 @@ own split, have chosen these features?"*
 | `lambda_shop.py` | The adversarial exhibit, and the honest limit |
 | `bundles.py` | One `valichord_attestation` bundle per party; verifies the two-hash semantics |
 | `sweep.py` | Repeats the round over many datasets — detection rate, false-alarm rate, operating curve |
+| `recruit.py` | Wave-based recruitment: V0/V3/V5 encodings vs fixed cohorts |
 | `arbitration.py` | Scores three rules for picking a block's true member against known ground truth |
 
 Artefacts land in `artifacts/` and are regenerated on every run.
@@ -49,6 +50,7 @@ separately because they take longer:
 ```bash
 python3 sweep.py --replications 150       # ~25 min
 python3 arbitration.py --replications 100 # ~12 min
+python3 recruit.py --replications 60       # ~10 min
 ```
 
 ## Scope
