@@ -177,6 +177,125 @@ a single fit.
 It also sharpens why the per-block statistic matters: `validator_5` is an outlier on *density* while
 agreeing completely on *blocks*.
 
+## Does any of this generalise? (`sweep.py`, 1050 rounds)
+
+Everything above comes from one draw of one dataset. The sweep repeats the whole
+round over 150 independent datasets at each of seven signal strengths for the
+attacked block, at 3 / 5 / 7 / 11 validators.
+
+```
+DETECTION / FALSE ALARM at threshold 0.8
+  beta    recovery     k=3 (3/3)     k=5 (4/5)     k=7 (6/7)   k=11 (9/11)
+  1.00       100%      100% / 0%     100% / 0%     100% / 0%     100% / 0%
+  0.40       100%      100% / 0%     100% / 0%     100% / 0%     100% / 0%
+  0.20        86%       68% / 5%      85% / 5%      77% / 5%      75% / 4%
+  0.12        47%       19% / 4%      27% / 3%      19% / 3%      20% / 2%
+  0.08        27%        6% / 2%      10% / 2%       7% / 1%       5% / 1%
+  0.05        17%        2% / 1%       2% / 1%       1% / 0%       1% / 0%
+  0.00        11%        0% / 0%       0% / 0%       0% / 0%       0% / 0%
+```
+
+**The single round's headline holds.** Pooled over 150 datasets the true signal
+wins its block 100% of the time while the partners land at 24–33%. Not luck of
+the seed.
+
+**Detection tracks validator consensus, and dies with it.** The honest claim is
+narrow: *this catches you when you remove something independent parties would
+reliably have found, and not otherwise.* Detection is perfect while recovery is
+perfect, ~85% when recovery is 86%, and ~20% once recovery falls to half. The
+false-alarm rate stays between 0% and 5% throughout, and relaxing the threshold
+from 0.8 to 0.5 at the transition lifts detection from ~20% to ~50% for a rise in
+false alarms from 3% to 9%. **β = 0.2 / k = 5 — 85% detection at 5% false alarm —
+is the operating point worth quoting.** The 100% rows are the easy case.
+
+Of the 7 false alarms at β = 0.2, only 2 trace to the researcher's own fit being
+over-sparse; the other 5 are ordinary sampling variation. The 1-SE instability
+cannot be blamed for most of them.
+
+**Do not read the k columns as "more validators help".** The bracketed figure is
+the threshold in validators, and rounding makes it uneven — k=3 must be unanimous
+while k=5 needs only 4 of 5. Any wobble across k is that rounding. Comparing
+validator counts fairly needs a count-based rule, which this sweep does not
+implement, so **the Bronze/Silver/Gold question remains open.** The one clean
+trend is false alarms falling as k rises.
+
+The β = 0.00 row reads in reverse: there the attacked block carries no signal, so
+removing it is legitimate and a flag would be a false accusation. It sits at 0%.
+
+## Can any rule pick the right member? (`arbitration.py`)
+
+Since the data is synthetic, ground truth is known, so "closer to the answer" is
+a number. Three rules for choosing a block's representative, scored against
+truth, at k=5 with 20 random orderings per block. Chance is 25%.
+
+```
+STRONG BLOCKS (beta 3.0 and 2.0), n=1000
+  naive 100%   mass 100%   polite 100%   order-dependent 0%
+
+ATTACKED BLOCK
+  beta       n    naive     mass   polite   order-dep
+  1.00     100    100%      98%      97%         8%
+  0.40     100     84%      83%      73%        60%
+  0.20     100     67%      58%      51%        73%
+  0.12      90     60%      48%      46%        60%
+```
+
+**Plain vote-counting wins.** Weighting by coefficient mass loses at every level,
+and the polite rule — polite-shrink's first-claimant-wins ordering, the
+Gauss–Seidel sweep manufactured without a coordinator — loses by more. Two
+predictions were made in advance and one was wrong: mass was expected to beat
+naive on the reasoning that a block's total weight is determined while its split
+is not. It does not. The uniqueness result says the split is *undetermined*; it
+never promised the split was *informative*, and that was an over-reading.
+
+**Why the polite rule loses is not a defect in it.** It works by privileging
+whoever moves first, which in storage is exactly right — any valid allocation is
+as good as any other, and the task is to reach one without collisions. Applied to
+inference it discards the other four validators entirely, turning a five-witness
+measurement into a one-witness measurement plus an arbitrary ordering. Same
+mathematical shape, opposite objective. It is also only testable here as
+*post-hoc* aggregation: a validator who defers to another's announced choice has
+stopped being an independent witness, and that independence is the entire
+evidentiary value of the round.
+
+**The failure is reusable.** Order-dependence tracks signal strength almost
+exactly — 8% → 60% → 73% → 60%. When the answer is determined, ordering is
+irrelevant; when it is not, ordering decides. So the polite rule is a poor
+arbitrator but a serviceable *diagnostic*: run it under permuted orderings and it
+measures how underdetermined the answer is, putting a number on the uniqueness
+result rather than citing it.
+
+All three rules stay above chance even at β = 0.12, so the independent-witness
+evidence is real even where it is weak — and the simplest aggregation of it,
+which is what this demonstration already does, is the best of the three.
+
+*Caveat: one formulation of the mass rule was tested (sum of |coefficient| across
+validators). A median-based or count-then-tiebreak variant might fare better. The
+direction is consistent across all four rows, so the conclusion is not marginal,
+but it is not the last word on weighting either.*
+
+## Why the block is the right unit
+
+Counting at block level was introduced above for a practical reason — per-feature
+counting cannot separate honest disagreement from concealment. There is a
+stronger justification. With exactly interchangeable columns the lasso *fit* is
+unique while the *coefficients* are not (R. J. Tibshirani, *The Lasso Problem and
+Uniqueness*, EJS 7, 2013): what is determined is the block, not which member
+carries it. Our blocks correlate at 0.95 rather than being identical, so this is
+the finite-sample shadow of that result rather than an instance of it — unique
+but unstable, not formally non-unique.
+
+The same reading, reached independently from the distributed-storage side, is set
+out in [`polite-shrink/RELATED_regularisation.md`](https://github.com/ValiChord/polite-shrink),
+where coverage is determined but the holder set is not. The measurements above —
+block recovered 100%, members scattered at 24–33%, and an arbitrator whose answer
+moves with the ordering precisely when the signal is weak — are what that
+prediction looks like in data.
+
+The guardrail from that document applies here in mirror image: the instability
+has a well-studied cause, and **this does not solve a known problem in
+statistics.**
+
 ## What was real and what was not
 
 | Element | Status |

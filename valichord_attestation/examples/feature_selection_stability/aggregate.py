@@ -88,33 +88,48 @@ def block_frequency(reveals: list[dict]) -> dict[str, float]:
     return {b: counts[b] / n for b in blocks}
 
 
-def shopping_signature(
-    round_record: dict, threshold: float = BLOCK_CONSENSUS_THRESHOLD
-) -> dict:
-    """Flag blocks the validators agree on that the researcher dropped entirely.
+def flagged_blocks(
+    validator_supports: list[list[str]],
+    researcher_support: list[str],
+    threshold: float = BLOCK_CONSENSUS_THRESHOLD,
+) -> list[dict]:
+    """The detector, as a pure function over support sets.
 
-    The signature of lambda-shopping is not "the researcher disagreed" — that
-    happens honestly all the time under correlated blocks. It is: the validators
-    reach consensus that a block carries signal, and the researcher's published
-    support contains NO member of that block. Dropping the block is what a
-    penalty search buys you; dropping a particular member of it is not.
+    THIS IS THE SINGLE DEFINITION of the lambda-shopping signature. Both the
+    single-round report and the sweep call it. If the two ever computed the
+    signature separately they would eventually disagree, and the sweep's
+    detection rate would stop describing the thing the report demonstrates.
+
+    The signature is not "the researcher disagreed" — that happens honestly all
+    the time under correlated blocks. It is: the validators reach consensus that
+    a block carries signal, and the researcher's published support contains NO
+    member of that block. Dropping the block is what a penalty search buys you;
+    dropping a particular member of it is not.
 
     Limits, stated here rather than in a footnote: this works because the block
     structure is known by construction. On real data the blocks are estimated,
     and a shopper who drops a feature the validators were also going to drop is
     indistinguishable from an honest party. Detectable, not undeniable.
     """
+    freqs = block_frequency([{"support": s} for s in validator_supports])
+    researcher_blocks = {block_of(name) for name in researcher_support}
+    return [
+        {"block": b, "validator_block_frequency": freq}
+        for b, freq in sorted(freqs.items())
+        if freq >= threshold and b not in researcher_blocks
+    ]
+
+
+def shopping_signature(
+    round_record: dict, threshold: float = BLOCK_CONSENSUS_THRESHOLD
+) -> dict:
+    """Apply the detector to a round record. See `flagged_blocks`."""
     vals = validator_reveals(round_record)
     researcher = researcher_reveal(round_record)
 
-    blocks = block_frequency(vals)
-    researcher_blocks = {block_of(name) for name in researcher["support"]}
-
-    flagged = [
-        {"block": b, "validator_block_frequency": freq}
-        for b, freq in sorted(blocks.items())
-        if freq >= threshold and b not in researcher_blocks
-    ]
+    flagged = flagged_blocks(
+        [r["support"] for r in vals], researcher["support"], threshold
+    )
     return {
         "threshold": threshold,
         "flagged_blocks": flagged,
