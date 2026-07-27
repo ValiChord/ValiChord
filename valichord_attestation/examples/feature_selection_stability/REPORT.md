@@ -360,6 +360,113 @@ The guardrail from that document applies here in mirror image: the instability
 has a well-studied cause, and **this does not solve a known problem in
 statistics.**
 
+## Related work
+
+Every component of this demonstration has a literature. It is assembled from
+known parts, and the parts should be named rather than left for a reader to
+discover.
+
+**Multiple independent analysts, blinded from one another, is established
+practice.** Silberzahn et al., *Many Analysts, One Data Set* (2018), put 29
+teams and 61 analysts on one dataset and one question; 20 found a significant
+effect and 9 did not, with effect sizes spanning 0.89–2.93 in odds-ratio units.
+Landy et al., *Same data, different conclusions* (2021), reproduced the finding.
+In those designs the teams are explicitly blinded to each other's approaches and
+results — and what holds the design together is a **trusted coordinator** who
+collects and combines. That is the only structural difference here: the
+commitment hashes remove the coordinator, so no party has to be trusted to
+withhold anything. It is a substitution of mechanism, not a new question.
+
+**Blinding to prevent bias is decades old.** Klein and Roodman, *Blind Analysis
+in Nuclear and Particle Physics* (2005), document routine practice of hiding the
+result until the analysis is frozen, precisely so that "the decision to stop
+analyzing and publish" cannot depend on the answer. Proposals to import it into
+biology and the social sciences date from 2015. Our commit-reveal is the same
+principle applied between parties rather than within one.
+
+**Specification curve analysis is the existing answer to λ-shopping.**
+Simonsohn, Simmons and Nelson, and independently Steegen et al.'s multiverse
+analysis, enumerate every defensible specification and report the distribution.
+The difference here is the source of the reference distribution: specification
+curve says *"here is every analysis I could have run"*; this says *"here is what
+five parties who could not see me actually ran."* One is self-policing, the
+other is not — but the target is the same target.
+
+**Cluster-level selection proportions are prior art, and older than they look.**
+This is the closest hit and it lands on the statistic this report leans on most.
+Faletto and Bien, *Cluster Stability Selection* (arXiv:2201.00494, 2022), prove
+in an errors-in-variables setting that the lasso "tends to select one feature
+from a highly correlated cluster," so under q equally good proxies each proxy's
+selection proportion tends toward **1/q rather than 1** — the failure Shah and
+Samworth (2013) call "highly correlated variables split the vote." Their remedy
+is to compute selection proportions for clusters and form cluster
+representatives. They further note that Kirk et al. (2010) and Alexander and
+Lange (2011) had already proposed group-level selection proportions in stability
+selection, and Gauraha (2016) clustering plus representatives.
+
+**So counting at block level is not our idea, and the report should not be read
+as claiming it is.** The measurements are nonetheless a clean instance of the
+predicted behaviour: with q = 4 members per block, the correlated partners land
+at 24–33%, against a predicted 1/q = 25%. One design difference is worth
+stating, because it changes what the numbers mean — in the errors-in-variables
+model all q proxies are *equally good*, whereas here `blk{b}_f0` carries the true
+coefficient and its partners carry none. That is why the true member holds 100%
+instead of collapsing to 1/q, and why the partner scatter sits near, rather than
+exactly at, the predicted value.
+
+What differs is the *purpose*. Faletto and Bien aggregate at cluster level to
+improve one analyst's feature ranking and out-of-sample prediction. Here the same
+statistic is used as a **detector** — to ask whether a published model omitted a
+cluster that independent parties retained. Same quantity, different question.
+
+**Cryptographic pre-registration without a third party also exists.** Mazor,
+Mazor and Mukamel, *Using experimental data as a voucher for study
+pre-registration* (bioRxiv 213439), split pre-registration into a commitment
+stage performed before data acquisition and a verification stage performable by
+anyone afterwards, explicitly "without the involvement of any third party." The
+mechanism differs — they encode the protocol in pseudorandom features of the
+acquisition process, time-locking it to the data, rather than hashing a result
+and revealing later — and it covers a single researcher committing to their own
+protocol, with no simultaneous reveal among parties. *(Full text could not be
+retrieved; this description rests on the abstract and secondary summaries, not a
+reading of the paper.)*
+
+**What appears to remain unclaimed** — stated weakly, because failing to find
+something is poor evidence that it does not exist, and one search has already
+overturned a claim made earlier in this session:
+
+1. Many-analyst methodology applied to **feature selection**. The existing
+   studies ask how large an effect is, not which variables belong in the model.
+2. Cross-analyst agreement used as a **detector for penalty tuning**, rather than
+   self-enumeration of specifications.
+3. Commit-reveal among **multiple** analysts with simultaneous reveal, removing
+   the coordinator from a many-analyst design.
+
+None of those is a contribution to statistics. The defensible description of this
+artefact is a runnable demonstration combining known methods, with measured
+operating characteristics, in a domain where many-analyst work has not been
+applied.
+
+### References for this section
+
+- Silberzahn, R. et al. (2018). Many Analysts, One Data Set. *AMPPS* 1(3).
+- Landy, J. F. et al. (2021). Same data, different conclusions. *OBHDP* 165.
+- Klein, J. R. & Roodman, A. (2005). Blind Analysis in Nuclear and Particle
+  Physics. *Annu. Rev. Nucl. Part. Sci.* 55.
+- Simonsohn, U., Simmons, J. P. & Nelson, L. D. Specification Curve Analysis.
+- Steegen, S. et al. (2016). Increasing Transparency Through a Multiverse
+  Analysis. *Perspect. Psychol. Sci.*
+- Meinshausen, N. & Bühlmann, P. (2010). Stability Selection. *JRSS-B*.
+- Shah, R. D. & Samworth, R. J. (2013). Variable selection with error control.
+  *JRSS-B*.
+- Faletto, G. & Bien, J. (2022). Cluster Stability Selection.
+  [arXiv:2201.00494](https://arxiv.org/abs/2201.00494)
+- Kirk, P. et al. (2010); Alexander, D. H. & Lange, K. (2011); Gauraha, N.
+  (2016) — group-level selection proportions and cluster representatives.
+- Tibshirani, R. J. (2013). The Lasso Problem and Uniqueness. *EJS* 7.
+- Mazor, M., Mazor, N. & Mukamel, R. Using experimental data as a voucher for
+  study pre-registration. bioRxiv 213439.
+
 ## What was real and what was not
 
 | Element | Status |
