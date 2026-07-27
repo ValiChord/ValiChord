@@ -5,26 +5,57 @@ name: Wind-Tunnel build + unit tests
 #
 # Why not a live run? A live multi-conductor run was tried in CI twice and both
 # failed for environment (not code) reasons on a standard 2-core/7GB GitHub
-# runner: (1) the per-agent conductors couldn't peer (the wind-tunnel 0.7.0
-# Holochain runner uses the default public bootstrap with no local-bootstrap
-# knob), and (2) the runner couldn't bring up three 4-DNA conductors before a
-# startup timeout cancelled setup. The live run works on a well-resourced machine
+# runner: (1) the per-agent conductors couldn't peer (the wind-tunnel Holochain
+# runner uses the default public bootstrap with no local-bootstrap knob —
+# still true as of runner 0.7.1), and (2) the runner couldn't bring up three
+# 4-DNA conductors before a startup timeout cancelled setup.
+# The live run works on a well-resourced machine
 # (median ~185ms cross-agent propagation) — see valichord/wind-tunnel/README.md —
 # so it stays local. CI gates on what's reliable: it builds and unit-tests.
 #
-# Path-filtered so it only runs when wind-tunnel code changes; also manually
-# dispatchable.
+# Path-filtered, but the filter must cover everything this workspace COMPILES,
+# not just the directory it lives in. It is a separate Cargo workspace that pulls
+# three crates in by path and inherits the hdk/hdi pins from valichord/Cargo.toml.
+#
+# This bit us once: RoleSettings::Provisioned gained an `init_properties` field in
+# holochain_types 0.6.2, so valichord_wt_common stopped compiling the moment the
+# toolchain pins moved on 2026-07-06 — and nothing rebuilt this workspace for
+# three weeks, because the pin bump touched valichord/Cargo.toml and the filter
+# only watched valichord/wind-tunnel/**. Fixed 2026-07-27 (commit 41cb5a4).
+#
+# If you add a path dependency to any scenario Cargo.toml, add it here too.
+#
+# The weekly schedule is the backstop the path filter cannot be: it catches drift
+# a diff can't show, e.g. a caret dependency resolving to a newer crates.io
+# release. Also manually dispatchable.
 on:
+  # NOTE: the two path lists below are duplicated on purpose — GitHub Actions does
+  # not support YAML anchors/aliases. Keep them in sync by hand.
   push:
     branches: [main]
     paths:
       - 'valichord/wind-tunnel/**'
       - '.github/workflows/wind-tunnel-smoke.yml'
+      # Toolchain pins (hdk/hdi/holochain) inherited by the path-dep crates below
+      - 'valichord/Cargo.toml'
+      - 'valichord/Cargo.lock'
+      # Crates compiled by path from scenarios/*/Cargo.toml
+      - 'valichord/shared_types/**'
+      - 'valichord/dnas/attestation/zomes/attestation_integrity/**'
+      - 'valichord/dnas/attestation/zomes/attestation_coordinator/**'
   pull_request:
     branches: [main]
     paths:
       - 'valichord/wind-tunnel/**'
       - '.github/workflows/wind-tunnel-smoke.yml'
+      - 'valichord/Cargo.toml'
+      - 'valichord/Cargo.lock'
+      - 'valichord/shared_types/**'
+      - 'valichord/dnas/attestation/zomes/attestation_integrity/**'
+      - 'valichord/dnas/attestation/zomes/attestation_coordinator/**'
+  schedule:
+    # Mondays 06:17 UTC — off the hour to avoid the scheduler's peak-load drop-outs
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 env:
