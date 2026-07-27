@@ -53,6 +53,10 @@ pub fn valichord_roles_settings() -> HashMap<String, RoleSettings> {
                     network_seed: None,
                     properties: Some(YamlProperties::new(attestation_props)),
                 }),
+                // Added to `RoleSettings::Provisioned` in holochain_types 0.6.2.
+                // Opaque bytes read back during `init` via `get_init_properties`;
+                // ValiChord's `init` doesn't use them, so `None`.
+                init_properties: None,
             },
         ),
         (
@@ -63,6 +67,7 @@ pub fn valichord_roles_settings() -> HashMap<String, RoleSettings> {
                     network_seed: None,
                     properties: Some(YamlProperties::new(governance_props)),
                 }),
+                init_properties: None,
             },
         ),
     ])

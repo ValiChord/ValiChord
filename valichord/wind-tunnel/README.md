@@ -2,7 +2,13 @@
 
 Performance / load-testing scenarios for ValiChord, built on
 [holochain/wind-tunnel](https://github.com/holochain/wind-tunnel)
-(`holochain_wind_tunnel_runner` **0.7.0**, targeting Holochain 0.6.1 / Kitsune2 0.4.1).
+(`holochain_wind_tunnel_runner` **0.7.1**, targeting Holochain 0.6.3 / Kitsune2 0.4.1 per
+upstream's version-compatibility table; we run it against our 0.6.2 conductor — a patch-level
+difference on the same line).
+
+**0.7.1 is the last release usable on our stack.** Upstream `main` moved to Holochain
+0.7.0-rc.1 on 2026-07-24, so every release after v0.7.1 is on the 0.7 line and is gated behind
+our own 0.7 migration. Hold here until then.
 
 A scenario applies user-defined load with N agents and reports metrics. Each
 agent is one thread of execution that repeatedly runs a *behaviour*. Wind-Tunnel
@@ -44,12 +50,12 @@ instead (see its section below).
 
 ---
 
-## Running — required environment (runner 0.7.0)
+## Running — required environment (runner 0.7.x)
 
 Two things the scenario args alone don't cover:
 
 - **`WT_METRICS_DIR` must be set** (a writable dir for conductor telemetry) or
-  every agent panics at startup — this is new in runner 0.7.0.
+  every agent panics at startup — this arrived in runner 0.7.0.
 - **Custom scenario metrics** (`sync_lag`, `sent_count`, `recv_count`, …) are
   only written when you pass **`--reporter=influx-file`**. They land in
   `$WT_METRICS_DIR/<scenario>-<timestamp>.influx`, each prefixed
@@ -74,7 +80,7 @@ unit tests** — a deterministic check that catches compile / dependency /
 install-path regressions. It does **not** run a live scenario: a live
 multi-conductor run was tried in CI twice and both failed for environment (not
 code) reasons on a standard 2-core/7 GB GitHub runner — the per-agent conductors
-either couldn't peer (the 0.7.0 runner uses the default public bootstrap, no
+either couldn't peer (the runner uses the default public bootstrap, no
 local-bootstrap knob) or couldn't all start before a setup timeout. **Live runs
 are a local / well-resourced-machine activity** (they work — see the dht_sync_lag
 result below); CI gates on build + unit tests only.
@@ -154,6 +160,19 @@ cargo run -p kitsune_dht_propagation -- \
 ```
 
 `NUM_MESSAGES` (env, default 3) sets messages per interval.
+
+> **The separate-relay requirement is on its way out — but not yet.** Both
+> `--bootstrap-server-url` and `--relay-url` are required args (they are
+> non-optional `String`s in `bindings/kitsune_runner/src/cli.rs`), which is why
+> this scenario has never had a live run here. kitsune2 merged
+> **`3746be1` — *"stabilize authenticated iroh relay hosted in the bootstrap
+> server"*** to `main` on 2026-07-27, so one binary will eventually serve both
+> flags. It is **not usable yet**: it landed after `v0.5.0-dev.6` so it is in no
+> published kitsune2 release, and the 0.5 line belongs to Holochain 0.7 while we
+> pin 0.4.1. Re-check when we migrate to 0.7. (`polite-shrink`'s Stage-2 harness
+> solved the same problem locally by building its own combined
+> `bootstrap_relay` binary — that remains the fallback if a live run is wanted
+> sooner.)
 
 > **Dependency pin — do not remove.** This scenario's transitive iroh stack
 > pulls `ed25519-dalek 3.0.0-pre.1`, which only builds against the
