@@ -360,6 +360,59 @@ The guardrail from that document applies here in mirror image: the instability
 has a well-studied cause, and **this does not solve a known problem in
 statistics.**
 
+## Can the resampling be coordinated? (`balanced.py`)
+
+Validators must not coordinate on what they CONCLUDE — that replaces the
+measurement with an artefact of the coordination, whether they converge
+(arbitration, above) or diverge. Coordinating which SLICE OF THE DATA each one
+draws is a different matter: it requires knowing nobody's answer and leaks
+nothing. The balanced bootstrap (Davison, Hinkley & Schechtman, 1986) builds a
+set of k resamples in which every observation appears exactly k times, instead of
+letting k independent draws over- and under-sample rows by chance. The assignment
+is deterministic, publicly verifiable, and blinding-preserving.
+
+Many cohorts of k = 5 were run on each of ten fixed datasets under each scheme,
+and the spread of the resulting block-coverage estimate compared. Holding the
+dataset fixed isolates resampling noise from real dataset-to-dataset variation —
+the only thing balancing could shrink. An independent cohort of k = 7 runs
+alongside as a yardstick.
+
+```
+  beta   scheme            mean cov  within-ds SD
+  0.2    independent          0.895        0.1137
+         balanced             0.868        0.0956   -> SD -16.0%
+         independent_7        0.887        0.0937
+  0.12   independent          0.563        0.1700
+         balanced             0.496        0.1318   -> SD -22.5%
+         independent_7        0.537        0.1456
+```
+
+**The precision gain is real and the yardstick is met.** Balanced-5 matches
+independent-7 at beta = 0.2 (0.0956 vs 0.0937) and beats it at beta = 0.12
+(0.1318 vs 0.1456) — the same precision for two fewer validators, which is the
+cost reduction adaptive recruitment failed to deliver.
+
+**But the mean shifts, and that is disqualifying until explained.** Coverage
+falls from 0.895 to 0.868 at beta = 0.2 and from 0.563 to 0.496 at beta = 0.12 —
+about 12% in relative terms at the weaker setting. A tighter estimate around a
+displaced centre is worse than an honest noisy one, and it matters concretely
+here: the detector compares coverage against a 0.8 threshold, so a shift of that
+size moves cases across the line and would change the detection and false-alarm
+rates the sweep established.
+
+**Whether it is bias or noise is unresolved.** Two things cut against each other.
+Independent-7 also drifts down relative to independent-5 (0.537 vs 0.563), which
+suggests part of the movement is not specific to balancing. Against that, there
+is a mechanism: in the balanced construction a single resample is drawn without
+replacement from a pool of k copies, so its marginal distribution is not the
+ordinary bootstrap's multinomial. That difference vanishes for a linear statistic
+and need not for an indicator like "did this resample select the block at all".
+
+Settling it requires a **paired** test — per-dataset differences with an interval
+— which this run did not record. The code now retains per-dataset values so that
+test needs no refitting. **Until it is done, this scheme is promising and not
+adoptable.**
+
 ## Related work
 
 Every component of this demonstration has a literature. It is assembled from
