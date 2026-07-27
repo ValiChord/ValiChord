@@ -559,7 +559,7 @@ Any third party can now independently verify: retrieve `EncryptedDataset` from D
 
 | Item | Location | Notes |
 |---|---|---|
-| Validator assignment engine | DNA 3 `select_validators()` | Stub returns empty. Needs conflict-of-interest detection, institutional balance, randomisation |
+| Validator assignment engine | DNA 3 `select_validators()` | Stub returns empty. Needs conflict-of-interest detection, institutional balance, randomisation. **Design source (found 2026-07-27):** `unytco/migration-service` → `headless-migrator/src/policy.rs` is a tested M-of-N random-selection policy with the failure taxonomy already worked out — pick M at random from N (never all N), substitute on timeout, retry the *same* member on a "catching up" response before substituting, never substitute a merely-slow one, hard-stop on a warrant, fail the attempt rather than proceed below M. Note it is **CAL-1.0 licensed — read for design, do not copy code.** Detail in `memory/reference_unyt_tools.md` §3 |
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
 | GoldReproducible badge (7 validators) | sweettest governance test 15 | **Passes** (`gold_badge_issued_with_seven_validators`, in-process conductors, CI-safe). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |

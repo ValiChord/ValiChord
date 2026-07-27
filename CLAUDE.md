@@ -353,6 +353,7 @@ Verify binary names (`holochain-x86_64-unknown-linux-gnu`, etc.) exist on the re
 ## Ecosystem tool notes
 
 - **Unyt joining-service** — REST membrane-proof onboarding; reference impl for institutional validator onboarding on a live network. See `memory/reference_unyt_tools.md`.
-- **Unyt heart** — DigitalOcean + Pulumi conductor provisioning. Use when setting up production nodes.
+- **Unyt heart** — Go/Pulumi **fleet** deployer (one stack per release; `progenitor` + `notary` node types). Use when setting up production nodes. Note `cloudinit/cloud-config.yaml` hardcodes **`target_arc_factor: 1`** (every node full-arc) — the concrete "kitsune2 #160 in production" artifact.
+- **Unyt migration-service** — working `close_chain`/`open_chain` DNA-migration pipeline (M-of-N notaries; new chain opens at genesis via the package passed as `init_properties`). Carries an agent's *own chain* only — does NOT republish other-authored entries, so it would not save published HarmonyRecord URLs at the 0.7 migration. **CAL-1.0 — design source, don't copy code.** Its `policy.rs` is the algorithm `select_validators()` needs. See `memory/reference_unyt_tools.md`.
 - **Unyt tauri-plugin-holochain** — lighter Electron alternative (not yet open-source); revisit before building the validator desktop app.
 - **kangaroo-electron** (`holochain/kangaroo-electron`, branch `main-0.6`) — cross-platform Electron packaging. Full plan: `docs/KANGAROO_PACKAGING_PLAN.md`. Remaining blockers: dedicated bootstrap/relay servers.
