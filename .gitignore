@@ -64,3 +64,6 @@ business/
 scratch/
 valichord_issues_backlog.md
 valichord_pilot_spec.md
+
+# Feature-selection example: regenerated on every run
+valichord_attestation/examples/feature_selection_stability/artifacts/

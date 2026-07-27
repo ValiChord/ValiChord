@@ -23,6 +23,13 @@ inspect-ai = [
 wandb = [
     "wandb>=0.13",
 ]
+feature-selection = [
+    # examples/feature_selection_stability only — never a core dependency.
+    # scikit-learn 1.9 folded n_alphas into alphas; the pre-registered rule
+    # uses the new spelling.
+    "numpy>=1.24",
+    "scikit-learn>=1.9",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

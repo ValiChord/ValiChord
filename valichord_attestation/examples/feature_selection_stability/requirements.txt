@@ -1,0 +1,4 @@
+# Runnable with no API key, no GPU, no network, and no Holochain conductor.
+numpy>=1.24
+scikit-learn>=1.9   # 1.9 folded n_alphas into alphas; lambda_rule.py uses the new spelling
+jcs>=0.2.1
