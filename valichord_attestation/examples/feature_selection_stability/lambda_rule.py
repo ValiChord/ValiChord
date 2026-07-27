@@ -47,7 +47,7 @@ MAX_ITER = 50_000
 SUPPORT_THRESHOLD = 0.0
 
 LAMBDA_RULE_DESCRIPTION = (
-    "LassoCV(cv=5, n_alphas=100, eps=1e-3) grid; "
+    "LassoCV(cv=5, alphas=100, eps=1e-3) grid; "
     "alpha = largest alpha whose mean CV MSE <= (min mean CV MSE + 1 SE at the minimiser)"
 )
 
