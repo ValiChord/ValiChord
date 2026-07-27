@@ -719,6 +719,8 @@ The binary handles BOTH bootstrap (HTTP) and SBD (WebSocket) on the same port. N
 
 ### HTTP Gateway (hc-http-gw 0.3.1) — verified from source
 
+> **Version note (2026-07-27).** Verified against 0.3.1; the 0.6 line is now at **v0.3.4** and **the format below is unchanged** — `v0.3.1...v0.3.4` touches one source file (`src/test/data.rs`, +2/−0), the rest being Holochain bumps (v0.3.3 → 0.6.2, v0.3.4 → 0.6.3). **v0.3.3 matches our 0.6.2 conductor.** `v0.3.3`/`v0.3.4` are tags with no GitHub Release, so they're invisible to the releases API. The format also survives 0.7 (`v0.3.2...v0.4.0-rc.1` leaves `src/routes/zome_call.rs` at +1/−1; route shape and payload encoding untouched).
+
 URL format: `GET /{dna_hash}/{app_id}/{zome_name}/{fn_name}?payload=<base64>`
 
 - `payload` query parameter: base64url WITH `=` padding (`BASE64_URL_SAFE` = Rust base64 crate URL_SAFE engine with PAD)

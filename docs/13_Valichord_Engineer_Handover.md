@@ -481,7 +481,9 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 
 **Membrane proof issuance service.** The credential verification is implemented and tested. What does not exist yet is the external service that issues credentials — signs a joining agent's pubkey with the authorised issuer keypair and returns the 64-byte proof. This is a Phase 1 infrastructure component. In dev/test mode, set `authorized_joining_certificate_issuer = ""` to bypass.
 
-**HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. **Demo deployed 2026-03-28** — `hc-http-gw` v0.3.1 runs on port 8090 in the Codespace alongside the conductor; `demo/start-gateway.sh` starts it. Env vars `HOLOCHAIN_GATEWAY_URL`, `HOLOCHAIN_GOVERNANCE_DNA_HASH`, and `HOLOCHAIN_APP_ID` set on the Flask server populate `harmony_record_url` in every `/result/<job_id>` response. Always-on permanent deployment (outside the Codespace) remains Phase 1.
+**HTTP Gateway deployment.** DNA 4 is designed as an HTTP Gateway target — publicly readable without a Holochain node. **Demo deployed 2026-03-28, since retired** — `hc-http-gw` v0.3.1 ran on port 8090 in the Codespace alongside the conductor, started by `demo/start-gateway.sh`. Env vars `HOLOCHAIN_GATEWAY_URL`, `HOLOCHAIN_GOVERNANCE_DNA_HASH`, and `HOLOCHAIN_APP_ID` on the Flask server populated `harmony_record_url` in every `/result/<job_id>` response.
+
+> **Superseded 2026-07-27.** `demo/start-gateway.sh` was removed in `9738fe1` (Oracle migration) and `hc-http-gw` is not installed in the current Codespace — record URLs come from the Node bridges (`GET /record?hash=…`) instead. Upstream is at **v0.3.4** on our 0.6 line with the **URL format unchanged** since 0.3.1 (v0.3.3 is the release matching our 0.6.2 conductor); the format also survives the 0.7 migration. Details in `docs/Holochain_complete.md` §25. Always-on permanent gateway deployment remains Phase 1.
 
 **Cryptographic commitment verification — FULLY RESOLVED 2026-03-18/20.**
 

@@ -1726,7 +1726,9 @@ The `__bytes` convention: Uint8Array values crossing the Node/Python boundary ar
 `harmony_record_url` format (when all three gateway vars are set):
 `{HOLOCHAIN_GATEWAY_URL}/{HOLOCHAIN_GOVERNANCE_DNA_HASH}/{HOLOCHAIN_APP_ID}/governance_coordinator/get_harmony_record?payload={gateway_payload}`
 
-**Status (2026-03-28):** `harmony_record_url` is now fully populated end-to-end in the Codespace demo. The HTTP Gateway (`hc-http-gw` v0.3.1) runs on port 8090 alongside the conductor. `demo/start-gateway.sh` starts it and prints the governance DNA hash. Always-on permanent deployment (outside the Codespace) remains Phase 1.
+**Status (2026-03-28, superseded — see note):** `harmony_record_url` was fully populated end-to-end in the Codespace demo. The HTTP Gateway (`hc-http-gw` v0.3.1) ran on port 8090 alongside the conductor, started by `demo/start-gateway.sh`, which printed the governance DNA hash.
+
+> **Superseded 2026-07-27.** `demo/start-gateway.sh` was **removed** in commit `9738fe1` during the Oracle permanent-deployment migration, and `hc-http-gw` is not installed in the current Codespace. Record URLs are now served by the Node bridges (`GET /record?hash=…` on the researcher node) instead. The gateway design for DNA 4 still stands and the URL format is still current (upstream is at v0.3.4 with the format unchanged — see `docs/Holochain_complete.md` §25); only this deployment is historical. Always-on permanent gateway deployment remains Phase 1.
 
 **New file: `backend/holochain_bridge.py`** — Python wrapper for `POST /holochain/validate-round`. Uses `requests` with a 120 s timeout (WASM JIT + DHT operations). All functions return `None` on connection error, so the analysis pipeline always completes without a live conductor.
 

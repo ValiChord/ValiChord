@@ -860,13 +860,17 @@ should be updated to 0.4.1 before the next Oracle demo run.
 "already claimed" capacity errors on repeated runs against the same conductor.
 Use `docker compose -f demo/docker-compose.yml down -v` between runs to clear conductor state if needed.
 
-### hc-http-gw URL format (verified from source)
+### hc-http-gw URL format (verified from source; re-verified 2026-07-27)
 ```
 http://<host>:8090/<dna_hash>/<app_id>/<zome_name>/<fn_name>?payload=<base64url-padded>
 ```
 - Payload = BASE64_URL_SAFE **with** `=` padding of JSON-encoded input
 - For `get_harmony_record`: payload = base64url(JSON.stringify(externalHashB64))
 - Response is msgpack-decoded — HoloHash fields are byte arrays, not strings
+
+**Version:** this format was verified against **0.3.1**; the 0.6 line has since reached **v0.3.4**. **The format is unchanged** — `v0.3.1...v0.3.4` touches exactly one source file (`src/test/data.rs`, +2/−0); v0.3.3 (2026-07-02) and v0.3.4 (2026-07-20) are pure Holochain version bumps to 0.6.2 and 0.6.3 respectively. **`v0.3.3` is the release matching our 0.6.2 conductor.** (Note `v0.3.3`/`v0.3.4` are git tags with no GitHub Release, so they don't appear in the releases API — check tags.) It also survives 0.7: `v0.3.2...v0.4.0-rc.1` touches 12 source files but `src/routes/zome_call.rs` is +1/−1 and the route shape and payload encoding are untouched, so this block stays valid across the 0.7 migration.
+
+**Not currently deployed.** `demo/start-gateway.sh` was **removed** in `9738fe1` during the Oracle migration; `hc-http-gw` is not installed in this Codespace. The live demo serves records through the Node bridges (`/record?hash=…`) instead. Docs 3 and 13 still describe the March-2026 gateway deployment — read them as historical.
 
 ### Multi-app conductor setup
 Five apps on one conductor:
