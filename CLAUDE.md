@@ -280,11 +280,51 @@ Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-
 - ⬤ **`holochain_sqlite` crate REMOVED (rc.0)** — persistence moved to `holochain_data`; databases renamed; legacy DBs unused (reinforces the must-clear-state / `down -v` note above). New `encryption` feature replaces the old `sqlite-encrypted` (which now has no effect).
 - ⬤ **`transport-iroh` feature flag REMOVED (rc.0)** — iroh/QUIC is the sole transport, compiled in unconditionally. Downstream crates that built `default-features = false` + explicitly listed `transport-iroh` must drop it. No impact for us (we don't gate on it).
 - ⬤ **`DnaStorageInfo` (StorageInfo admin call) fields changed (rc.0)** — drops `authored_data_size`/`_on_disk` and `cache_data_size`/`_on_disk`; source-chain data now counts under `dht_data_size`/`_on_disk` (PR #5844). Only matters if we read storage metrics.
-- `@holochain/client` bumps to the **0.9.x** line (0.9.0-rc.1) — valichord-ui currently pins 0.20.x against 0.6.x; check the client-version ↔ conductor-version compatibility matrix before bumping.
+- **`@holochain/client` bumps to the `0.21.x` line** (`0.21.0-rc.1` on npm dist-tag `next`; `0.20.8` is current stable on our line). ⚠️ **A previous version of this file said "0.9.x" — that was wrong and conflated two packages:** `0.9.0-rc.4` is the **Rust `holochain_client` crate**, not the JS one. Verified on npm + crates.io 2026-07-27. Three pins to update: `valichord-ui/package.json` (`^0.20.5`), `valichord/tests/package.json` (`^0.20.4`), `demo/package.json` (`0.20.2`).
 - **New `AppStatus` variants from source-chain restore** — `AppStatus::AwaitingRestore` (restore in progress) and `AppStatus::Unrecoverable(cell_id, reason)` (terminal — chain forked or warrant validated). `dev-setup.mjs` and Svelte UI currently assume only `Running`/`Disabled`; both need updating. New `SystemSignal` variants: `RestoreComplete { cell_id }`, `AppRestoreComplete { installed_app_id }`, `RestoreFailed { cell_id, reason }`. New conductor config field: `restore_chain_quorum: u8` (default 2). (Source: `holochain/holochain` branch `cascade-read-and-cutover`, `docs/design/source_chain_restore.md`)
 - **Source-chain restore does NOT recover private entries** — `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private and absent after a restore. Validators who lose their machine mid-round lose their uncommitted private attestations silently.
 - `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field (excluded from `PartialEq`/`Hash` — deduplication unaffected). Check any match arm that destructures this variant in `reject_if_warranted`.
 - CI: update `BASE=` URL and `key: hc-bin-0.6.2` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
+
+#### Official upgrade guide — read it first, and this ValiChord audit alongside it
+
+**Source: `holochain/docs-pages` branch `docs/upgrade-guide-holochain-0.7`, file `src/pages/resources/upgrade/upgrade-holochain-0.7.md`** (700 lines, written 2026-07-27, no PR yet). It is written against **rc.4** and states plainly that *"further breaking changes are still possible"* — another reason the migration waits for stable. It names `holochain/dino-adventure`'s integrity zome as the reference port to adapt our `validate` dispatcher from, and notes **no 0.7 scaffolding release exists yet**.
+
+**1. `FlatOp` variants are RENAMED — and we have 51 match arms.** Counted across the four integrity zomes 2026-07-27:
+
+| 0.6 | 0.7 | Our arms |
+|---|---|---|
+| `FlatOp::RegisterUpdate` | `FlatOp::Update` | **26** |
+| `FlatOp::StoreEntry` | `FlatOp::CreateEntry` | **12** |
+| `FlatOp::RegisterDeleteLink` | `FlatOp::Link(OpLink::DeleteLink { link_type, action, original_action })` | **8** |
+| `FlatOp::RegisterDelete` | `FlatOp::Delete(OpDelete { action })` | **4** |
+| `FlatOp::RegisterAgentActivity` | `FlatOp::AgentActivity` | **1** |
+| `FlatOp::StoreRecord` | `FlatOp::CreateRecord` | 0 |
+
+The 8 `RegisterDeleteLink` arms are not a rename — **both link variants fold into a single `FlatOp::Link`** wrapping an `OpLink`. That one is structural.
+
+**2. ⚠️ IMMUTABILITY-GUARD ORDERING IS THE REAL HAZARD — ValiChord-specific.** Those 26 `RegisterUpdate` arms *are* our immutability guards (`ValidationAttestation`, `CommitmentAnchor`, `PhaseMarker`, `StudyClaim`, `ValidatorPrivateAttestation`, `LockedResult`). Per `docs/7_ValiChord_4-DNA_architecture_technical.md`, **Rust match ordering IS the enforcement mechanism** — guarded arms must precede the generic update arm. A mechanical rename-and-reflow that reorders them **silently disables immutability: no compile error, and no test failure unless a test explicitly attempts a forbidden update.** Treat "preserve arm ordering, then prove it with a forbidden-update test per guarded type" as its own migration step, not part of the rename.
+
+**3. Membrane proof — the guide has our exact arm.** `attestation_integrity/src/lib.rs:957` matches `AgentValidationPkg` inside the agent-activity arm (our `validate_agent_joining` credential path). `OpActivity::CreateAgent` loses its `agent` field → use the `create.agent()` accessor + `action.prev_action()` + match `ActionData::AgentValidationPkgData`. The guide gives the full before/after diff for this.
+
+**4. Conductor configs FAIL TO START, they are not ignored.** `NetworkConfig` now rejects unknown fields. Live hits to fix at migration:
+- `demo/conductor-config-node.yaml:19` (`signal_url`), `:21` (`db_sync_strategy: Fast`)
+- `valichord-ui/dev-conductor.yaml:17` (`signal_url`), `:19` (`db_sync_strategy: Resilient`)
+- `demo/rehearse-autoupdate.sh:56` (`signal_url`)
+
+Field changes: `signal_url` + `webrtc_config` removed; `request_timeout_s` moves from top level **into `network`**; `db_sync_strategy` → **`db_sync_level`** with values `Fast`→`Off`, `Resilient`→`Normal`; `chc_url` removed; new optional `wasm_backend` (`"cranelift"`/`"LLVM"`/`"wasmi"`) and `restore_chain_quorum`. **A local iroh relay additionally needs `advanced: { irohTransport: { relayAllowPlainText: true } }`** — relevant to the wind-tunnel/relay work. (Guide's example shows `restore_chain_quorum: 3`; the default is recorded above as 2 — confirm which at migration.)
+
+**5. `AgentActivity` → `AgentActivityStatus`** (renamed to resolve the collision with the `AgentActivity` op variant). Three call sites: `governance_coordinator/src/lib.rs:188,322`, `attestation_coordinator/src/lib.rs:637`. The 4th `GetOptions` arg we already pass.
+
+**6. JS side.** `SignedActionHashed` is no longer generic and the per-variant types (`Create`, `Update`, `Delete`, `CreateLink`, `DeleteLink`) are no longer exported; common action fields move under `.header`. **`valichord-ui/src/lib/types.ts:331`** does `record.signed_action.hashed.content.author` → needs `.header.author`. Also `signalingServerUrl` → `relayServerUrl`; `dumpNetworkStats` returns `ApiTransportStats` (nested under `transport_stats`, `is_webrtc` → `is_direct`).
+
+**7. Sweettest dep line** for `sweettest_integration`: `holochain = { version = "0.7.0-rc.x", default-features = false, features = ["encryption", "wasmer-sys-cranelift"] }` — `sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`. The guide also carries a table of removed implicit Cargo features (`holo_hash` `serde`→`serialization`, `hdi` `tracing`→`trace`, `holochain_zome_types` `serde_yaml`→`properties`, …) — check our zome + `shared_types` manifests against it.
+
+**8. Toolchain:** `hc-spin` → `0.700.0-rc.1`; holonix `main-0.7` **does not exist yet** (use `ref=main`); nodejs 22 → 24; Sweettest builds may need `perl` on `PATH`.
+
+**9. Confirmed NOT applicable to us** (checked): no `Record::new` calls (now takes `RecordEntry`), no `block_agent`/`unblock_agent` (removed), no link `base_address`/`target_address`/`tag` destructuring in the integrity zomes.
+
+**10. Every published HarmonyRecord URL dies at migration.** Zome-definition serialization changed, so an otherwise-identical DNA has a different `DnaHash`, and 0.7 agents form a network separate from 0.6. This is the same fact as "clear state / `down -v`", but stated in the form that matters for the Oracle demo's public links.
 
 Ignore `0.7.0-dev.*` and `0.6.x-rc.*` tags. **`0.7.0-rc.*` is NOT ignored** — rc.0 was the watch signal and it has now fired (see the ⚠️ note above). Next tell: the plain `holochain-0.7.0` stable tag — report to user the moment it appears.
 

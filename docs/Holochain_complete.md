@@ -1051,15 +1051,18 @@ create(CreateInput {
 
 iroh/QUIC is the default transport in 0.6.1. The `advanced.tx5Transport` block is dead config and should be removed from conductor-config.yaml files. See §25 for the legacy tx5 config (historical reference only).
 
+> **⚠️ 0.7 WARNING (added 2026-07-27).** `signal_url` is valid on our 0.6.x line but is **REMOVED in 0.7**, and 0.7's `NetworkConfig` **rejects unknown fields — the conductor fails to start** rather than ignoring them. `webrtc_config` likewise. Other 0.7 renames: `request_timeout_s` moves from the top level *into* `network`; `db_sync_strategy` → `db_sync_level` (`Fast`→`Off`, `Resilient`→`Normal`); `chc_url` removed; new optional `wasm_backend` and `restore_chain_quorum`. A **local** iroh relay additionally requires `advanced: { irohTransport: { relayAllowPlainText: true } }`. Our live hits: `demo/conductor-config-node.yaml:19,21`, `valichord-ui/dev-conductor.yaml:17,19`, `demo/rehearse-autoupdate.sh:56`. Full list in `CLAUDE.md` → "Pending upgrade checks" → "Official upgrade guide". Do not apply any of this until 0.7.0 is stable.
+
 ```yaml
 network:
   bootstrap_url: https://...       # kitsune2 bootstrap server — peer discovery
   signal_url: wss://...            # SBD WebSocket server — kept for tx5 fallback; still used by kitsune2-bootstrap-srv 0.4.1
+                                   # ⚠️ REMOVED in 0.7 — leaving it in place makes the conductor refuse to start
   relay_url: https://...           # iroh relay for QUIC NAT traversal (needed for production; optional for direct LAN/loopback)
   base64_auth_material_bootstrap: ... # URL-safe base64 auth token for bootstrap
   base64_auth_material_relay: ...     # URL-safe base64 auth token for relay
   target_arc_factor: 1.0           # 0.0 = leacher (no DHT gossip contribution)
-  # webrtc_config / advanced.tx5Transport — REMOVE; dead under iroh default
+  # webrtc_config / advanced.tx5Transport — REMOVE; dead under iroh default (and rejected outright in 0.7)
 ```
 
 **`ConductorConfig` new fields:**
@@ -1067,7 +1070,7 @@ network:
 - `incoming_request_concurrency_limit: u16` — max parallel authority responses (default: `db_max_readers - 3`)
 - `tuning_params: ConductorTuningParams` — retry/timeout overrides including `sys_validation_retry_delay`, `countersigning_resolution_retry_delay`, `countersigning_resolution_retry_limit`
 
-**Per-app network overrides** in `AppManifestV0`: `bootstrap_url` and `signal_url` can be specified per-app, overriding the conductor-level config for all cells of that app.
+**Per-app network overrides** in `AppManifestV0`: `bootstrap_url` and `signal_url` can be specified per-app, overriding the conductor-level config for all cells of that app. (0.7: the `signal_url` override goes with the field; app and web-app manifests also start rejecting unknown fields.)
 
 ---
 
