@@ -13,8 +13,8 @@
 //!   3.  Two validators commit → phase transitions to RevealOpen
 //!   4.  Full commit-reveal round (core 2-agent protocol)
 //!   5.  get_attestations_for_request
-//!   6.  ValidationAttestation immutability — no update/delete functions
-//!   7.  CommitmentAnchor and PhaseMarker immutability — no update/delete functions
+//!   6.  REMOVED 2026-07-30 — was a fake immutability test (see note in body)
+//!   7.  REMOVED 2026-07-30 — was two fake immutability tests (see note in body)
 //!   8.  publish_validator_profile + get_validator_profile (new)
 //!   9.  claim_study + release_claim (new)
 //!  10.  COI rejection — same institution blocks claim (new)
@@ -260,112 +260,43 @@ async fn get_attestations_for_request_empty_before_reveal() {
 }
 
 // ---------------------------------------------------------------------------
-// 6. ValidationAttestation immutability — no update/delete functions
+// 6 & 7. REMOVED 2026-07-30 — three fake "immutability" tests deleted.
 // ---------------------------------------------------------------------------
-
-#[tokio::test(flavor = "multi_thread")]
-async fn validation_attestation_immutable_no_update_fn() {
-    let setup = setup_two_agents().await;
-    let request_ref = fake_external_hash(0x04);
-
-    let _: ActionHash = setup.conductors[0]
-        .call(
-            &setup.alice.attestation_zome(),
-            "submit_validation_request",
-            make_validation_request(request_ref.clone()),
-        )
-        .await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-
-    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-
-    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-
-    // No update function exists — call must fail.
-    let result: Result<(), _> = setup.conductors[0]
-        .call_fallible(
-            &setup.alice.attestation_zome(),
-            "update_attestation_for_test",
-            (),
-        )
-        .await;
-    assert!(result.is_err(), "no update function for ValidationAttestation must be rejected");
-}
-
-// ---------------------------------------------------------------------------
-// 7. CommitmentAnchor and PhaseMarker immutability
-// ---------------------------------------------------------------------------
-
-#[tokio::test(flavor = "multi_thread")]
-async fn commitment_anchor_immutable_no_update_fn() {
-    let (conductor, app) = setup_single().await;
-    let zome = app.attestation_zome();
-    let request_ref = fake_external_hash(0x11);
-
-    conductor
-        .call::<_, ActionHash>(
-            &zome,
-            "submit_validation_request",
-            make_validation_request(request_ref.clone()),
-        )
-        .await;
-    commit(&conductor, &app, request_ref).await;
-
-    let result: Result<(), _> = conductor
-        .call_fallible(&zome, "update_commitment_for_test", ())
-        .await;
-    assert!(result.is_err(), "no update function for CommitmentAnchor must be rejected");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn phase_marker_immutable_no_update_fn() {
-    let setup = setup_two_agents().await;
-    let request_ref = fake_external_hash(0x22);
-
-    let _: ActionHash = setup.conductors[0]
-        .call(
-            &setup.alice.attestation_zome(),
-            "submit_validation_request",
-            make_validation_request(request_ref.clone()),
-        )
-        .await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-
-    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
-    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
-        .await
-        .unwrap();
-
-    // Phase must be RevealOpen now.
-    let phase: Option<String> = setup.conductors[0]
-        .call(&setup.alice.attestation_zome(), "get_current_phase", request_ref)
-        .await;
-    assert_eq!(phase.as_deref(), Some("RevealOpen"));
-
-    let result: Result<(), _> = setup.conductors[0]
-        .call_fallible(&setup.alice.attestation_zome(), "update_phase_marker_for_test", ())
-        .await;
-    assert!(result.is_err(), "no update function for PhaseMarker must be rejected");
-}
+//
+// `validation_attestation_immutable_no_update_fn`, `commitment_anchor_immutable_
+// no_update_fn` and `phase_marker_immutable_no_update_fn` asserted immutability
+// like this:
+//
+//     let result: Result<(), _> = conductor
+//         .call_fallible(&zome, "update_attestation_for_test", ()).await;
+//     assert!(result.is_err(), "...must be rejected");
+//
+// The zome functions `update_attestation_for_test`, `update_commitment_for_test`
+// and `update_phase_marker_for_test` DO NOT EXIST anywhere in this repo. Each
+// call failed with "function not found", the assert passed, and all three tests
+// were permanently green — they would have stayed green with `validate()`
+// deleted entirely. They tested the coordinator's public surface (that no update
+// function is exposed), not the integrity zome's immutability guard.
+//
+// Nothing real was lost: the only genuine assertion among them was the
+// phase == RevealOpen check in the PhaseMarker test, which duplicates test 3.
+//
+// STILL MISSING — real coverage. A test that actually proves immutability must
+// issue an Update action against a committed entry and assert the INTEGRITY zome
+// rejects it. No coordinator exposes `update_entry`, so this needs a
+// `#[cfg(feature = "test_utils")]`-gated extern per coordinator. Scope, per the
+// 2026-07-30 verification pass against shipped hdi 0.8.0 (see CLAUDE.md →
+// "Pending upgrade checks"):
+//   - attestation DNA: 12 live per-type `OpUpdate::Entry` guard arms that must
+//     stay ahead of the generic arm (lib.rs:490) and the catch-all (:508).
+//     This is where match-ordering genuinely matters.
+//   - validator_workspace / researcher_repository: all entries are private, so
+//     their per-type arms are unreachable dead code. Immutability rests on ONE
+//     blanket `OpUpdate::PrivateEntry { .. } => Invalid` arm each. One tripwire
+//     test per DNA is sufficient — but losing that single arm is catastrophic.
+//
+// This matters most at the 0.7 migration: reflowing the renamed match arms can
+// silently disable immutability with no compile error and no test failure.
 
 // ---------------------------------------------------------------------------
 // 8. publish_validator_profile + get_validator_profile (new)
