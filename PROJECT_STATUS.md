@@ -5,6 +5,62 @@
 
 ---
 
+# 🚦 START HERE — next session (written 2026-07-30, end of day)
+
+**Where we got to:** Holochain **0.7.0 stable shipped 2026-07-30**. We are still on 0.6.2 by choice. A full day was spent *preparing* the migration rather than doing it — the plan was re-verified against shipped artifacts, and a real safety net was built. **The `v0.7.0` branch has NOT been created yet. That is the next task.**
+
+### Step 1 — check CI before anything else (BLOCKING)
+
+The last push (`75500eb`) touched `sweettest_integration/src/lib.rs` (`workdir()` gained a `VALICHORD_DNA_DIR` override), which affects **every** sweettest run. At end of day the guard, UI-E2E and integration jobs were green/running but the **5 sweettest legs had not finished** (~2 h; governance alone ~170 min).
+
+```bash
+gh run list --limit 3
+gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // "-")\t\(.name)"'
+```
+
+- **All green →** proceed to step 2.
+- **A sweettest leg red →** determine whether it is the `workdir()` change or the *documented* governance badge-index gossip-lag flake (see "Maintenance + ecosystem triage — 2026-06-13" below; silver/bronze/gold badge tests are the known flaky ones). Do not branch onto a red base.
+
+### Step 2 — three decisions to make before the first branch commit
+
+1. **Run the tripwires in CI?** They are deliberately *not* in the sweettest matrix, so they never run automatically. Tolerable on `main`; **not** tolerable during the migration, which is exactly when a guard regression would happen. Suggest adding a CI leg **on the branch** (~15–20 min: extra WASM build + pack).
+2. **Committed DNA artifacts.** The migration changes every DNA hash, so committed `workdir/*.dna` + `workdir/valichord.happ` all change — and the `ui-e2e` CI job consumes the *committed* happ. Decide up front: repack-and-commit each iteration (branch bloat, CI stays honest) or repack once at the end of Phase A.
+3. **Two untracked dirs** (`research/`, `valichord_attestation/examples/feature_selection_stability/`) pre-date this work and will follow onto the branch. Commit, gitignore, or leave.
+
+### Step 3 — start Phase A
+
+```bash
+git checkout -b v0.7.0        # main STAYS on 0.6.2 — non-negotiable, see below
+```
+
+**The migration is fully specified. It is three things and nothing else:**
+
+| # | Work | Detail |
+|---|---|---|
+| 1 | **51 `FlatOp` match arms** | The real job. Ordering hazard concentrated in `attestation` (12 live per-type guards); `validator_workspace` + `researcher_repository` each rest on ONE blanket `OpUpdate::PrivateEntry` arm. |
+| 2 | **3 conductor-config files** | Exact diff already known and empirically verified — 2 lines each. |
+| 3 | **~7 version strings** | + sweettest feature flags (`sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`). |
+
+Everything else on the old breaking-change list is **confirmed zero**. Full evidence-tagged checklist: `CLAUDE.md` → "Pending upgrade checks".
+
+**Run the tripwires before you start and after each batch of arms:**
+```bash
+cd valichord && ./build-test-dnas.sh
+cd sweettest_integration && VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
+```
+
+### Non-negotiables
+
+- **`main` stays on 0.6.2** until the branch is fully green *and* the user explicitly approves the merge. The Oracle demo and every published HarmonyRecord URL depend on it.
+- **Phases B (Tryorama + UI) and C (wind-tunnel) are BLOCKED on upstream** — no stable `@holochain/client` 0.21, no 0.7 Tryorama, `holochain_wind_tunnel_runner` still on 0.6. Re-check before attempting either. Only **Phase A** is actionable.
+- **Never weaken a test to a bare `is_err()`.** Three fake tests were deleted today for exactly that.
+
+### The lesson worth carrying (it recurred three times today)
+
+**An assertion that cannot fail is worse than none — it manufactures false confidence.** Today: three "immutability" tests that passed on *"function not found"*; a checklist whose errors were all in claims inferred from indirect sources; and a CI guard that grepped *compressed* bundles and so reported "clean" for everything. Every fix was the same — **run the negative control: prove the check can fail before trusting that it passed.** Applies directly to the 51-arm port.
+
+---
+
 ## What ValiChord does (one paragraph)
 
 ValiChord is a scientific reproducibility verification system built on Holochain. A researcher deposits a hash of their data and result claim. Independent validators each reproduce the analysis blindly, seal their verdict using a commit-reveal protocol, then reveal simultaneously — removing any last-mover advantage. Outcomes are aggregated into a tamper-evident **HarmonyRecord** on a public DHT. No central party can alter it after the fact.

@@ -4,6 +4,32 @@
 
 ---
 
+## ⚠️ VERSION SCOPE — READ FIRST (updated 2026-07-30)
+
+**This document describes Holochain 0.6.x, which is what ValiChord actually runs (0.6.2). It remains the correct reference for the current codebase.**
+
+**Holochain 0.7.0 shipped 2026-07-30.** We have deliberately NOT migrated — the migration is planned, branch-only (`v0.7.0`), and `main` stays on 0.6.2. This file has **not** been rewritten for 0.7, because doing so would make it wrong for the code we run today.
+
+**Authority for anything 0.7-related is `CLAUDE.md` → "Pending upgrade checks",** which carries an evidence-tagged checklist (✅ verified against shipped artifacts / ❌ corrected / ⚠️ unverified). Do not treat this file as a 0.7 reference, and do not "update" it to 0.7 until the migration actually lands.
+
+### Sections known to be stale for 0.7 (verified against shipped `hdi 0.8.0` / `hdk 0.7.0`, 2026-07-30)
+
+| Section | 0.7 status |
+|---|---|
+| **§34 `FlatOp` / `OpHelper` pattern** | 🔴 **Heavily changed.** All six variants renamed (`StoreRecord`→`CreateRecord`, `StoreEntry`→`CreateEntry`, `RegisterAgentActivity`→`AgentActivity`, `RegisterUpdate`→`Update`, `RegisterDelete`→`Delete`); both link variants fold into `FlatOp::Link(OpLink)`; every sub-type now carries `TypedAction<D>` (`{ header, data }`, `Deref` to `D`) instead of a generic `Action`. ValiChord has **51 arms** affected. |
+| **§43 Rate limiting types** | 🔴 **REMOVED entirely** in 0.7 — the `rate_limit` module, `RateWeight`, `EntryRateWeight` and the action-weight machinery are gone (PR #5860). Section is dead for 0.7. We never used them. |
+| **§40 `NetworkConfig`** | 🔴 **Changed, and wrong config now FAILS TO START (exit 42), it is not ignored.** `signal_url`, `webrtc_config`, `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` with values `Full`/`Normal`/`Off`. New fields incl. `target_arc_factor`, `base64_auth_material_bootstrap`/`_relay`, `wasm_backend`, `restore_chain_quorum`. Verified empirically against the 0.7.0 binary — exact allowed-field lists are in `CLAUDE.md`. |
+| **§36 `ChainFilter` / `LimitConditions`** | 🟠 Changed (now built via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining), and `must_get_agent_activity` gained response variants. **Zero impact on us** — we call neither. |
+| **§19 Getting an agent's status** | 🟠 `AgentActivity` → **`AgentActivityStatus`**. The `get_agent_activity` signature is otherwise **identical** and the `warrants` field survives, so our three call sites need no change. |
+| **§18 DHT operations** | 🟠 Read alongside §34 — the v2 Action model is canonical; the legacy per-variant action structs, `ActionBuilder`, and `EntryCreationAction`/`NewEntryAction` wrappers are all removed. |
+| **§31 App status model** | 🟢 **Unchanged in 0.7.0.** The `AwaitingRestore`/`Unrecoverable` variants and the restore signals were expected but the source-chain-restore workflow (PR #5920) **did not ship** — only groundwork (#5799). Revisit when it lands in a later 0.7.x. |
+| **§25 Conductor config (tx5/WebRTC)** | ⚫ Already marked legacy; now doubly so — tx5/WebRTC is fully gone and iroh/QUIC is the sole transport. |
+| §37 size limits, §38 `GetStrategy`/`GetOptions`, §35 `LinkQuery`, §39 `ChainTopOrdering` | 🟢 No verified 0.7 change; `GetOptions`/`GetStrategy`/`ChainQueryFilter`/`ActivityRequest` all confirmed still present in `hdk 0.7.0`. |
+
+Sections not listed above have **not** been checked against 0.7 — absence from this table means unknown, not verified-unchanged.
+
+---
+
 ## COVERAGE STATUS
 
 All pages of the Holochain Build Guide have been read and synthesised. Sections 1–25 are from the Build Guide. Sections 26–43 were added from direct crate source analysis (`hdk`, `hdi`, `holochain_integrity_types`, `holochain_zome_types`, `holochain_conductor_api`) and cover API surface NOT in the Build Guide: clone cells, scheduled functions, countersigning, source chain migration, deferred membrane proofs, app status model, app websocket auth tokens, full admin API, FlatOp validation pattern, LinkQuery full filter surface, ChainFilter/LimitConditions, entry/link size limits, GetStrategy, ChainTopOrdering, updated NetworkConfig, signal subscription filtering, warrant types detail, and rate limiting types.
@@ -448,6 +474,8 @@ Each action produces multiple DHT ops sent to different authorities:
 ---
 
 ## 19. GETTING AN AGENT'S STATUS
+
+> 🟠 **0.7 note:** the return type is renamed `AgentActivity` → `AgentActivityStatus`. The `get_agent_activity` signature is otherwise identical and the `warrants` field survives, so ValiChord's three call sites compile unchanged.
 
 (From previous session)
 
@@ -923,6 +951,8 @@ Undocumented `AdminRequest` variants beyond what the Build Guide covers:
 
 ## 34. `FlatOp` / `OpHelper` PATTERN FOR VALIDATION
 
+> 🔴 **0.6.x ONLY — HEAVILY CHANGED IN 0.7.** All six `FlatOp` variants are renamed, both link variants fold into `FlatOp::Link(OpLink)`, and every sub-type carries `TypedAction<D>` instead of a generic `Action`. ValiChord has 51 affected match arms, 26 of which are immutability guards whose *ordering* is the enforcement mechanism. See `CLAUDE.md` → "Pending upgrade checks" for the verified rename table and the ordering hazard.
+
 The raw `Op` enum requires deep matching to access entry/link data. HDI provides a higher-level `FlatOp<ET, LT>` that pre-deserialises your app's entry and link types.
 
 **Usage:**
@@ -1049,7 +1079,9 @@ create(CreateInput {
 
 ---
 
-## 40. `NetworkConfig` — CURRENT (Holochain 0.6.1 / iroh/QUIC era)
+## 40. `NetworkConfig` — CURRENT FOR 0.6.x (iroh/QUIC era)
+
+> 🔴 **0.6.x ONLY — CHANGED IN 0.7, AND WRONG CONFIG FAILS TO START (exit 42), it is not ignored.** `signal_url` / `webrtc_config` / `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` (`Full`/`Normal`/`Off`). Verified empirically against the 0.7.0 binary — exact allowed-field lists and the two-line-per-file fix are in `CLAUDE.md`.
 
 iroh/QUIC is the default transport in 0.6.1. The `advanced.tx5Transport` block is dead config and should be removed from conductor-config.yaml files. See §25 for the legacy tx5 config (historical reference only).
 
@@ -1104,6 +1136,8 @@ App WebSocket clients can filter which signals they receive per-cell:
 ---
 
 ## 43. RATE LIMITING TYPES
+
+> ⚫ **0.6.x ONLY — REMOVED ENTIRELY IN 0.7.** The `rate_limit` module, `RateWeight`, `EntryRateWeight` and the action-weight machinery are gone (PR #5860). This whole section is dead for 0.7. No code impact — ValiChord never used them.
 
 Present in the types but conductor enforcement is still maturing:
 
