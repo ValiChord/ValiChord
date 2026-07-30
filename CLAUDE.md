@@ -54,6 +54,38 @@ All per-test timeouts are 900 000 ms — each `runScenario` JIT-compiles ~30 MB 
 
 The one skipped test (`GoldReproducible badge — 7 validators`) exhausts WebSocket connections in Codespaces. It is covered by sweettest 15 instead.
 
+### Immutability tripwire tests (REQUIRED before/after any `validate()` refactor)
+
+The only tests that prove the **integrity zomes** reject forbidden updates. They need a special build, because no production coordinator exposes `update_entry`.
+
+```bash
+cd valichord
+./build-test-dnas.sh                       # builds --features test_utils -> target-test/, packs -> workdir-test/
+cd sweettest_integration
+VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
+# 5 tests, ~14 min (each scenario JIT-compiles ~30 MB WASM)
+```
+
+**Run these before AND after the 0.7 `FlatOp` migration.** They are the only thing standing between a mechanical arm-reflow and silently losing immutability.
+
+**Proven to work — negative control, 2026-07-30.** Moving the `ValidationAttestation` guard behind the generic `OpUpdate::Entry { action, .. }` arm (exactly the accident a `FlatOp` rename can cause) made the forbidden update **succeed** — it returned a real `ActionHash`, because it fell through to the generic arm whose author-check passes for the entry's own author. The tripwire test failed as designed; restoring the guard turned it green. **The hazard is real and the wire is connected.**
+
+⚠️ **Partial compiler safety net, do not rely on it.** `rustc` *does* emit `warning: unreachable pattern` when a specific arm is moved behind a broader one. But it is a **warning, not an error**, in a build that emits others — and it catches **only** the shadowing case. It will NOT catch an arm that is deleted outright, or one whose pattern stops matching after a variant rename. The tests catch all three.
+
+**Safety design** (these hooks must never ship):
+- `#[cfg(feature = "test_utils")]` externs in 3 coordinators — absent from every production build
+- feature build → `target-test/` (separate target dir, cannot overwrite `target/`)
+- packs → `workdir-test/` (never the committed `workdir/`)
+- `test-dnas/*/dna.yaml` point their **integrity** zome at the *production* build and only the **coordinator** at `target-test/` — so the integrity zome under test is byte-identical to what ships
+- `./check-no-test-hooks.sh` greps the committed production bundles for `test_force_update` and fails if found — **run it in CI**
+- `target-test/` + `workdir-test/` are gitignored
+
+**Assertion discipline — never weaken this.** Every test asserts on the *specific rejection message the guard emits* (`"ValidationAttestation is immutable"`, `"Private entry updates not supported"`), never a bare `is_err()`. Three earlier "immutability" tests were deleted on 2026-07-30 because they asserted `is_err()` against zome functions that did not exist — they passed on "function not found" and would have stayed green with `validate()` deleted entirely.
+
+**Coverage is shaped by the entry-visibility split** (verified against shipped `hdi 0.8.0`): private entries can never match `OpUpdate::Entry`, only `OpUpdate::PrivateEntry`.
+- `attestation` (public) — per-type arms are live, ordering matters → 3 per-type tests
+- `validator_workspace` / `researcher_repository` (all private) — per-type arms are dead code; **one blanket `OpUpdate::PrivateEntry` arm is the entire guard** → 1 test each, aimed at that arm
+
 ### Sweettest (in-process conductors, separate workspace)
 
 ```bash
@@ -340,7 +372,7 @@ The pre-release notes in this file were accumulated from indirect sources (branc
 ### ⚠️ UNVERIFIED — check before acting
 
 - ✅ **RETIRED 2026-07-30 — conductor-config syntax VERIFIED against the real 0.7.0 binary.** Both our configs were run against `holochain 0.7.0` and now **start cleanly with exactly two changes each**. See "Conductor configs" in the guide section below for the exact diffs and the full allowed-field lists. **Do NOT apply the fixes to `main`** — they would break our running 0.6.2 stack. They belong on the `v0.7.0` branch.
-- ⚠️ **The immutability match-ordering hazard itself** — that reflowing arms silently disables guards with no compile error and no test failure. Logically sound and consistent with the shipped source, but **unproven**. Proving it is exactly what a real forbidden-update tripwire test would do (and note the existing tests do NOT do this — see above).
+- ✅ **RETIRED 2026-07-30 — the match-ordering hazard is PROVEN REAL, and tripwire tests now exist.** See "Immutability tripwire tests" below. Negative control run: moving the `ValidationAttestation` guard behind the generic arm caused the forbidden update to be **silently ACCEPTED** (it returned a real `ActionHash`), and the tripwire test caught it. Guard restored → green again.
 
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes (⬤ = CONFIRMED landed in 0.7.0-rc.0, verified from the crate CHANGELOGs 2026-07-19):
 - ✅ **`hdk → 0.7.0`, `hdi → 0.8.0` — only THREE version strings, not "across all zomes"** (audited 2026-07-30). Every zome uses `{ workspace = true }`, so the only literals are `valichord/Cargo.toml:18` (`hdi = "=0.7.2"`) and `:19` (`hdk = "=0.6.2"`), plus `sweettest_integration/Cargo.toml:42` (`hdk = "=0.6.2"`). `sweettest_integration` needs 4 more (`holochain`, `holochain_types`, `holochain_keystore`, `holo_hash`, all `=0.6.2`) → **~7 strings total.**

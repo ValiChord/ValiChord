@@ -32,8 +32,19 @@ pub use holochain::sweettest::*;
 // Paths
 // ---------------------------------------------------------------------------
 
+/// Directory the packed `.dna` bundles are loaded from.
+///
+/// Defaults to `valichord/workdir` (the production pack target). Set
+/// `VALICHORD_DNA_DIR` to point at an alternative set — used by
+/// `build-test-dnas.sh`, which packs DNAs whose coordinators are built with
+/// `--features test_utils` so the immutability tripwire tests can issue a
+/// forbidden update. The integrity zomes in those bundles are the *same
+/// bytes* as production; only the coordinators differ.
 pub fn workdir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../workdir")
+    match std::env::var("VALICHORD_DNA_DIR") {
+        Ok(d) if !d.trim().is_empty() => PathBuf::from(d),
+        _ => Path::new(env!("CARGO_MANIFEST_DIR")).join("../workdir"),
+    }
 }
 
 pub fn dna_path(name: &str) -> PathBuf {

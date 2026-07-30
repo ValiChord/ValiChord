@@ -2285,3 +2285,66 @@ pub fn sign_for_identity_link(other_agent: AgentPubKey) -> ExternResult<Signatur
 // Note: getrandom 0.3 custom backend for wasm32-unknown-unknown is enabled
 // via .cargo/config.toml (--cfg getrandom_backend="custom"). The required
 // __getrandom_v03_custom stub is provided by hdk itself.
+
+// ===========================================================================
+// TEST-ONLY IMMUTABILITY TRIPWIRE HOOKS
+// ===========================================================================
+//
+// Compiled ONLY under `--features test_utils`. Absent from every production
+// build, so these externs cannot be called on the Oracle demo or any packed
+// production hApp.
+//
+// WHY THEY EXIST. The integrity zome enforces immutability by *match-arm
+// ordering* inside `validate()` — the per-type guard arms must precede the
+// generic `OpUpdate::Entry { action, .. }` arm and the `RegisterUpdate(_)`
+// catch-all. Reordering them during a refactor (e.g. the Holochain 0.7
+// FlatOp rename, which touches all 51 arms) silently disables immutability:
+// no compile error, and no test failure unless something actually attempts a
+// forbidden update. No coordinator exposes `update_entry`, so without these
+// hooks that attempt is impossible to make from a test.
+//
+// SAFETY. Each hook does exactly one thing: issue an Update against a
+// committed entry. If the guards work, validation rejects it. They grant no
+// capability that a broken guard would not already have granted.
+//
+// See `sweettest_integration/tests/immutability_tripwire.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_validation_attestation(
+    input: (ActionHash, ValidationAttestation),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::ValidationAttestation(input.1))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_commitment_anchor(
+    input: (ActionHash, CommitmentAnchor),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::CommitmentAnchor(input.1))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_phase_marker(
+    input: (ActionHash, PhaseMarker),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::PhaseMarker(input.1))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_study_claim(
+    input: (ActionHash, StudyClaim),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::StudyClaim(input.1))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_validation_request(
+    input: (ActionHash, ValidationRequest),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::ValidationRequest(input.1))
+}

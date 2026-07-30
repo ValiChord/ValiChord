@@ -16,3 +16,8 @@ researcher_repository_integrity = { path = "../researcher_repository_integrity" 
 sha2 = { workspace = true }
 getrandom = { workspace = true }
 rmp-serde = { workspace = true }
+
+[features]
+# Test-only immutability tripwire externs (see src/lib.rs tail).
+# NEVER enable for a production build or a packed production hApp.
+test_utils = []

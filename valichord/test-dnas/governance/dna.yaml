@@ -1,0 +1,26 @@
+---
+# GENERATED-BY-HAND, test-only. Do NOT pack this for production.
+# Integrity zome path points at the PRODUCTION build (identical bytes to the
+# shipped DNA). Only the coordinator comes from target-test/, where it is
+# built with --features test_utils to expose the immutability tripwire hooks.
+# Built + packed by ./build-test-dnas.sh into ../workdir-test/.
+# governance has no tripwire hooks; both zomes are the production build.
+manifest_version: "0"
+name: governance
+integrity:
+  network_seed: ~
+  properties:
+    system_coordinator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+    round_timeout_secs: 604800
+  zomes:
+    - name: governance_integrity
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/governance_integrity.wasm"
+      dependencies: ~
+coordinator:
+  zomes:
+    - name: governance_coordinator
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/governance_coordinator.wasm"
+      dependencies:
+        - name: governance_integrity

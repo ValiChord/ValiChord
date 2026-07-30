@@ -320,3 +320,25 @@ pub fn compute_data_hash(data: Vec<u8>) -> ExternResult<ExternalHash> {
     // and computes the 4-byte DHT location from the 32-byte SHA-256 core.
     Ok(ExternalHash::from_raw_32(sha256_bytes))
 }
+
+// ===========================================================================
+// TEST-ONLY IMMUTABILITY TRIPWIRE HOOK
+// ===========================================================================
+//
+// Compiled ONLY under `--features test_utils`. See the equivalent block in
+// attestation_coordinator for the full rationale.
+//
+// As in validator_workspace, every entry type in this DNA is
+// `visibility = "private"`, so immutability rests on the single blanket
+// `OpUpdate::PrivateEntry { .. }` arm rather than on the per-type arms (which
+// are unreachable dead code). LockedResult in particular has NO per-type arm
+// at all — it is blanket-covered only, which is why it is the one aimed at
+// here.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_locked_result(
+    input: (ActionHash, LockedResult),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::LockedResult(input.1))
+}

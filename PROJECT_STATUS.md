@@ -153,6 +153,20 @@ The parser's error messages also yielded the full allowed-field lists (recorded 
 2. 🆕 **`base64_auth_material_bootstrap` / `base64_auth_material_relay` are real `network` fields** — the kitsune2 v0.5.0 authenticated-relay work surfacing in conductor config. Relevant to the relay blocker and kangaroo packaging.
 3. 🆕 **`target_arc_factor` is a `network` config field in 0.7.0** — relevant to the polite-shrink / kitsune2 #160 work.
 
+#### Immutability tripwire tests — 2026-07-30 ✓ (the pre-migration safety net)
+
+**5 new sweettests that actually prove the integrity zomes reject forbidden updates** — the first tests in the repo to do so. `valichord/sweettest_integration/tests/immutability_tripwire.rs`. All 5 pass (825 s).
+
+They need a special build, because no production coordinator exposes `update_entry`: three coordinators carry `#[cfg(feature = "test_utils")]` externs that issue one. `./build-test-dnas.sh` then `VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire`.
+
+**Proven to work by negative control — the part that matters.** Moving the `ValidationAttestation` guard behind the generic update arm (exactly the accident the 0.7 `FlatOp` rename can cause) made the forbidden update **silently succeed**, returning a real `ActionHash`; it fell through to the generic arm, whose author-check passes for the entry's own author. **The tripwire failed as designed.** Guard restored → green again. So the match-ordering hazard is real, and the test genuinely detects it — unlike the three fake tests deleted the same day.
+
+⚠️ `rustc` does emit `warning: unreachable pattern` for the shadowing case, but it is a warning among others, and it catches **only** shadowing — not a deleted arm, nor one whose pattern stops matching after a rename.
+
+**Safety:** hooks are absent from production builds; the feature build goes to `target-test/` and packs to `workdir-test/` (both gitignored), never the committed `workdir/`; the test manifests point their **integrity** zome at the *production* build so what's under test is byte-identical to what ships; and `./check-no-test-hooks.sh` fails if any committed bundle contains the hooks (verified clean — **should be wired into CI**).
+
+**Coverage follows the verified entry-visibility split:** 3 per-type tests on `attestation` (public, ordering matters), 1 blanket-arm test each on `validator_workspace` and `researcher_repository` (all-private, where one `OpUpdate::PrivateEntry` arm is the entire guard).
+
 #### Mechanical API audit — 2026-07-30 ✓ (grep across 4 zomes + shared_types + sweettest_integration)
 
 Ran to size the migration precisely. **Result: almost everything on the breaking-change list is a hard zero in our code.**

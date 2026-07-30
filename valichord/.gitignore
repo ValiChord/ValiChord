@@ -6,3 +6,8 @@ workdir/*.happ
 !workdir/researcher.happ
 !workdir/validator.happ
 tests/node_modules/
+
+# Test-only immutability tripwire build artifacts (build-test-dnas.sh).
+# Coordinators here are built with --features test_utils and MUST NOT ship.
+target-test/
+workdir-test/

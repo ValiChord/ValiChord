@@ -345,3 +345,30 @@ fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResul
     }
     Ok(())
 }
+
+// ===========================================================================
+// TEST-ONLY IMMUTABILITY TRIPWIRE HOOK
+// ===========================================================================
+//
+// Compiled ONLY under `--features test_utils`. See the equivalent block in
+// attestation_coordinator for the full rationale.
+//
+// THIS DNA'S GUARD IS DIFFERENT AND MORE FRAGILE. Every entry type here is
+// `visibility = "private"`, and a private entry can never surface as
+// `OpUpdate::Entry` — it only ever arrives as `OpUpdate::PrivateEntry`
+// (verified against hdi 0.8.0 `src/op.rs`). So the per-type guard arms for
+// ValidatorPrivateAttestation and DeliberateAbstention are UNREACHABLE DEAD
+// CODE, and immutability for this entire DNA rests on the single blanket arm:
+//
+//     FlatOp::RegisterUpdate(OpUpdate::PrivateEntry { .. }) => Invalid(...)
+//
+// Losing or mis-porting that ONE arm silently removes immutability from every
+// private entry at once. Hence one tripwire, aimed squarely at it.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_private_attestation(
+    input: (ActionHash, ValidatorPrivateAttestation),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::ValidatorPrivateAttestation(input.1))
+}

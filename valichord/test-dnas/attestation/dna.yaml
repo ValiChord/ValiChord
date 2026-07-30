@@ -1,0 +1,26 @@
+---
+# GENERATED-BY-HAND, test-only. Do NOT pack this for production.
+# Integrity zome path points at the PRODUCTION build (identical bytes to the
+# shipped DNA). Only the coordinator comes from target-test/, where it is
+# built with --features test_utils to expose the immutability tripwire hooks.
+# Built + packed by ./build-test-dnas.sh into ../workdir-test/.
+manifest_version: "0"
+name: attestation
+integrity:
+  network_seed: ~
+  properties:
+    authorized_joining_certificate_issuer: "uhCAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    discipline: "genomics"
+    minimum_validators: 3
+  zomes:
+    - name: attestation_integrity
+      hash: ~
+      path: "../../target/wasm32-unknown-unknown/release/attestation_integrity.wasm"
+      dependencies: ~
+coordinator:
+  zomes:
+    - name: attestation_coordinator
+      hash: ~
+      path: "../../target-test/wasm32-unknown-unknown/release/attestation_coordinator.wasm"
+      dependencies:
+        - name: attestation_integrity
