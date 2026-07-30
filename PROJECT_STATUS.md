@@ -163,7 +163,9 @@ They need a special build, because no production coordinator exposes `update_ent
 
 ⚠️ `rustc` does emit `warning: unreachable pattern` for the shadowing case, but it is a warning among others, and it catches **only** shadowing — not a deleted arm, nor one whose pattern stops matching after a rename.
 
-**Safety:** hooks are absent from production builds; the feature build goes to `target-test/` and packs to `workdir-test/` (both gitignored), never the committed `workdir/`; the test manifests point their **integrity** zome at the *production* build so what's under test is byte-identical to what ships; and `./check-no-test-hooks.sh` fails if any committed bundle contains the hooks (verified clean — **should be wired into CI**).
+**Safety:** hooks are absent from production builds; the feature build goes to `target-test/` and packs to `workdir-test/` (both gitignored), never the committed `workdir/`; the test manifests point their **integrity** zome at the *production* build so what's under test is byte-identical to what ships; and `./check-no-test-hooks.sh` fails if any committed bundle contains the hooks — now wired into CI as the dependency-free `no-test-hooks` job that fails in seconds ahead of the 90-minute matrix.
+
+⚠️ **That guard was itself broken on first write, and the fix is worth remembering.** It grepped the bundles directly and reported "clean" for *everything* — including bundles that definitely contained the hooks — because Holochain bundles are compressed (`*.dna` = one gzip layer; `*.happ` = gzip → msgpack → nested gzip). It was a guard that could not fail: the same false-confidence class as the fake immutability tests deleted the same day. Now decompresses recursively, and is verified in **both** directions (passes on `workdir/`, fails on `workdir-test/` — while still correctly passing `governance.dna`, which carries no hooks).
 
 **Coverage follows the verified entry-visibility split:** 3 per-type tests on `attestation` (public, ordering matters), 1 blanket-arm test each on `validator_workspace` and `researcher_repository` (all-private, where one `OpUpdate::PrivateEntry` arm is the entire guard).
 

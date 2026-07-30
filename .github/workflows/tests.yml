@@ -11,6 +11,31 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ── Supply-chain guard: no test-only hooks in shipped bundles ────────────────
+  # The immutability tripwire tests (sweettest_integration/tests/
+  # immutability_tripwire.rs) need coordinators built with --features test_utils,
+  # which expose `test_force_update_*` externs that can issue an Update against a
+  # committed entry. Those must NEVER reach a production hApp.
+  #
+  # build-test-dnas.sh keeps them quarantined in target-test/ + workdir-test/
+  # (both gitignored), but nothing stops someone packing workdir/ from a stale
+  # test-feature build by hand. This job is that backstop.
+  #
+  # Deliberately dependency-free (grep over committed bundles, no Rust, no
+  # Holochain binary) so it fails in seconds rather than after a 90-minute matrix.
+  no-test-hooks:
+    name: Guard — no test-only hooks in production bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check committed bundles for test_utils externs
+        run: |
+          chmod +x valichord/check-no-test-hooks.sh
+          ./valichord/check-no-test-hooks.sh
+
   test:
     name: 97 Integration Tests (4 DNAs)
     runs-on: ubuntu-latest
