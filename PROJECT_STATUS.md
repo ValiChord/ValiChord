@@ -104,21 +104,32 @@ GitHub release **[v0.6.1](https://github.com/ValiChord/ValiChord/releases/tag/v0
 
 **Also folded into v0.6.1** (landed just after the v0.6.0 tag): first live coordinator hot-swap on Oracle + local-read perf (self-authored lookups read `GetStrategy::Local`); the Oracle demo rebuilt on a new Ampere A1 / ARM server; the UI Playwright e2e suite against a real conductor + the data-hash `pattern` form-blocking fix; GitHub Pages refresh; a forward-looking sharding design note; and the Holochain 0.7.0 RC watch note.
 
-### 🚨 Holochain 0.7.0 stable is being cut RIGHT NOW — release prepared 2026-07-30 (report-only, no upgrade)
+### 🚨 Holochain 0.7.0 STABLE SHIPPED — 2026-07-30 (report-only, still on 0.6.2)
 
-**Eric Harris-Braun announced on a live stream (2026-07-30, ~15:00 UK) that 0.7.0 is ready.** Verified within the hour — the announcement is accurate, and the tag had not yet published at time of checking:
+**Eric Harris-Braun announced on a live stream (~15:00 UK) that 0.7.0 was ready; it released ~90 minutes later.** Verified on all three surfaces:
 
-- **No `holochain-0.7.0` git tag yet** (404), no GitHub release, crates.io `max_stable_version` still `0.6.3`. Latest published release is still `holochain-0.7.0-rc.5` (2026-07-29, prerelease).
-- **But `develop` head is `d1ec5a72` — *"chore: Prepare the 0.7.0 release"*, 2026-07-30T14:16:58Z.** It touches 35 crate CHANGELOGs and does one thing to each: flips `default_semver_increment_mode: !pre_minor rc` → `semver_increment_mode: minor` + `default_semver_increment_mode: !pre_patch rc`. That is the switch that makes the next release-automation run cut **0.7.0 stable** rather than rc.6, and resets the post-release default to `0.7.1-rc.x`. **Hours away, not weeks — the "early-to-mid August" ETA is superseded.**
+| Surface | Value |
+|---|---|
+| GitHub release `holochain-0.7.0` | `prerelease=false`, **2026-07-30T16:28:31Z** |
+| git tag `refs/tags/holochain-0.7.0` | exists |
+| crates.io `holochain` / `hdk` / `hdi` | **0.7.0** / **0.7.0** / **0.8.0** |
 
-⚠️ **When we do upgrade, it happens on a dedicated `v0.7.0` branch — `main` stays on 0.6.2.** User decision, 2026-07-30. This is a major change touching all four integrity zomes; `main` keeps the working, publicly-demoed 0.6.2 stack until the branch is fully green (Tryorama + all 5 sweettest suites + UI e2e + a live demo round) **and** the user explicitly approves the merge. 0.7.0 being superior does not make a broken intermediate state acceptable.
+⚠️ **We remain on 0.6.2. When we upgrade, it happens on a dedicated `v0.7.0` branch — `main` stays on 0.6.2.** User decision, 2026-07-30. `main` keeps the working, publicly-demoed stack until the branch is fully green (Tryorama + all 5 sweettest suites + UI e2e + a live demo round) **and** the user explicitly approves the merge.
 
-**Two standing notes were corrected in the same check** (both were actively misleading):
+#### 🔴 The migration is TWO-PHASE — the JS/tooling ecosystem has not shipped
 
-1. ❌ **"rc.5's crate line is not on crates.io" was WRONG.** The per-crate version numbers run *independently* of the umbrella release name. `holochain 0.7.0-rc.5` (17:49Z), `hdk 0.7.0-rc.4` (17:43Z), `hdi 0.8.0-rc.4` (17:41Z) were all published on 2026-07-29, minutes *before* the rc.5 tag at 17:57Z — **`hdk 0.7.0-rc.4` IS rc.5's hdk.** A trial migration could have resolved deps all along.
-2. ❌ **"PR #5920 source-chain restore is the main brake on the stable tag" was WRONG — 0.7.0 ships WITHOUT it.** The PR was still a conflicting draft with review outstanding at 2026-07-30T06:25Z, ~8 hours before the release was prepared. **Consequence: the `AppStatus::AwaitingRestore`/`Unrecoverable` variants, the `RestoreComplete`/`AppRestoreComplete`/`RestoreFailed` signals, and the `restore_chain_quorum` config field are probably absent from 0.7.0** — so the planned `dev-setup.mjs` + Svelte `AppStatus` work may be unnecessary, and the "restore loses private entries" concern is moot for this release. Verify against the stable CHANGELOG at migration; do not plan work on it before then.
+Checked ~15 min after release: `@holochain/client` latest **0.20.8** (0.21 only as `rc.1`), `@holochain/tryorama` latest **0.19.2** (*no 0.7 line at all*), `@holochain/hc-spin` latest **0.603.0**, holonix has **no `main-0.7`** branch, and upgrade-guide PR #647 was last updated *before* the release. **The 97 Tryorama tests and the Svelte UI cannot migrate yet.** The Rust side (4 DNA zomes + `sweettest_integration`) can. Plan **Phase A (Rust)** then **Phase B (JS, when the stables land)**.
 
-**Also re-verified 2026-07-30:** the upgrade guide is now **[docs-pages PR #647](https://github.com/holochain/docs-pages/pull/647)**, open and *not* a draft (supersedes "no PR yet"); holonix **`main-0.7` still does not exist** (only `update-to-0.7.0-rc.0`), expect it around the stable tag. **A published kitsune2 stable carries the relay work — see the blocker-remover note below.** Client line: `@holochain/client 0.21.0-rc.1` (**not** 0.9.x — that is the Rust `holochain_client` crate; the two were previously conflated). **We stay on 0.6.2 until the stable tag lands; the migration is deliberate, branch-based, and planned — never auto.**
+#### Verification pass — the plan was re-checked against shipped 0.7.0
+
+The pre-release notes were built from indirect sources (branch-watching, RC changelogs, a draft guide written against rc.4) and **four proved wrong**. A verification pass was run against the *shipped* `hdi 0.8.0` / `hdk 0.7.0` crate sources and the published CHANGELOGs. Full evidence-tagged checklist (✅ verified / ❌ corrected / ⚠️ unverified) is in `CLAUDE.md` → "Pending upgrade checks". Headlines:
+
+- ✅ **Held up exactly:** the `FlatOp` rename table (6 shipped variants, all as recorded); the **51 match arms** and their 26/12/8/4/1/0 breakdown (independently recounted); both link variants folding into one `OpLink`; the `@holochain/client` 0.21.x vs Rust `holochain_client` 0.9.0 distinction (0.9.0 shipped in this release); the 5 live conductor-config hit sites.
+- ❌ **Guide was stale, in our favour:** `OpActivity::CreateAgent` **keeps** its `agent` field (#5910 restored it), and **our membrane-proof arm needs only the variant rename** — shipped `AgentValidationPkg` retains `membrane_proof` and our arm destructures exactly that. The guide's rewrite recipe applies to a variant we never match.
+- ❌ **Source-chain restore confirmed ABSENT from 0.7.0** (only #5799 groundwork shipped). All `AppStatus::AwaitingRestore` / `RestoreComplete` / `restore_chain_quorum` checklist items are **dead** — no `dev-setup.mjs` or Svelte work needed.
+- 🆕 **Ordering hazard rescoped.** `OpUpdate::PrivateEntry` survives in 0.8.0, and private entry types can never match `OpUpdate::Entry`. So the per-type guard arms in `validator_workspace_integrity.rs:149,157` and `researcher_repository_integrity.rs:150` are **unreachable dead code** — immutability in DNA 1 / DNA 2 rests on a **single blanket `OpUpdate::PrivateEntry` arm each**. The real match-ordering risk is concentrated in the **attestation** DNA (the only one with public entries).
+- ❌ **The three existing "immutability" sweettests are fake.** `sweettest_integration/tests/attestation.rs:267,313,334` call zome functions (`update_attestation_for_test`, `update_commitment_for_test`, `update_phase_marker_for_test`) that **exist nowhere in the codebase**; they pass on "function not found" and would stay green with `validate()` deleted. Fix or replace before trusting any immutability signal.
+- ⚠️ **Still unverified:** the exact conductor-config field syntax (`db_sync_strategy` → `db_sync_level` etc.). Wrong config makes the conductor **fail to start**, so verify against a real 0.7 conductor before editing those 5 sites.
 
 **RC history:** `0.7.0-rc.0` (2026-07-15), rc.1 (07-16), rc.2, rc.3, rc.4, rc.5 (07-29) — the "watch for rc.0" trigger from the 2026-06-13 estimate firing. One further correction from the 2026-07-27 notes: #5898 (re-layers conductor state types out of the `holochain` crate, which `sweettest_integration` depends on directly) and #5906 (paginated state dumps) were recorded as landing *after* rc.4; they are **in rc.4**. Both remain real migration items. rc.5 absorbed #5910, settling the HDI validate-callback surface our four integrity zomes depend on.
 
