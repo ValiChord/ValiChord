@@ -137,7 +137,21 @@ The pre-release notes were built from indirect sources (branch-watching, RC chan
 - ❌ **Source-chain restore confirmed ABSENT from 0.7.0** (only #5799 groundwork shipped). All `AppStatus::AwaitingRestore` / `RestoreComplete` / `restore_chain_quorum` checklist items are **dead** — no `dev-setup.mjs` or Svelte work needed.
 - 🆕 **Ordering hazard rescoped.** `OpUpdate::PrivateEntry` survives in 0.8.0, and private entry types can never match `OpUpdate::Entry`. So the per-type guard arms in `validator_workspace_integrity.rs:149,157` and `researcher_repository_integrity.rs:150` are **unreachable dead code** — immutability in DNA 1 / DNA 2 rests on a **single blanket `OpUpdate::PrivateEntry` arm each**. The real match-ordering risk is concentrated in the **attestation** DNA (the only one with public entries).
 - ❌ **The three existing "immutability" sweettests are fake.** `sweettest_integration/tests/attestation.rs:267,313,334` call zome functions (`update_attestation_for_test`, `update_commitment_for_test`, `update_phase_marker_for_test`) that **exist nowhere in the codebase**; they pass on "function not found" and would stay green with `validate()` deleted. Fix or replace before trusting any immutability signal.
-- ⚠️ **Still unverified:** the exact conductor-config field syntax (`db_sync_strategy` → `db_sync_level` etc.). Wrong config makes the conductor **fail to start**, so verify against a real 0.7 conductor before editing those 5 sites.
+- ✅ **RETIRED — conductor-config syntax verified empirically** (see below). Was the last ⚠️ on the critical path.
+
+#### Conductor-config verification against the real 0.7.0 binary — 2026-07-30 ✓
+
+Downloaded `holochain 0.7.0` to scratchpad (**the 0.6.2 on `PATH` untouched**) and ran both our configs against it. Confirmed the "fails to start, does not degrade" prediction — exit code 42, hard parse error. **Then found the fix is tiny: two lines per file.**
+
+- Remove `signal_url` from `network:`; rename `db_sync_strategy` → **`db_sync_level`** (`Fast`→`Off` in `demo/conductor-config-node.yaml`, `Resilient`→`Normal` in `valichord-ui/dev-conductor.yaml`). `demo/rehearse-autoupdate.sh:56` needs the `signal_url` removal only.
+- **With those edits both configs start a 0.7.0 conductor and open their admin port.** Everything else we use survives: `data_root_path`, `keystore`, `lair_root`, `admin_interfaces`, `bootstrap_url`, `relay_url`, `db_max_readers`.
+- ⚠️ **Not applied to `main`** — `db_sync_level` breaks 0.6.2. These go on the `v0.7.0` branch.
+
+The parser's error messages also yielded the full allowed-field lists (recorded in `CLAUDE.md`), which produced three findings:
+
+1. ❌ **Correcting our own earlier finding: `restore_chain_quorum` IS a valid 0.7.0 config field**, despite the source-chain-restore workflow not shipping — the config surface landed ahead of the feature. (The `AppStatus`/signal items remain likely-absent; only this one was wrong.)
+2. 🆕 **`base64_auth_material_bootstrap` / `base64_auth_material_relay` are real `network` fields** — the kitsune2 v0.5.0 authenticated-relay work surfacing in conductor config. Relevant to the relay blocker and kangaroo packaging.
+3. 🆕 **`target_arc_factor` is a `network` config field in 0.7.0** — relevant to the polite-shrink / kitsune2 #160 work.
 
 #### Mechanical API audit — 2026-07-30 ✓ (grep across 4 zomes + shared_types + sweettest_integration)
 

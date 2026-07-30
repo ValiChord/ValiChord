@@ -339,7 +339,7 @@ The pre-release notes in this file were accumulated from indirect sources (branc
 
 ### ⚠️ UNVERIFIED — check before acting
 
-- ⚠️ **Exact conductor-config field syntax** (`db_sync_strategy` → `db_sync_level` with `Fast`→`Off` / `Resilient`→`Normal`; `request_timeout_s` moving into `network`; `signal_url`/`webrtc_config`/`chc_url` removed). The `holochain_conductor_config` CHANGELOG is sparse and did not confirm these. The 5 hit sites ARE confirmed to exist. **Wrong config makes the conductor FAIL TO START rather than degrade**, so verify against a real 0.7 conductor before editing those files.
+- ✅ **RETIRED 2026-07-30 — conductor-config syntax VERIFIED against the real 0.7.0 binary.** Both our configs were run against `holochain 0.7.0` and now **start cleanly with exactly two changes each**. See "Conductor configs" in the guide section below for the exact diffs and the full allowed-field lists. **Do NOT apply the fixes to `main`** — they would break our running 0.6.2 stack. They belong on the `v0.7.0` branch.
 - ⚠️ **The immutability match-ordering hazard itself** — that reflowing arms silently disables guards with no compile error and no test failure. Logically sound and consistent with the shipped source, but **unproven**. Proving it is exactly what a real forbidden-update tripwire test would do (and note the existing tests do NOT do this — see above).
 
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes (⬤ = CONFIRMED landed in 0.7.0-rc.0, verified from the crate CHANGELOGs 2026-07-19):
@@ -398,7 +398,38 @@ The 8 `RegisterDeleteLink` arms are not a rename — **both link variants fold i
 - `valichord-ui/dev-conductor.yaml:17` (`signal_url`), `:19` (`db_sync_strategy: Resilient`)
 - `demo/rehearse-autoupdate.sh:56` (`signal_url`)
 
-Field changes: `signal_url` + `webrtc_config` removed; `request_timeout_s` moves from top level **into `network`**; `db_sync_strategy` → **`db_sync_level`** with values `Fast`→`Off`, `Resilient`→`Normal`; `chc_url` removed; new optional `wasm_backend` (`"cranelift"`/`"LLVM"`/`"wasmi"`) and `restore_chain_quorum`. **A local iroh relay additionally needs `advanced: { irohTransport: { relayAllowPlainText: true } }`** — relevant to the wind-tunnel/relay work. (Guide's example shows `restore_chain_quorum: 3`; the default is recorded above as 2 — confirm which at migration.)
+✅ **VERIFIED EMPIRICALLY 2026-07-30 against the real `holochain 0.7.0` binary** (downloaded to scratchpad; the 0.6.2 on `PATH` was left untouched). Both configs were run to a live conductor. **Exactly TWO changes are needed per file, and nothing else:**
+
+```diff
+  network:
+    bootstrap_url: <unchanged>
+-   signal_url: <anything>          # ← REMOVE THIS LINE
+    relay_url: <unchanged>
+- db_sync_strategy: Fast            # demo/conductor-config-node.yaml
++ db_sync_level: Off
+- db_sync_strategy: Resilient       # valichord-ui/dev-conductor.yaml
++ db_sync_level: Normal
+```
+
+With those two edits, **both configs start a 0.7.0 conductor and open their admin port.** Everything else we use survives unchanged: `data_root_path`, `keystore.type: lair_server_in_proc`, `lair_root`, `admin_interfaces`, `network.bootstrap_url`, `network.relay_url`, `db_max_readers`. Same fix applies to the embedded config in `demo/rehearse-autoupdate.sh:56` (`signal_url` only — it has no `db_sync_strategy`).
+
+⚠️ **Do NOT apply these to `main`** — they break 0.6.2, which rejects `db_sync_level`. They go on the `v0.7.0` branch.
+
+**Exact allowed field lists, read out of the 0.7.0 parser's own error messages:**
+
+- **Top level:** `tracing_override`, `wasm_backend`, `data_root_path`, `keystore`, `admin_interfaces`, `network`, `db_sync_level`, `db_max_readers`, `incoming_request_concurrency_limit`, `restore_chain_quorum`, `tuning_params`, `tracing_scope`
+- **`network`:** `base64_auth_material_bootstrap`, `base64_auth_material_relay`, `bootstrap_url`, `relay_url`, `request_timeout_s`, `target_arc_factor`, `report`, `advanced`
+- **`db_sync_level` values:** `Full`, `Normal`, `Off`
+
+Three things fall out of those lists:
+
+1. ❌ **CORRECTION to our own 2026-07-30 finding: `restore_chain_quorum` IS a valid 0.7.0 config field**, even though the source-chain-restore *workflow* (PR #5920) did not ship. The config surface landed ahead of the feature. This does **not** revive the `AppStatus::AwaitingRestore` / `RestoreComplete` items — those remain unverified-and-likely-absent — but "restore_chain_quorum is absent from 0.7.0" was wrong.
+2. 🆕 **`base64_auth_material_bootstrap` / `base64_auth_material_relay` are real network fields** — this is the kitsune2 v0.5.0 authenticated-relay work (bearer token on the relay WebSocket upgrade) surfacing in conductor config. Directly relevant to the relay blocker-remover note and to kangaroo packaging.
+3. 🆕 **`target_arc_factor` is a `network` config field in 0.7.0** — relevant to the polite-shrink / kitsune2 #160 work (Unyt HEART hardcodes `target_arc_factor: 1`).
+
+✅ Confirmed removed as claimed: `signal_url`, `chc_url`, `webrtc_config`. ✅ Confirmed moved: `request_timeout_s` is now under `network`. ✅ `db_max_readers` survives (we use it). ⚠️ The `Fast`→`Off` / `Resilient`→`Normal` *semantic* mapping is the guide's claim — the three valid values are verified, the mapping itself is plausible (it matches SQLite `synchronous` levels) but not independently confirmed. **A local iroh relay additionally needs `advanced: { irohTransport: { relayAllowPlainText: true } }`.**
+
+**Gotcha hit during verification, worth remembering:** a long `data_root_path` makes the in-process lair keystore fail with `path must be shorter than SUN_LEN` — the same trap already documented for `rehearse-autoupdate.sh`. It looks like a config error but is not; keep test conductor paths short (`mktemp -d /tmp/hc7XXXX`).
 
 **5. `AgentActivity` → `AgentActivityStatus` — ❌ LISTED AS WORK, ACTUALLY ZERO.** The rename is real (it resolves the collision with the `AgentActivity` op variant) and our three call sites are real — `governance_coordinator/src/lib.rs:188,322`, `attestation_coordinator/src/lib.rs:637`. **But none of them need changing** (verified against shipped `hdk 0.7.0` + `holochain_zome_types 0.7.0`, 2026-07-30):
 
