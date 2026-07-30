@@ -390,6 +390,7 @@ python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_respo
 | Document | Description |
 | :--- | :--- |
 | [Open Design Questions](https://github.com/ValiChord/ValiChord/blob/main/docs/6_ValiChord_Open_Design_Questions.md) | Outstanding design decisions and open questions |
+| [Sponsors & Independence](https://github.com/ValiChord/ValiChord/blob/main/SPONSORS.md) | Who funds ValiChord, and the six things sponsorship explicitly cannot buy |
 
 ---
 
