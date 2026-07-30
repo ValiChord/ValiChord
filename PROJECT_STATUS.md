@@ -27,11 +27,36 @@ gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // "-")\
 2. **Committed DNA artifacts.** The migration changes every DNA hash, so committed `workdir/*.dna` + `workdir/valichord.happ` all change — and the `ui-e2e` CI job consumes the *committed* happ. Decide up front: repack-and-commit each iteration (branch bloat, CI stays honest) or repack once at the end of Phase A.
 3. **Two untracked dirs** (`research/`, `valichord_attestation/examples/feature_selection_stability/`) pre-date this work and will follow onto the branch. Commit, gitignore, or leave.
 
-### Step 3 — start Phase A
+### Step 3 — create the branch, then set up the 0.7 docs BEFORE porting
 
 ```bash
 git checkout -b v0.7.0        # main STAYS on 0.6.2 — non-negotiable, see below
 ```
+
+**3a. Two small doc edits first — they take ~2 minutes and prevent the branch misleading you.**
+
+**(i) Branch banner.** `docs/Holochain_complete.md` is mandated session-start reading and still documents **0.6.x**. On this branch that is actively misleading. Add one line to the top of its existing "⚠️ VERSION SCOPE" banner:
+
+> **You are on the `v0.7.0` branch. This file is still 0.6.x and has NOT been rewritten.** Verified 0.7 facts live in `CLAUDE.md` → "Pending upgrade checks" and in `docs/Holochain_0.7_migration_log.md`.
+
+**(ii) Create `docs/Holochain_0.7_migration_log.md` as a stub, and fill it AS YOU PORT.** Suggested skeleton:
+
+```markdown
+# Holochain 0.7 migration log — evidence captured during the port
+Every entry here was hit for real during the migration. Nothing inferred.
+## FlatOp arms — what actually changed
+| zome | arm | 0.6 form | 0.7 form | notes |
+## API surprises (things the checklist did NOT predict)
+## Compiler errors worth remembering
+## Conductor / config
+## Still unverified at end of Phase A
+```
+
+**Why a log and not a rewritten KB.** A "Holochain 0.7 Knowledge Base" written *before* the port would be ~10 verified sections and ~33 unverified 0.6 sections carried over under a 0.7 label — the same false-confidence failure that produced today's fake tests and the broken CI guard, in the one file that is mandated session-start reading. There is also no upstream to re-synthesise from: sections 1–25 are Build Guide synthesis and **the Build Guide has not been updated for 0.7** (PR #647 is the upgrade guide only; no 0.7 scaffolding release exists).
+
+So: capture knowledge at the moment of highest confidence — when you have just hit the real API — and **promote the log into `Holochain_complete.md` at the END of Phase A**, re-scoping the banner to 0.7 then. Sections nobody touched during the port stay explicitly marked unverified, which tells the next reader exactly where the gaps are. Costs nothing extra; you have to think about each arm anyway.
+
+**3b. Then start the port.**
 
 **The migration is fully specified. It is three things and nothing else:**
 
