@@ -116,9 +116,17 @@ GitHub release **[v0.6.1](https://github.com/ValiChord/ValiChord/releases/tag/v0
 
 ⚠️ **We remain on 0.6.2. When we upgrade, it happens on a dedicated `v0.7.0` branch — `main` stays on 0.6.2.** User decision, 2026-07-30. `main` keeps the working, publicly-demoed stack until the branch is fully green (Tryorama + all 5 sweettest suites + UI e2e + a live demo round) **and** the user explicitly approves the merge.
 
-#### 🔴 The migration is TWO-PHASE — the JS/tooling ecosystem has not shipped
+#### 🔴 The migration is THREE-PHASE — two phases blocked on upstream
 
-Checked ~15 min after release: `@holochain/client` latest **0.20.8** (0.21 only as `rc.1`), `@holochain/tryorama` latest **0.19.2** (*no 0.7 line at all*), `@holochain/hc-spin` latest **0.603.0**, holonix has **no `main-0.7`** branch, and upgrade-guide PR #647 was last updated *before* the release. **The 97 Tryorama tests and the Svelte UI cannot migrate yet.** The Rust side (4 DNA zomes + `sweettest_integration`) can. Plan **Phase A (Rust)** then **Phase B (JS, when the stables land)**.
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | 4 DNA zomes + `sweettest_integration` | ✅ **unblocked — can start now** |
+| **B** | 97 Tryorama tests + Svelte UI | 🔴 blocked on upstream |
+| **C** | `valichord/wind-tunnel/` | 🔴 blocked on upstream |
+
+**Phase B** — checked ~15 min after release: `@holochain/client` latest **0.20.8** (0.21 only as `rc.1`), `@holochain/tryorama` latest **0.19.2** (*no 0.7 line at all*), `@holochain/hc-spin` latest **0.603.0**, holonix has **no `main-0.7`** branch, and upgrade-guide PR #647 was last updated *before* the release. There is nothing to migrate *to* yet.
+
+**Phase C** — found in the API audit, not previously recorded: `wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate pulling `holochain = "0.6"`. It must ship a 0.7 version first.
 
 #### Verification pass — the plan was re-checked against shipped 0.7.0
 
@@ -130,6 +138,17 @@ The pre-release notes were built from indirect sources (branch-watching, RC chan
 - 🆕 **Ordering hazard rescoped.** `OpUpdate::PrivateEntry` survives in 0.8.0, and private entry types can never match `OpUpdate::Entry`. So the per-type guard arms in `validator_workspace_integrity.rs:149,157` and `researcher_repository_integrity.rs:150` are **unreachable dead code** — immutability in DNA 1 / DNA 2 rests on a **single blanket `OpUpdate::PrivateEntry` arm each**. The real match-ordering risk is concentrated in the **attestation** DNA (the only one with public entries).
 - ❌ **The three existing "immutability" sweettests are fake.** `sweettest_integration/tests/attestation.rs:267,313,334` call zome functions (`update_attestation_for_test`, `update_commitment_for_test`, `update_phase_marker_for_test`) that **exist nowhere in the codebase**; they pass on "function not found" and would stay green with `validate()` deleted. Fix or replace before trusting any immutability signal.
 - ⚠️ **Still unverified:** the exact conductor-config field syntax (`db_sync_strategy` → `db_sync_level` etc.). Wrong config makes the conductor **fail to start**, so verify against a real 0.7 conductor before editing those 5 sites.
+
+#### Mechanical API audit — 2026-07-30 ✓ (grep across 4 zomes + shared_types + sweettest_integration)
+
+Ran to size the migration precisely. **Result: almost everything on the breaking-change list is a hard zero in our code.**
+
+- ✅ **Confirmed ZERO:** `ChainFilter`, `get_link_details`/`get_links_details`, `Record::new`, `block_agent`/`unblock_agent`, `EntryCreationAction`, `NewEntryAction`, `ActionBuilder`, `RateWeight`/`EntryRateWeight`, link `base_address`/`target_address`/`tag` destructuring, and `ChainIntegrityWarrant`/`InvalidChainOp`/`SignedWarrant`. `must_get_agent_activity` appears once — **inside a comment**, not a call.
+- ❌ **Listed as work, actually zero:** the three `AgentActivity` → `AgentActivityStatus` call sites (`governance_coordinator:188,322`, `attestation_coordinator:637`) **need no changes.** Verified against shipped `hdk 0.7.0`: the `get_agent_activity` signature is identical to 0.6.2 (same 4 args), only the return type's *name* changed — and we never name it, we only read `.warrants`, which survives on `AgentActivityStatus`.
+- ✅ **Smaller than recorded:** the `hdk`/`hdi` bump is **~7 version strings**, not "Cargo.toml across all zomes" — every zome uses `{ workspace = true }`; the only literals are `valichord/Cargo.toml:18-19`, `sweettest_integration/Cargo.toml:42`, plus 4 holochain pins in sweettest.
+- ⚠️ **`sweettest_integration` import surface is 3 lines, but 2 are globs** (`holochain::prelude::*`, `holochain::sweettest::*`) — so PR #5898's re-layering will surface as unresolved names scattered through the tests, not as import errors.
+
+**Net: the migration reduces to (a) the 51 `FlatOp` match arms, (b) 3 conductor-config files, (c) ~7 version strings + sweettest feature flags.** Everything else is confirmed zero or zero-work.
 
 **RC history:** `0.7.0-rc.0` (2026-07-15), rc.1 (07-16), rc.2, rc.3, rc.4, rc.5 (07-29) — the "watch for rc.0" trigger from the 2026-06-13 estimate firing. One further correction from the 2026-07-27 notes: #5898 (re-layers conductor state types out of the `holochain` crate, which `sweettest_integration` depends on directly) and #5906 (paginated state dumps) were recorded as landing *after* rc.4; they are **in rc.4**. Both remain real migration items. rc.5 absorbed #5910, settling the HDI validate-callback surface our four integrity zomes depend on.
 

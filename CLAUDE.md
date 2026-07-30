@@ -287,7 +287,19 @@ Checked 2026-07-30, ~15 min after the release:
 | holonix | *no `main-0.7` branch* | only `update-to-0.7.0-rc.0` |
 | docs-pages upgrade guide PR #647 | open, last updated **07-28** (pre-release) | — |
 
-**Consequence: the 97 Tryorama tests and the Svelte UI CANNOT migrate yet** — there is no stable client or Tryorama to migrate *to*. The Rust side (4 DNA zomes + `sweettest_integration`) can migrate today. **Plan the branch as Phase A (Rust, provable via sweettest) then Phase B (JS, when the client + Tryorama stables land).** Re-check this table before starting Phase B.
+**Consequence: the 97 Tryorama tests and the Svelte UI CANNOT migrate yet** — there is no stable client or Tryorama to migrate *to*. The Rust zomes + `sweettest_integration` can migrate today.
+
+**🔴 AND A THIRD BLOCKER — `wind-tunnel` (found in the 2026-07-30 API audit, not previously recorded).** `valichord/wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate that pulls `holochain = "0.6"`. That crate must ship a 0.7 version before the load-test workspace can move. Independent of both the zomes and the JS side.
+
+**So the migration is THREE phases, two of them blocked on upstream:**
+
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | 4 DNA zomes + `sweettest_integration` | ✅ **unblocked — can start now** |
+| **B** | Tryorama tests + Svelte UI | 🔴 blocked: no stable `@holochain/client` 0.21, no 0.7 Tryorama |
+| **C** | `wind-tunnel/` | 🔴 blocked: `holochain_wind_tunnel_runner` on 0.6 |
+
+Re-check the table above before starting Phase B, and crates.io for `holochain_wind_tunnel_runner` before Phase C.
 
 ### Evidence legend for everything below
 
@@ -331,12 +343,12 @@ The pre-release notes in this file were accumulated from indirect sources (branc
 - ⚠️ **The immutability match-ordering hazard itself** — that reflowing arms silently disables guards with no compile error and no test failure. Logically sound and consistent with the shipped source, but **unproven**. Proving it is exactly what a real forbidden-update tripwire test would do (and note the existing tests do NOT do this — see above).
 
 **If 0.7.0 stable is available:** do NOT auto-upgrade. Report to user with these breaking changes (⬤ = CONFIRMED landed in 0.7.0-rc.0, verified from the crate CHANGELOGs 2026-07-19):
-- `hdk → 0.7.x`, `hdi → 0.8.x` (Cargo.toml across all zomes)
+- ✅ **`hdk → 0.7.0`, `hdi → 0.8.0` — only THREE version strings, not "across all zomes"** (audited 2026-07-30). Every zome uses `{ workspace = true }`, so the only literals are `valichord/Cargo.toml:18` (`hdi = "=0.7.2"`) and `:19` (`hdk = "=0.6.2"`), plus `sweettest_integration/Cargo.toml:42` (`hdk = "=0.6.2"`). `sweettest_integration` needs 4 more (`holochain`, `holochain_types`, `holochain_keystore`, `holo_hash`, all `=0.6.2`) → **~7 strings total.**
 - Wasmer flags renamed: `wasmer_sys → wasmer-sys-cranelift`, `wasmer_wamr → wasmer-wasmi`
 - Conductor DB migrated to `holochain_data` — no migration path, must clear state; Oracle demo nodes need `docker compose down -v` before upgrading, not just a binary swap
-- `must_get_agent_activity` response types changed — new variants: `UntilTimestampIndeterminate`, `UntilTimestampGreaterThanChainHead`, `IncompleteChain`; `ChainFilter` now constructed via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining
+- ✅ **ZERO IMPACT — `must_get_agent_activity` / `ChainFilter`** (audited 2026-07-30). Response types changed (new variants `UntilTimestampIndeterminate`, `UntilTimestampGreaterThanChainHead`, `IncompleteChain`) and `ChainFilter` is now built via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors rather than builder chaining — **but we never call either.** `must_get_agent_activity` appears exactly once in the repo, inside a *comment* (`attestation_integrity/src/lib.rs:324`); `ChainFilter` is a hard zero. No work.
 - `HCP2P_PROTO_VER` bumped 2→3 (wire-incompatible with 0.6.x nodes)
-- `get_links_details` renamed from `get_link_details`
+- ✅ **ZERO IMPACT — `get_links_details` renamed from `get_link_details`.** Both names are a hard zero in our code (audited 2026-07-30). No work.
 - ⬤ **v2 Action model is now canonical (rc.0)** — the legacy per-variant action structs (`Create`, `Update`, `Delete`, `Dna`, `CreateLink`, `DeleteLink`, `OpenChain`, `CloseChain`, `AgentValidationPkg`, `InitZomesComplete`), the `ActionBuilder`/`ActionBuilderCommon`, and the `EntryCreationAction`/`NewEntryAction`/`NewEntryActionRef` wrapper enums are all **removed** (PR #5860). This is the FlatOp-v2 migration below, now landed. Audit any code that names those types.
 - **`validate()` migration to `FlatOp v2` — BIGGER THAN "v1→v2", AND STILL MOVING (verified on `develop` 2026-07-27).** `flat_op_v2` module added to HDI; v2 `FlatOp` is built over new `dht_v2::Action`/`Op` types with validating constructors. All four ValiChord integrity zomes use `op.flattened::<EntryTypes, LinkTypes>()`, so all four are affected. **The FlatOp variants have since been reshaped twice, both after rc.0:**
   - **PR #5903** (merged 2026-07-21, 14 files, +1084/−670) — *"give validate-callback FlatOp types precise per-variant action data"*. Adds `TypedAction<D>`, pairing an action's header with the exact payload its FlatOp variant already implies instead of a generic `Action`. **Fields that duplicated `action.data` became accessor methods** — `original_action_hash`, `original_entry_hash`, link `base_address`/`target_address`/`tag`, and the agent-key fields. `EntryCreationData` / `TypedAction<EntryCreationData>` restores the Create-or-Update narrowing that the removed `EntryCreationAction` used to provide.
@@ -352,7 +364,7 @@ The pre-release notes in this file were accumulated from indirect sources (branc
 - **`@holochain/client` bumps to the `0.21.x` line** (`0.21.0-rc.1` on npm dist-tag `next`; `0.20.8` is current stable on our line). ⚠️ **A previous version of this file said "0.9.x" — that was wrong and conflated two packages:** `0.9.0-rc.4` is the **Rust `holochain_client` crate**, not the JS one. Verified on npm + crates.io 2026-07-27. Three pins to update: `valichord-ui/package.json` (`^0.20.5`), `valichord/tests/package.json` (`^0.20.4`), `demo/package.json` (`0.20.2`).
 - ❌ **NOT IN 0.7.0 — CONFIRMED ABSENT, NO WORK NEEDED.** Verified against the shipped 0.7.0 CHANGELOGs 2026-07-30: the only source-chain-restore trace is #5799 (`get_agent_activity_multi` groundwork). Nothing below exists in 0.7.0 — **do not touch `dev-setup.mjs` or the Svelte `AppStatus` handling for it.** Re-check when restore lands in a later 0.7.x. If/when it does ship: new `AppStatus` variants `AwaitingRestore` (restore in progress) and `Unrecoverable(cell_id, reason)` (terminal — chain forked or warrant validated) — `dev-setup.mjs` and Svelte UI currently assume only `Running`/`Disabled`; new `SystemSignal` variants `RestoreComplete { cell_id }`, `AppRestoreComplete { installed_app_id }`, `RestoreFailed { cell_id, reason }`; new conductor config field `restore_chain_quorum: u8` (default 2). (Source: `holochain/holochain` branch `cascade-read-and-cutover`, `docs/design/source_chain_restore.md`)
 - **Source-chain restore does NOT recover private entries** — `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private and absent after a restore. Validators who lose their machine mid-round lose their uncommitted private attestations silently. **Moot for 0.7.0 if restore did not ship (above); it becomes live the release restore actually lands in.**
-- `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field (excluded from `PartialEq`/`Hash` — deduplication unaffected). Check any match arm that destructures this variant in `reject_if_warranted`.
+- ✅ **ZERO IMPACT — `ChainIntegrityWarrant::InvalidChainOp` gains a `reason: String` field** (excluded from `PartialEq`/`Hash` — deduplication unaffected). The old note said "check any match arm that destructures this variant in `reject_if_warranted`" — **there is no such arm.** `ChainIntegrityWarrant`, `InvalidChainOp` and `SignedWarrant` are all a hard zero in our code; `reject_if_warranted` only calls `.warrants.is_empty()` (audited 2026-07-30). No work.
 - CI: update `BASE=` URL and `key: hc-bin-0.6.2` in **both** jobs in `.github/workflows/tests.yml` (4 edits total)
 
 #### Official upgrade guide — read it first, and this ValiChord audit alongside it
@@ -388,15 +400,40 @@ The 8 `RegisterDeleteLink` arms are not a rename — **both link variants fold i
 
 Field changes: `signal_url` + `webrtc_config` removed; `request_timeout_s` moves from top level **into `network`**; `db_sync_strategy` → **`db_sync_level`** with values `Fast`→`Off`, `Resilient`→`Normal`; `chc_url` removed; new optional `wasm_backend` (`"cranelift"`/`"LLVM"`/`"wasmi"`) and `restore_chain_quorum`. **A local iroh relay additionally needs `advanced: { irohTransport: { relayAllowPlainText: true } }`** — relevant to the wind-tunnel/relay work. (Guide's example shows `restore_chain_quorum: 3`; the default is recorded above as 2 — confirm which at migration.)
 
-**5. `AgentActivity` → `AgentActivityStatus`** (renamed to resolve the collision with the `AgentActivity` op variant). Three call sites: `governance_coordinator/src/lib.rs:188,322`, `attestation_coordinator/src/lib.rs:637`. The 4th `GetOptions` arg we already pass.
+**5. `AgentActivity` → `AgentActivityStatus` — ❌ LISTED AS WORK, ACTUALLY ZERO.** The rename is real (it resolves the collision with the `AgentActivity` op variant) and our three call sites are real — `governance_coordinator/src/lib.rs:188,322`, `attestation_coordinator/src/lib.rs:637`. **But none of them need changing** (verified against shipped `hdk 0.7.0` + `holochain_zome_types 0.7.0`, 2026-07-30):
+
+```rust
+// hdk 0.7.0 — IDENTICAL signature to 0.6.2, only the return type's NAME changed
+pub fn get_agent_activity(
+    agent: AgentPubKey, query: ChainQueryFilter,
+    request: ActivityRequest, options: GetOptions,
+) -> ExternResult<AgentActivityStatus>
+```
+
+Same four arguments, same argument types (`ChainQueryFilter`, `ActivityRequest`, `GetOptions`, `GetStrategy` all still exist). **We never name the return type** — two sites chain `.map(|a| a.warrants.is_empty())`, the third does `let activity = …`, so it is inferred. And `AgentActivityStatus.warrants: Vec<SignedWarrant>` survives, which is the only field we read. **All three compile unchanged.**
 
 **6. JS side.** `SignedActionHashed` is no longer generic and the per-variant types (`Create`, `Update`, `Delete`, `CreateLink`, `DeleteLink`) are no longer exported; common action fields move under `.header`. **`valichord-ui/src/lib/types.ts:331`** does `record.signed_action.hashed.content.author` → needs `.header.author`. Also `signalingServerUrl` → `relayServerUrl`; `dumpNetworkStats` returns `ApiTransportStats` (nested under `transport_stats`, `is_webrtc` → `is_direct`).
 
-**7. Sweettest dep line** for `sweettest_integration`: `holochain = { version = "0.7.0-rc.x", default-features = false, features = ["encryption", "wasmer-sys-cranelift"] }` — `sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`. The guide also carries a table of removed implicit Cargo features (`holo_hash` `serde`→`serialization`, `hdi` `tracing`→`trace`, `holochain_zome_types` `serde_yaml`→`properties`, …) — check our zome + `shared_types` manifests against it.
+**7. Sweettest dep line** for `sweettest_integration`: `holochain = { version = "0.7.0", default-features = false, features = ["encryption", "wasmer-sys-cranelift"] }` — `sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`. ✅ **Import surface is tiny** (audited 2026-07-30): only 3 `use` lines across `src/` + `tests/` — `holochain_types::prelude::YamlProperties`, `pub use holochain::prelude::*`, `pub use holochain::sweettest::*`. ⚠️ **But two are globs**, so #5898's re-layering of conductor state types out of the `holochain` crate will surface as *unresolved names at use sites*, not as import errors — expect the breakage to appear scattered through the tests rather than at the top of the file. The guide also carries a table of removed implicit Cargo features (`holo_hash` `serde`→`serialization`, `hdi` `tracing`→`trace`, `holochain_zome_types` `serde_yaml`→`properties`, …) — check our zome + `shared_types` manifests against it.
 
 **8. Toolchain:** `hc-spin` → `0.700.0-rc.1`; holonix `main-0.7` **still does not exist** (re-verified 2026-07-30 — the only 0.7 branch is `update-to-0.7.0-rc.0`; branches are `main-0.2`…`main-0.6` + `main`, so use `ref=main` and expect `main-0.7` to appear around the stable tag); nodejs 22 → 24; Sweettest builds may need `perl` on `PATH`.
 
-**9. Confirmed NOT applicable to us** (checked): no `Record::new` calls (now takes `RecordEntry`), no `block_agent`/`unblock_agent` (removed), no link `base_address`/`target_address`/`tag` destructuring in the integrity zomes.
+**9. ✅ FULL API AUDIT — confirmed ZERO in our code** (grep across all four zomes + `shared_types` + `sweettest_integration`, 2026-07-30, post-release). Every one of these is a hard zero, so none of the listed migration work applies:
+
+| Symbol | Why it was listed | Our hits |
+|---|---|---|
+| `ChainFilter` | new constructors | **0** |
+| `must_get_agent_activity` | response variants changed | **0 calls** (1 comment only) |
+| `get_link_details` / `get_links_details` | renamed | **0** |
+| `Record::new` | now takes `RecordEntry` | **0** |
+| `block_agent` / `unblock_agent` | removed | **0** |
+| `EntryCreationAction` / `NewEntryAction` | removed (v2 action model) | **0** |
+| `ActionBuilder` | removed | **0** |
+| `RateWeight` / `EntryRateWeight` | `rate_limit` module removed | **0** |
+| link `base_address` / `target_address` / `tag` destructuring | fields dropped, no replacement | **0** |
+| `ChainIntegrityWarrant` / `InvalidChainOp` / `SignedWarrant` | `reason` field added | **0** |
+
+**Net effect of the audit: the migration reduces to (a) the 51 `FlatOp` match arms, (b) 3 conductor-config files, (c) ~7 version strings + sweettest feature flags.** Everything else previously listed is confirmed zero or zero-work.
 
 **10. Every published HarmonyRecord URL dies at migration.** Zome-definition serialization changed, so an otherwise-identical DNA has a different `DnaHash`, and 0.7 agents form a network separate from 0.6. This is the same fact as "clear state / `down -v`", but stated in the form that matters for the Oracle demo's public links.
 
