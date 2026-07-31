@@ -69,9 +69,70 @@ The checklist says *"its 12 per-type `OpUpdate::Entry` guard arms"*. Twelve is t
 **The ordering invariant is precise: all 9 guards must stay above :490.** The checklist's
 list of guarded types was also incomplete — it named six; there are nine.
 
+### The ordering invariant, stated exactly — per DNA
+
+Read off the source on the branch, before any edit. **These are the three things a reflow
+must not break.** Each is compile-clean if broken, so only the tripwires catch them.
+
+**`attestation`** (`attestation_integrity/src/lib.rs`) — public entries, ordering is everything:
+> all **9** per-type guards (`:430`–`:487`) must stay **above** the generic
+> `OpUpdate::Entry { action, .. }` author-check at `:490`.
+
+This is the case that was reproduced by negative control on 2026-07-30: moving the
+`ValidationAttestation` guard below `:490` made the forbidden update **succeed**, because the
+generic arm's author-check passes for the entry's own author.
+
+**`validator_workspace`** (`:149`–`:217`) and **`researcher_repository`** (`:150`–`:206`) —
+all entries private, so the shape is different and the checklist's framing needs one refinement:
+> the blanket `OpUpdate::PrivateEntry { .. } => Invalid` arm (`:210` / `:199`) must stay
+> **above** the catch-all `RegisterUpdate(_) => Valid` (`:217` / `:206`).
+
+⚠️ Note what is *not* the invariant here. The per-type guards at `validator_workspace:149,157`
+and `researcher_repository:150`, **and the generic `OpUpdate::Entry` arm at `:200`/`:189`, are
+all dead code** — private entries can only ever surface as `OpUpdate::PrivateEntry`. So the
+relative order of `:200` and `:210` is irrelevant; only `:210` vs `:217` matters. One arm is
+the entire immutability guard for each of these two DNAs.
+
 | zome | arm | 0.6 form | 0.7 form | notes |
 |---|---|---|---|---|
-| _(fill in as ported)_ | | | | |
+| attestation | ×12 | `FlatOp::RegisterUpdate(…)` | `FlatOp::Update(…)` | pure rename |
+| attestation | ×8 | `FlatOp::StoreEntry(OpEntry::CreateEntry{…})` | `FlatOp::CreateEntry(OpEntry::CreateEntry{…})` | pure rename; inner `OpEntry::CreateEntry` keeps its name |
+| attestation | ×5 | `FlatOp::RegisterDeleteLink{ link_type, .. }` | `FlatOp::Link(OpLink::DeleteLink{ link_type, .. })` | **structural** — note the extra closing paren |
+| attestation | ×1 | `FlatOp::RegisterDelete(OpDelete{action})` | `FlatOp::Delete(OpDelete{action})` | pure rename |
+| attestation | ×1 | `FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg{membrane_proof, ..})` | `FlatOp::AgentActivity(…)` | rename only, as predicted |
+
+**attestation ported 2026-07-31 — compiled clean on the first build, zero warnings.**
+27 renames, all counts matched expectation. Ordering verified mechanically: all **29**
+top-level arms (27 `FlatOp` + 2 `_` catch-alls) are in identical positions with identical
+selectors, guards at 0–8 and the generic arm at 9.
+
+⚠️ **Sequencing constraint discovered: the tripwires cannot run per-zome.** They need all four
+DNAs packed, `sweettest_integration` on 0.7, *and* a 0.7 `hc` binary. So the handoff's
+"run after each batch of arms" cadence is not achievable mid-port. The achievable per-zome
+checks are `cargo build -p <zome> --target wasm32-unknown-unknown --release` plus the two
+below; the tripwires run once the whole of Phase A compiles.
+
+### Two negative controls, both run before trusting the result
+
+Compile-clean is exactly what broken ordering looks like, so neither check was trusted until
+it was shown to fail.
+
+1. **The arm-ordering checker.** Reproduced the 2026-07-30 accident on a copy — moved the
+   `ValidationAttestation` guard below the generic `Update` arm — and the checker reported
+   **10 mismatches**. It fires on the real hazard.
+2. **rustc still helps, partially, on 0.7.** The same broken copy produced
+   `warning: unreachable pattern`. Useful because our *correct* build produces **zero**
+   warnings, so any warning during the remaining three zomes is signal rather than noise.
+   Unchanged caveat: it is a warning not an error, and it catches **only** shadowing — not a
+   deleted arm, nor one whose pattern stops matching after a rename.
+
+### 🆕 `[workspace.dev-dependencies]` is not a real Cargo key — `fixt` was never applied
+
+`cargo` reports `unused manifest key: workspace.dev-dependencies` (`valichord/Cargo.toml:34`).
+There is no such table in the manifest format (`[workspace.dependencies]` exists;
+dev-dependencies are not inheritable this way). So the `fixt` pin there has **always** been
+inert, on 0.6.2 as much as 0.7. Bumped `0.6` → `0.7` for correctness, but nothing consumes it.
+Pre-existing, not caused by the migration; recorded so it is not mistaken for migration fallout.
 
 ---
 
@@ -118,6 +179,39 @@ moved into the per-variant data. **Zero impact for us** — all 8 of our link ar
 (confirmed: no integrity zome reads a link base/target/tag). The port is the structural
 fold into `FlatOp::Link(OpLink::DeleteLink { link_type, .. })` and nothing else.
 
+### ❌ The sweettest "feature flag" migration is ZERO work — the checklist's dep line is wrong for us
+
+`CLAUDE.md` prescribes this line for `sweettest_integration`:
+
+```toml
+holochain = { version = "0.7.0", default-features = false, features = ["encryption", "wasmer-sys-cranelift"] }
+```
+
+with the note *"`sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`"*.
+
+**That recipe is for a manifest that named the old features explicitly. Ours does not.**
+Our actual line is `holochain = { version = "=0.6.2", features = ["test_utils"] }` — plain
+defaults plus `test_utils`. And shipped `holochain 0.7.0`'s own defaults are:
+
+```toml
+default = ["encryption", "schema", "wasmer-sys-cranelift"]
+```
+
+— i.e. the renamed features are *already* the defaults. So the correct edit is the version
+bump alone (`"=0.6.2"` → `"=0.7.0"`), and **applying the prescribed line as written would be
+a regression**: `default-features = false` would silently drop `schema`, which we currently get.
+
+Same logic for `sqlite-encrypted` / `wasmer_sys` / `transport-iroh` — all three are a hard
+zero in our manifests, so there is nothing to rename or drop.
+
+### Version strings — 7 confirmed, exactly as counted
+
+`valichord/Cargo.toml:18` (`hdi = "=0.7.2"` → `=0.8.0`), `:19` (`hdk = "=0.6.2"` → `=0.7.0`);
+`sweettest_integration/Cargo.toml:39–43` (`holochain`, `holochain_types`, `holochain_keystore`,
+`hdk`, `holo_hash`, all `=0.6.2` → `=0.7.0`). Every zome uses `{ workspace = true }`, so there
+are no other literals. ⚠️ `valichord/Cargo.toml:21` pins `holochain_serialized_bytes = "=0.0.57"`
+— **not yet checked** against what `hdi 0.8.0` expects.
+
 ### `AgentValidationPkg` — confirmed, rename only
 
 Shipped `OpActivity::AgentValidationPkg { membrane_proof: Option<MembraneProof>, action:
@@ -161,7 +255,8 @@ cd sweettest_integration && VALICHORD_DNA_DIR=../workdir-test cargo test --test 
 
 | when | result | notes |
 |---|---|---|
-| _(baseline, pre-port)_ | pending | |
+| 2026-07-31, baseline on unmodified 0.6.2 | ✅ **5 passed, 0 failed** (833.80 s) | Run before touching any zome code. Safety net confirmed live before the port began. |
+| after Phase A compiles end-to-end | pending | cannot run sooner — see the sequencing constraint above |
 
 ---
 

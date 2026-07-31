@@ -427,37 +427,37 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- Update immutability guards (checked before generic update arm) ---
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ValidationAttestation(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ValidationAttestation is immutable — the public record cannot be changed".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::CommitmentAnchor(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "CommitmentAnchor is immutable — commitments cannot be retracted".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::PhaseMarker(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "PhaseMarker is immutable — phase history is append-only".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ResearcherResultCommitment(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ResearcherResultCommitment is immutable — the locked result commitment cannot be changed".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ResearcherReveal(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ResearcherReveal is immutable — the verified reveal cannot be changed".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::AgentIdentityAttestation(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "AgentIdentityAttestation is immutable — use delete to revoke".into(),
@@ -465,13 +465,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // ValidationRequest is immutable after submission — researchers cannot
         // silently lower num_validators_required to bypass the quorum gate.
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ValidationRequest(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ValidationRequest is immutable — the study submission cannot be altered".into(),
         )),
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::StudyClaimRelease(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "StudyClaimRelease is immutable — the release record cannot be altered".into(),
@@ -480,16 +480,16 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // StudyClaim is immutable — a validator must not be able to rewrite
         // their claim (e.g. change validator_institution after the fact to
         // erase COI evidence).  Claims are vacated via StudyClaimRelease.
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::StudyClaim(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "StudyClaim is immutable — claims are vacated via StudyClaimRelease, not edited".into(),
         )),
 
         // Generic update: only the original author may update other entry types.
-        FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
+        FlatOp::Update(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
-            if action.author != *original.action().author() {
+            if action.author() != original.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may update this entry".into(),
                 ));
@@ -498,17 +498,17 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }
 
         // Reject private entry updates (no private entries in this DNA).
-        FlatOp::RegisterUpdate(OpUpdate::PrivateEntry { .. }) => Ok(
+        FlatOp::Update(OpUpdate::PrivateEntry { .. }) => Ok(
             ValidateCallbackResult::Invalid(
                 "This DNA has no private entries".into(),
             ),
         ),
 
         // Other update variants: accept.
-        FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
+        FlatOp::Update(_) => Ok(ValidateCallbackResult::Valid),
 
         // --- Delete: look up original to check entry type ---
-        FlatOp::RegisterDelete(OpDelete { action }) => {
+        FlatOp::Delete(OpDelete { action }) => {
             // must_get_valid_record returns both action and entry — no need for a
             // separate must_get_action call.
             let original_record = must_get_valid_record(action.deletes_address.clone())?;
@@ -566,8 +566,8 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         // because both agent_a and agent_b are equally authorised —
                         // but some third-party impostor must not be able to delete.
                         Some(EntryTypes::AgentIdentityAttestation(ref att)) => {
-                            if action.author == att.agent_a
-                                || action.author == att.agent_b
+                            if action.author() == &att.agent_a
+                                || action.author() == &att.agent_b
                             {
                                 return Ok(ValidateCallbackResult::Valid);
                             }
@@ -581,7 +581,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 }
             }
             // Author check for non-immutable entries.
-            if action.author != *original_record.action().author() {
+            if action.author() != original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
@@ -599,7 +599,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //
         // If minimum_validators is 0 (dev/test bypass, same pattern as the
         // empty issuer), the check is skipped.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidationRequest(ref vr), ..
         }) => {
             // Hard floor: 0 validators would let check_all_commitments_sealed_inner
@@ -637,7 +637,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //
         // Capacity and duplicate checks live in the coordinator — they require
         // link counting, which is not available in validate().
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::StudyClaim(ref claim),
             action:    ref create_action,
         }) => {
@@ -662,7 +662,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             // Self-claim prevention: the agent who submitted the ValidationRequest
             // (the researcher) cannot also claim it as a validator.  Independent
             // validation requires distinct agents on both sides of the protocol.
-            if &create_action.author == req_record.action().author() {
+            if create_action.author() == req_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Researcher cannot claim their own study — \
                      the same agent may not both submit and validate a study".into(),
@@ -691,7 +691,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // Inductive validation chain: CommitmentAnchor → ValidationRequest.
         // `validator` must equal the action author (no impersonation).
         // `request_ref` must equal the ValidationRequest's `data_hash`.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::CommitmentAnchor(ref anchor),
             action,
         }) => {
@@ -717,7 +717,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      ValidationRequest.data_hash".into(),
                 ));
             }
-            if anchor.validator != action.author {
+            if &anchor.validator != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "CommitmentAnchor.validator must equal the author of \
                      the create action".into(),
@@ -738,7 +738,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // discipline must match the study's declared discipline from the
         // ValidationRequest.  A mismatched discipline would cause the HarmonyRecord
         // to be indexed under the wrong discipline and pollute the governance indexes.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidationAttestation(ref att),
             action,
         }) => {
@@ -757,7 +757,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "ValidationAttestation.commitment_anchor_hash does not point to a CommitmentAnchor".into()
                 )),
             };
-            if anchor.validator != action.author {
+            if &anchor.validator != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "CommitmentAnchor.validator does not match the \
                      attestation author".into(),
@@ -803,11 +803,11 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //
         // Full Ed25519 signature verification runs in the coordinator's
         // link_agent_identity before the entry is committed.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentIdentityAttestation(ref att),
             action,
         }) => {
-            if att.agent_a != action.author && att.agent_b != action.author {
+            if &att.agent_a != action.author() && &att.agent_b != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "AgentIdentityAttestation author must be one of the two named agents".into(),
                 ));
@@ -826,10 +826,10 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // re-open the commitment phase gate and block reveal_researcher_result
         // indefinitely.  Commitment links must be as permanent as the
         // CommitmentAnchor entry itself.
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::RequestToCommitment,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "RequestToCommitment links are immutable — \
              validator commitments cannot be retracted".into(),
         )),
@@ -843,34 +843,34 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // complementary index — deleting it would hide the claim from
         // get_my_claimed_studies queries.  Both must be as permanent as the
         // StudyClaim entry itself.
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::RequestToClaim,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "RequestToClaim links are immutable — \
              study claims cannot be retracted via link deletion".into(),
         )),
 
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::ValidatorToClaim,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "ValidatorToClaim links are immutable — \
              study claims cannot be retracted via link deletion".into(),
         )),
 
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::RequestToRelease,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "RequestToRelease links are immutable — \
              release records cannot be retracted".into(),
         )),
 
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::ValidatorToRelease,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "ValidatorToRelease links are immutable — \
              release records cannot be retracted".into(),
         )),
@@ -883,7 +883,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // any agent from forging a RevealOpen signal: you must have already committed
         // (i.e. have a CommitmentAnchor on the DHT naming you as validator) before
         // you can write the PhaseMarker that opens the reveal window.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::PhaseMarker(ref marker),
             action,
         }) => {
@@ -895,7 +895,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "PhaseMarker.commitment_anchor_hash does not point to a CommitmentAnchor".into()
                 )),
             };
-            if anchor.validator != action.author {
+            if &anchor.validator != action.author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "PhaseMarker author must be the validator named in the referenced \
                      CommitmentAnchor — only a committed validator may open the reveal phase".into()
@@ -910,7 +910,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // and must be exactly 32 bytes.  A short or empty hash would be accepted by the
         // coordinator but could never be matched at reveal time, permanently blocking the
         // researcher's reveal without any visible error.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ResearcherResultCommitment(ref c),
             ..
         }) => {
@@ -933,7 +933,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // guards in the coordinator are the appropriate authorisation layer for path (2).
         // This follows the AgentIdentityAttestation delete arm pattern: structural validity
         // in the integrity zome, authorisation logic in the coordinator.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::StudyClaimRelease(ref release),
             ..
         }) => {
@@ -954,7 +954,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // The full Ed25519 signature verification against the DNA-properties
         // issuer key runs in the coordinator's `init()` callback, which fails
         // the cell if the proof is invalid and prevents any subsequent writes.
-        FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg {
+        FlatOp::AgentActivity(OpActivity::AgentValidationPkg {
             membrane_proof, ..
         }) => validate_membrane_proof(membrane_proof),
 
