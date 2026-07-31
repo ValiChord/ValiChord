@@ -173,12 +173,7 @@ impl ValiChordApp {
 
 /// Spin up one conductor with one ValiChord app installed.
 pub async fn setup_single() -> (SweetConductor, ValiChordApp) {
-    let mut conductor = SweetConductor::create_with_defaults(
-        SweetConductorConfig::standard(),
-        None,
-        None::<DynSweetRendezvous>,
-    )
-    .await;
+    let mut conductor = SweetConductor::standard().await;
     let dnas = dnas_with_roles().await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     let vc = ValiChordApp::from_sweet_app(app);
@@ -210,12 +205,7 @@ pub async fn setup_single_locked_governance() -> (SweetConductor, ValiChordApp) 
         ("attestation".into(),           a),
         ("governance".into(),            governance_locked),
     ];
-    let mut conductor = SweetConductor::create_with_defaults(
-        SweetConductorConfig::standard(),
-        None,
-        None::<DynSweetRendezvous>,
-    )
-    .await;
+    let mut conductor = SweetConductor::standard().await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     let vc = ValiChordApp::from_sweet_app(app);
     (conductor, vc)

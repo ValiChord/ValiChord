@@ -87,7 +87,7 @@ async fn setup_single_custom_attestation(extra_attestation_props: &str) -> (Swee
         ("attestation".into(),           attestation),
         ("governance".into(),            g),
     ];
-    let mut conductor = SweetConductor::create_with_defaults(SweetConductorConfig::standard(), None, None::<DynSweetRendezvous>).await;
+    let mut conductor = SweetConductor::standard().await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     (conductor, ValiChordApp::from_sweet_app(app))
 }

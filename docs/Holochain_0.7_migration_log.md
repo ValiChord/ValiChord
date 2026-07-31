@@ -250,19 +250,48 @@ which is an API-compatible rename (same `from_str`, `Value`, `Mapping`, `as_mapp
 13 use sites across `src/lib.rs` and `tests/security.rs`, plus the `Cargo.toml` dep. The
 error is friendly — rustc says *"have similar names, but are actually distinct types"*.
 
-**3. ⚠️ `SweetConductor::from_standard_config()` is REMOVED, and `standard()` is NOT its rename.**
-This is the one to be careful with, because the obvious substitution silently changes behaviour:
+**3. `SweetConductor::from_standard_config()` is REMOVED → `SweetConductor::standard()`.**
 
-| 0.6.2 | body | 0.7.0 | body |
-|---|---|---|---|
-| `from_standard_config()` | `from_config(SweetConductorConfig::standard())` — **no rendezvous** | `standard()` | `from_config_rendezvous(SweetConductorConfig::rendezvous(true), SweetLocalRendezvous::new())` — **spawns a local rendezvous server, bootstrap enabled** |
+⚠️ **This one cost a full 8-minute red tripwire run, and the mistake is worth keeping.**
 
-Porting `from_standard_config()` → `standard()` would silently add a rendezvous server to
-every single-conductor test. Ported faithfully instead as
+The trap looks like this. Comparing only the *constructor* bodies across versions:
+
+| 0.6.2 | body |
+|---|---|
+| `from_standard_config()` | `from_config(SweetConductorConfig::standard())` — passes `config.get_rendezvous()`, which was `None` |
+| **0.7.0** | |
+| `standard()` | `from_config_rendezvous(SweetConductorConfig::rendezvous(true), SweetLocalRendezvous::new())` — spawns a rendezvous server |
+
+…that reads as "0.7's `standard()` adds a rendezvous server the 0.6 one didn't have", and
+invites a supposedly-faithful port to
 `create_with_defaults(SweetConductorConfig::standard(), None, None::<DynSweetRendezvous>)`.
-Verified equivalent: 0.6.2's `from_config` did `create_with_defaults(config, None, config.get_rendezvous())`,
-and `SweetConductorConfig::standard()` never set a rendezvous, so `get_rendezvous()` was `None`.
-(`get_rendezvous()` does not exist in 0.7.0 at all.)
+
+**That is wrong, because `SweetConductorConfig::standard()` ALSO changed.** In 0.7 it sets
+(`sweet_conductor_config.rs:65–66`):
+
+```rust
+network_config.bootstrap_url = url2::url2!("rendezvous:");
+network_config.relay_url     = url2::url2!("rendezvous:");
+```
+
+and `create_with_defaults` **panics by design** when given that config with `rendezvous: None`
+(`sweet_conductor.rs:172`): `Must use rendezvous SweetConductor if rendezvous: is specified in
+config.network.bootstrap_service`.
+
+There is no non-rendezvous `standard()` config in 0.7. **`SweetConductor::standard()` is simply
+the correct replacement.** The consequence is real but forced by upstream, not optional:
+single-conductor sweettests now each spawn a local rendezvous server.
+
+🔑 **The transferable lesson: an equivalence argument across a version bump has to check every
+moving part, not the one that looks like the subject.** Two of three parts were compared
+(`from_config` vs `create_with_defaults`, and `get_rendezvous()`); the third
+(`SweetConductorConfig::standard()` itself) was *assumed* unchanged and was the one that moved.
+The result was asserted as "verified equivalent" and was not. Same failure family as the
+checklist errors this migration was set up to avoid — a claim resting on an unexamined
+assumption — just committed by the porter rather than inherited.
+
+Diagnosis was immediate once the output existed: **all 3 failures were exactly the 3
+`setup_single` tests; both `setup_two_agents` tests passed.**
 
 `SweetConductorBatch::from_standard_config_rendezvous(n)` → `from_config_rendezvous(n,
 SweetConductorConfig::rendezvous(true))` **is** an exact equivalent — that is literally the
@@ -365,7 +394,21 @@ cd sweettest_integration && VALICHORD_DNA_DIR=../workdir-test cargo test --test 
 | when | result | notes |
 |---|---|---|
 | 2026-07-31, baseline on unmodified 0.6.2 | ✅ **5 passed, 0 failed** (833.80 s) | Run before touching any zome code. Safety net confirmed live before the port began. |
-| after Phase A compiles end-to-end | pending | cannot run sooner — see the sequencing constraint above |
+| 2026-07-31, first run on 0.7.0 | ❌ **2 passed, 3 failed** (481.56 s) | **Not a guard regression.** All 3 failures were the `setup_single` tests, panicking in sweettest's own constructor — see the `SweetConductorConfig::standard()` trap above. The guards were never reached. |
+| 2026-07-31, after the `setup_single` fix | ✅ **5 passed, 0 failed** (686.69 s) | Immutability holds on 0.7 across all four DNAs. |
+
+**Reading the red run correctly mattered.** A failing tripwire immediately after a 51-arm
+port invites the conclusion that the port broke a guard. It had not: the panic was in
+`sweet_conductor.rs`, before any zome code ran, and the failure set correlated exactly with
+the setup helper rather than with any DNA or entry type. The tripwires were still doing their
+job — they failed loudly at the first thing that was actually wrong.
+
+⚠️ **Log-filter footgun, found while verifying the green run.** The retry piped through
+`grep -v sqlcipher_mlock` to suppress ENOMEM spam that is new under 0.7 in Codespaces. But the
+mlock lines share a line with the `test <name> ... ok` line, so the filter **deleted one test's
+result line entirely** — the summary said 5 passed while only 4 names were greppable. Filter on
+the reported summary and per-test re-runs, not on a mangled stream; and never filter a test log
+with a pattern that can consume a result line.
 
 ---
 
