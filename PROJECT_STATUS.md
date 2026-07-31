@@ -23,9 +23,18 @@ gh run list --branch v0.7.0 --limit 3
 gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // \"-\")\t\(.name)"'
 ```
 
-At end of day: tripwires ✅, hook guard ✅, sweettest **attestation / security / researcher_repository
-/ validator_workspace** ✅, **governance still running** (~170 min leg). `test` and `ui-e2e` are
-deliberately **skipped** on this branch — that is correct, not a failure.
+At end of day 2026-07-31: tripwires ✅, hook guard ✅, sweettest **attestation / security /
+researcher_repository / validator_workspace** ✅ — **governance was still running and is the only
+Phase A result not yet seen.** `test` and `ui-e2e` are deliberately **skipped** on this branch;
+that is correct, not a failure.
+
+⚠️ **If governance is red, check WHICH test before concluding anything.** The known flake is
+`silver_/gold_badge_issued_with_*_validators` failing on `"Consistency not reached"`. Commit
+`1152fd38` fixed the cause (a retry loop that `unwrap()`ed inside itself), but the run in flight
+at end of day started *before* that fix. A red governance leg on the older run is expected and
+uninformative; the run triggered by `719c62ce` or later is the real signal.
+
+⚠️ **One commit was unpushed at end of day** (`bb6f00d1`, the bundle-binding scope doc). Push it.
 
 ### Step 2 — finish Phase A (two deferred items, both now due)
 
@@ -36,12 +45,30 @@ deliberately **skipped** on this branch — that is correct, not a failure.
    that file's banner from 0.6.x to 0.7. Sections nobody touched during the port stay explicitly
    marked unverified — that is the point, and it is what stops the KB becoming false confidence.
 
-### Step 3 — cherry-pick the flake fix to `main`
+### Step 3 — decide what else rides along with the 0.7 hash break
 
-`1152fd38` fixes a real defect that also affects `main`: the gold/silver badge retry loops
-`unwrap()`ed `await_consistency` *inside* the loop written to absorb that exact failure, so they
-panicked on iteration 1 instead of retrying. It is why `main` went red on 2026-07-31. Test-only,
-no protocol impact.
+✅ *(The flake fix was already cherry-picked to `main` as `03fc16f4` on 2026-07-31 — nothing to
+do there. `main` is at `03fc16f4`; its previous red run was that flake, now fixed.)*
+
+**The decision that is genuinely time-limited.** A DNA-hash change forks the network: agents on
+the old hash and the new one cannot see each other, every published HarmonyRecord URL dies, and
+Oracle needs `down -v`. The 0.7 migration already forces exactly one of these. Any *other*
+hash-breaking change is therefore **free if it rides along, and costs a second void event if it
+comes later** — and the trap is that such changes are always "too expensive right now", so they
+defer indefinitely.
+
+So before merging, enumerate what wants a hash break. Known candidates:
+
+1. **Validator→bundle binding** — scoped in `docs/VALIDATOR_BUNDLE_BINDING_PLAN.md`. One field on
+   `ValidationAttestation`, bound into the commitment automatically because
+   `commitment_msgpack_bytes()` is already shared between the commit and reveal paths. ~half a
+   day, mostly tests. Closes a gap documented publicly in falsify-cookbook Pattern 13.
+2. **Open Audit Mode** — `EncryptedDataset`, X25519 keys, decryption-key field on
+   `ResearcherReveal`. Phase 1, explicitly hash-breaking (architecture doc, Data Locality Modes).
+
+⚠️ **Sequencing, if any of these are taken:** get `v0.7.0` fully green **first**, then add them as
+separate commits on top. Otherwise a failure cannot be attributed between the port and the
+feature, and the migration stops being independently verifiable.
 
 ### What was learned during the port — read before the next migration
 
