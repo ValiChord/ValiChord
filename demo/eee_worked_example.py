@@ -2,8 +2,14 @@
 
 This reproduces, fully offline (no API key, no fresh run), the same per-validator
 `valichord_attestation` bundles that `core_bench_runner.py --emit-bundles` would
-write after a live round -- but sourced from the real `.eval` logs and the real,
-publicly-curl-able HarmonyRecord already on the Oracle DHT.
+write after a live round -- sourced from the real `.eval` logs and the HarmonyRecord
+minted by that round.
+
+NOTE (2026-07-31): that HarmonyRecord is NO LONGER FETCHABLE. It lived on the Oracle
+node 132.145.34.27, which the provider reclaimed on 2026-06-11 along with its DHT
+state. The `.eval` logs and the values here are unaffected -- they are local
+artefacts of a real run -- but `record_url` below is a historical identifier, not a
+live endpoint. See RECORD_HASH.
 
 It is the worked example referenced in the EveryEvalEver (EEE) convergence thread:
 several independent validators reproduce ONE capsule, each blind, all sharing one
@@ -34,10 +40,19 @@ VALIDATOR_LOGS = [
 ]
 RESEARCHER_VALUE = 0.9157952669235003  # researcher --researcher-runs 1, capsule AUC
 
-# Real, live, publicly-curl-able HarmonyRecord on the Oracle DHT for this round.
+# HarmonyRecord minted by this round on the Oracle node 132.145.34.27.
+#
+# DEAD ENDPOINT -- do not "fix" this by pointing it at the current node.
+# That host was reclaimed by the provider on 2026-06-11 and took its DHT state with
+# it; 152.67.153.149 is a DIFFERENT node that never held this record, so aiming the
+# hash there yields an empty response that looks like a network blip rather than a
+# missing record. The hash is kept because it identifies the round that produced the
+# bundles below. To emit bundles pointing at a live record, run a fresh round.
 RECORD_HASH = "uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
 RESULT = {
-    "record_url": f"http://152.67.153.149:3001/record?hash={RECORD_HASH}",
+    # Historical identifier for the round, not a fetchable endpoint -- see above.
+    "record_url": f"http://132.145.34.27:3001/record?hash={RECORD_HASH}",
+    "record_url_status": "unreachable: host reclaimed 2026-06-11",
     "harmony_record_hash": RECORD_HASH,
     # The ValidationRequest data hash is held on the authoring node; the public
     # /record endpoint does not expose it. The verifiable anchor is the record.

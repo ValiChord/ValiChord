@@ -269,8 +269,11 @@ tests always run; the inspect-dependent ones `importorskip`.
 - ✅ End-to-end all-Sonnet run (researcher + 3 validators all `claude-sonnet-4-6`,
   `--researcher-runs 1`) → clean **`Reproduced` / `ExactMatch`** HarmonyRecord;
   all 3 validators independently produced `0.9157952669235003` → MATCH.
-- ✅ Record is public and recomputable on the Oracle DHT:
-  `curl "http://152.67.153.149:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"`
+- ⚠️ Record **was** public and recomputable on the Oracle DHT
+  (`uhC8k4j2xO83…`), but that node — 132.145.34.27 — **was reclaimed by the
+  provider on 2026-06-11 and its DHT state is gone.** The hash is retained here as
+  the artefact of the run; do **not** re-point it at 152.67.153.149, which never
+  held it. Re-run the demo to mint a fresh record.
 - ✅ Full validator path: dataset download → privileged Docker sandbox →
   model-as-agent installs deps + runs the paper's code → `report.json` captured →
   `extract_report_from_log` pulls the value out of the real `EvalLog`.

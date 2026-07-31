@@ -31,16 +31,10 @@ value against the researcher's **committed** interval — pure arithmetic, not a
 model's opinion. For this capsule every faithful run lands on the same value
 (`0.9157952669235003`), so the agreement is `ExactMatch`.
 
-The record is public and recomputable. One from a real run:
-
-```bash
-curl "http://<researcher-node>/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
-```
-
-It returns the outcome, the agreement level, the participating validators, and —
-on a node running the current code — a `numeric_convergence` panel. This is **real
-output, captured 2026-06-01 from a verified local run** (all-Sonnet, three blind
-validators), abridged for length:
+The record is recomputable: outcome, agreement level, participating validators,
+and a `numeric_convergence` panel, all derivable from a single fetch. Below is
+**real output, captured 2026-06-01 from a verified local run** (all-Sonnet, three
+blind validators), abridged for length:
 
 ```json
 {
@@ -66,12 +60,17 @@ validators), abridged for length:
 }
 ```
 
-> Honest note: the *public* record linked above (on a hosted node) is from the run
-> that first proved the protocol end-to-end; that hosted node runs older code, so a
-> `curl` of *that* record shows the base fields without the panel. The JSON shown
-> here is real output from a **local** run on 2026-06-01 that we verified against a
-> live conductor — reproduce it for yourself below to get the same panel on your
-> own node.
+> **Honest note — there is currently no public CORE-Bench record to fetch.** The
+> run that first proved the protocol end-to-end minted a HarmonyRecord on a hosted
+> Oracle node, and **that node was reclaimed by the provider on 2026-06-11, taking
+> its DHT state and every record on it.** An earlier version of this page published
+> a `curl` for that record; it returns nothing, and it has been removed rather than
+> re-pointed, because no other node ever held it.
+>
+> The JSON above is real output from a **local** run on 2026-06-01, verified against
+> a live conductor. Reproduce it yourself with the steps below to get the same panel
+> on your own node — which is the check that matters here anyway, since a record we
+> host is a record you have to take our word for.
 
 ## What it does
 

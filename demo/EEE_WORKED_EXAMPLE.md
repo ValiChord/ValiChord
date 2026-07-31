@@ -112,15 +112,17 @@ The bundle contents and filenames are the same shape as Path A
 
 ## Verify it yourself
 
-The shared record the bundles point at is live and self-verifying — anyone can
-fetch it without running anything:
-
-```bash
-curl "http://152.67.153.149:3001/record?hash=uhC8k4j2xO83gyCFCBMTAtx2Nyy_i_Yr4oDk-X1XJlbOZsI0-bYNT"
-# -> { "outcome": {"type":"Reproduced"}, "agreement_level": "ExactMatch", "validator_count": 3, ... }
-```
-
-(Use the **full** hash — a truncated hash returns a raw deserialize error.)
+> ⚠️ **The shared record these bundles point at is no longer fetchable.** It was
+> minted on the Oracle node 132.145.34.27, which **the provider reclaimed on
+> 2026-06-11**, taking its DHT state with it. This section previously showed a
+> `curl` against 152.67.153.149 — that host never held this record, so the command
+> returned nothing. It has been removed rather than corrected, because there is no
+> correct URL for it.
+>
+> The bundles, the captured `.eval` logs and the values below are unaffected: they
+> are local artefacts of a real run. What is gone is the *hosted* copy of the
+> outcome. To get a live, fetchable record, re-run the demo — that mints a fresh
+> one on the current node.
 
 Inspect a generated bundle:
 
