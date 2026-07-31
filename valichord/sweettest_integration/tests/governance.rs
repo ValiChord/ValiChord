@@ -974,7 +974,14 @@ async fn gold_badge_issued_with_seven_validators() {
     let mut badges: Vec<Record> = Vec::new();
     let mut by_type: Vec<Record> = Vec::new();
     for _ in 0..5 {
-        await_consistency(gov_cells.iter().copied()).await.unwrap();
+        // Deliberately NOT unwrapped. A failed consistency wait is precisely the
+        // transient gossip lag this loop exists to absorb, so unwrapping it defeated
+        // the retry: iteration 1 panicked with "Consistency not reached" instead of
+        // trying again. That is what failed CI on 2026-07-31 (main, run 30642890608)
+        // -- a flake mitigation that could not mitigate the flake it was written for.
+        // The emptiness assertions below remain the real gate: a persistent empty
+        // after all retries still fails, which is the behaviour the comment promises.
+        let _ = await_consistency(gov_cells.iter().copied()).await;
         badges = conductors[0]
             .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
             .await;
@@ -1064,7 +1071,14 @@ async fn silver_badge_issued_with_five_validators() {
     let mut badges: Vec<Record> = Vec::new();
     let mut by_type: Vec<Record> = Vec::new();
     for _ in 0..5 {
-        await_consistency(gov_cells.iter().copied()).await.unwrap();
+        // Deliberately NOT unwrapped. A failed consistency wait is precisely the
+        // transient gossip lag this loop exists to absorb, so unwrapping it defeated
+        // the retry: iteration 1 panicked with "Consistency not reached" instead of
+        // trying again. That is what failed CI on 2026-07-31 (main, run 30642890608)
+        // -- a flake mitigation that could not mitigate the flake it was written for.
+        // The emptiness assertions below remain the real gate: a persistent empty
+        // after all retries still fails, which is the behaviour the comment promises.
+        let _ = await_consistency(gov_cells.iter().copied()).await;
         badges = conductors[0]
             .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
             .await;
