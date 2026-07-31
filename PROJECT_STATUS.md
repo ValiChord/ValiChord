@@ -1,88 +1,78 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-31
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.1** (GitHub release, 2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
 
-# 🚦 START HERE — next session (written 2026-07-30, end of day)
+# 🚦 START HERE — next session (rewritten 2026-07-31, end of day)
 
-**Where we got to:** Holochain **0.7.0 stable shipped 2026-07-30**. We are still on 0.6.2 by choice. A full day was spent *preparing* the migration rather than doing it — the plan was re-verified against shipped artifacts, and a real safety net was built. **The `v0.7.0` branch has NOT been created yet. That is the next task.**
+**Where we got to:** the **`v0.7.0` branch exists and Phase A is code-complete.** All 51 `FlatOp`
+arms are ported, all 8 zomes build on `hdi 0.8.0` / `hdk 0.7.0`, `sweettest_integration` compiles,
+the conductor configs are fixed, and **the immutability tripwires pass 5/5 on 0.7 — in CI, on a
+clean runner.** `main` remains on 0.6.2 and its tip moved only by one docs fix.
 
-### Step 1 — check CI before anything else (BLOCKING)
+⚠️ **Phases B and C remain blocked upstream and are NOT startable.** Re-check before touching
+either: `@holochain/client` 0.21 stable on npm `latest`, a `@holochain/tryorama` 0.7 line, and
+`holochain_wind_tunnel_runner` on 0.7. All three were still absent on 2026-07-31.
 
-The last push (`75500eb`) touched `sweettest_integration/src/lib.rs` (`workdir()` gained a `VALICHORD_DNA_DIR` override), which affects **every** sweettest run. At end of day the guard, UI-E2E and integration jobs were green/running but the **5 sweettest legs had not finished** (~2 h; governance alone ~170 min).
-
-```bash
-gh run list --limit 3
-gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // "-")\t\(.name)"'
-```
-
-- **All green →** proceed to step 2.
-- **A sweettest leg red →** determine whether it is the `workdir()` change or the *documented* governance badge-index gossip-lag flake (see "Maintenance + ecosystem triage — 2026-06-13" below; silver/bronze/gold badge tests are the known flaky ones). Do not branch onto a red base.
-
-### Step 2 — three decisions to make before the first branch commit
-
-1. **Run the tripwires in CI?** They are deliberately *not* in the sweettest matrix, so they never run automatically. Tolerable on `main`; **not** tolerable during the migration, which is exactly when a guard regression would happen. Suggest adding a CI leg **on the branch** (~15–20 min: extra WASM build + pack).
-2. **Committed DNA artifacts.** The migration changes every DNA hash, so committed `workdir/*.dna` + `workdir/valichord.happ` all change — and the `ui-e2e` CI job consumes the *committed* happ. Decide up front: repack-and-commit each iteration (branch bloat, CI stays honest) or repack once at the end of Phase A.
-3. **Two untracked dirs** (`research/`, `valichord_attestation/examples/feature_selection_stability/`) pre-date this work and will follow onto the branch. Commit, gitignore, or leave.
-
-### Step 3 — create the branch, then set up the 0.7 docs BEFORE porting
+### Step 1 — check where the CI matrix landed
 
 ```bash
-git checkout -b v0.7.0        # main STAYS on 0.6.2 — non-negotiable, see below
+gh run list --branch v0.7.0 --limit 3
+gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // \"-\")\t\(.name)"'
 ```
 
-**3a. Two small doc edits first — they take ~2 minutes and prevent the branch misleading you.**
+At end of day: tripwires ✅, hook guard ✅, sweettest **attestation / security / researcher_repository
+/ validator_workspace** ✅, **governance still running** (~170 min leg). `test` and `ui-e2e` are
+deliberately **skipped** on this branch — that is correct, not a failure.
 
-**(i) Branch banner.** `docs/Holochain_complete.md` is mandated session-start reading and still documents **0.6.x**. On this branch that is actively misleading. Add one line to the top of its existing "⚠️ VERSION SCOPE" banner:
+### Step 2 — finish Phase A (two deferred items, both now due)
 
-> **You are on the `v0.7.0` branch. This file is still 0.6.x and has NOT been rewritten.** Verified 0.7 facts live in `CLAUDE.md` → "Pending upgrade checks" and in `docs/Holochain_0.7_migration_log.md`.
+1. **Repack `workdir/`.** Decision taken 2026-07-31 was "repack once at the end of Phase A", and
+   that point has arrived. Every DNA hash changes. `hc` 0.7.0 packs our manifests unchanged
+   (verified). Use the 0.7 binaries — the `hc` on `PATH` in Codespaces is still 0.6.2.
+2. **Fold `docs/Holochain_0.7_migration_log.md` into `docs/Holochain_complete.md`** and re-scope
+   that file's banner from 0.6.x to 0.7. Sections nobody touched during the port stay explicitly
+   marked unverified — that is the point, and it is what stops the KB becoming false confidence.
 
-**(ii) Create `docs/Holochain_0.7_migration_log.md` as a stub, and fill it AS YOU PORT.** Suggested skeleton:
+### Step 3 — cherry-pick the flake fix to `main`
 
-```markdown
-# Holochain 0.7 migration log — evidence captured during the port
-Every entry here was hit for real during the migration. Nothing inferred.
-## FlatOp arms — what actually changed
-| zome | arm | 0.6 form | 0.7 form | notes |
-## API surprises (things the checklist did NOT predict)
-## Compiler errors worth remembering
-## Conductor / config
-## Still unverified at end of Phase A
-```
+`1152fd38` fixes a real defect that also affects `main`: the gold/silver badge retry loops
+`unwrap()`ed `await_consistency` *inside* the loop written to absorb that exact failure, so they
+panicked on iteration 1 instead of retrying. It is why `main` went red on 2026-07-31. Test-only,
+no protocol impact.
 
-**Why a log and not a rewritten KB.** A "Holochain 0.7 Knowledge Base" written *before* the port would be ~10 verified sections and ~33 unverified 0.6 sections carried over under a 0.7 label — the same false-confidence failure that produced today's fake tests and the broken CI guard, in the one file that is mandated session-start reading. There is also no upstream to re-synthesise from: sections 1–25 are Build Guide synthesis and **the Build Guide has not been updated for 0.7** (PR #647 is the upgrade guide only; no 0.7 scaffolding release exists).
+### What was learned during the port — read before the next migration
 
-So: capture knowledge at the moment of highest confidence — when you have just hit the real API — and **promote the log into `Holochain_complete.md` at the END of Phase A**, re-scoping the banner to 0.7 then. Sections nobody touched during the port stay explicitly marked unverified, which tells the next reader exactly where the gaps are. Costs nothing extra; you have to think about each arm anyway.
+- **The pre-migration audit's "confirmed ZERO" table was scoped to the files it actually grepped.**
+  It declared the v2 Action model zero-impact, having never grepped the **coordinators** — where
+  three real `Action::` sites lived, two of them in `post_commit`, the commit-reveal critical path.
+- **Compile-clean is what broken match-ordering looks like.** Ordering was proven mechanically, and
+  the checker was negative-controlled on all three distinct hazard shapes before being trusted.
+- **An equivalence argument across a version bump must check every moving part.** `SweetConductor`'s
+  constructors were compared while `SweetConductorConfig::standard()` was *assumed* unchanged — it
+  had changed, and that cost a red tripwire run. See the migration log.
+- **`attestation` has 9 per-type guard arms, not 12** — the checklist conflated guards with total
+  `RegisterUpdate` arms.
 
-**3b. Then start the port.**
+### Non-negotiables (unchanged)
 
-**The migration is fully specified. It is three things and nothing else:**
+- **`main` stays on 0.6.2** until the branch is fully green *and* the user explicitly approves the
+  merge. Every published HarmonyRecord URL and the Oracle demo depend on it.
+- **`.github/workflows/tests.yml` on this branch is marked REVERT BEFORE MERGE.** It skips
+  `test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
+  skipped. None of that should reach `main` as-is.
+- **Never weaken a test to a bare `is_err()`.**
 
-| # | Work | Detail |
-|---|---|---|
-| 1 | **51 `FlatOp` match arms** | The real job. Ordering hazard concentrated in `attestation` (12 live per-type guards); `validator_workspace` + `researcher_repository` each rest on ONE blanket `OpUpdate::PrivateEntry` arm. |
-| 2 | **3 conductor-config files** | Exact diff already known and empirically verified — 2 lines each. |
-| 3 | **~7 version strings** | + sweettest feature flags (`sqlite-encrypted`→`encryption`, `wasmer_sys`→`wasmer-sys-cranelift`, drop `transport-iroh`). |
+### The lesson that keeps recurring
 
-Everything else on the old breaking-change list is **confirmed zero**. Full evidence-tagged checklist: `CLAUDE.md` → "Pending upgrade checks".
-
-**Run the tripwires before you start and after each batch of arms:**
-```bash
-cd valichord && ./build-test-dnas.sh
-cd sweettest_integration && VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
-```
-
-### Non-negotiables
-
-- **`main` stays on 0.6.2** until the branch is fully green *and* the user explicitly approves the merge. The Oracle demo and every published HarmonyRecord URL depend on it.
-- **Phases B (Tryorama + UI) and C (wind-tunnel) are BLOCKED on upstream** — no stable `@holochain/client` 0.21, no 0.7 Tryorama, `holochain_wind_tunnel_runner` still on 0.6. Re-check before attempting either. Only **Phase A** is actionable.
-- **Never weaken a test to a bare `is_err()`.** Three fake tests were deleted today for exactly that.
-
-### The lesson worth carrying (it recurred three times today)
-
-**An assertion that cannot fail is worse than none — it manufactures false confidence.** Today: three "immutability" tests that passed on *"function not found"*; a checklist whose errors were all in claims inferred from indirect sources; and a CI guard that grepped *compressed* bundles and so reported "clean" for everything. Every fix was the same — **run the negative control: prove the check can fail before trusting that it passed.** Applies directly to the 51-arm port.
+**An assertion that cannot fail is worse than none — and so is a mitigation that cannot mitigate.**
+2026-07-30: three "immutability" tests passing on *"function not found"*; a CI guard grepping
+*compressed* bundles. 2026-07-31: a badge-flake retry loop that panicked on the first retry; a
+public doc advertising a HarmonyRecord URL that had been dead for seven weeks; and my own log
+filter that ate a test's result line while I was checking that very test. Every fix was the same —
+**run the negative control: prove the check can fail before trusting that it passed.**
 
 ---
 
