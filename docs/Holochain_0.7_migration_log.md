@@ -410,6 +410,17 @@ result line entirely** — the summary said 5 passed while only 4 names were gre
 the reported summary and per-test re-runs, not on a mangled stream; and never filter a test log
 with a pattern that can consume a result line.
 
+Closed by re-running that one test alone and unfiltered rather than arguing from the summary:
+`validator_private_attestation_update_is_rejected ... ok` — 1 passed, 0 failed, 4 filtered out
+(115.99 s). All five tripwires are now individually evidenced on 0.7.
+
+### ⚠️ What the tripwires do NOT prove
+
+They prove the four integrity zomes still **reject forbidden updates**. They say nothing about
+whether the protocol still *works* — commit-reveal, phase transitions, quorum counting,
+cross-DNA calls, badge issuance. That is what the 5 sweettest suites cover, and they are the
+next real checkpoint. A green tripwire run after a 51-arm port is necessary, not sufficient.
+
 ---
 
 ## Still unverified at end of Phase A
