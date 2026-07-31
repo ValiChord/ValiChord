@@ -287,7 +287,7 @@ pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
 
 fn _post_commit_inner(committed_actions: Vec<SignedActionHashed>) -> ExternResult<()> {
     for signed in committed_actions {
-        if let Action::Create(create) = signed.action() {
+        if let ActionData::Create(create) = &signed.action().data {
             // Fetch the entry and try to deserialize as ValidatorPrivateAttestation.
             // This avoids hardcoded ZomeIndex/EntryDefIndex which break silently
             // if entry ordering changes.

@@ -87,7 +87,7 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
     let records = query(ChainQueryFilter::new())?;
     let mut avp_result: Option<Option<MembraneProof>> = None;
     for record in &records {
-        if let Action::AgentValidationPkg(avp) = record.action() {
+        if let ActionData::AgentValidationPkg(avp) = &record.action().data {
             avp_result = Some(avp.membrane_proof.clone());
             break;
         }
@@ -1935,7 +1935,7 @@ pub fn recv_remote_signal(signal: ExternIO) -> ExternResult<()> {
 #[hdk_extern(infallible)]
 pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
     for signed_action in committed_actions {
-        if let Action::Create(_) = signed_action.action() {
+        if let ActionData::Create(_) = &signed_action.action().data {
             if let Err(e) =
                 post_commit_on_create(signed_action.hashed.hash.clone())
             {

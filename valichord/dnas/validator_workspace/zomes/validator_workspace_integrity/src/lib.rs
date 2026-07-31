@@ -146,7 +146,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //
         // The sealed commitment must never be altered after creation.
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ValidatorPrivateAttestation(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ValidatorPrivateAttestation is immutable — updates are not permitted".into(),
@@ -154,7 +154,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- DeliberateAbstention immutability (updates) --------------------
 
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::DeliberateAbstention(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "DeliberateAbstention is immutable — updates are not permitted".into(),
@@ -162,7 +162,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // --- ValidatorPrivateAttestation immutability (deletes) -------------
 
-        FlatOp::RegisterDelete(OpDelete { ref action }) => {
+        FlatOp::Delete(OpDelete { ref action }) => {
             let original_record = must_get_valid_record(action.deletes_address.clone())?;
             if let Some(EntryType::App(app_def)) = original_record.action().entry_type() {
                 if let Some(entry) = original_record.entry().as_option() {
@@ -187,7 +187,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 }
             }
             // All other entries: only the original author may delete.
-            if action.author != *original_record.action().author() {
+            if action.author() != original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
@@ -197,9 +197,9 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
 
         // Generic update for all other entry types: only original author may update.
         // Placed AFTER the guarded ValidatorPrivateAttestation arm.
-        FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
+        FlatOp::Update(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
-            if action.author != *original.action().author() {
+            if action.author() != original.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may update this entry".into(),
                 ));
@@ -207,14 +207,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        FlatOp::RegisterUpdate(OpUpdate::PrivateEntry { .. }) => Ok(
+        FlatOp::Update(OpUpdate::PrivateEntry { .. }) => Ok(
             ValidateCallbackResult::Invalid(
                 "Private entry updates not supported in this DNA".into(),
             ),
         ),
 
         // All other update variants: accept.
-        FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
+        FlatOp::Update(_) => Ok(ValidateCallbackResult::Valid),
 
         // All remaining ops: accept.
         // Single-agent private DNA — source chain integrity is sufficient.

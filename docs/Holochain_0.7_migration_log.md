@@ -150,6 +150,24 @@ swallow it"** — which in governance is an authorisation check, and in
 `validator_workspace`/`researcher_repository` will be the single blanket `PrivateEntry` arm
 vs the `Update(_)` catch-all.
 
+**validator_workspace (6 arms) + researcher_repository (5 arms) ported 2026-07-31** — clean
+build, zero warnings, 7/7 and 6/6 arms in identical order. Both are pure renames
+(`RegisterUpdate`→`Update`, `RegisterDelete`→`Delete`); neither has link or create arms.
+
+Negative-controlled on **their** hazard, which is the most severe of the three shapes: moving
+the single blanket `OpUpdate::PrivateEntry` arm below `Update(_)` makes it dead code, and
+**every private entry in the DNA becomes mutable at once** — `ValidatorPrivateAttestation`
+(the sealed commit-reveal verdict), `LockedResult` (the researcher's nonce + result),
+`PreRegisteredProtocol`. One arm, whole-DNA blast radius. Both the order checker and rustc
+fired on it, in both zomes; restores verified byte-identical.
+
+### ✅ All four integrity zomes + all four coordinators build on 0.7
+
+Verified with a genuine from-scratch rebuild (WASM artifacts and fingerprints deleted first —
+an incremental "Finished in 0.08s" is not evidence). All 8 zomes compiled, **zero errors and
+zero warnings**. Total 51/51 arms ported; 57/57 top-level match arms confirmed in identical
+order and selectors across the four zomes.
+
 ### 🆕 `[workspace.dev-dependencies]` is not a real Cargo key — `fixt` was never applied
 
 `cargo` reports `unused manifest key: workspace.dev-dependencies` (`valichord/Cargo.toml:34`).
@@ -187,6 +205,30 @@ and `.to_string()` sites just chain (`action.author().to_string()`).
 ⚠️ **The two "unchanged" rows are the ones to watch.** They compile silently. They were
 checked field-by-field against the 0.7.0 struct definitions and the names and meanings are
 identical — but this is exactly the class of thing that would otherwise be assumed.
+
+### 🔴 THE ONE THE AUDIT MISSED — `Action::<Variant>(..)` pattern matching in **coordinators**
+
+The v2 Action model was on the checklist (*"legacy per-variant action structs … removed"*),
+but the mechanical audit that declared everything zero **only covered the four integrity
+zomes, `shared_types` and `sweettest_integration`** — it never grepped the *coordinator*
+zomes for `Action::` patterns. Three real sites, found only when the full workspace build
+failed:
+
+| file | 0.6 | 0.7 |
+|---|---|---|
+| `validator_workspace_coordinator/src/lib.rs:290` | `if let Action::Create(create) = signed.action()` | `if let ActionData::Create(create) = &signed.action().data` |
+| `attestation_coordinator/src/lib.rs:90` | `if let Action::AgentValidationPkg(avp) = record.action()` | `if let ActionData::AgentValidationPkg(avp) = &record.action().data` |
+| `attestation_coordinator/src/lib.rs:1938` | `if let Action::Create(_) = signed_action.action()` | `if let ActionData::Create(_) = &signed_action.action().data` |
+
+`Action` in 0.7 is a **struct** `{ header: ActionHeader, data: ActionData }`, not an enum —
+hence `no associated item named 'Create' found for struct 'Action'`. The per-variant payload
+field names all survive (`CreateData.entry_hash`, `AgentValidationPkgData.membrane_proof`),
+so only the match shape changes.
+
+⚠️ **Lesson for Phase B/C: treat the audit's "confirmed ZERO" table as scoped to the files it
+actually grepped.** Two of those three sites are in `post_commit` — the commit-reveal
+notification path — so this would have been a runtime break in the protocol's critical path,
+not a cosmetic one. It was caught only because the compiler is strict here.
 
 ### `OpEntry::CreateEntry` carries `TypedAction<CreateData>`
 
