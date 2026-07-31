@@ -67,3 +67,8 @@ valichord_pilot_spec.md
 
 # Sponsors working notes — candid positioning reasoning, kept local
 docs/sponsors/NOTES.md
+
+# Arc-sim / polite-shrink working copy. Canonical home is the ValiChord/polite-shrink
+# repo; this local tree is ~8.8 GB, almost all of it Rust build artifacts under
+# research/arc_sim/wind_tunnel/target/. Never commit it here.
+research/

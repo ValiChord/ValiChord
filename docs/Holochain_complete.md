@@ -6,6 +6,11 @@
 
 ## ⚠️ VERSION SCOPE — READ FIRST (updated 2026-07-30)
 
+> 🌿 **YOU ARE ON THE `v0.7.0` BRANCH. This file is still 0.6.x and has NOT been rewritten.**
+> Verified 0.7 facts live in `CLAUDE.md` → "Pending upgrade checks" and in
+> `docs/Holochain_0.7_migration_log.md` (written as the port proceeds). Treat every
+> section below as describing the code this branch is *migrating away from*.
+
 **This document describes Holochain 0.6.x, which is what ValiChord actually runs (0.6.2). It remains the correct reference for the current codebase.**
 
 **Holochain 0.7.0 shipped 2026-07-30.** We have deliberately NOT migrated — the migration is planned, branch-only (`v0.7.0`), and `main` stays on 0.6.2. This file has **not** been rewritten for 0.7, because doing so would make it wrong for the code we run today.

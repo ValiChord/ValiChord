@@ -1,8 +1,30 @@
 name: Integration Tests
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ⚠️  BRANCH-SCOPED MIGRATION CHANGES — REVERT BEFORE MERGING v0.7.0 INTO main
+#
+# The Holochain 0.6.2 → 0.7.0 migration happens on the `v0.7.0` branch. Two of the
+# jobs below CANNOT pass there, because the JS ecosystem has not shipped a 0.7 line:
+#
+#   * `test`    (97 Tryorama) — @holochain/tryorama has no 0.7 line at all
+#   * `ui-e2e`  (Playwright)  — @holochain/client 0.21 is still rc-only
+#
+# That is migration Phase B, and it is blocked upstream, not by us. Both jobs are
+# therefore SKIPPED on the branch. `sweettest` used to be gated on `test` passing;
+# it now also runs when `test` is skipped, so Phase A (the Rust zomes) still gets
+# its full 5-leg signal — which is the whole point of having CI on the branch.
+#
+# A `tripwire` job is added, branch-only: it is the only thing that proves the
+# integrity zomes still reject forbidden updates after the 51-arm FlatOp port.
+#
+# WHEN PHASE B UNBLOCKS: delete the three `if:` guards and restore
+# `needs: [test]` on sweettest. Promoting `tripwire` to all branches is a separate
+# decision to take after the migration lands.
+# ═══════════════════════════════════════════════════════════════════════════════
+
 on:
   push:
-    branches: [main]
+    branches: [main, v0.7.0]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -39,6 +61,10 @@ jobs:
   test:
     name: 97 Integration Tests (4 DNAs)
     runs-on: ubuntu-latest
+    # Migration Phase B — blocked upstream. @holochain/tryorama has no 0.7 line,
+    # so there is nothing to migrate these 97 tests TO. Skipped on the v0.7.0
+    # branch; restore by deleting this `if:` once Tryorama ships 0.7.
+    if: github.ref_name != 'v0.7.0' && github.head_ref != 'v0.7.0'
     timeout-minutes: 90
 
     steps:
@@ -139,6 +165,11 @@ jobs:
   ui-e2e:
     name: UI E2E (Playwright + real conductor)
     runs-on: ubuntu-latest
+    # Migration Phase B — blocked upstream. @holochain/client 0.21 is rc-only, so
+    # the UI cannot talk to a 0.7 conductor. This job also consumes the COMMITTED
+    # workdir/valichord.happ, which is deliberately not repacked until the end of
+    # Phase A. Skipped on the v0.7.0 branch.
+    if: github.ref_name != 'v0.7.0' && github.head_ref != 'v0.7.0'
     timeout-minutes: 30
 
     steps:
@@ -210,7 +241,15 @@ jobs:
     name: Sweettest (${{ matrix.test }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
+    # `needs: [test]` is kept for fail-fast on main: if the 10-minute Tryorama job
+    # is already red there is no point burning ~2 h of sweettest. But on the v0.7.0
+    # branch `test` is SKIPPED (Phase B blocked), and a skipped dependency would
+    # normally skip this matrix too — losing the only Phase A signal we have.
+    # `always()` + an explicit result check keeps both behaviours:
+    #   main   → test success  → run;  test failure → skip (fail-fast preserved)
+    #   v0.7.0 → test skipped  → run
     needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -323,3 +362,120 @@ jobs:
       - name: Run Sweettest (${{ matrix.test }})
         working-directory: valichord/sweettest_integration
         run: cargo test --test ${{ matrix.test }} -- --test-threads=1
+
+  # ── Immutability tripwires — BRANCH-ONLY, added for the 0.7 migration ────────
+  #
+  # The 51-arm FlatOp port can silently disable immutability: Rust match ORDERING
+  # is the enforcement mechanism, so an arm reflowed behind the generic update arm
+  # compiles clean, passes every other test, and lets a forbidden update through.
+  # That is not hypothetical — it was reproduced by negative control on 2026-07-30
+  # (the forbidden update returned a real ActionHash) and these 5 tests caught it.
+  #
+  # They are deliberately NOT part of the sweettest matrix: they need a different
+  # build (`--features test_utils` -> target-test/, packed to workdir-test/), because
+  # no production coordinator exposes update_entry. See build-test-dnas.sh.
+  #
+  # Branch-scoped because it adds ~35 min to a run. Promoting it to main is a
+  # separate decision to take once the migration lands.
+  tripwire:
+    name: Immutability tripwires (integrity zomes)
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'v0.7.0' || github.head_ref == 'v0.7.0'
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two WASM target dirs (target/ + target-test/) plus a native holochain
+      # build — same disk pressure as the sweettest legs.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Install Rust (stable + wasm32 target)
+        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
+
+      - name: Install build dependencies
+        run: sudo apt-get install -y cmake libssl-dev pkg-config
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-sweettest-${{ hashFiles('valichord/sweettest_integration/Cargo.lock', 'valichord/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-sweettest-
+            ${{ runner.os }}-cargo-registry-
+
+      # Shares the sweettest target cache — the native holochain compile is the
+      # expensive part and is identical for both.
+      - name: Cache sweettest build artifacts
+        uses: actions/cache@v4
+        with:
+          path: valichord/sweettest_integration/target
+          key: ${{ runner.os }}-sweettest-target-${{ hashFiles('valichord/sweettest_integration/Cargo.lock', 'valichord/sweettest_integration/**/*.rs', 'valichord/**/*.rs', 'valichord/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-sweettest-target-
+
+      - name: Cache Holochain binaries
+        uses: actions/cache@v4
+        id: cache-hc-bin-tripwire
+        with:
+          path: ~/.local/bin/hc-tools
+          key: ${{ runner.os }}-hc-bin-0.6.2
+
+      - name: Download Holochain binaries
+        if: steps.cache-hc-bin-tripwire.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin/hc-tools
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.6.2
+          curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
+          curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
+          curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
+          curl -sSL $BASE/kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/kitsune2-bootstrap-srv
+          chmod +x ~/.local/bin/hc-tools/*
+
+      - name: Add Holochain tools to PATH
+        run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
+
+      # Builds production WASM -> target/ AND test-feature coordinators ->
+      # target-test/, then packs to workdir-test/. Never touches workdir/.
+      - name: Build and pack test DNAs
+        working-directory: valichord
+        run: |
+          chmod +x build-test-dnas.sh
+          ./build-test-dnas.sh
+
+      # Belt and braces: the quarantine must hold even here, where the hooks are
+      # deliberately built. workdir/ is the committed production bundle set and
+      # must stay clean regardless of what build-test-dnas.sh just did.
+      - name: Re-assert quarantine (workdir/ must stay hook-free)
+        working-directory: valichord
+        run: |
+          chmod +x check-no-test-hooks.sh
+          ./check-no-test-hooks.sh
+          if ! git diff --quiet -- workdir/; then
+            echo "::error::build-test-dnas.sh modified the committed workdir/ bundles"
+            git diff --stat -- workdir/
+            exit 1
+          fi
+
+      - name: Kill any orphaned Holochain processes
+        run: |
+          pkill -f holochain     || true
+          pkill -f lair-keystore || true
+          sleep 2
+
+      - name: Run immutability tripwires
+        working-directory: valichord/sweettest_integration
+        env:
+          VALICHORD_DNA_DIR: ../workdir-test
+        run: cargo test --test immutability_tripwire -- --test-threads=1
