@@ -53,7 +53,6 @@ admin_interfaces:
       allowed_origins: '*'
 network:
   bootstrap_url: "http://127.0.0.1:1"
-  signal_url: "ws://127.0.0.1:1"
   relay_url: "ws://127.0.0.1:1"
 EOF
 

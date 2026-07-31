@@ -14,6 +14,8 @@ admin_interfaces:
       allowed_origins: '*'
 network:
   bootstrap_url: https://dev-test-bootstrap2.holochain.org/
-  signal_url: wss://dev-test-bootstrap2.holochain.org/
   relay_url: https://dev-test-bootstrap2.holochain.org/
-db_sync_strategy: Resilient
+# Holochain 0.7: `signal_url` removed (NetworkConfig rejects unknown fields and
+# the conductor exits 42), and `db_sync_strategy` renamed to `db_sync_level`
+# with values Full/Normal/Off. Resilient -> Normal.
+db_sync_level: Normal

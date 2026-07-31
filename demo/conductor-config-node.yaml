@@ -2,6 +2,11 @@
 # node-entrypoint.sh uses sed to substitute __BOOTSTRAP_URL__ and __SIGNAL_URL__
 # before passing this to holochain.
 #
+# Holochain 0.7: `signal_url` was REMOVED and NetworkConfig now rejects unknown
+# fields — the conductor exits 42 on startup rather than ignoring them. The
+# __SIGNAL_URL__ placeholder is therefore now consumed only by `relay_url`; the
+# placeholder name is kept so node-entrypoint.sh needs no change.
+#
 # Admin WebSocket : ws://localhost:__ADMIN_PORT__
 # App   WebSocket : ws://localhost:4500  (attached by node-setup.mjs)
 
@@ -16,7 +21,6 @@ admin_interfaces:
       allowed_origins: '*'
 network:
   bootstrap_url: __BOOTSTRAP_URL__
-  signal_url: __SIGNAL_URL__
   relay_url: __SIGNAL_URL__
-db_sync_strategy: Fast
+db_sync_level: Off
 db_max_readers: 4
