@@ -604,7 +604,7 @@ async fn get_linked_agents_empty_initially() {
 #[tokio::test(flavor = "multi_thread")]
 async fn late_joining_validator_discovers_reveal_open_via_dht_poll() {
     // Inline 3-conductor setup.
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(3).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut iter = apps.into_inner().into_iter();

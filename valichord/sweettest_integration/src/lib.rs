@@ -56,8 +56,8 @@ pub fn dna_path(name: &str) -> PathBuf {
 // ---------------------------------------------------------------------------
 
 /// Attestation DNA properties for tests (issuer key = "" → full dev bypass).
-fn attestation_yaml_props() -> serde_yaml::Value {
-    serde_yaml::from_str(
+fn attestation_yaml_props() -> yaml_serde::Value {
+    yaml_serde::from_str(
         "minimum_validators: 2\n\
          discipline: computational_biology\n\
          authorized_joining_certificate_issuer: \"\"\n\
@@ -68,8 +68,8 @@ fn attestation_yaml_props() -> serde_yaml::Value {
 
 /// Governance DNA properties for tests (system_coordinator_key = "" → dev bypass).
 /// round_timeout_secs: 0 bypasses the clock constraint in force_finalize_round.
-fn governance_yaml_props() -> serde_yaml::Value {
-    serde_yaml::from_str(
+fn governance_yaml_props() -> yaml_serde::Value {
+    yaml_serde::from_str(
         "system_coordinator_key: \"\"\n\
          min_attestations_for_finalization: 0\n\
          round_timeout_secs: 0\n",
@@ -173,7 +173,12 @@ impl ValiChordApp {
 
 /// Spin up one conductor with one ValiChord app installed.
 pub async fn setup_single() -> (SweetConductor, ValiChordApp) {
-    let mut conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::create_with_defaults(
+        SweetConductorConfig::standard(),
+        None,
+        None::<DynSweetRendezvous>,
+    )
+    .await;
     let dnas = dnas_with_roles().await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     let vc = ValiChordApp::from_sweet_app(app);
@@ -187,7 +192,7 @@ pub async fn setup_single_locked_governance() -> (SweetConductor, ValiChordApp) 
     let governance_locked = SweetDnaFile::from_bundle_with_overrides(
         &dna_path("governance.dna"),
         DnaModifiersOpt {
-            properties: Some(YamlProperties::new(serde_yaml::from_str(
+            properties: Some(YamlProperties::new(yaml_serde::from_str(
                 "system_coordinator_key: \"not-a-real-key\"\n\
                  min_attestations_for_finalization: 0\n\
                  round_timeout_secs: 0\n",
@@ -205,7 +210,12 @@ pub async fn setup_single_locked_governance() -> (SweetConductor, ValiChordApp) 
         ("attestation".into(),           a),
         ("governance".into(),            governance_locked),
     ];
-    let mut conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::create_with_defaults(
+        SweetConductorConfig::standard(),
+        None,
+        None::<DynSweetRendezvous>,
+    )
+    .await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     let vc = ValiChordApp::from_sweet_app(app);
     (conductor, vc)
@@ -223,7 +233,7 @@ pub struct TwoAgentSetup {
 
 /// Spin up two conductors with rendezvous, each with their own ValiChord app.
 pub async fn setup_two_agents() -> TwoAgentSetup {
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(2).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(2, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut app_iter = apps.into_inner().into_iter();

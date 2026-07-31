@@ -55,14 +55,14 @@ async fn reveal(conductor: &SweetConductor, app: &ValiChordApp, request_ref: Ext
 /// `extra_attestation_props` is a YAML string whose keys override the base defaults.
 /// Example: `"min_claim_timeout_secs: 86400\n"` or `"minimum_validators: 1\n"`.
 async fn setup_single_custom_attestation(extra_attestation_props: &str) -> (SweetConductor, ValiChordApp) {
-    let mut props: serde_yaml::Value = serde_yaml::from_str(
+    let mut props: yaml_serde::Value = yaml_serde::from_str(
         "authorized_joining_certificate_issuer: \"\"\n\
          discipline: computational_biology\n\
          min_claim_timeout_secs: 0\n\
          minimum_validators: 2\n"
     ).unwrap();
     if !extra_attestation_props.is_empty() {
-        let extra: serde_yaml::Value = serde_yaml::from_str(extra_attestation_props).unwrap();
+        let extra: yaml_serde::Value = yaml_serde::from_str(extra_attestation_props).unwrap();
         if let (Some(base_map), Some(extra_map)) = (props.as_mapping_mut(), extra.as_mapping()) {
             for (k, v) in extra_map {
                 base_map.insert(k.clone(), v.clone());
@@ -87,21 +87,21 @@ async fn setup_single_custom_attestation(extra_attestation_props: &str) -> (Swee
         ("attestation".into(),           attestation),
         ("governance".into(),            g),
     ];
-    let mut conductor = SweetConductor::from_standard_config().await;
+    let mut conductor = SweetConductor::create_with_defaults(SweetConductorConfig::standard(), None, None::<DynSweetRendezvous>).await;
     let app = conductor.setup_app("valichord", &dnas).await.unwrap();
     (conductor, ValiChordApp::from_sweet_app(app))
 }
 
 /// Build a custom 2-conductor setup with non-default attestation DNA properties.
 async fn setup_two_agents_custom_attestation(extra_attestation_props: &str) -> TwoAgentSetup {
-    let mut props: serde_yaml::Value = serde_yaml::from_str(
+    let mut props: yaml_serde::Value = yaml_serde::from_str(
         "authorized_joining_certificate_issuer: \"\"\n\
          discipline: computational_biology\n\
          min_claim_timeout_secs: 0\n\
          minimum_validators: 2\n"
     ).unwrap();
     if !extra_attestation_props.is_empty() {
-        let extra: serde_yaml::Value = serde_yaml::from_str(extra_attestation_props).unwrap();
+        let extra: yaml_serde::Value = yaml_serde::from_str(extra_attestation_props).unwrap();
         if let (Some(base_map), Some(extra_map)) = (props.as_mapping_mut(), extra.as_mapping()) {
             for (k, v) in extra_map {
                 base_map.insert(k.clone(), v.clone());
@@ -126,7 +126,7 @@ async fn setup_two_agents_custom_attestation(extra_attestation_props: &str) -> T
         ("attestation".into(),           attestation),
         ("governance".into(),            g),
     ];
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(2).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(2, SweetConductorConfig::rendezvous(true)).await;
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut iter = apps.into_inner().into_iter();
     let alice = ValiChordApp::from_sweet_app(iter.next().unwrap());

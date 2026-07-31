@@ -230,6 +230,49 @@ actually grepped.** Two of those three sites are in `post_commit` — the commit
 notification path — so this would have been a runtime break in the protocol's critical path,
 not a cosmetic one. It was caught only because the compiler is strict here.
 
+### ❌ `sweettest_integration` broke in a completely different place than predicted
+
+The checklist predicted PR #5898's re-layering of conductor state types would surface as
+*"unresolved names scattered through the tests"*, because two of the three imports are globs.
+**That did not happen at all.** Not one name moved out from under the globs. What actually
+broke was three unrelated things:
+
+**1. `pkcs8` pin — the dependency graph would not even resolve.** `sweettest_integration`
+pinned `pkcs8 = "=0.11.0-rc.11"` as a 0.6.x workaround (0.6 pulled `ed25519-dalek 3.0.0-pre.1`,
+which broke against `pkcs8 0.11.0` stable). 0.7.0 pulls `ed25519-dalek 3.0.0-rc.0` via
+`iroh 1.0.0` ← `kitsune2_transport_iroh 0.5.0`, and that **requires `pkcs8 ^0.11` stable**.
+The pin made the graph unresolvable. Its own comment said to drop it on upgrade — past-us
+left the right instruction, and it was correct.
+
+**2. `serde_yaml` → `yaml_serde`.** `YamlProperties::new` now takes a `yaml_serde::Value`.
+Holochain 0.7 moved off the deprecated `serde_yaml 0.9.34+deprecated` to `yaml_serde 0.10.4`,
+which is an API-compatible rename (same `from_str`, `Value`, `Mapping`, `as_mapping_mut`).
+13 use sites across `src/lib.rs` and `tests/security.rs`, plus the `Cargo.toml` dep. The
+error is friendly — rustc says *"have similar names, but are actually distinct types"*.
+
+**3. ⚠️ `SweetConductor::from_standard_config()` is REMOVED, and `standard()` is NOT its rename.**
+This is the one to be careful with, because the obvious substitution silently changes behaviour:
+
+| 0.6.2 | body | 0.7.0 | body |
+|---|---|---|---|
+| `from_standard_config()` | `from_config(SweetConductorConfig::standard())` — **no rendezvous** | `standard()` | `from_config_rendezvous(SweetConductorConfig::rendezvous(true), SweetLocalRendezvous::new())` — **spawns a local rendezvous server, bootstrap enabled** |
+
+Porting `from_standard_config()` → `standard()` would silently add a rendezvous server to
+every single-conductor test. Ported faithfully instead as
+`create_with_defaults(SweetConductorConfig::standard(), None, None::<DynSweetRendezvous>)`.
+Verified equivalent: 0.6.2's `from_config` did `create_with_defaults(config, None, config.get_rendezvous())`,
+and `SweetConductorConfig::standard()` never set a rendezvous, so `get_rendezvous()` was `None`.
+(`get_rendezvous()` does not exist in 0.7.0 at all.)
+
+`SweetConductorBatch::from_standard_config_rendezvous(n)` → `from_config_rendezvous(n,
+SweetConductorConfig::rendezvous(true))` **is** an exact equivalent — that is literally the
+old function's body. 5 sites in `tests/`, 1 in `src/lib.rs`.
+
+Result: all 6 test binaries compile. One warning remains
+(`unused import: UpdateValidatorProfileInput`, `tests/attestation.rs:34` — the symbol is used
+at `:680` via its fully-qualified path). **Pre-existing and identical on `main`**, not
+migration fallout; left alone rather than widening scope.
+
 ### `OpEntry::CreateEntry` carries `TypedAction<CreateData>`
 
 Not `EntryCreationData`. `EntryCreationData` (the `Create`-or-`Update` narrowing enum that

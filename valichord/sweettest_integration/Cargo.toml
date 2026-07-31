@@ -36,22 +36,24 @@ debug = 0
 # ---------------------------------------------------------------------------
 
 [dependencies]
-holochain = { version = "=0.6.2", features = ["test_utils"] }
-holochain_types = "=0.6.2"
-holochain_keystore = "=0.6.2"
-hdk = "=0.6.2"
-holo_hash = "=0.6.2"
+holochain = { version = "=0.7.0", features = ["test_utils"] }
+holochain_types = "=0.7.0"
+holochain_keystore = "=0.7.0"
+hdk = "=0.7.0"
+holo_hash = "=0.7.0"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
+# holochain 0.7 moved off the deprecated serde_yaml to yaml_serde (API-compatible
+# rename); YamlProperties::new takes a yaml_serde::Value, so we must match.
+yaml_serde = "0.10"
 sha2 = { version = "0.10", default-features = false }
 rmp-serde = "1.3"
-# Pin pkcs8 to the pre-release version that holochain 0.6.1 was built against.
-# pkcs8 0.11.0 stable changed Error::KeyMalformed from a unit variant to
-# KeyMalformed(KeyError), breaking ed25519-dalek 3.0.0-pre.1 (a holochain dep).
-# Remove this pin when upgrading to a holochain version that uses a compatible
-# release of pkcs8 and ed25519-dalek.
-pkcs8 = "=0.11.0-rc.11"
+# The pkcs8 = "=0.11.0-rc.11" pin lived here for holochain 0.6.x, which pulled
+# ed25519-dalek 3.0.0-pre.1 -- that broke against pkcs8 0.11.0 stable, where
+# Error::KeyMalformed gained a payload. Its own comment said to drop the pin on
+# upgrade, and 0.7.0 is that upgrade: it pulls ed25519-dalek 3.0.0-rc.0 (via
+# iroh 1.0.0 <- kitsune2_transport_iroh 0.5.0), which REQUIRES pkcs8 ^0.11
+# stable. Keeping the pin makes the graph unresolvable. Removed 2026-07-31.
 
 # ValiChord types — rlib output allows native compilation for type access.
 # Coordinator functions themselves are not called directly from tests

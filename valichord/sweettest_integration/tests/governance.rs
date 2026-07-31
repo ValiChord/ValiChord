@@ -605,7 +605,7 @@ async fn get_badges_for_study_none_with_two_validators() {
 #[tokio::test(flavor = "multi_thread")]
 async fn get_badges_by_type_bronze_with_three_validators() {
     // Inline 3-conductor setup (no shared helper exists for 3 agents).
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(3).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut app_iter = apps.into_inner().into_iter();
@@ -883,7 +883,7 @@ async fn ai_validator_tier_does_not_advance_through_rounds() {
 async fn gold_badge_issued_with_seven_validators() {
     const N: usize = 7;
 
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(N).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(N, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps: Vec<ValiChordApp> = conductors
         .setup_app("valichord", &dnas)
@@ -1006,7 +1006,7 @@ async fn gold_badge_issued_with_seven_validators() {
 async fn silver_badge_issued_with_five_validators() {
     const N: usize = 5;
 
-    let mut conductors = SweetConductorBatch::from_standard_config_rendezvous(N).await;
+    let mut conductors = SweetConductorBatch::from_config_rendezvous(N, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps: Vec<ValiChordApp> = conductors
         .setup_app("valichord", &dnas)
