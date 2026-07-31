@@ -101,6 +101,11 @@ the entire immutability guard for each of these two DNAs.
 | attestation | ×1 | `FlatOp::RegisterDelete(OpDelete{action})` | `FlatOp::Delete(OpDelete{action})` | pure rename |
 | attestation | ×1 | `FlatOp::RegisterAgentActivity(OpActivity::AgentValidationPkg{membrane_proof, ..})` | `FlatOp::AgentActivity(…)` | rename only, as predicted |
 
+| governance | ×5 | `FlatOp::RegisterUpdate(…)` | `FlatOp::Update(…)` | pure rename |
+| governance | ×4 | `FlatOp::StoreEntry(…)` | `FlatOp::CreateEntry(…)` | pure rename |
+| governance | ×3 | `FlatOp::RegisterDeleteLink{…}` | `FlatOp::Link(OpLink::DeleteLink{…})` | structural |
+| governance | ×1 | `FlatOp::RegisterDelete(…)` | `FlatOp::Delete(…)` | pure rename |
+
 **attestation ported 2026-07-31 — compiled clean on the first build, zero warnings.**
 27 renames, all counts matched expectation. Ordering verified mechanically: all **29**
 top-level arms (27 `FlatOp` + 2 `_` catch-alls) are in identical positions with identical
@@ -125,6 +130,25 @@ it was shown to fail.
    warnings, so any warning during the remaining three zomes is signal rather than noise.
    Unchanged caveat: it is a warning not an error, and it catches **only** shadowing — not a
    deleted arm, nor one whose pattern stops matching after a rename.
+
+The checker is now a reusable script rather than a one-off:
+`scratchpad/check_arm_order.py <old.rs> <new.rs>` (exit 1 on mismatch). It carries the
+rename table, so it compares a 0.6 original against its 0.7 port directly.
+
+**governance ported 2026-07-31 — 13 arms, clean first build, zero warnings, 15/15 arms in
+identical order.** Its ordering hazard is *not* the same shape as attestation's, and was
+negative-controlled separately: governance has no generic `OpUpdate::Entry` arm, but its
+**`ValidatorReputation` update arm carries the `system_coordinator_key` authorisation
+check**. Dropped below the `Update(_)` catch-all it becomes dead code and *any agent may
+rewrite any reputation record* — a privilege-escalation, not just a lost immutability guard.
+Reproducing exactly that break made the checker report 2 mismatches and rustc warn. Restore
+verified byte-identical afterwards.
+
+⚠️ **Generalisation worth carrying into the last two zomes:** the hazard is not "guards above
+the generic arm". It is **"any arm carrying logic must stay above any broader arm that would
+swallow it"** — which in governance is an authorisation check, and in
+`validator_workspace`/`researcher_repository` will be the single blanket `PrivateEntry` arm
+vs the `Update(_)` catch-all.
 
 ### 🆕 `[workspace.dev-dependencies]` is not a real Cargo key — `fixt` was never applied
 

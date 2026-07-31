@@ -229,12 +229,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // cross-DNA calls are not available in validate(), so the participating_validators
         // list itself cannot be cryptographically checked here.  Content correctness
         // is enforced by the coordinator's completeness check and idempotency guard.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::HarmonyRecord(ref record),
             ref action,
             ..
         }) => {
-            if !record.participating_validators.contains(&action.author) {
+            if !record.participating_validators.contains(action.author()) {
                 return Ok(ValidateCallbackResult::Invalid(
                     "HarmonyRecord author must be listed in participating_validators — \
                      only validators who participated in the round may write the record"
@@ -286,14 +286,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // Governance decisions represent human deliberation outcomes. A
         // designated key-holder records the result of each governance vote.
         // Empty key = dev/test bypass.
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::GovernanceDecision(_),
             ref action,
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
             if !props.system_coordinator_key.is_empty()
-                && action.author.to_string() != props.system_coordinator_key
+                && action.author().to_string() != props.system_coordinator_key
             {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only system_coordinator_key may write GovernanceDecision entries".into(),
@@ -311,7 +311,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //   4. badge_type must be consistent with agreement_level + validator count
         //      (mirrors evaluate_badge in the coordinator so the integrity zome
         //      enforces the badge-tier rules network-wide, not just per-coordinator).
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ReproducibilityBadge(ref badge),
             ref action,
             ..
@@ -330,7 +330,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      referenced HarmonyRecord.request_ref".into(),
                 ));
             }
-            if !harmony_record.participating_validators.contains(&action.author) {
+            if !harmony_record.participating_validators.contains(action.author()) {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only validators who participated in the round may issue a badge".into(),
                 ));
@@ -372,14 +372,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // Reputation records are authoritative system data — only the
         // designated system coordinator may mint or update them.
         // Empty key = dev/test bypass (same pattern as GovernanceDecision).
-        FlatOp::StoreEntry(OpEntry::CreateEntry {
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::ValidatorReputation(_),
             ref action,
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
             if !props.system_coordinator_key.is_empty()
-                && action.author.to_string() != props.system_coordinator_key
+                && action.author().to_string() != props.system_coordinator_key
             {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only system_coordinator_key may create ValidatorReputation entries".into(),
@@ -389,35 +389,35 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }
 
         // --- Immutability: block updates to HarmonyRecord -------------------
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::HarmonyRecord(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "HarmonyRecord is immutable — the public record cannot be changed".into(),
         )),
 
         // --- Immutability: block updates to GovernanceDecision --------------
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::GovernanceDecision(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "GovernanceDecision is immutable — the decision history is append-only".into(),
         )),
 
         // --- Immutability: block updates to ReproducibilityBadge ------------
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ReproducibilityBadge(_), ..
         }) => Ok(ValidateCallbackResult::Invalid(
             "ReproducibilityBadge is immutable — badges cannot be altered after issuance".into(),
         )),
 
         // --- ValidatorReputation update: only system_coordinator_key --------
-        FlatOp::RegisterUpdate(OpUpdate::Entry {
+        FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::ValidatorReputation(_),
             ref action,
             ..
         }) => {
             let props = DnaProperties::try_from_dna_properties()?;
             if !props.system_coordinator_key.is_empty()
-                && action.author.to_string() != props.system_coordinator_key
+                && action.author().to_string() != props.system_coordinator_key
             {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only system_coordinator_key may update ValidatorReputation entries".into(),
@@ -426,10 +426,10 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        FlatOp::RegisterUpdate(_) => Ok(ValidateCallbackResult::Valid),
+        FlatOp::Update(_) => Ok(ValidateCallbackResult::Valid),
 
         // --- Deletes: HarmonyRecord, GovernanceDecision, Badge are immutable -
-        FlatOp::RegisterDelete(OpDelete { ref action }) => {
+        FlatOp::Delete(OpDelete { ref action }) => {
             let original_record = must_get_valid_record(action.deletes_address.clone())?;
             if let Some(EntryType::App(app_def)) = original_record.action().entry_type() {
                 if let Some(entry) = original_record.entry().as_option() {
@@ -459,7 +459,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 }
             }
             // Non-immutable entries: only original author may delete.
-            if action.author != *original_record.action().author() {
+            if action.author() != original_record.action().author() {
                 return Ok(ValidateCallbackResult::Invalid(
                     "Only the original author may delete this entry".into(),
                 ));
@@ -474,26 +474,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         // would let a validator who triggered finalisation hide the outcome
         // from all future queries (the entry itself is immutable, but the
         // index link is not).
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::RequestToHarmonyRecord,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "RequestToHarmonyRecord links are immutable — \
              the finalisation index cannot be removed".into(),
         )),
 
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::StudyToBadge,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "StudyToBadge links are immutable — \
              issued badges cannot be hidden".into(),
         )),
 
-        FlatOp::RegisterDeleteLink {
+        FlatOp::Link(OpLink::DeleteLink {
             link_type: LinkTypes::AllDecisions,
             ..
-        } => Ok(ValidateCallbackResult::Invalid(
+        }) => Ok(ValidateCallbackResult::Invalid(
             "AllDecisions links are immutable — \
              the governance decision index is append-only".into(),
         )),
