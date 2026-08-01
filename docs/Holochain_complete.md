@@ -1571,6 +1571,14 @@ Use CI for load-sensitive reproduction; it is the loaded shared runner where the
   the sufficient part.
 - The `no-test-hooks` guard passes on the repacked bundles, and still fails on `workdir-test/`.
 
+🆕 **Work has landed on top of that checkpoint** (2026-08-01 afternoon), and it is protocol
+work, not migration work — the validator→bundle binding (`ef795736`), the HarmonyRecord
+undercount fix (`60a5609c`), the `DataLocalityMode` delete guard (`171b7042`), the badge-issuance
+fix (`99a72a69`), plus the delete tripwires (§44.10). Each was pushed and CI'd separately, so a
+failure can still be attributed between the port and the feature. **The sequencing rule that made
+that possible — get Phase A green first, then build on it as separate commits — is worth repeating
+for Phases B and C.** The list below is unchanged by any of it.
+
 ⚠️ **NOT verified — do not assume any of this works on 0.7:**
 
 1. **The 97 Tryorama tests** — deliberately skipped on this branch; Phase B is blocked.
@@ -1589,19 +1597,79 @@ Use CI for load-sensitive reproduction; it is the loaded shared runner where the
 `test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
 skipped. None of that should reach `main` as-is.
 
-### 44.9 Known flake, not a 0.7 regression
+### 44.9 The badge flake — and why "gossip lag" was the wrong diagnosis for two sessions
 
-`silver_badge_issued_with_five_validators` (`sweettest_integration/tests/governance.rs:1092`)
-fails intermittently on the badge-index assertion. It passed on `719c62ce` and failed on
-`70cd07dc`, which is a **docs-only** commit — identical test and zome code, opposite results.
-The badge reads are `GetStrategy::Network` on `StudyToBadge`/`BadgePath` links, which is
-correct (badges can be authored by other agents), so this is gossip lag on a loaded 5-conductor
-runner, not a read-strategy error.
+`silver_badge_issued_with_five_validators` (`sweettest_integration/tests/governance.rs`) failed
+intermittently on the badge-index assertion. It passed on `719c62ce` and failed on `70cd07dc`,
+which is a **docs-only** commit — identical test and zome code, opposite results. That is a
+genuine flake, and it is **not a 0.7 regression**.
 
-⚠️ Commit `1152fd38` fixed a retry loop that `unwrap()`ed inside itself and so panicked on its
-own first iteration — *a flake mitigation that could not absorb the flake it was written for*.
-That fix is real, but the underlying lag can still outlast all 5 retry rounds (~5 minutes of
-`await_consistency`). **The mitigation now works and is still not sufficient.**
+It was twice recorded here as gossip lag. **That explanation never fitted the code**, and
+reading it settled the matter (`710f2b6b`, then fixed in `99a72a69`):
+
+- `issue_badge_if_missing` did `let Some(record) = get(record_hash, GetOptions::network())?
+  else { return Ok(()) }`. On a miss it issued no badge, logged nothing, and **reported
+  success**.
+- That fetch is genuinely **remote**. The HarmonyRecord is authored by whichever validator's
+  reveal met quorum, while the repair runs on a different agent. A miss there is ordinary.
+- `check_and_create_harmony_record` returned `Some(hash)` either way, so nothing upstream could
+  tell that the repair had declined to repair.
+- **The test's retry loop only re-READ badges; it never re-triggered issuance.** So a single
+  missed fetch made all five rounds futile *by construction* — which is precisely why widening
+  the retry windows never helped, and why "lag" never quite fitted. No amount of re-reading
+  conjures a badge that was never issued.
+
+**The fix (`99a72a69`) repairs the round whichever way the underlying race went**, which is the
+property worth having while causation is still unproven:
+
+1. Both the miss and the decode-to-`None` path now return `Err` instead of `Ok(())`. Safe: the
+   sole caller is `if let Err(e) = issue_badge_if_missing(..) { warn!(..) }`, so finalisation
+   still succeeds and the HarmonyRecord hash is still returned — the failure merely stops being
+   invisible. The genuine "no badge earned" path still returns `Ok(())`, and is now
+   *distinguishable* from the failures, which it was not before.
+2. Each retry iteration calls `check_and_create_harmony_record` first — a no-op when the badge is
+   already there, a repair when it is not.
+
+⚠️ Superseded, for the record: `1152fd38` had fixed a retry loop that `unwrap()`ed inside itself
+and panicked on its own first iteration. That fix was real but addressed the wrong layer — the
+loop then genuinely retried, and retrying was never the thing that could work.
+
+**The generalisable lesson is about instrumentation, not badges.** From `conductors[0]` alone the
+two hypotheses (never issued / issued but not yet visible) are indistinguishable, which is exactly
+why it was guessed at twice. The diagnostic added in `710f2b6b` asks **every** conductor on the
+failure path only: no conductor has it → never issued; another conductor has it → the
+silent-skip theory is wrong for that failure. It is written to be able to say the theory is
+wrong. *An experiment that can only confirm you is not an experiment.*
+
+### 44.10 What the port's safety net still missed — delete guards
+
+The tripwires (§44.7) proved the **update** guards survived the port. They said nothing about the
+**delete** guards, and that gap went unnoticed for a day.
+
+The 0.7 port reflowed four `RegisterDelete` → `Delete(OpDelete { action })` arms. Arm ordering
+was checked mechanically, which is a real check — but *"the arms are in the right order"* and
+*"the guard actually rejects a delete"* are different claims, and only the first had ever been
+demonstrated. **Sixteen "… is immutable — cannot be deleted" guards across the integrity zomes
+had no test that would have failed if they were deleted outright.**
+
+What looked like coverage was eight tests calling zome functions that had never been written
+(`delete_phase_marker_for_test`, `delete_commitment_for_test`, `delete_protocol_for_test`, …) —
+`grep "fn <name>"` = 0 hits for all eight. Each asserted a bare "did it error?" and passed on
+*"function not found"*, while being titled "… is rejected by `validate()`" and never reaching
+`validate()`. **Five of them lived in the Tryorama suite and were counted in the 97-passing
+figure.** This is the identical defect culled from the sweettests on 2026-07-30; that cull simply
+never looked at the Tryorama suite.
+
+They were **deleted rather than repaired**, because Tryorama cannot issue a forbidden update or
+delete at all — no coordinator exposes `update_entry`/`delete_entry` by design, which is the whole
+reason the test-only externs in `workdir-test/` exist. Each removal site names its replacement
+tripwire so nobody reinstates them. Five delete tripwires now mirror the five update ones
+(`ValidationRequest`, `ValidationAttestation`, `StudyClaim`, `ValidatorPrivateAttestation`,
+`PreRegisteredProtocol`), each asserting the guard's **own message** and reusing
+`assert_rejected_by_guard`, so a missing extern fails with a build hint instead of passing.
+
+⚠️ **Carry this into Phases B and C:** a green safety net proves what it tests. Before trusting one
+across a version bump, check that it can fail for the specific thing you are about to change.
 
 ---
 

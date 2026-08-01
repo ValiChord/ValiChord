@@ -1,11 +1,11 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-07-31
+**Last updated:** 2026-08-01
 **Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.1** (GitHub release, 2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
 
-# 🚦 START HERE — next session (rewritten 2026-08-01)
+# 🚦 START HERE — next session (rewritten 2026-08-01, evening)
 
 **✅ PHASE A IS COMPLETE AND CI-GREEN.** All 51 `FlatOp` arms ported, all 8 zomes on
 `hdi 0.8.0` / `hdk 0.7.0`, conductor configs fixed, bundles repacked on 0.7, and **run
@@ -25,7 +25,7 @@ verified — read it before assuming anything outside Phase A works.
 | Phase | Scope | Status |
 |---|---|---|
 | **A** | 4 DNA zomes, `sweettest_integration`, configs, bundles | ✅ **complete, CI-green** |
-| **B** | 97 Tryorama tests + Svelte UI | 🟠 **half-unblocked, newly** |
+| **B** | Tryorama suite (92 tests, was 98 — see below) + Svelte UI | 🟠 **half-unblocked, newly** |
 | **C** | `valichord/wind-tunnel/` | 🔴 blocked upstream |
 
 🆕 **Phase B changed on 2026-08-01: `@holochain/client` **0.21.0** and `@holochain/hc-spin`
@@ -50,19 +50,52 @@ Tests S9/S10/S11 in `security.rs`, and **the negative control fired** — delibe
 the field made a substituted-bundle reveal succeed with a real `ActionHash` while every other
 test stayed green.
 
-🕐 **Open Audit Mode remains outstanding, and it will cost a second hash break.** That is the
-accepted price of not rushing per-study X25519 key management. Design is in the architecture
-doc under *Data Locality Modes*. ⚠️ **When it is taken, note that its hash-breaking parts are
-small** — the `EncryptedDataset` entry type and the decryption-key field on `ResearcherReveal`.
-The bulk (key generation, mode selector, UI) is coordinator and frontend work, and coordinator
-changes hot-swap onto live nodes with **zero** hash change. So the second break can be made
-cheap if the entry shapes are settled first.
+🕐 **Open Audit Mode is still mostly outstanding — but its integrity-level groundwork was taken
+on the same reasoning** (`171b7042`). `DataLocalityMode` (`Gdpr` | `OpenAudit`, defaulting to
+`Gdpr`) now exists in `shared_types` and rides on `LockedResult`, and the DNA 1 delete guard
+follows it: erasure stays **allowed** under `Gdpr` (guarding it would remove the erasure right
+the mode exists to protect, and buys nothing — the binding commitment is on DNA 3, public and
+immutable) and is **refused** under `OpenAudit` (a mode that *is* a permanent commitment to
+post-reveal public access cannot let the sealed material be erased afterwards). That field is
+integrity-level, so taking it later would have cost a second hash break by itself.
+
+⚠️ **Everything in production today is `Gdpr`; the `OpenAudit` branch is unreachable groundwork.**
+What remains: `EncryptedDataset`, per-study X25519 key generation, the decryption-key field on
+`ResearcherReveal`, and the submission-time mode selector. **Only the first two are
+hash-breaking** — key generation, the selector and the UI are coordinator/frontend work, which
+hot-swaps onto live nodes with **zero** hash change. So the second break is now smaller still,
+and stays cheap if the remaining entry shapes are settled before it is paid.
+
+**It also closed a real hole, not just groundwork.** `LockedResult` — the researcher's sealed
+metrics *and nonce* — was update-guarded by the blanket `PrivateEntry` arm but had **no delete
+guard at all**; deletes fell through to "only the original author may delete", which the
+researcher passes by definition. Because the *update* test passed, deletes looked covered.
+
+### What landed after the Phase A checkpoint — 2026-08-01 afternoon
+
+Mostly the product of auditing the test suites rather than of the port itself — but one of them
+(`60a5609c`) is a **protocol correctness bug with permanent consequences**, so read that row.
+
+| Commit | What it fixed, and why it matters |
+|---|---|
+| `0030a9cf` | **`run-sweettest.sh`** — the `grep -v sqlcipher_mlock` filter that ate a test's result line on 07-30 did it *again* on 08-01, to the same test, because the "mitigation" was a note asking a human to remember. The script keeps the raw log unfiltered and **cross-checks named results against cargo's own summary**, failing on a mismatch. Negative-controlled three ways via a `SWEETTEST_REPLAY_LOG` hook. **Use it; do not hand-roll a filter.** |
+| `710f2b6b` | Instruments the badge flake so the next occurrence produces a **verdict** rather than a third inference — asks *every* conductor on the failure path, and is written so it can say the standing theory is wrong. |
+| `cc19e8c4` | **The delete guards had no coverage that could fail.** Sixteen "cannot be deleted" guards, and not one test that would have failed if they were removed — the 0.7 port reflowed four `RegisterDelete` arms with no runtime net behind them. Eight tests called zome functions that were **never written** and passed on *"function not found"*; six of them were in the Tryorama suite, inside the quoted 97. Deleted rather than repaired (Tryorama structurally cannot issue a forbidden delete — no coordinator exposes `delete_entry`), and replaced with **five delete tripwires** mirroring the update ones, each asserting the guard's own message. ⚠️ Tryorama declarations went **98 → 92** (1 `test.skip`), so drop the "97 tests" figure; it cannot be re-confirmed by running until Phase B unblocks. |
+| `60a5609c` | **HarmonyRecord undercount — the most serious of these.** `write_harmony_record` silently `filter_map`ped away any attestation whose entry would not decode or arrived as `NotStored`, *after* the quorum gate had already counted it. Both consequences are permanent, because a HarmonyRecord is immutable: participation understated forever, and the count feeds `evaluate_badge`, so a genuine 7/7 `ExactMatch` round would issue **Silver instead of Gold**. Found by CI (`left: 6, right: 7`). Now errors and retries later; logic split into `validator_attestation_pairs()` so it unit-tests in 0.00 s instead of needing a 2-hour 7-conductor run. |
+| `171b7042` | `DataLocalityMode` + the `LockedResult` delete guard (above). |
+| `99a72a69` | **The badge flake's actual mechanism** — see below. |
+
+**CI on the head commit** (`99a72a69`, run `30710181336`): tripwires, the `no-test-hooks` guard,
+and the security / researcher_repository / validator_workspace sweettests all green; **attestation
+and governance still in flight at the time of writing — check them before treating the head as
+verified.** `60a5609c` — the commit carrying the undercount fix — was **fully green** on its own
+run, so that fix itself is verified independently of how the head run lands.
 
 ⚠️ **Sequencing rule that was followed and should be followed again:** Phase A was green
 *before* the binding went on top, as separate commits. A failure can therefore be attributed
 between the port and the feature, and the migration stays independently verifiable.
 
-### Step 2 — optionally start the UI half of Phase B
+### Next — optionally start the UI half of Phase B
 
 Newly unblocked (see above). Known first edit: `valichord-ui/src/lib/types.ts:331` needs
 `.header.author` — `SignedActionHashed` is no longer generic and common action fields moved
@@ -71,16 +104,28 @@ under `.header`. Three `@holochain/client` pins to bump: `valichord-ui/package.j
 so the UI would be moving without its integration-test net — worth weighing against just
 waiting for Tryorama.
 
-### Known flake — not a 0.7 regression, and not fully mitigated
+### The badge flake — "gossip lag" was the wrong diagnosis, twice
 
-`silver_badge_issued_with_five_validators` (`governance.rs:1092`) fails intermittently. It
-passed on `719c62ce` and failed on `70cd07dc` — a **docs-only** commit, identical test and zome
-code. Gossip lag on a loaded 5-conductor runner; the badge reads are correctly `Network`.
+`silver_badge_issued_with_five_validators` fails intermittently. Still **not a 0.7 regression**
+(it passed on `719c62ce` and failed on `70cd07dc`, a **docs-only** commit). But it was recorded
+here twice as gossip lag, and **that never fitted the code**:
 
-⚠️ `1152fd38` fixed a retry loop that `unwrap()`ed inside itself and so panicked on its own
-first iteration. That fix is real — the loop now genuinely retries — but the lag can still
-outlast all 5 rounds (~5 min of `await_consistency`). **The mitigation now works and is still
-not sufficient.** If you want it gone rather than tolerated, that is its own piece of work.
+- `issue_badge_if_missing` did `let Some(record) = get(hash, GetOptions::network())? else {
+  return Ok(()) }` — on a miss it issued no badge, logged nothing, and **reported success**.
+- That fetch is genuinely **remote** (the HarmonyRecord is authored by whichever validator's
+  reveal met quorum; the repair runs on a different agent), so a miss is ordinary, not exotic.
+- **The retry loop only re-READ badges — it never re-triggered issuance.** One missed fetch made
+  all five rounds futile *by construction*. That is why widening the retry windows never helped.
+  No amount of re-reading conjures a badge that was never issued.
+
+`99a72a69` fixes it either way the underlying race goes: the silent-skip and decode-to-`None`
+paths now return `Err` (safe — the sole caller warns and continues, so finalisation still
+succeeds), and each retry iteration calls `check_and_create_harmony_record` first: a no-op when
+the badge is there, a repair when it is not.
+
+⚠️ **Causation is still not formally proven** — the diagnostic from `710f2b6b` will settle it on
+the next failure. `1152fd38`'s earlier fix (a retry loop that `unwrap()`ed inside itself and
+panicked on its own first iteration) was real but addressed the wrong layer.
 
 ### What was learned during the port — read before the next migration
 
@@ -94,6 +139,13 @@ not sufficient.** If you want it gone rather than tolerated, that is its own pie
   had changed, and that cost a red tripwire run. See `docs/Holochain_complete.md` §44.3.
 - **`attestation` has 9 per-type guard arms, not 12** — the checklist conflated guards with total
   `RegisterUpdate` arms.
+- 🆕 **A green safety net proves only what it tests.** The tripwires covered the *update* guards,
+  so the 0.7 reflow of four `RegisterDelete` arms went across with **no runtime net at all** —
+  and the eight tests that appeared to cover deletes passed on *"function not found"*. Before
+  trusting a net across a version bump, check it can fail for the thing you are about to change.
+- 🆕 **A cull is only as wide as the suite you looked at.** The 07-30 cull of fake immutability
+  tests never looked at the Tryorama suite, where five more of them lived — inside the
+  97-passing figure.
 
 ### Non-negotiables (unchanged)
 
@@ -110,8 +162,16 @@ not sufficient.** If you want it gone rather than tolerated, that is its own pie
 2026-07-30: three "immutability" tests passing on *"function not found"*; a CI guard grepping
 *compressed* bundles. 2026-07-31: a badge-flake retry loop that panicked on the first retry; a
 public doc advertising a HarmonyRecord URL that had been dead for seven weeks; and my own log
-filter that ate a test's result line while I was checking that very test. Every fix was the same —
+filter that ate a test's result line while I was checking that very test. 2026-08-01: **eight
+more** tests passing on "function not found", this time in Tryorama; a badge retry loop that
+could only re-read a badge that had never been issued; and **that same log filter eating that
+same test's result line a second time**, because its "fix" had been a note asking a human to
+remember. Every fix was the same —
 **run the negative control: prove the check can fail before trusting that it passed.**
+
+🆕 **And its corollary, learned on 2026-08-01: a remembered mitigation is not a mitigation.** The
+log filter recurred because the control lived in a document. It stopped recurring when it became
+`run-sweettest.sh`, which fails on a count mismatch whether or not anyone remembers why.
 
 ---
 

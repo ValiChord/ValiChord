@@ -41,7 +41,7 @@ hc app pack .                           -o workdir/valichord.happ
 
 **Never use `pack_dna.py`** — it is broken and embeds the same DNA bytes for all four roles.
 
-### Tryorama integration tests (96 pass, 1 skipped)
+### Tryorama integration tests (91 active + 1 skipped)
 
 ```bash
 cd valichord/tests && npm test
@@ -336,7 +336,9 @@ Checked 2026-07-30, ~15 min after the release:
 | holonix | *no `main-0.7` branch* | only `update-to-0.7.0-rc.0` |
 | docs-pages upgrade guide PR #647 | open, last updated **07-28** (pre-release) | — |
 
-**Consequence: the 97 Tryorama tests and the Svelte UI CANNOT migrate yet** — there is no stable client or Tryorama to migrate *to*. The Rust zomes + `sweettest_integration` can migrate today.
+**Consequence: the Tryorama suite and the Svelte UI CANNOT migrate yet** — there is no stable client or Tryorama to migrate *to*. The Rust zomes + `sweettest_integration` can migrate today.
+
+⚠️ **The long-quoted "97 Tryorama tests" is stale as of `cc19e8c4` (2026-08-01).** Six tests were removed as fakes that passed on *"function not found"*; the suite now declares **92 tests, 1 of them `test.skip`**. Counted from the source, not from a run — the suite cannot be executed at all until Phase B unblocks. Note the count of declarations before the cull was **98**, one more than the "96 pass + 1 skipped" recorded here for months, so treat any quoted total as approximate until the suite runs again.
 
 **🔴 AND A THIRD BLOCKER — `wind-tunnel` (found in the 2026-07-30 API audit, not previously recorded).** `valichord/wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate that pulls `holochain = "0.6"`. That crate must ship a 0.7 version before the load-test workspace can move. Independent of both the zomes and the JS side.
 

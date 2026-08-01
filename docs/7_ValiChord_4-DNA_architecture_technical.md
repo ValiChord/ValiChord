@@ -326,23 +326,35 @@ Immutability guards **must** precede the generic update arm — Rust match order
 
 ```rust
 // GUARDED ARMS FIRST
-FlatOp::RegisterUpdate(OpUpdate::Entry {
+FlatOp::Update(OpUpdate::Entry {
     app_entry: EntryTypes::ValidationAttestation(_), ..
 }) => Invalid("immutable")
 
-FlatOp::RegisterUpdate(OpUpdate::Entry {
+FlatOp::Update(OpUpdate::Entry {
     app_entry: EntryTypes::CommitmentAnchor(_), ..
 }) => Invalid("immutable")
 
-FlatOp::RegisterUpdate(OpUpdate::Entry {
+FlatOp::Update(OpUpdate::Entry {
     app_entry: EntryTypes::PhaseMarker(_), ..
 }) => Invalid("immutable")
 
 // GENERIC ARM AFTER
-FlatOp::RegisterUpdate(OpUpdate::Entry { action, .. }) => {
+FlatOp::Update(OpUpdate::Entry { action, .. }) => {
     // author check only
 }
 ```
+
+> **Variant names are the 0.7 ones** (`hdi 0.8.0`): `FlatOp::Update`, not 0.6's
+> `FlatOp::RegisterUpdate`. The rename is cosmetic; the ordering rule above is not, and
+> a mechanical reflow that reorders these arms disables immutability with no compile
+> error. Ordering is checked mechanically and proven at runtime by the tripwire suite
+> (`sweettest_integration/tests/immutability_tripwire.rs`) — see `Holochain_complete.md` §44.2.
+
+**Delete guards are a separate claim from update guards, and need their own tests.** Sixteen
+"cannot be deleted" guards sat with no coverage that could fail until 2026-08-01; eight tests
+that appeared to cover them were calling zome functions that had never been written and passed
+on *"function not found"*. Five delete tripwires now mirror the five update ones. A guard's
+arm being in the right place and the guard actually rejecting the op are different claims.
 
 ### Membrane Proof
 
@@ -561,7 +573,32 @@ Any third party can now independently verify: retrieve `EncryptedDataset` from D
 **Constraints:**
 - The decryption key, once published in the Harmony Record, is irrevocable. Open audit mode is a permanent commitment to post-reveal public access.
 - GDPR-sensitive datasets must use GDPR mode regardless of researcher preference — publishing a decryption key permanently defeats erasure rights.
-- `EncryptedDataset` entry type, X25519 key generation in DNA 1, decryption key field on `ResearcherReveal`, and submission-time mode selector are Phase 1 work.
+- `EncryptedDataset` entry type, X25519 key generation in DNA 1, decryption key field on `ResearcherReveal`, and submission-time mode selector are Phase 1 work — **except the mode field itself and its erasure consequence, which are built; see below.**
+
+### What is built today (2026-08-01)
+
+**Only the erasure consequence.** `DataLocalityMode` is a real two-variant enum in
+`shared_types` (`Gdpr` | `OpenAudit`, defaulting to `Gdpr`), carried as
+`LockedResult.data_locality_mode` in DNA 1 and fixed at lock time. The DNA 1 delete guard reads
+it off the record it is already fetching and branches:
+
+| Mode | `LockedResult` delete | Why |
+|---|---|---|
+| `Gdpr` | **allowed** | Guarding it would remove the erasure right the mode exists to protect, and buys nothing — the binding commitment is `ResearcherResultCommitment` on DNA 3, already public and immutable. Deleting a `LockedResult` destroys only the researcher's own ability to reveal: the same outcome as declining to reveal, which the protocol already handles as an abandoned round. |
+| `OpenAudit` | **refused** | The mode *is* a permanent commitment to post-reveal public access. Erasing the sealed material afterwards contradicts the promise. |
+
+Two notes on why it is shaped this way:
+
+- **The mode lives on the entry, not on the `ValidationRequest`.** `validate()` is deterministic
+  and cannot call across to DNA 3, so the guard cannot look the mode up — it must be handed it.
+- **It was taken now on purpose.** This is an *integrity-level* field: adding it later would cost
+  a second DNA-hash break, and the 0.7 migration is already paying for one. Everything in
+  production today is `Gdpr`; the `OpenAudit` branch is groundwork with no way to reach it yet.
+
+Feasibility was established by accident the same day: `PreRegisteredProtocol` is
+`visibility = "private"` and its delete guard demonstrably works, proving `validate()` in this
+all-private DNA can fetch and deserialise the entry it is guarding. Without that, none of this
+would have been possible.
 
 ---
 
@@ -573,7 +610,7 @@ Any third party can now independently verify: retrieve `EncryptedDataset` from D
 | Gaming detection | DNA 3 `detect_gaming_patterns()` | Stub. Pattern flags defined but not implemented |
 | GoldReproducible badge (7 validators) | sweettest governance test 15 | **Passes** (`gold_badge_issued_with_seven_validators`, in-process conductors, CI-safe). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
 | Countersigning for simultaneous reveal | DNA 3 | Deferred to Phase 2. Current design uses DHT-poll-driven sequential reveals. CommitmentAnchor approach already prevents outcome-peeking. True countersigning adds operational constraints (all validators online simultaneously) that are inappropriate for Phase 0 |
-| Open audit mode | DNA 1, DNA 3 | Architecture defined (see Data Locality Modes section). `EncryptedDataset` entry type, X25519 keypair generation in DNA 1, decryption key field on `ResearcherReveal`, and submission-time mode selector are Phase 1 work |
+| Open audit mode | DNA 1, DNA 3 | Architecture defined (see Data Locality Modes section). **Partially built 2026-08-01:** `DataLocalityMode` exists in `shared_types` and rides on `LockedResult`, and the DNA 1 delete guard already follows it — the *integrity-level* part, taken early so it rides the 0.7 hash break rather than costing a second one. Still Phase 1: `EncryptedDataset` entry type, per-study X25519 keypair generation in DNA 1, the decryption-key field on `ResearcherReveal`, and the submission-time mode selector. Of those, only the first two are hash-breaking; key generation, the selector and the UI are coordinator/frontend work, which hot-swaps with **zero** hash change |
 | **What a badge tier asserts — count-based rule unspecified** | DNA 4 badge thresholds (7 / 5 / 3) | The ladder is currently read as "more validators = stronger claim". A simulated study suggests the tiers may assert *categorically different* things, not degrees of the same thing. **Finding (simulated, synthetic — same source and caveats as Phase 0 limitation 5):** a 3-validator cohort **resolved 0% of the time** against an 80%-consensus threshold at a one-standard-error band, while being *correct* about as often as 11 validators (78% vs 76%). Being right and *establishing* the claim to a stated standard are different properties, and Bronze may be asserting only the first. A second result cuts against the ladder's intuition directly: at the weakest signal tested, accuracy **fell** as validators were added (28% at k=5 → 12% at k=11) — a small noisy cohort sometimes clears a mis-set threshold by luck, a large one estimates the wrong value precisely and is confidently wrong. **Not actionable as-is:** that study's validator-count comparison is confounded by integer rounding of its threshold (k=3 must be unanimous, k=5 needs 4 of 5), so the cross-k numbers are not a fair comparison and it does not implement a count-based rule. Deciding this needs a rule expressed in validator counts with an explicit confidence standard, then a fair re-run. Until then, do not describe Bronze as a weaker Gold in public material |
 | Multi-device identity / agent linking | DNA 3 `ValidatorProfile`, DNA 4 `ValidatorReputation` | **Partially addressed (March 2026):** Both structs now carry `person_key: Option<AgentPubKey>` (`#[serde(default)]`, backwards-compatible). When a cross-device identity system (Flowsta `IsSamePersonEntry`, Deepkey) links a validator's keys to a canonical person, this field carries that stable key — preventing reputation loss on device rotation. The field is `None` for all existing records; population and aggregation logic are Phase 1 work. Full resolution (querying `IsSamePersonEntry` links, deduplicating `CommitmentAnchor` counts by person, COI checks across linked keys) remains deferred. See `nondominium_integration/NONDOMINIUM_ARCHITECTURE.md` for Flowsta context. |
 
@@ -583,7 +620,7 @@ Any third party can now independently verify: retrieve `EncryptedDataset` from D
 
 All cross-DNA types live in `valichord/shared_types/` — a pure `rlib` crate imported by all four DNAs. This avoids the `cdylib` duplicate-symbol error that occurs when types are defined in an integrity zome (compiled as `cdylib`) and re-exported across crates.
 
-Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `discipline_tag()`.
+Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `DataLocalityMode`, `discipline_tag()`.
 
 ---
 
