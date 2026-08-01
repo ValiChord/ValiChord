@@ -2348,3 +2348,25 @@ pub fn test_force_update_validation_request(
 ) -> ExternResult<ActionHash> {
     update_entry(input.0, EntryTypes::ValidationRequest(input.1))
 }
+
+// --- Delete hooks -----------------------------------------------------------
+//
+// Same `test_utils` safety envelope as the update hooks above: absent from every
+// production build, packed only to `workdir-test/`, and caught by
+// `./check-no-test-hooks.sh` if one ever reaches a committed bundle.
+//
+// These exist because the delete guards had NO working coverage at all until
+// 2026-08-01. What appeared to cover them were tests calling functions that were
+// never written (`delete_commitment_for_test`, `delete_phase_marker_for_test`,
+// `delete_protocol_for_test`), asserting a bare "did it error?" — they passed on
+// "function not found" and would have stayed green with every delete guard
+// removed. Deleting an entry needs no payload, which is precisely why the fake
+// versions looked plausible for so long.
+//
+// See `sweettest_integration/tests/immutability_tripwire.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
+    delete_entry(hash)
+}

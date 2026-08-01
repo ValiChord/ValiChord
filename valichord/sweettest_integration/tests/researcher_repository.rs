@@ -257,12 +257,16 @@ async fn protocol_immutability_no_delete_fn_in_api() {
         )
         .await;
 
-    // Calling a nonexistent function must fail — confirms no delete path in API.
-    // call_fallible returns ConductorApiResult<O>; O = () since we don't need the value.
-    let result: Result<(), _> = conductor
-        .call_fallible(&zome, "delete_protocol_for_test", protocol_hash)
-        .await;
-    assert!(result.is_err(), "calling a nonexistent delete function must be rejected");
+    // The delete-immutability assertion that used to sit here was removed on
+    // 2026-08-01. It called `delete_protocol_for_test` -- a function that was
+    // never written -- and asserted a bare `is_err()`, so it passed on "function
+    // not found" and would have stayed green with the delete guard removed. It
+    // proved only that one invented name is not exposed.
+    //
+    // Real coverage: `pre_registered_protocol_delete_is_rejected` in
+    // tests/immutability_tripwire.rs issues an actual delete via a test-only
+    // extern and asserts on the guard's own message.
+    let _ = protocol_hash;
 }
 
 // ---------------------------------------------------------------------------

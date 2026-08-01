@@ -32,7 +32,18 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-NEEDLE="${NEEDLE:-test_force_update}"
+# Matches the `test_force_` PREFIX, not a specific hook name.
+#
+# This was `test_force_update` until 2026-08-01, when delete tripwires were added
+# and the guard would silently have ignored `test_force_delete_entry` — a guard
+# that only catches the hooks that existed when it was written is a guard with an
+# expiry date nobody is told about. The prefix is the naming convention, so any
+# future hook following it is covered on the day it is written rather than the day
+# somebody remembers to update this line.
+#
+# Verified to have no legitimate hits: `test_force_` appears nowhere in production
+# source, only in the #[cfg(feature = "test_utils")] blocks.
+NEEDLE="${NEEDLE:-test_force_}"
 DIR="${NEEDLE_SCAN_DIR:-workdir}"
 
 echo "Scanning '$DIR' for test-only hooks (needle: '$NEEDLE')..."

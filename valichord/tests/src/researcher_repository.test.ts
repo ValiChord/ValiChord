@@ -366,50 +366,20 @@ describe("5. compute_data_hash", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. PreRegisteredProtocol immutability — delete rejected
+// 6. PreRegisteredProtocol delete immutability — covered by the SWEETTEST TRIPWIRE
 // ---------------------------------------------------------------------------
 //
-// validate() in researcher_repository_integrity blocks all deletes of
-// PreRegisteredProtocol entries. The coordinator exposes no delete function —
-// immutability is enforced at both the API level (no function exists) and
-// the validation level (validate() rejects OpDelete).
+// A test was removed here on 2026-08-01. It called delete_protocol_for_test, a
+// coordinator function that was never written, and accepted the resulting
+// "function not found" as proof that validate() blocks the delete. It proved
+// only that one invented name is not exposed, and would have stayed green with
+// the delete guard removed.
 //
-// Pattern mirrors attestation.test.ts describe 4: call a nonexistent
-// coordinator function → rejected with "function not found", which confirms
-// the API offers no delete path.
+// Real coverage: pre_registered_protocol_delete_is_rejected in
+// valichord/sweettest_integration/tests/immutability_tripwire.rs, which issues
+// an actual delete through a test-only extern and asserts on the guard's own
+// message ("PreRegisteredProtocol is immutable -- deletes are not permitted").
 
-describe("6. PreRegisteredProtocol immutability (delete)", () => {
-  test(
-    "attempting to delete a PreRegisteredProtocol is rejected (no delete function in API)",
-    { timeout: 900_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([simplePlayerConfig()]);
-
-        // Register a study and then a protocol.
-        const studyHash = await repo(alice, "register_study", makeStudy());
-        const protocolHash = await repo(alice, "register_protocol", {
-          study_ref: studyHash,
-          protocol: makeProtocol(),
-        });
-        expect(protocolHash).toBeTruthy();
-
-        // Attempt to delete via a nonexistent coordinator function.
-        // The rejection confirms no delete path exists in the public API.
-        // validate() provides a second layer of defence for any future
-        // function that might be added: it blocks OpDelete for PreRegisteredProtocol.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "researcher_repository",
-            zome_name: "researcher_repository_coordinator",
-            fn_name: "delete_protocol_for_test",
-            payload: protocolHash,
-          }),
-        ).rejects.toThrow();
-      }, true, { timeout: 900_000 });
-    },
-  );
-});
 
 // ---------------------------------------------------------------------------
 // 7. get_all_studies

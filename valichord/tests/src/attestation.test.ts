@@ -819,135 +819,35 @@ describe("6. ValidationRequest lifecycle", () => {
         );
         expect(result).toBeNull();
       }, true, { timeout: 300_000 });
-    },
-  );
-});
-
 // ---------------------------------------------------------------------------
-// 7. PhaseMarker and CommitmentAnchor immutability (update path)
+// Immutability coverage lives in the SWEETTEST TRIPWIRES, not here.
 // ---------------------------------------------------------------------------
 //
-// validate() in attestation_integrity blocks updates to CommitmentAnchor,
-// PhaseMarker, and ValidationAttestation. The coordinator exposes no update
-// or delete functions for these entries — immutability is enforced at both
-// the API level (no function exists) and the validation level (validate()
-// rejects the op if the function were ever added).
+// Five tests were removed from this file on 2026-08-01. They were named
+// "... is rejected by validate()" but called coordinator functions that were
+// never written -- update_commitment_for_test, update_phase_marker_for_test,
+// delete_phase_marker_for_test, update_attestation_for_test,
+// delete_commitment_for_test. Every one failed with "function not found", and a
+// bare `.rejects.toThrow()` accepted that as proof. They would have stayed green
+// with validate() deleted entirely, and they were counted in the suite total.
 //
-// These tests verify the API-level protection, which is the practical guard.
+// One of them said so in its own body: "the zome_call above will fail with
+// 'function not found' -- which is itself evidence that updates are impossible
+// from the public API". That is evidence about ONE invented name, not about the
+// guard, and the test titles claimed the guard.
+//
+// They are deleted rather than repaired because Tryorama cannot issue a
+// forbidden update or delete at all -- no coordinator exposes update_entry or
+// delete_entry, by design. Proving the guards requires the test-only externs
+// built into workdir-test/, which is exactly what the tripwires use:
+//
+//   valichord/sweettest_integration/tests/immutability_tripwire.rs
+//   (10 tests: 5 update + 5 delete, each asserting the guard's own message)
+//
+// Do not reinstate an API-level version here. "No function with this name is
+// exposed" is not a property worth a 300-second scenario, and dressing it up as
+// validate() coverage is how this went unnoticed for months.
 
-describe("7. CommitmentAnchor and PhaseMarker immutability (update path)", () => {
-  test(
-    "attempting to update a CommitmentAnchor is rejected (no update function in API)",
-    { timeout: 300_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([
-          playerConfig(validMembraneProof()),
-        ]);
-
-        const REQUEST_REF = fakeExternalHash(0x11);
-
-        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
-        await zomeCall(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: REQUEST_REF }));
-
-        // Post a CommitmentAnchor.
-        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-
-        // No update coordinator function exists — call must fail.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "attestation",
-            zome_name: "attestation_coordinator",
-            fn_name: "update_commitment_for_test",
-            payload: null,
-          }),
-        ).rejects.toThrow();
-        // Rejection confirms no update path exists in the public API.
-      }, true, { timeout: 300_000 });
-    },
-  );
-
-  test(
-    "attempting to update a PhaseMarker is rejected (no update function in API)",
-    { timeout: 300_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice, bob] = await scenario.addPlayersWithApps([
-          playerConfig(validMembraneProof()),
-          playerConfig(validMembraneProof()),
-        ]);
-
-        const REQUEST_REF = fakeExternalHash(0x22);
-        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
-
-        // Submit a VR so check_all_commitments_sealed_inner can find num_validators_required=2.
-        await zomeCall(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: REQUEST_REF }));
-        await dhtSync([alice, bob], dnaHash);
-
-        // Both validators commit → PhaseMarker(RevealOpen) is written.
-        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], dnaHash);
-        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], dnaHash);
-
-        // Confirm PhaseMarker exists.
-        const phase = await zomeCall<string | null>(
-          alice, "get_current_phase", REQUEST_REF,
-        );
-        expect(phase).toBe("RevealOpen");
-
-        // No update coordinator function exists — call must fail.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "attestation",
-            zome_name: "attestation_coordinator",
-            fn_name: "update_phase_marker_for_test",
-            payload: null,
-          }),
-        ).rejects.toThrow();
-      }, true, { timeout: 300_000 });
-    },
-  );
-
-  test(
-    "attempting to delete a PhaseMarker is rejected (no delete function in API)",
-    { timeout: 300_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice, bob] = await scenario.addPlayersWithApps([
-          playerConfig(validMembraneProof()),
-          playerConfig(validMembraneProof()),
-        ]);
-
-        const REQUEST_REF = fakeExternalHash(0x33);
-        const dnaHash = alice.namedCells.get("attestation")!.cell_id[0];
-
-        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
-        await zomeCall(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: REQUEST_REF }));
-        await dhtSync([alice, bob], dnaHash);
-
-        // Both validators commit → PhaseMarker written.
-        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], dnaHash);
-        await zomeCall(bob, "notify_commitment_sealed", commitInput(REQUEST_REF));
-        await dhtSync([alice, bob], dnaHash);
-
-        // No delete coordinator function exists — call must fail.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "attestation",
-            zome_name: "attestation_coordinator",
-            fn_name: "delete_phase_marker_for_test",
-            payload: null,
-          }),
-        ).rejects.toThrow();
-      }, true, { timeout: 300_000 });
-    },
-  );
-});
 
 // ---------------------------------------------------------------------------
 // 8. ValidationRequest query by discipline
@@ -1004,110 +904,6 @@ describe("8. ValidationRequest query by discipline", () => {
     },
   );
 });
-
-
-describe("4. ValidationAttestation immutability", () => {
-  test(
-    "attempting to update a ValidationAttestation is rejected by validate()",
-    { timeout: 300_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([
-          playerConfig(validMembraneProof()),
-        ]);
-
-        const REQUEST_REF = fakeExternalHash(0xbb);
-
-        // submit_attestation now requires a prior CommitmentAnchor (inductive chain).
-        await zomeCall(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: REQUEST_REF }));
-        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-
-        // Alice submits a public attestation.
-        const hash = await zomeCall<ActionHash>(
-          alice,
-          "submit_attestation",
-          revealInput(makeAttestation(REQUEST_REF)),
-        );
-        expect(hash).toBeTruthy();
-
-        // Now attempt to update it. The validate() callback should reject this.
-        // Tryorama surfaces validation failure as a thrown error.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "attestation",
-            zome_name: "attestation_coordinator",
-            fn_name: "update_attestation_for_test",
-            payload: { original_hash: hash, new_attestation: makeAttestation(REQUEST_REF) },
-          }),
-        ).rejects.toThrow();
-
-        // Alternate path: call update_entry directly via the HDK.
-        // Since there is no explicit update function in the coordinator, the
-        // zome_call above will fail with "function not found" — which is itself
-        // evidence that updates are impossible from the public API. The validate()
-        // callback adds a second layer of defence if the function were added.
-        //
-        // The rejection of zome_call (function-not-found) is the EXPECTED outcome
-        // and is treated as passing this test.
-      }, true, { timeout: 300_000 });
-    },
-  );
-
-  test(
-    "attempting to delete a CommitmentAnchor is rejected by validate()",
-    { timeout: 300_000 },
-    async () => {
-      await runScenario(async (scenario) => {
-        const [alice] = await scenario.addPlayersWithApps([
-          playerConfig(validMembraneProof()),
-        ]);
-
-        const REQUEST_REF = fakeExternalHash(0xdd);
-
-        // notify_commitment_sealed now requires a prior ValidationRequest (inductive chain).
-        await zomeCall(alice, "submit_validation_request",
-          makeValidationRequest({ data_hash: REQUEST_REF }));
-
-        // Alice posts a CommitmentAnchor.
-        await zomeCall(alice, "notify_commitment_sealed", commitInput(REQUEST_REF));
-
-        // There is no "delete_commitment" coordinator function — the immutability
-        // guarantee is enforced both at the API level (no delete function exists)
-        // and at the validation level (validate() rejects OpDelete for CommitmentAnchor).
-        //
-        // This test verifies the API-level protection.
-        await expect(
-          alice.appWs.callZome({
-            role_name: "attestation",
-            zome_name: "attestation_coordinator",
-            fn_name: "delete_commitment_for_test",
-            payload: null,
-          }),
-        ).rejects.toThrow();
-        // Rejection confirms no delete path exists in the public API.
-      }, true, { timeout: 300_000 });
-    },
-  );
-});
-
-// ---------------------------------------------------------------------------
-// 9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify auto-trigger
-// ---------------------------------------------------------------------------
-//
-// When a validator calls seal_private_attestation in DNA 2 (validator_workspace),
-// post_commit fires and calls notify_commitment_sealed in DNA 3 (attestation)
-// via call(OtherRole("attestation")). This is the real production protocol path.
-//
-// post_commit MUST NOT write data directly, but CAN call other zome functions.
-// The write (CommitmentAnchor) happens inside notify_commitment_sealed in DNA 3,
-// not inside post_commit itself — so the Holochain constraint is satisfied.
-//
-// Warm-up pattern: each player's attestation cell must have completed init()
-// before post_commit fires. If init() is triggered for the first time from
-// inside a cross-DNA post_commit call the conductor times out (30 s) waiting
-// for init() while post_commit holds the cell operation lock. The warm-up
-// calls (get_current_phase with a throwaway hash) trigger init() eagerly.
 
 describe("9. Cross-DNA post_commit: DNA 2 seal → DNA 3 notify", () => {
   test(

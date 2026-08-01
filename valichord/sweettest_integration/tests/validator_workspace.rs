@@ -226,11 +226,11 @@ async fn private_attestation_immutability_no_delete_fn_in_api() {
         )
         .await;
 
-    // No delete function exists — calling a nonexistent fn must fail.
-    let result: Result<(), _> = conductor
-        .call_fallible(&zome, "delete_attestation_for_test", attestation_hash)
-        .await;
-    assert!(result.is_err(), "calling a nonexistent delete function must be rejected");
+    // Same removal as in researcher_repository.rs, 2026-08-01: this asserted
+    // that `delete_attestation_for_test` -- never written -- returns an error.
+    // Real coverage is `validator_private_attestation_delete_is_rejected` in
+    // tests/immutability_tripwire.rs.
+    let _ = attestation_hash;
 }
 
 // ---------------------------------------------------------------------------

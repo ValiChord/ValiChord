@@ -376,3 +376,11 @@ pub fn test_force_update_private_attestation(
 ) -> ExternResult<ActionHash> {
     update_entry(input.0, EntryTypes::ValidatorPrivateAttestation(input.1))
 }
+
+// Delete hook — see the note on the equivalent block in attestation_coordinator.
+// The delete guards in this DNA had no working coverage before 2026-08-01.
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
+    delete_entry(hash)
+}

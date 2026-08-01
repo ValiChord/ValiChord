@@ -63,7 +63,13 @@ cd valichord
 ./build-test-dnas.sh                       # builds --features test_utils -> target-test/, packs -> workdir-test/
 cd sweettest_integration
 VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
-# 5 tests, ~14 min (each scenario JIT-compiles ~30 MB WASM)
+# 10 tests (5 update + 5 delete), ~30 min (each scenario JIT-compiles ~30 MB WASM)
+#
+# ⚠️ Run via ./run-sweettest.sh, NOT a hand-rolled `| grep -v sqlcipher_mlock`.
+# ENOMEM spam splices into the MIDDLE of a `test <name> ... ok` line, so an
+# exclusive filter deletes the result. Observed 2026-08-01: a real run reported
+# "10 passed" with only 4 result lines surviving. run-sweettest.sh cross-checks
+# named results against the summary and fails on a mismatch.
 ```
 
 **Run these before AND after the 0.7 `FlatOp` migration.** They are the only thing standing between a mechanical arm-reflow and silently losing immutability.
@@ -77,7 +83,8 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --t
 - feature build → `target-test/` (separate target dir, cannot overwrite `target/`)
 - packs → `workdir-test/` (never the committed `workdir/`)
 - `test-dnas/*/dna.yaml` point their **integrity** zome at the *production* build and only the **coordinator** at `target-test/` — so the integrity zome under test is byte-identical to what ships
-- `./check-no-test-hooks.sh` scans the committed production bundles for `test_force_update` and fails if found. ✅ **Wired into CI** as the `no-test-hooks` job (dependency-free, ~seconds, fails fast ahead of the 90-minute matrix). Verified in **both** directions: passes on `workdir/`, and `NEEDLE_SCAN_DIR=workdir-test ./check-no-test-hooks.sh` correctly **fails** on the three bundles that carry hooks while still passing `governance.dna`, which has none.
+- `./check-no-test-hooks.sh` scans the committed production bundles for the **`test_force_` prefix** and fails if found. ✅ **Wired into CI** as the `no-test-hooks` job (dependency-free, ~seconds, fails fast ahead of the 90-minute matrix). Verified in **both** directions: passes on `workdir/`, and `NEEDLE_SCAN_DIR=workdir-test ./check-no-test-hooks.sh` correctly **fails** on the three bundles that carry hooks while still passing `governance.dna`, which has none.
+  ⚠️ **The needle is a prefix, not a name — do not narrow it back.** It was `test_force_update` until 2026-08-01, when delete hooks were added and it would silently have ignored `test_force_delete_entry`: a guard that only catches the hooks existing when it was written has an expiry date nobody is told about. Matching the naming convention covers future hooks the day they are written. Verified with the needle narrowed to `test_force_delete` alone — fails on `workdir-test/`, passes on `workdir/` — so it demonstrably sees the new hooks, not just the old ones.
   ⚠️ **It must decompress before searching — do not "simplify" it back to `grep`.** The first version grepped the bundle files directly and reported "clean" for *everything*, including bundles that definitely contained the hooks: Holochain bundles are compressed, so the symbol names are never in the raw bytes (`*.dna` = one gzip layer; `*.happ` = gzip → msgpack → nested gzip, so two). It was a guard that could not fail. Re-run the two-direction check above after any edit to that script.
 - `target-test/` + `workdir-test/` are gitignored
 

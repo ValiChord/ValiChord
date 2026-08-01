@@ -1537,6 +1537,26 @@ one result line eaten **fails**, naming the discrepancy; junk *prepended* to a r
 passes, confirming the unanchored match. It deliberately does **not** suppress the ENOMEM spam —
 suppression is what caused the problem, and the noise is harmless in a file.
 
+✅ **The mechanism is now OBSERVED, not inferred (2026-08-01).** Captured in a real run:
+
+```
+line    5: test silver_badge_issued_with_five_validators ... 2026-08-01 11:55:45.874: ERROR MEMORY sqlcipher_mlock: mlock() returned -1 errno=12
+line 4549: ok
+```
+
+The result line is **cut in half** and the halves separated by 4,544 lines — the noise does not
+sit *beside* the result, it splices into the middle of it. So `grep -v sqlcipher_mlock` deletes
+the half carrying the test *name* and leaves a bare `ok` thousands of lines away, which is
+exactly how "5 passed, 4 names" happened twice. `run-sweettest.sh` was replayed against this
+genuine log and correctly reported `found (0) != summary (1)`.
+
+⚠️ **This Codespace is memory-starved; treat local 5-conductor runs as unreliable.** The same run
+emitted thousands of `mlock() returned -1 errno=12` (ENOMEM) and then died with **SIGSEGV during
+teardown, after the test had passed**. Two consequences worth knowing: a non-zero exit code from
+`cargo test` here does **not** imply a test failed, and reproducing a *load-sensitive* flake in
+an environment already failing for memory reasons yields evidence you cannot trust either way.
+Use CI for load-sensitive reproduction; it is the loaded shared runner where they actually occur.
+
 ### 44.8 What is verified at the end of Phase A — and what is not
 
 ✅ **Verified on 0.7, in CI, on a clean runner** (run `30659873225`, commit `719c62ce`):
