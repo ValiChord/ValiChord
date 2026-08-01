@@ -339,6 +339,71 @@ pub fn force_finalize_round(
 ///
 /// `anchor_key` is pre-computed by the caller (avoiding a redundant
 /// `anchor_for_request` call — each call does `path.ensure()` on the DHT).
+/// Pair every attestation record with its author, decoding the entry.
+///
+/// ⚠️ **Every input record MUST appear in the output.** Both callers of
+/// `write_harmony_record` gate on `attestation_records.len()` *before* calling —
+/// the quorum gate in `check_and_create_harmony_record`, the reduced threshold in
+/// `force_finalize_round` — so anything dropped here silently invalidates a gate
+/// that has already passed.
+///
+/// This was a `filter_map` with `.ok().flatten()?` until 2026-08-01. A record whose
+/// entry would not decode, or that arrived as `RecordEntry::NotStored` (upstream's
+/// own docs: *"the Action has an entry but was stored without it — this can happen
+/// when you receive gossip of just an action"*), was dropped without a trace.
+///
+/// CI caught it as `gold_badge_issued_with_seven_validators`, `left: 6, right: 7`.
+/// Both consequences are permanent, because a HarmonyRecord is immutable:
+/// participation is understated forever, and the count feeds `evaluate_badge`, so a
+/// genuine 7/7 ExactMatch round silently issues **Silver instead of Gold**.
+///
+/// Erroring is correct, not merely cautious. A missing entry on a public entry type
+/// is transient, so the error propagates, the round stays unfinalised, and a later
+/// call retries — whereas writing the record commits the undercount forever. This is
+/// the principle the `validator_types` comment in the caller already states; the
+/// `filter_map` had quietly broken it.
+///
+/// Split out of `write_harmony_record` so it can be unit-tested without a conductor:
+/// nothing here calls a host function.
+fn validator_attestation_pairs(
+    records: &[Record],
+) -> ExternResult<Vec<(AgentPubKey, ValidationAttestation)>> {
+    let mut pairs: Vec<(AgentPubKey, ValidationAttestation)> = Vec::with_capacity(records.len());
+    for r in records.iter() {
+        let att = r
+            .entry()
+            .to_app_option::<ValidationAttestation>()
+            .map_err(|e| wasm_error!(WasmErrorInner::Guest(format!(
+                "write_harmony_record: a ValidationAttestation failed to decode ({e}). \
+                 Refusing to write an incomplete HarmonyRecord — it is immutable and \
+                 the missing validator could never be added."
+            ))))?
+            .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                "write_harmony_record: a ValidationAttestation record carried no entry \
+                 (not stored, or not yet fetched). Refusing to write an incomplete \
+                 HarmonyRecord — retry once the entry is retrievable.".to_string()
+            )))?;
+        pairs.push((r.action().author().clone(), att));
+    }
+    // Belt and braces, and deliberately NOT a debug_assert!: these zomes ship as
+    // release wasm, where debug assertions are stripped — so a debug_assert would be
+    // a check that cannot fail in the only build that matters, which is the exact
+    // defect this function exists to remove. The loop pushes once per input and can
+    // only exit early via `?`, so this is structurally unreachable today; it costs
+    // one comparison and survives someone "tidying" the loop later.
+    if pairs.len() != records.len() {
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "write_harmony_record: {} attestations for {} records — refusing to write an \
+             incomplete HarmonyRecord. Every input record must be represented; both \
+             callers' quorum gates count records, not pairs.",
+            pairs.len(),
+            records.len()
+        ))));
+    }
+    Ok(pairs)
+}
+
+
 fn write_harmony_record(
     request_ref: ExternalHash,
     attestation_records: Vec<Record>,
@@ -354,13 +419,30 @@ fn write_harmony_record(
     // deterministic: Holochain's content-addressing then collapses concurrent
     // writes to the same entry hash, making the TOCTOU race on the idempotency
     // link check benign.
-    let mut pairs: Vec<(AgentPubKey, ValidationAttestation)> = attestation_records
-        .iter()
-        .filter_map(|r| {
-            let att = r.entry().to_app_option::<ValidationAttestation>().ok().flatten()?;
-            Some((r.action().author().clone(), att))
-        })
-        .collect();
+    // ⚠️ EVERY record handed in MUST appear in the output. Do not reintroduce a
+    // filter here.
+    //
+    // This was a `filter_map` with `.ok().flatten()?` until 2026-08-01, which
+    // silently dropped any record whose entry would not decode or was not stored.
+    // Both callers gate on `attestation_records.len()` BEFORE calling — the
+    // quorum gate in check_and_create_harmony_record, the reduced threshold in
+    // force_finalize_round — and then this narrowed the set afterwards with no
+    // re-check, so the count that reached the record was smaller than the count
+    // that was approved.
+    //
+    // CI caught it: gold_badge_issued_with_seven_validators, `left: 6, right: 7`.
+    // Two consequences, both permanent, because a HarmonyRecord is immutable:
+    // participation is understated forever, and `validator_count` below feeds
+    // evaluate_badge — so a genuine 7/7 ExactMatch round silently issues Silver
+    // instead of Gold.
+    //
+    // Erroring is the correct behaviour rather than merely the safe one. A
+    // missing entry on a public DHT entry type is transient, so `?` propagates,
+    // the round stays unfinalised, and a later call retries — whereas writing
+    // the record commits the undercount forever. This is the same principle the
+    // validator_types comment below already states; the filter_map above had
+    // quietly broken it.
+    let mut pairs = validator_attestation_pairs(&attestation_records)?;
     pairs.sort_by(|(a, _), (b, _)| a.get_raw_39().cmp(b.get_raw_39()));
 
     let participating_validators: Vec<AgentPubKey> =
@@ -1025,4 +1107,129 @@ fn sweep_timed_out_rounds(schedule: Option<Schedule>) -> Option<Schedule> {
     }
 
     hourly
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests — no conductor required
+// ---------------------------------------------------------------------------
+//
+// These run natively (`cargo test -p governance_coordinator --lib`) because
+// `validator_attestation_pairs` calls no host functions. That matters: the bug
+// it guards was found by a 7-conductor sweettest that takes over two hours and
+// only fails when a record happens to arrive without its entry. A deterministic
+// unit test costs milliseconds and fails every time.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use valichord_shared_types::{
+        AgreementLevel, AttestationConfidence, AttestationOutcome, ComputationalResources,
+        OutcomeSummary, TimeBreakdown,
+    };
+
+    fn attestation() -> ValidationAttestation {
+        ValidationAttestation {
+            request_ref: ExternalHash::from_raw_36(vec![0u8; 36]),
+            outcome: AttestationOutcome::Reproduced,
+            outcome_summary: OutcomeSummary {
+                key_metrics: vec![],
+                effect_direction_matches: Some(true),
+                confidence_interval_overlap: None,
+                overall_agreement: AgreementLevel::ExactMatch,
+            },
+            time_invested_secs: 1,
+            time_breakdown: TimeBreakdown {
+                environment_setup_secs: 0,
+                data_acquisition_secs: 0,
+                code_execution_secs: 0,
+                troubleshooting_secs: 0,
+            },
+            confidence: AttestationConfidence::High,
+            deviation_flags: vec![],
+            computational_resources: ComputationalResources {
+                personal_hardware_sufficient: true,
+                hpc_required: false,
+                gpu_required: false,
+                cloud_compute_required: false,
+                estimated_compute_cost_pence: None,
+            },
+            discipline: Discipline::ComputationalBiology,
+            commitment_anchor_hash: None,
+            reproduction_bundle_hash: None,
+        }
+    }
+
+    /// Build a Record whose entry slot we control.
+    ///
+    /// `RecordEntry::NotStored` is not a contrived value — it is upstream's own
+    /// name for "the Action has an entry but was stored without it… you receive
+    /// gossip of just an action", which is exactly what arrives under load and
+    /// exactly what the old `filter_map` discarded in silence.
+    fn record_with(entry: RecordEntry<Entry>) -> Record {
+        let action = Action {
+            header: ActionHeader {
+                author: AgentPubKey::from_raw_36(vec![1u8; 36]),
+                timestamp: Timestamp(0),
+                action_seq: 1,
+                prev_action: Some(ActionHash::from_raw_36(vec![2u8; 36])),
+            },
+            data: ActionData::Create(CreateData {
+                entry_type: EntryType::App(AppEntryDef {
+                    entry_index: 0.into(),
+                    zome_index: 0.into(),
+                    visibility: EntryVisibility::Public,
+                }),
+                entry_hash: EntryHash::from_raw_36(vec![3u8; 36]),
+            }),
+        };
+        Record::new(
+            SignedHashed::with_presigned(HoloHashed::from_content_sync(action), Signature([0u8; 64])),
+            entry,
+        )
+    }
+
+    fn present() -> Record {
+        let entry = Entry::App(
+            AppEntryBytes(SerializedBytes::try_from(attestation()).unwrap()),
+        );
+        record_with(RecordEntry::Present(entry))
+    }
+
+    #[test]
+    fn every_decodable_record_is_paired() {
+        let records = vec![present(), present(), present()];
+        let pairs = validator_attestation_pairs(&records).expect("all decodable");
+        assert_eq!(pairs.len(), 3, "every input record must be represented");
+    }
+
+    /// THE REGRESSION TEST. Before 2026-08-01 this returned 2 pairs for 3 records
+    /// and no error, so a caller that had already passed a quorum gate on 3 wrote
+    /// an immutable HarmonyRecord claiming 2 participants.
+    #[test]
+    fn a_record_without_its_entry_is_an_error_not_a_silent_drop() {
+        let records = vec![present(), record_with(RecordEntry::NotStored), present()];
+
+        let err = validator_attestation_pairs(&records)
+            .expect_err("a record whose entry is absent must abort the write");
+
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("Refusing to write an incomplete HarmonyRecord"),
+            "must fail for the documented reason, not incidentally: {msg}"
+        );
+    }
+
+    /// `Hidden` and `NA` are the other ways an entry can be absent. Neither should
+    /// be silently dropped either — the point is that ANY absence aborts, not that
+    /// one specific variant was special-cased.
+    #[test]
+    fn other_absent_entry_variants_also_abort() {
+        for variant in [RecordEntry::Hidden, RecordEntry::NA] {
+            let records = vec![present(), record_with(variant)];
+            assert!(
+                validator_attestation_pairs(&records).is_err(),
+                "an absent entry must abort regardless of which RecordEntry variant it is"
+            );
+        }
+    }
 }
