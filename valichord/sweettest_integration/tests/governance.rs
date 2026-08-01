@@ -1089,6 +1089,43 @@ async fn silver_badge_issued_with_five_validators() {
             break;
         }
     }
+    // DISCRIMINATING DIAGNOSTIC (2026-08-01) — do not remove without reading this.
+    //
+    // Two competing explanations for this test's intermittent failure:
+    //   (A) gossip lag — the badge WAS issued, conductors[0] just cannot see it yet;
+    //   (B) never issued — issue_badge_if_missing hit its silent `return Ok(())` when
+    //       get(record_hash, network) missed, so no badge exists anywhere. The
+    //       HarmonyRecord is authored by whichever validator's reveal met quorum, so
+    //       that fetch is remote from conductors[0] and can genuinely miss.
+    //
+    // These are indistinguishable from conductors[0] alone, which is why the failure
+    // has been recorded as "lag" twice without evidence. Asking EVERY conductor
+    // separates them: under (A) some other conductor holds the badge; under (B) the
+    // badge exists nowhere. Runs only on the failure path, so it costs nothing green.
+    if badges.is_empty() {
+        let mut seen_anywhere = Vec::new();
+        for (i, (c, a)) in conductors.iter().zip(apps.iter()).enumerate() {
+            let b: Vec<Record> = c
+                .call(&a.governance_zome(), "get_badges_for_study", request_ref.clone())
+                .await;
+            if !b.is_empty() {
+                seen_anywhere.push(i);
+            }
+        }
+        assert!(
+            !seen_anywhere.is_empty(),
+            "DIAGNOSIS (B) — NO conductor has a badge for this study, so it was never \
+             issued at all. This is NOT gossip lag: issue_badge_if_missing silently \
+             returned Ok(()) without issuing, and the retry loop above can never \
+             recover because it only re-reads, it never re-triggers issuance. \
+             Check the conductor log for the 'HarmonyRecord not retrievable' warning."
+        );
+        panic!(
+            "DIAGNOSIS (A) — the badge WAS issued and is visible on conductor(s) {seen_anywhere:?} \
+             but not on conductors[0] after 5 re-syncs. This one really is a visibility \
+             problem, and the silent-skip theory is WRONG for this failure."
+        );
+    }
     assert!(
         !badges.is_empty(),
         "SilverReproducible badge should be issued for ExactMatch + count=5"

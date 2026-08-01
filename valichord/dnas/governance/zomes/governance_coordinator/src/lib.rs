@@ -735,7 +735,19 @@ fn issue_badge_if_missing(
         }
         return Ok(());
     }
+    // DIAGNOSTIC (2026-08-01): this fetch is genuinely remote. The HarmonyRecord is
+    // authored by whichever validator's reveal met quorum, while this repair usually
+    // runs on a different agent — so a miss here is ordinary, not exotic. When it
+    // misses, the function below returns Ok(()) and NO BADGE IS EVER ISSUED for the
+    // round: the caller still returns Some(harmony_hash), so nothing upstream can tell
+    // that the repair declined to repair. Logging it is what makes the difference
+    // between "badge missing, presumably gossip lag" and a fact.
     let Some(record) = get(record_hash.clone(), GetOptions::network())? else {
+        warn!(
+            "issue_badge_if_missing: HarmonyRecord {:?} not retrievable — badge NOT issued \
+             and this round will stay badge-less until something calls this again",
+            record_hash
+        );
         return Ok(());
     };
     let Some(harmony) = record
@@ -748,7 +760,14 @@ fn issue_badge_if_missing(
         return Ok(());
     };
     let validator_count = harmony.participating_validators.len();
+    // Not a diagnostic case: no badge is the CORRECT outcome below the Bronze
+    // threshold. Logged at debug so it can be told apart from the failure above,
+    // which looks identical from outside.
     let Some(badge_type) = evaluate_badge(&harmony.agreement_level, validator_count) else {
+        debug!(
+            "issue_badge_if_missing: no badge earned ({:?}, {} validators) — correct, not a failure",
+            harmony.agreement_level, validator_count
+        );
         return Ok(());
     };
     // Retry once — try_issue_badge returns Err on transient cross-DNA failure (cell
