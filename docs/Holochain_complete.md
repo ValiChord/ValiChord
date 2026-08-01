@@ -1514,12 +1514,28 @@ invites the conclusion that the port broke a guard. It had not: the panic was in
 the setup helper rather than with any DNA or entry type. The tripwires were still doing their
 job — they failed loudly at the first thing that was actually wrong.
 
-⚠️ **Log-filter footgun, found while verifying the green run.** The retry piped through
-`grep -v sqlcipher_mlock` to suppress ENOMEM spam that is new under 0.7 in Codespaces. But the
-mlock lines share a line with the `test <name> ... ok` line, so the filter **deleted one test's
-result line entirely** — the summary said 5 passed while only 4 names were greppable. Filter on
-the reported summary and per-test re-runs, never with a pattern that can consume a result line.
-Closed by re-running that one test alone and unfiltered rather than arguing from the summary.
+⚠️ **Log-filter footgun — now fixed in a script, after it recurred.** Piping through
+`grep -v sqlcipher_mlock` to suppress ENOMEM spam (new under 0.7 in Codespaces) **deleted a
+test's result line**: the mlock output can land on the same line as `test <name> ... ok`, so an
+exclusive line filter drops the result with the noise. The summary said 5 passed while only 4
+names were greppable.
+
+**It then happened a second time, on 2026-08-01, to the same test**
+(`validator_private_attestation_update_is_rejected`) — because the "mitigation" recorded here
+was a note asking a human to remember something. That is not a control.
+
+✅ **Use `valichord/run-sweettest.sh` instead of hand-rolling a filter.** It keeps the raw log
+unfiltered on disk, extracts results with an *inclusive, unanchored* pattern (an inclusive
+filter cannot delete the line it is searching for, and unanchored survives junk prepended to
+it), and — the part that actually matters — **cross-checks the number of named results against
+cargo's own summary count and fails if they disagree.** That check is what would have caught
+both incidents automatically instead of by eye.
+
+Negative-controlled in three directions via `SWEETTEST_REPLAY_LOG` (which analyses an existing
+log instead of running cargo, precisely so the guard is testable): intact log passes; a log with
+one result line eaten **fails**, naming the discrepancy; junk *prepended* to a result line still
+passes, confirming the unanchored match. It deliberately does **not** suppress the ENOMEM spam —
+suppression is what caused the problem, and the noise is harmless in a file.
 
 ### 44.8 What is verified at the end of Phase A — and what is not
 
