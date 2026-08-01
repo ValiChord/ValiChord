@@ -6,6 +6,7 @@ import {
   setSigningCredentials,
   hashFrom32AndType,
   HoloHashType,
+  WsClient,
   type HoloHashB64,
 } from '@holochain/client';
 import { readTestEnv } from '../setup/conductor-manager.js';
@@ -121,7 +122,9 @@ export async function createTestClient(): Promise<TestClient> {
       }) as Promise<T>;
     },
     async close() {
-      await client.client.close();
+      // See conductor-manager.ts: 0.21 narrowed AppWebsocket.client to the
+      // transport-agnostic AppClientTransport, which has no close().
+      await (client.client as WsClient).close();
     },
   };
 }

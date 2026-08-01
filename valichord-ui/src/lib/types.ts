@@ -287,6 +287,17 @@ export interface ValidatorPrivateAttestation {
   discipline: Discipline;
   nonce: number[];
   commitment_hash: number[];
+  /**
+   * Carried through from the sealed `ValidationAttestation` so the public
+   * attestation can be reconstructed at reveal time — the same reason
+   * `discipline` is stored here.
+   *
+   * ⚠️ **Dropping this from the reconstruction breaks the reveal.** The revealed
+   * attestation would no longer match what was hashed at seal time, and
+   * `submit_attestation` rejects it with "Hash mismatch". `null` = the validator
+   * bound no bundle.
+   */
+  reproduction_bundle_hash: Uint8Array | null;
 }
 
 // ── App signals ───────────────────────────────────────────────────────────────
@@ -313,7 +324,11 @@ export interface HolochainRecord<T> {
   signed_action: {
     hashed: {
       hash: ActionHash;
-      content: { author: AgentPubKey; timestamp: number };
+      // Holochain 0.7 / @holochain/client 0.21: an Action is { header, data }.
+      // The common fields (author, timestamp, action_seq, prev_action) moved on
+      // to `header`; `data` carries the per-variant payload. Verified against
+      // node_modules/@holochain/client/lib/hdk/action.d.ts, not inferred.
+      content: { header: { author: AgentPubKey; timestamp: number } };
     };
   };
   entry: { Present: { entry: T } } | { NotApplicable: null } | { Hidden: null };
@@ -336,5 +351,5 @@ export function hashFromRecord<T>(record: HolochainRecord<T>): ActionHash {
 }
 
 export function authorFromRecord<T>(record: HolochainRecord<T>): AgentPubKey {
-  return record.signed_action.hashed.content.author;
+  return record.signed_action.hashed.content.header.author;
 }

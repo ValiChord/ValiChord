@@ -26,6 +26,7 @@ import {
   AppWebsocket,
   encodeHashToBase64,
   getSigningCredentials,
+  WsClient,
 } from '@holochain/client';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -201,7 +202,12 @@ export async function setupHapp(): Promise<TestEnv> {
     }
   }
 
-  await appClient.client.close();
+  // @holochain/client 0.21: AppWebsocket.client is now typed as the
+  // AppClientTransport interface (request + on), because the App API can also be
+  // routed over Tauri IPC, which has no socket to close. This harness always
+  // dials a real websocket, so narrow it back. AdminWebsocket.client is
+  // unaffected — it is still a WsClient.
+  await (appClient.client as WsClient).close();
   await admin.client.close();
 
   const env: TestEnv = {

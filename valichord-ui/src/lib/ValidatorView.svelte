@@ -322,6 +322,11 @@
         computational_resources: resources,
         discipline: reqEntry.discipline,
         commitment_anchor_hash: null,
+        // The UI has no bundle-producing path, so this verdict is unbound. That is
+        // a legitimate, permanent state ("the validator ran no tooling"), not a
+        // placeholder — see the field docs in types.ts. Wiring the UI up to a
+        // valichord_attestation bundle is its own piece of work.
+        reproduction_bundle_hash: null,
       };
 
       // Commit phase: seal in validator_workspace DNA.
@@ -366,6 +371,11 @@
         computational_resources: pa.computational_resources,
         discipline: pa.discipline,
         commitment_anchor_hash: null,
+        // MUST come from the private record, never hardcoded. This field was bound
+        // into commitment_hash at seal time, so substituting anything here (including
+        // null) makes the revealed attestation hash differently and submit_attestation
+        // rejects it with "Hash mismatch".
+        reproduction_bundle_hash: pa.reproduction_bundle_hash,
       };
 
       const input: AttestationRevealInput = {
