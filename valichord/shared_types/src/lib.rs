@@ -242,6 +242,50 @@ impl Default for ValidatorType {
     fn default() -> Self { ValidatorType::Human }
 }
 
+/// Where a study's dataset lives, and therefore whether the researcher's own
+/// sealed material may be erased.
+///
+/// See `docs/7_ValiChord_4-DNA_architecture_technical.md` → *Data Locality Modes*.
+/// Set at submission and **cannot be changed after the commitment is posted** —
+/// the whole point is that the choice is made before anyone knows the outcome.
+///
+/// The blind commit-reveal protocol, phase transitions and HarmonyRecord are
+/// identical in both modes. Only the dataset's location changes — and, because of
+/// that, whether erasure is permitted.
+///
+/// ⚠️ **Only the erasure consequence is implemented today.** `EncryptedDataset`,
+/// per-study X25519 keys and the published decryption key are Phase 1 work; this
+/// enum exists now because it is an *integrity-level* field, so adding it later
+/// would cost a second DNA-hash break — and the 0.7 migration is already paying
+/// for one. Everything today is `Gdpr`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DataLocalityMode {
+    /// Default. The dataset never leaves the researcher's private DNA; only its
+    /// hash is published. Third parties can audit the *process* — hash chain,
+    /// phase transitions, attestations, HarmonyRecord — but cannot re-derive the
+    /// data.
+    ///
+    /// **Required** for patient data, clinical-trial data, or anything under GDPR
+    /// or a data-sharing restriction, regardless of researcher preference.
+    /// Erasure of the researcher's own private entries stays permitted, because
+    /// removing it would defeat the erasure rights this mode exists to protect.
+    Gdpr,
+    /// The dataset is encrypted onto the shared DHT, and the decryption key is
+    /// published after reveal, making the HarmonyRecord self-verifying without
+    /// trusting the researcher or ValiChord.
+    ///
+    /// **A permanent commitment to post-reveal public access.** The published key
+    /// is irrevocable, so this mode must never be chosen for GDPR-sensitive data.
+    /// Because permanence is the promise, the researcher's sealed material is
+    /// immutable here — see the `LockedResult` delete guard in
+    /// `researcher_repository_integrity`.
+    OpenAudit,
+}
+
+impl Default for DataLocalityMode {
+    fn default() -> Self { DataLocalityMode::Gdpr }
+}
+
 // ---------------------------------------------------------------------------
 // JoiningCertificate — structured membrane-proof credential
 // ---------------------------------------------------------------------------

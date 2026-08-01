@@ -66,7 +66,7 @@ use researcher_repository_coordinator::LockResultInput;
 use researcher_repository_integrity::LockedResult;
 use validator_workspace_coordinator::SealAttestationInput;
 use validator_workspace_integrity::ValidatorPrivateAttestation;
-use valichord_shared_types::{AttestationConfidence, AttestationOutcome, Discipline};
+use valichord_shared_types::{AttestationConfidence, AttestationOutcome, DataLocalityMode, Discipline};
 
 // ---------------------------------------------------------------------------
 // Assertion helper — the load-bearing part of this file
@@ -307,7 +307,7 @@ async fn locked_result_update_is_rejected() {
         .call(
             &zome,
             "lock_researcher_result",
-            LockResultInput { request_ref: request_ref.clone(), metrics: vec![] },
+            LockResultInput { request_ref: request_ref.clone(), metrics: vec![], data_locality_mode: DataLocalityMode::Gdpr },
         )
         .await;
 
@@ -316,6 +316,7 @@ async fn locked_result_update_is_rejected() {
         metrics: vec![],
         nonce: vec![7u8; 32],
         commitment_hash: vec![7u8; 32],
+        data_locality_mode: DataLocalityMode::Gdpr,
     };
 
     let err = conductor
@@ -573,5 +574,90 @@ async fn pre_registered_protocol_delete_is_rejected() {
         &format!("{err:?}"),
         "PreRegisteredProtocol is immutable",
         "PreRegisteredProtocol (delete)",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// LockedResult erasability — mode-dependent, and that is the design
+// ---------------------------------------------------------------------------
+//
+// The only guard in this repo that deliberately says "it depends". Every other
+// tripwire asserts an unconditional refusal; these two assert that the refusal is
+// conditional on the study's DataLocalityMode, and BOTH directions are load-bearing:
+//
+//   Gdpr      -> delete ALLOWED. Guarding it would remove the erasure right the
+//                mode exists to protect, and it buys nothing — the binding
+//                commitment is ResearcherResultCommitment on DNA 3, already public
+//                and immutable. Deleting a LockedResult destroys only the
+//                researcher's own ability to reveal, which is the same outcome as
+//                declining to reveal, which the protocol already handles.
+//   OpenAudit -> delete REFUSED. That mode is a permanent, irrevocable commitment
+//                to post-reveal public access; erasing the sealed material
+//                afterwards contradicts the promise the mode IS.
+//
+// ⚠️ The Gdpr test is not a formality. Without it, a guard that simply refused
+// every LockedResult delete would pass the OpenAudit test and look correct, while
+// silently breaking GDPR erasure. Only the pair distinguishes "discriminates" from
+// "refuses everything".
+
+async fn lock_result_in_mode(
+    conductor: &SweetConductor,
+    app: &ValiChordApp,
+    request_ref: ExternalHash,
+    mode: DataLocalityMode,
+) -> ActionHash {
+    conductor
+        .call(
+            &app.researcher_zome(),
+            "lock_researcher_result",
+            LockResultInput { request_ref, metrics: vec![], data_locality_mode: mode },
+        )
+        .await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn locked_result_delete_is_rejected_in_open_audit_mode() {
+    let (conductor, app) = setup_single().await;
+    let original = lock_result_in_mode(
+        &conductor,
+        &app,
+        fake_external_hash(0xe1),
+        DataLocalityMode::OpenAudit,
+    )
+    .await;
+
+    let err = conductor
+        .call_fallible::<_, ActionHash>(&app.researcher_zome(), "test_force_delete_entry", original)
+        .await
+        .expect_err("deleting a LockedResult in Open Audit mode must be rejected by validate()");
+
+    assert_rejected_by_guard(
+        &format!("{err:?}"),
+        "permanent commitment to post-reveal public access",
+        "LockedResult (delete, OpenAudit)",
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn locked_result_delete_is_allowed_in_gdpr_mode() {
+    let (conductor, app) = setup_single().await;
+    let original = lock_result_in_mode(
+        &conductor,
+        &app,
+        fake_external_hash(0xe2),
+        DataLocalityMode::Gdpr,
+    )
+    .await;
+
+    let result = conductor
+        .call_fallible::<_, ActionHash>(&app.researcher_zome(), "test_force_delete_entry", original)
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "a researcher MUST be able to erase their own sealed result in GDPR mode — \
+         refusing this would defeat the erasure right the mode exists to protect. \
+         got: {:?}",
+        result.err(),
     );
 }

@@ -1459,13 +1459,14 @@ Rebuilt on `hdi 0.8.0` / `hdk 0.7.0` and repacked with `hc 0.7.0` (2026-08-01):
 
 | DNA | 0.7.0 hash |
 |---|---|
-| attestation | `uhC0kV1fbN0Bk66wjmmgWG-fkXJq1MVxctBgBeaxdEOWJc5T20ScU` |
-| researcher_repository | `uhC0kpk2bwTZGnxNt-jZAhRMFrl0K5k2UruVxuL6yhlwS9rQhC5Xg` |
-| validator_workspace | `uhC0kWnbQf-oZ0wYHJGn593jIomZZbD39syCTzrBbsHwOjXEKz85H` |
-| governance | `uhC0kbRGPGtC0lKu9f19zo5U84AQTxaQBd13_YZ27Wdgfnkjz4Gsw` |
+| attestation | `uhC0kHA0WhADQPl5QCjt46s0FF4n3Ow31GB8mboTVZ6ATLm1-h7ha` |
+| researcher_repository | `uhC0k0yKAcW_9d23GcZ_NqKkQ8S8qYzAUFEUR6INXTUiQL-jXQTw7` |
+| validator_workspace | `uhC0kf_nk5PLP_sCHC6IeLEML1xiIQTM6n---e5tPhChKB0Mmy5l4` |
+| governance | `uhC0kRrX19H1PP-lfWYhBc6vRUIDAG1CkI7zMWVOD9AZ15xoGwZSC` |
 
-⚠️ These are the hashes **after** the validator→bundle binding landed on top of the port, which
-is the state actually committed. The port-only repack earlier the same day produced a different
+⚠️ These are the hashes **after** the validator→bundle binding and the `DataLocalityMode`
+field landed on top of the port, which is the state actually committed. They have been rewritten
+twice for that reason — a stale hash table is worse than none. The port-only repack earlier the same day produced a different
 set; they are not recorded here because nothing was ever shipped at those values, and a table of
 hashes that no bundle has is worse than no table. All four moved again because
 `reproduction_bundle_hash` sits in `shared_types`, which every DNA depends on.

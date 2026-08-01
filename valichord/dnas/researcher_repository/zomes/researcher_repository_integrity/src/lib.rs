@@ -1,5 +1,5 @@
 use hdi::prelude::*;
-use valichord_shared_types::{Discipline, MetricResult, UndeclaredDeviation};
+use valichord_shared_types::{DataLocalityMode, Discipline, MetricResult, UndeclaredDeviation};
 
 // ---------------------------------------------------------------------------
 // Entry Types
@@ -77,6 +77,14 @@ pub struct LockedResult {
     /// SHA-256(rmp_serde::to_vec_named(metrics) || nonce) — already published
     /// to the Attestation DHT.  Stored here for local reference only.
     pub commitment_hash:       Vec<u8>,
+    /// Whether this study's dataset is private (GDPR mode) or destined for the
+    /// shared DHT (Open Audit mode). Fixed at lock time; see `DataLocalityMode`.
+    ///
+    /// It lives on the entry rather than being looked up from the ValidationRequest
+    /// because `validate()` is deterministic and cannot call across to DNA 3. The
+    /// delete guard below reads it straight off the record being deleted.
+    #[serde(default)]
+    pub data_locality_mode:    DataLocalityMode,
 }
 
 /// A deviation from the pre-registered plan that the researcher declares
@@ -171,6 +179,31 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                         return Ok(ValidateCallbackResult::Invalid(
                             "PreRegisteredProtocol is immutable — deletes are not permitted".into(),
                         ));
+                    }
+                    // LockedResult erasability depends on the study's data locality
+                    // mode, and deliberately so.
+                    //
+                    // GDPR mode: the researcher MAY delete their own sealed result.
+                    // Guarding it would remove the erasure right the mode exists to
+                    // protect, and it buys nothing: the binding commitment is
+                    // ResearcherResultCommitment on DNA 3, already public and
+                    // immutable. Deleting this destroys only the researcher's own
+                    // ability to reveal — the same outcome as simply declining to,
+                    // which the protocol already handles as an abandoned round.
+                    //
+                    // Open Audit mode: the researcher has made a permanent, public,
+                    // irrevocable commitment to post-reveal access. Erasing the
+                    // sealed material afterwards contradicts the promise the mode is,
+                    // so it is refused.
+                    if let Some(EntryTypes::LockedResult(ref lr)) = entry_type {
+                        if lr.data_locality_mode == DataLocalityMode::OpenAudit {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "LockedResult cannot be deleted in Open Audit mode — that mode \
+                                 is a permanent commitment to post-reveal public access. Use \
+                                 GDPR mode for any study whose data may need to be erased."
+                                    .into(),
+                            ));
+                        }
                     }
                 }
             }

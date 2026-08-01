@@ -3,7 +3,7 @@ use researcher_repository_integrity::{
     DeclaredDeviation, EntryTypes, LinkTypes, LockedResult, PreRegisteredProtocol, ResearchStudy,
     VerifiedDataSnapshot,
 };
-use valichord_shared_types::{MetricResult, ResearcherCommitmentInput, UndeclaredDeviation, metric_results_msgpack_bytes};
+use valichord_shared_types::{DataLocalityMode, MetricResult, ResearcherCommitmentInput, UndeclaredDeviation, metric_results_msgpack_bytes};
 use sha2::{Sha256, Digest};
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,15 @@ pub struct LockResultInput {
     pub request_ref: ExternalHash,
     /// The structured per-metric results from the researcher's original run.
     pub metrics:     Vec<MetricResult>,
+    /// Data locality mode for this study. Omit for `Gdpr` (the default and, today,
+    /// the only mode with a working implementation) — `#[serde(default)]` keeps
+    /// every existing caller source-compatible.
+    ///
+    /// ⚠️ Chosen here, and unchangeable afterwards: in `OpenAudit` the sealed
+    /// result becomes undeletable, because that mode is a permanent commitment to
+    /// post-reveal public access.
+    #[serde(default)]
+    pub data_locality_mode: DataLocalityMode,
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +252,10 @@ pub fn lock_researcher_result(input: LockResultInput) -> ExternResult<ActionHash
         metrics:         input.metrics,
         nonce,                          // moved — last use was hasher.update(&nonce)
         commitment_hash: commitment_hash.clone(),
+        // Fixed at lock time and never rewritten: LockedResult is update-guarded by
+        // the blanket PrivateEntry arm, so the mode a researcher seals under is the
+        // mode they are held to.
+        data_locality_mode: input.data_locality_mode,
     };
     let locked_hash = create_entry(EntryTypes::LockedResult(locked))?;
 

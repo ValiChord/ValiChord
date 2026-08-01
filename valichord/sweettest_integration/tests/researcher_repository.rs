@@ -331,6 +331,7 @@ async fn lock_researcher_result_creates_private_entry() {
             LockResultInput {
                 request_ref: request_ref.clone(),
                 metrics:     vec![],   // empty metrics — tests the locking mechanism, not metric content
+                data_locality_mode: Default::default(),
             },
         )
         .await;
@@ -386,6 +387,7 @@ async fn lock_researcher_result_publishes_commitment_to_attestation_dna() {
             LockResultInput {
                 request_ref: request_ref.clone(),
                 metrics:     vec![],
+                data_locality_mode: Default::default(),
             },
         )
         .await;
