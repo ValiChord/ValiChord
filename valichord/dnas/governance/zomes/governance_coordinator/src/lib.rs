@@ -783,8 +783,13 @@ fn discipline_anchor(discipline: &Discipline) -> ExternResult<EntryHash> {
 /// • Missing badge (no StudyToBadge link): full creation via try_issue_badge with one
 ///   retry on transient cross-DNA call failure (Err return from try_issue_badge).
 ///
-/// No-ops when: the HarmonyRecord can't be fetched, the quorum doesn't meet any badge
-/// threshold, or the ValidationRequest genuinely doesn't exist.
+/// No-ops ONLY when the quorum doesn't meet a badge threshold (a correct outcome) or
+/// the ValidationRequest genuinely doesn't exist.
+///
+/// ⚠️ Returns `Err` — it does NOT no-op — when the HarmonyRecord cannot be fetched or
+/// decoded. Those are transient and repairable, and silently succeeding on them is
+/// what left rounds permanently badge-less. The caller treats `Err` as a warning, so
+/// the round still finalises; the failure is simply no longer invisible.
 fn issue_badge_if_missing(
     request_ref: &ExternalHash,
     record_hash: &ActionHash,
@@ -817,20 +822,28 @@ fn issue_badge_if_missing(
         }
         return Ok(());
     }
-    // DIAGNOSTIC (2026-08-01): this fetch is genuinely remote. The HarmonyRecord is
-    // authored by whichever validator's reveal met quorum, while this repair usually
-    // runs on a different agent — so a miss here is ordinary, not exotic. When it
-    // misses, the function below returns Ok(()) and NO BADGE IS EVER ISSUED for the
-    // round: the caller still returns Some(harmony_hash), so nothing upstream can tell
-    // that the repair declined to repair. Logging it is what makes the difference
-    // between "badge missing, presumably gossip lag" and a fact.
+    // ⚠️ This fetch is genuinely REMOTE, and a miss here used to be silent.
+    //
+    // The HarmonyRecord is authored by whichever validator's reveal met quorum,
+    // while this repair usually runs on a *different* agent — so a miss is ordinary,
+    // not exotic. Until 2026-08-01 both this and the decode below did
+    // `return Ok(())`, which meant: no badge issued, no error, no log, and the
+    // caller still returning Some(harmony_hash). A repair function that declines to
+    // repair and reports success. Nothing upstream could tell, and the badge tests'
+    // retry loops only re-READ badges, so one miss left the round permanently
+    // badge-less no matter how many times they retried.
+    //
+    // Erroring is safe here and does not fail the round: the sole caller is
+    // `if let Err(e) = issue_badge_if_missing(..) { warn!(..) }`, so the
+    // HarmonyRecord hash is still returned and finalisation still succeeds — the
+    // failure just stops being invisible, and the round can be repaired by calling
+    // again once the record is retrievable.
     let Some(record) = get(record_hash.clone(), GetOptions::network())? else {
-        warn!(
-            "issue_badge_if_missing: HarmonyRecord {:?} not retrievable — badge NOT issued \
-             and this round will stay badge-less until something calls this again",
-            record_hash
-        );
-        return Ok(());
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "issue_badge_if_missing: HarmonyRecord {record_hash:?} not retrievable — badge \
+             NOT issued. This is usually transient (the record is authored by another \
+             agent); call check_and_create_harmony_record again to repair."
+        ))));
     };
     let Some(harmony) = record
         .entry()
@@ -839,7 +852,13 @@ fn issue_badge_if_missing(
             format!("HarmonyRecord decode failed in issue_badge_if_missing: {e}")
         )))?
     else {
-        return Ok(());
+        // Same class as the miss above: the record exists but carried no entry, so
+        // the badge tier cannot be determined. Not a "no badge earned" case — that
+        // is decided by evaluate_badge below, on data we actually have.
+        return Err(wasm_error!(WasmErrorInner::Guest(format!(
+            "issue_badge_if_missing: HarmonyRecord {record_hash:?} carried no entry — badge \
+             NOT issued. Retry once the entry is retrievable."
+        ))));
     };
     let validator_count = harmony.participating_validators.len();
     // Not a diagnostic case: no badge is the CORRECT outcome below the Bronze

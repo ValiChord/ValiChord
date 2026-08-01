@@ -40,6 +40,61 @@ use governance_coordinator::ReputationUpdateInput;
 use governance_integrity::{HarmonyRecord, ValidatorReputation};
 use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorType};
 
+
+// ---------------------------------------------------------------------------
+// Shared failure-path diagnostic for the badge tests
+// ---------------------------------------------------------------------------
+//
+// When a badge assertion fails there are two competing explanations, and they are
+// INDISTINGUISHABLE from conductors[0] alone — which is why this flake was written
+// off as "gossip lag" twice without evidence:
+//
+//   (A) visibility — the badge WAS issued, conductors[0] just cannot see it;
+//   (B) never issued — nothing anywhere has a badge.
+//
+// Asking EVERY conductor separates them. Under (A) some other conductor holds it;
+// under (B) it exists nowhere.
+//
+// (B) was the live hazard until 2026-08-01: issue_badge_if_missing did
+// `return Ok(())` when its (remote) HarmonyRecord fetch missed, so no badge was
+// issued and the caller still reported success. That path now returns Err, and the
+// retry loops re-trigger issuance rather than only re-reading — so (B) should no
+// longer be reachable. If it appears again, the silent-skip has returned in some
+// new form and the conductor log will carry "not retrievable".
+async fn diagnose_missing_badge(
+    conductors: &[SweetConductor],
+    apps: &[ValiChordApp],
+    request_ref: &ExternalHash,
+    badges: &[Record],
+    tier: &str,
+) {
+    if !badges.is_empty() {
+        return;
+    }
+    let mut seen_anywhere = Vec::new();
+    for (i, (c, a)) in conductors.iter().zip(apps.iter()).enumerate() {
+        let b: Vec<Record> = c
+            .call(&a.governance_zome(), "get_badges_for_study", request_ref.clone())
+            .await;
+        if !b.is_empty() {
+            seen_anywhere.push(i);
+        }
+    }
+    assert!(
+        !seen_anywhere.is_empty(),
+        "{tier}: DIAGNOSIS (B) — NO conductor has a badge for this study, so it was \
+         never issued at all. This is NOT gossip lag. issue_badge_if_missing should \
+         now return Err rather than skipping silently, and the retry loop re-triggers \
+         issuance, so reaching this means a silent-skip path has reappeared. Check the \
+         conductor log for 'not retrievable'."
+    );
+    panic!(
+        "{tier}: DIAGNOSIS (A) — the badge WAS issued and is visible on conductor(s) \
+         {seen_anywhere:?} but not on conductors[0] after the retries. This is a real \
+         visibility problem, not a missing badge."
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers — shared attestation round setup
 // ---------------------------------------------------------------------------
@@ -982,6 +1037,21 @@ async fn gold_badge_issued_with_seven_validators() {
         // The emptiness assertions below remain the real gate: a persistent empty
         // after all retries still fails, which is the behaviour the comment promises.
         let _ = await_consistency(gov_cells.iter().copied()).await;
+        // Re-TRIGGER issuance, not just re-read it.
+        //
+        // Until 2026-08-01 this loop only re-read badges. If issue_badge_if_missing
+        // had skipped (its HarmonyRecord fetch is remote and could miss), no badge
+        // existed and no amount of re-reading would conjure one -- the retries were
+        // futile by construction, which is why widening them never helped. This call
+        // is a no-op when the badge is already there and repairs the round when it
+        // is not, so it fixes the flake whichever way the underlying race went.
+        let _: Option<ActionHash> = conductors[0]
+            .call(
+                &apps[0].governance_zome(),
+                "check_and_create_harmony_record",
+                request_ref.clone(),
+            )
+            .await;
         badges = conductors[0]
             .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
             .await;
@@ -992,6 +1062,10 @@ async fn gold_badge_issued_with_seven_validators() {
             break;
         }
     }
+    // Same failure-path diagnostic as the Silver test. Gold had none until
+    // 2026-08-01, so its CI failures were mute — the one that did occur was
+    // diagnosable only because assert_eq! prints its operands.
+    diagnose_missing_badge(&conductors, &apps, &request_ref, &badges, "Gold").await;
     assert!(
         !badges.is_empty(),
         "GoldReproducible badge should be issued for ExactMatch + count=7"
@@ -1079,6 +1153,21 @@ async fn silver_badge_issued_with_five_validators() {
         // The emptiness assertions below remain the real gate: a persistent empty
         // after all retries still fails, which is the behaviour the comment promises.
         let _ = await_consistency(gov_cells.iter().copied()).await;
+        // Re-TRIGGER issuance, not just re-read it.
+        //
+        // Until 2026-08-01 this loop only re-read badges. If issue_badge_if_missing
+        // had skipped (its HarmonyRecord fetch is remote and could miss), no badge
+        // existed and no amount of re-reading would conjure one -- the retries were
+        // futile by construction, which is why widening them never helped. This call
+        // is a no-op when the badge is already there and repairs the round when it
+        // is not, so it fixes the flake whichever way the underlying race went.
+        let _: Option<ActionHash> = conductors[0]
+            .call(
+                &apps[0].governance_zome(),
+                "check_and_create_harmony_record",
+                request_ref.clone(),
+            )
+            .await;
         badges = conductors[0]
             .call(&apps[0].governance_zome(), "get_badges_for_study", request_ref.clone())
             .await;
@@ -1089,43 +1178,9 @@ async fn silver_badge_issued_with_five_validators() {
             break;
         }
     }
-    // DISCRIMINATING DIAGNOSTIC (2026-08-01) — do not remove without reading this.
-    //
-    // Two competing explanations for this test's intermittent failure:
-    //   (A) gossip lag — the badge WAS issued, conductors[0] just cannot see it yet;
-    //   (B) never issued — issue_badge_if_missing hit its silent `return Ok(())` when
-    //       get(record_hash, network) missed, so no badge exists anywhere. The
-    //       HarmonyRecord is authored by whichever validator's reveal met quorum, so
-    //       that fetch is remote from conductors[0] and can genuinely miss.
-    //
-    // These are indistinguishable from conductors[0] alone, which is why the failure
-    // has been recorded as "lag" twice without evidence. Asking EVERY conductor
-    // separates them: under (A) some other conductor holds the badge; under (B) the
-    // badge exists nowhere. Runs only on the failure path, so it costs nothing green.
-    if badges.is_empty() {
-        let mut seen_anywhere = Vec::new();
-        for (i, (c, a)) in conductors.iter().zip(apps.iter()).enumerate() {
-            let b: Vec<Record> = c
-                .call(&a.governance_zome(), "get_badges_for_study", request_ref.clone())
-                .await;
-            if !b.is_empty() {
-                seen_anywhere.push(i);
-            }
-        }
-        assert!(
-            !seen_anywhere.is_empty(),
-            "DIAGNOSIS (B) — NO conductor has a badge for this study, so it was never \
-             issued at all. This is NOT gossip lag: issue_badge_if_missing silently \
-             returned Ok(()) without issuing, and the retry loop above can never \
-             recover because it only re-reads, it never re-triggers issuance. \
-             Check the conductor log for the 'HarmonyRecord not retrievable' warning."
-        );
-        panic!(
-            "DIAGNOSIS (A) — the badge WAS issued and is visible on conductor(s) {seen_anywhere:?} \
-             but not on conductors[0] after 5 re-syncs. This one really is a visibility \
-             problem, and the silent-skip theory is WRONG for this failure."
-        );
-    }
+    // Runs only on the failure path (see diagnose_missing_badge), so it costs
+    // nothing when green.
+    diagnose_missing_badge(&conductors, &apps, &request_ref, &badges, "Silver").await;
     assert!(
         !badges.is_empty(),
         "SilverReproducible badge should be issued for ExactMatch + count=5"
