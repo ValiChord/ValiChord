@@ -290,6 +290,15 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 
 ## Pending upgrade checks (run at every session start)
 
+> 🌿 **PHASE A OF THE 0.7 MIGRATION IS DONE AND CI-GREEN (2026-08-01, `v0.7.0` branch).**
+> Everything below was written *before* the port, from indirect sources. The observed record —
+> what actually happened when the code was migrated — is now **`docs/Holochain_complete.md`
+> §44**, and it **supersedes anything here that contradicts it.** Three claims below were
+> already corrected by the port: `attestation` has **9** per-type guard arms not 12; the
+> "confirmed ZERO" audit table never grepped the **coordinators**, where three real `Action::`
+> sites lived; and the prescribed `sweettest_integration` dep line **would be a regression**
+> if applied as written. Keep this section for **Phases B and C**, which have not started.
+
 ### Holochain version
 Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-15 — trivial `reqwest`/native-tls build-feature patch in `holochain_metrics`, nothing for us; no reason to bump.)
 

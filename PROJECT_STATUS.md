@@ -5,70 +5,77 @@
 
 ---
 
-# 🚦 START HERE — next session (rewritten 2026-07-31, end of day)
+# 🚦 START HERE — next session (rewritten 2026-08-01)
 
-**Where we got to:** the **`v0.7.0` branch exists and Phase A is code-complete.** All 51 `FlatOp`
-arms are ported, all 8 zomes build on `hdi 0.8.0` / `hdk 0.7.0`, `sweettest_integration` compiles,
-the conductor configs are fixed, and **the immutability tripwires pass 5/5 on 0.7 — in CI, on a
-clean runner.** `main` remains on 0.6.2 and its tip moved only by one docs fix.
+**✅ PHASE A IS COMPLETE AND CI-GREEN.** All 51 `FlatOp` arms ported, all 8 zomes on
+`hdi 0.8.0` / `hdk 0.7.0`, conductor configs fixed, bundles repacked on 0.7, and **run
+`30659873225` (commit `719c62ce`) was fully green — all 5 immutability tripwires, all 5
+sweettest suites, and the hook guard.** The sweettest sweep is the one that matters most: it
+covers commit-reveal, phase transitions, quorum counting, cross-DNA calls and badge issuance,
+so the protocol is proven to still *work* on 0.7, not merely to still reject forbidden updates.
 
-⚠️ **Phases B and C remain blocked upstream and are NOT startable.** Re-check before touching
-either: `@holochain/client` 0.21 stable on npm `latest`, a `@holochain/tryorama` 0.7 line, and
-`holochain_wind_tunnel_runner` on 0.7. All three were still absent on 2026-07-31.
+The full evidence log is now **`docs/Holochain_complete.md` §44** (folded in from the
+standalone migration log, which is deleted). §44.8 is the honest list of what is *not*
+verified — read it before assuming anything outside Phase A works.
 
-### Step 1 — check where the CI matrix landed
+**`main` remains on 0.6.2**, at `03fc16f4`.
 
-```bash
-gh run list --branch v0.7.0 --limit 3
-gh run view <id> --json jobs --jq '.jobs[] | "\(.status)\t\(.conclusion // \"-\")\t\(.name)"'
-```
+### The state of the three phases
 
-At end of day 2026-07-31: tripwires ✅, hook guard ✅, sweettest **attestation / security /
-researcher_repository / validator_workspace** ✅ — **governance was still running and is the only
-Phase A result not yet seen.** `test` and `ui-e2e` are deliberately **skipped** on this branch;
-that is correct, not a failure.
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | 4 DNA zomes, `sweettest_integration`, configs, bundles | ✅ **complete, CI-green** |
+| **B** | 97 Tryorama tests + Svelte UI | 🟠 **half-unblocked, newly** |
+| **C** | `valichord/wind-tunnel/` | 🔴 blocked upstream |
 
-⚠️ **If governance is red, check WHICH test before concluding anything.** The known flake is
-`silver_/gold_badge_issued_with_*_validators` failing on `"Consistency not reached"`. Commit
-`1152fd38` fixed the cause (a retry loop that `unwrap()`ed inside itself), but the run in flight
-at end of day started *before* that fix. A red governance leg on the older run is expected and
-uninformative; the run triggered by `719c62ce` or later is the real signal.
+🆕 **Phase B changed on 2026-08-01: `@holochain/client` **0.21.0** and `@holochain/hc-spin`
+**0.700.0** both went stable on npm `latest`.** So the **Svelte UI half of Phase B is now
+technically startable**. The **Tryorama half is not** — `@holochain/tryorama` latest is still
+`0.19.2` and pins `@holochain/client ^0.20.4`; there is no 0.7 line. (Its `beta: 0.3.0-rc.4`
+dist-tag is from 2019 — noise, not a 0.7 preview.) **Phase C unchanged:**
+`holochain_wind_tunnel_runner` last published 2026-07-21, still on `holochain = "0.6"`.
 
-⚠️ **One commit was unpushed at end of day** (`bb6f00d1`, the bundle-binding scope doc). Push it.
+### Step 1 — decide what rides along with the 0.7 hash break
 
-### Step 2 — finish Phase A (two deferred items, both now due)
+**This is the genuinely time-limited decision, and it is yours to make.** A DNA-hash change
+forks the network: agents on the old hash and the new one cannot see each other, every
+published HarmonyRecord URL dies, and Oracle needs `down -v`. The 0.7 migration already forces
+exactly one of these. Any *other* hash-breaking change is therefore **free if it rides along,
+and costs a second void event if it comes later** — and the trap is that such changes are
+always "too expensive right now", so they defer indefinitely.
 
-1. **Repack `workdir/`.** Decision taken 2026-07-31 was "repack once at the end of Phase A", and
-   that point has arrived. Every DNA hash changes. `hc` 0.7.0 packs our manifests unchanged
-   (verified). Use the 0.7 binaries — the `hc` on `PATH` in Codespaces is still 0.6.2.
-2. **Fold `docs/Holochain_0.7_migration_log.md` into `docs/Holochain_complete.md`** and re-scope
-   that file's banner from 0.6.x to 0.7. Sections nobody touched during the port stay explicitly
-   marked unverified — that is the point, and it is what stops the KB becoming false confidence.
+Known candidates:
 
-### Step 3 — decide what else rides along with the 0.7 hash break
-
-✅ *(The flake fix was already cherry-picked to `main` as `03fc16f4` on 2026-07-31 — nothing to
-do there. `main` is at `03fc16f4`; its previous red run was that flake, now fixed.)*
-
-**The decision that is genuinely time-limited.** A DNA-hash change forks the network: agents on
-the old hash and the new one cannot see each other, every published HarmonyRecord URL dies, and
-Oracle needs `down -v`. The 0.7 migration already forces exactly one of these. Any *other*
-hash-breaking change is therefore **free if it rides along, and costs a second void event if it
-comes later** — and the trap is that such changes are always "too expensive right now", so they
-defer indefinitely.
-
-So before merging, enumerate what wants a hash break. Known candidates:
-
-1. **Validator→bundle binding** — scoped in `docs/VALIDATOR_BUNDLE_BINDING_PLAN.md`. One field on
-   `ValidationAttestation`, bound into the commitment automatically because
+1. **Validator→bundle binding** — scoped in `docs/VALIDATOR_BUNDLE_BINDING_PLAN.md`. One field
+   on `ValidationAttestation`, bound into the commitment automatically because
    `commitment_msgpack_bytes()` is already shared between the commit and reveal paths. ~half a
    day, mostly tests. Closes a gap documented publicly in falsify-cookbook Pattern 13.
 2. **Open Audit Mode** — `EncryptedDataset`, X25519 keys, decryption-key field on
    `ResearcherReveal`. Phase 1, explicitly hash-breaking (architecture doc, Data Locality Modes).
 
-⚠️ **Sequencing, if any of these are taken:** get `v0.7.0` fully green **first**, then add them as
-separate commits on top. Otherwise a failure cannot be attributed between the port and the
-feature, and the migration stops being independently verifiable.
+⚠️ **Sequencing, if any are taken:** Phase A is green *now*, so add them as separate commits on
+top. Otherwise a failure cannot be attributed between the port and the feature, and the
+migration stops being independently verifiable.
+
+### Step 2 — optionally start the UI half of Phase B
+
+Newly unblocked (see above). Known first edit: `valichord-ui/src/lib/types.ts:331` needs
+`.header.author` — `SignedActionHashed` is no longer generic and common action fields moved
+under `.header`. Three `@holochain/client` pins to bump: `valichord-ui/package.json`,
+`valichord/tests/package.json`, `demo/package.json`. **The Tryorama tests cannot follow yet**,
+so the UI would be moving without its integration-test net — worth weighing against just
+waiting for Tryorama.
+
+### Known flake — not a 0.7 regression, and not fully mitigated
+
+`silver_badge_issued_with_five_validators` (`governance.rs:1092`) fails intermittently. It
+passed on `719c62ce` and failed on `70cd07dc` — a **docs-only** commit, identical test and zome
+code. Gossip lag on a loaded 5-conductor runner; the badge reads are correctly `Network`.
+
+⚠️ `1152fd38` fixed a retry loop that `unwrap()`ed inside itself and so panicked on its own
+first iteration. That fix is real — the loop now genuinely retries — but the lag can still
+outlast all 5 rounds (~5 min of `await_consistency`). **The mitigation now works and is still
+not sufficient.** If you want it gone rather than tolerated, that is its own piece of work.
 
 ### What was learned during the port — read before the next migration
 
@@ -79,7 +86,7 @@ feature, and the migration stops being independently verifiable.
   the checker was negative-controlled on all three distinct hazard shapes before being trusted.
 - **An equivalence argument across a version bump must check every moving part.** `SweetConductor`'s
   constructors were compared while `SweetConductorConfig::standard()` was *assumed* unchanged — it
-  had changed, and that cost a red tripwire run. See the migration log.
+  had changed, and that cost a red tripwire run. See `docs/Holochain_complete.md` §44.3.
 - **`attestation` has 9 per-type guard arms, not 12** — the checklist conflated guards with total
   `RegisterUpdate` arms.
 

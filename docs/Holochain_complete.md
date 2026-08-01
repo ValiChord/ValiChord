@@ -4,40 +4,64 @@
 
 ---
 
-## ⚠️ VERSION SCOPE — READ FIRST (updated 2026-07-30)
+## ⚠️ VERSION SCOPE — READ FIRST (re-scoped to 0.7 on 2026-08-01, end of Phase A)
 
-> 🌿 **YOU ARE ON THE `v0.7.0` BRANCH. This file is still 0.6.x and has NOT been rewritten.**
-> Verified 0.7 facts live in `CLAUDE.md` → "Pending upgrade checks" and in
-> `docs/Holochain_0.7_migration_log.md` (written as the port proceeds). Treat every
-> section below as describing the code this branch is *migrating away from*.
+> 🌿 **This file is now scoped to Holochain 0.7.0 on the `v0.7.0` branch — but only in the
+> places the port actually touched.** The rest is unrewritten 0.6.x prose. The table below is
+> the map of which is which, and it is the most important thing on this page.
+>
+> **`main` is still on 0.6.2.** If you are reading this from `main`, or working on the live
+> Oracle demo or the Render site, the 0.6.x prose *is* your reference and the 0.7 notes are
+> the future.
 
-**This document describes Holochain 0.6.x, which is what ValiChord actually runs (0.6.2). It remains the correct reference for the current codebase.**
+**Why this file was not simply rewritten for 0.7.** Rewriting all 43 sections would have meant
+relabelling 0.6 knowledge as 0.7 knowledge without checking it — producing a document that
+*looks* current and is silently wrong in unknown places. That is the exact failure this
+project keeps having to unlearn: the pre-migration checklist assembled from indirect sources
+had **four wrong claims**, and the three original "immutability" tests passed on *"function
+not found"*. **An unverified section honestly labelled is more useful than a confidently
+wrong one.** So sections the port exercised are marked verified and carry their evidence;
+sections nobody touched stay explicitly marked unverified, and that is a feature.
 
-**Holochain 0.7.0 shipped 2026-07-30.** We have deliberately NOT migrated — the migration is planned, branch-only (`v0.7.0`), and `main` stays on 0.6.2. This file has **not** been rewritten for 0.7, because doing so would make it wrong for the code we run today.
+**Where the 0.7 evidence lives:**
+- **§44 (this file)** — the migration log, folded in at the end of Phase A. Everything in it
+  was *hit for real during the port*. Nothing inferred. Start here.
+- **`CLAUDE.md` → "Pending upgrade checks"** — the forward-looking checklist, evidence-tagged
+  (✅ verified against shipped artifacts / ❌ corrected / ⚠️ unverified). Still authoritative
+  for Phases B and C, which have not started.
 
-**Authority for anything 0.7-related is `CLAUDE.md` → "Pending upgrade checks",** which carries an evidence-tagged checklist (✅ verified against shipped artifacts / ❌ corrected / ⚠️ unverified). Do not treat this file as a 0.7 reference, and do not "update" it to 0.7 until the migration actually lands.
+### Verification map — section by section
 
-### Sections known to be stale for 0.7 (verified against shipped `hdi 0.8.0` / `hdk 0.7.0`, 2026-07-30)
+**Legend:** ✅ exercised by the port, evidence in §44 · 🔴/🟠 known-changed, not yet exercised
+· 🟢 checked against shipped 0.7 crates, no change · ⚠️ **not checked at all**
 
 | Section | 0.7 status |
 |---|---|
-| **§34 `FlatOp` / `OpHelper` pattern** | 🔴 **Heavily changed.** All six variants renamed (`StoreRecord`→`CreateRecord`, `StoreEntry`→`CreateEntry`, `RegisterAgentActivity`→`AgentActivity`, `RegisterUpdate`→`Update`, `RegisterDelete`→`Delete`); both link variants fold into `FlatOp::Link(OpLink)`; every sub-type now carries `TypedAction<D>` (`{ header, data }`, `Deref` to `D`) instead of a generic `Action`. ValiChord has **51 arms** affected. |
+| **§34 `FlatOp` / `OpHelper` pattern** | ✅ **VERIFIED BY THE PORT — but the prose below is still 0.6. Read §44 first.** All 51 arms across four integrity zomes were ported and the result compiles clean with the immutability tripwires green. Variants renamed (`StoreRecord`→`CreateRecord`, `StoreEntry`→`CreateEntry`, `RegisterAgentActivity`→`AgentActivity`, `RegisterUpdate`→`Update`, `RegisterDelete`→`Delete`); both link variants fold into `FlatOp::Link(OpLink)`; every sub-type carries `TypedAction<D>` (`{ header, data }`, `Deref` to `D`). ⚠️ **`action.author` is a compile error in 0.7 — it is `action.author()`** (§44). |
+| **§40 `NetworkConfig`** | ✅ **VERIFIED — the two-line fix was applied and the configs start.** Wrong config **fails to start (exit 42)**, it is not ignored. `signal_url`, `webrtc_config`, `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` (`Full`/`Normal`/`Off`). New fields incl. `target_arc_factor`, `base64_auth_material_bootstrap`/`_relay`, `wasm_backend`, `restore_chain_quorum`. Full allowed-field lists in `CLAUDE.md`. |
+| **§20 Testing with Tryorama** | ⚠️ **UNVERIFIED AND KNOWN-BLOCKED — do not follow for 0.7.** Phase B has not started: there is no `@holochain/tryorama` 0.7 line on npm. The prose below is 0.6-only. |
+| **§24 Connecting a front end** | ⚠️ **UNVERIFIED FOR 0.7.** `@holochain/client` 0.21.0 went stable 2026-08-01 but nothing here has been re-checked against it. Known pending: `SignedActionHashed` is no longer generic and common action fields move under `.header`. |
 | **§43 Rate limiting types** | 🔴 **REMOVED entirely** in 0.7 — the `rate_limit` module, `RateWeight`, `EntryRateWeight` and the action-weight machinery are gone (PR #5860). Section is dead for 0.7. We never used them. |
-| **§40 `NetworkConfig`** | 🔴 **Changed, and wrong config now FAILS TO START (exit 42), it is not ignored.** `signal_url`, `webrtc_config`, `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` with values `Full`/`Normal`/`Off`. New fields incl. `target_arc_factor`, `base64_auth_material_bootstrap`/`_relay`, `wasm_backend`, `restore_chain_quorum`. Verified empirically against the 0.7.0 binary — exact allowed-field lists are in `CLAUDE.md`. |
-| **§36 `ChainFilter` / `LimitConditions`** | 🟠 Changed (now built via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining), and `must_get_agent_activity` gained response variants. **Zero impact on us** — we call neither. |
-| **§19 Getting an agent's status** | 🟠 `AgentActivity` → **`AgentActivityStatus`**. The `get_agent_activity` signature is otherwise **identical** and the `warrants` field survives, so our three call sites need no change. |
-| **§18 DHT operations** | 🟠 Read alongside §34 — the v2 Action model is canonical; the legacy per-variant action structs, `ActionBuilder`, and `EntryCreationAction`/`NewEntryAction` wrappers are all removed. |
-| **§31 App status model** | 🟢 **Unchanged in 0.7.0.** The `AwaitingRestore`/`Unrecoverable` variants and the restore signals were expected but the source-chain-restore workflow (PR #5920) **did not ship** — only groundwork (#5799). Revisit when it lands in a later 0.7.x. |
+| **§36 `ChainFilter` / `LimitConditions`** | 🟠 Changed (now built via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining), and `must_get_agent_activity` gained response variants. **Zero impact on us** — we call neither, so the port never exercised it. |
+| **§19 Getting an agent's status** | 🟠 `AgentActivity` → **`AgentActivityStatus`**. Signature otherwise identical and `warrants` survives, so our three call sites needed no change — confirmed by the port compiling clean. |
+| **§18 DHT operations** | 🟠 Read alongside §34 and §44. The v2 Action model is canonical; legacy per-variant action structs, `ActionBuilder`, and `EntryCreationAction`/`NewEntryAction` are removed. ⚠️ **`Action` is now a struct, not an enum** — see §44, the one thing the pre-migration audit missed. |
+| **§31 App status model** | 🟢 **Unchanged in 0.7.0.** The `AwaitingRestore`/`Unrecoverable` variants and restore signals were expected, but the source-chain-restore workflow (PR #5920) **did not ship** — only groundwork (#5799). Revisit when it lands in a later 0.7.x. |
 | **§25 Conductor config (tx5/WebRTC)** | ⚫ Already marked legacy; now doubly so — tx5/WebRTC is fully gone and iroh/QUIC is the sole transport. |
-| §37 size limits, §38 `GetStrategy`/`GetOptions`, §35 `LinkQuery`, §39 `ChainTopOrdering` | 🟢 No verified 0.7 change; `GetOptions`/`GetStrategy`/`ChainQueryFilter`/`ActivityRequest` all confirmed still present in `hdk 0.7.0`. |
+| §37 size limits, §38 `GetStrategy`/`GetOptions`, §35 `LinkQuery`, §39 `ChainTopOrdering` | 🟢 Checked against shipped `hdk 0.7.0`, no change; `GetOptions`/`GetStrategy`/`ChainQueryFilter`/`ActivityRequest` all still present. The port used them throughout without incident. |
+| **§§1–17, 21–23, 26–33, 41–42** | ⚠️ **NOT CHECKED against 0.7.** The port did not touch them. They may be right; nobody has verified it. Treat as 0.6.x prose. |
 
-Sections not listed above have **not** been checked against 0.7 — absence from this table means unknown, not verified-unchanged.
+**Absence from the ✅/🟢 rows means unknown, not verified-unchanged.**
 
 ---
 
 ## COVERAGE STATUS
 
 All pages of the Holochain Build Guide have been read and synthesised. Sections 1–25 are from the Build Guide. Sections 26–43 were added from direct crate source analysis (`hdk`, `hdi`, `holochain_integrity_types`, `holochain_zome_types`, `holochain_conductor_api`) and cover API surface NOT in the Build Guide: clone cells, scheduled functions, countersigning, source chain migration, deferred membrane proofs, app status model, app websocket auth tokens, full admin API, FlatOp validation pattern, LinkQuery full filter surface, ChainFilter/LimitConditions, entry/link size limits, GetStrategy, ChainTopOrdering, updated NetworkConfig, signal subscription filtering, warrant types detail, and rate limiting types.
+
+**§44 is different in kind from all of the above.** Sections 1–43 are synthesised *reading*;
+§44 is the log of the 0.6.2 → 0.7.0 port, and every claim in it was observed while doing the
+work. Where the two disagree, §44 wins — it was checked against a running system, and the
+sections above were not.
 
 ---
 
@@ -1151,6 +1175,390 @@ Present in the types but conductor enforcement is still maturing:
 - `RateBucketId`, `RateUnits`, `RateBytes`, `RateBucketCapacity` — type aliases used in action structs and validation contexts
 
 The rate limiting system is present in integrity types but the full validator logic and conductor enforcement details are still evolving. Treat as a known-incomplete area.
+
+---
+
+## 44. HOLOCHAIN 0.6.2 → 0.7.0 MIGRATION — EVIDENCE FROM THE PORT
+
+**Branch:** `v0.7.0` · **Ported:** 2026-07-31 → 2026-08-01 · **From:** 0.6.2 (`hdi 0.7.2` / `hdk 0.6.2`) · **To:** 0.7.0 (`hdi 0.8.0` / `hdk 0.7.0`)
+
+**Every entry in this section was hit for real during the migration. Nothing inferred.**
+
+That rule is the whole point. The pre-migration checklist in `CLAUDE.md` was assembled from
+indirect sources and **four of its claims turned out to be wrong** — all four in items derived
+from branch-watching and a draft upgrade guide, none in items checked against a shipped
+artifact. So: if it is not written down here, it was not observed. Anything still
+believed-but-unobserved stays in `CLAUDE.md` under its ⚠️ UNVERIFIED tag.
+
+### 44.1 Scope — what is and is not migrated
+
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | 4 DNA integrity + coordinator zomes, `shared_types`, `sweettest_integration`, conductor configs, committed hApp bundles | ✅ **complete, CI-green** |
+| **B** | 97 Tryorama tests + Svelte UI | 🔴 **blocked upstream** — no `@holochain/tryorama` 0.7 line (latest 0.19.2, pins `@holochain/client ^0.20.4`). `@holochain/client` 0.21.0 *did* go stable 2026-08-01, so the UI half is now technically unblocked; the Tryorama half is not. |
+| **C** | `valichord/wind-tunnel/` | 🔴 **blocked upstream** — `holochain_wind_tunnel_runner` still on `holochain = "0.6"` (last published 2026-07-21). |
+
+### 44.2 `FlatOp` arms — ordering is the enforcement mechanism
+
+⚠️ **Immutability in ValiChord is enforced by Rust match ordering.** A mechanical
+rename-and-reflow that reorders arms **silently disables it: no compile error, and no test
+failure unless a test explicitly attempts a forbidden update.** This is the single most
+dangerous part of the migration, and it is why the tripwire tests exist (§44.7).
+
+#### Arm inventory — recounted on the branch, checklist held
+
+| variant | attestation | governance | validator_workspace | researcher_repository | total |
+|---|---|---|---|---|---|
+| `RegisterUpdate` → `Update` | 12 | 5 | 5 | 4 | **26** |
+| `StoreEntry` → `CreateEntry` | 8 | 4 | 0 | 0 | **12** |
+| `RegisterDeleteLink` → `Link(OpLink::DeleteLink)` | 5 | 3 | 0 | 0 | **8** |
+| `RegisterDelete` → `Delete` | 1 | 1 | 1 | 1 | **4** |
+| `RegisterAgentActivity` → `AgentActivity` | 1 | 0 | 0 | 0 | **1** |
+| `StoreRecord` → `CreateRecord` | 0 | 0 | 0 | 0 | **0** |
+| | | | | | **51** |
+
+❌ **CORRECTION to `CLAUDE.md`: `attestation` has NINE per-type immutability guard arms, not
+twelve.** Twelve is the total `RegisterUpdate` arm count; the checklist conflated the two. The
+actual breakdown (`attestation_integrity/src/lib.rs:430–508`):
+
+- **9 per-type guards** — `ValidationAttestation` (:430), `CommitmentAnchor` (:436),
+  `PhaseMarker` (:442), `ResearcherResultCommitment` (:448), `ResearcherReveal` (:454),
+  `AgentIdentityAttestation` (:460), `ValidationRequest` (:468), `StudyClaimRelease` (:474),
+  `StudyClaim` (:483)
+- **3 fall-through arms** — generic `OpUpdate::Entry { action, .. }` (:490, author check),
+  `OpUpdate::PrivateEntry` (:501, Invalid — this DNA has no private entries), catch-all
+  `RegisterUpdate(_)` (:508, Valid)
+
+The checklist's list of guarded *types* was also incomplete — it named six; there are nine.
+
+#### The ordering invariant, stated exactly — per DNA
+
+**These are the three things a reflow must not break. Each is compile-clean if broken.**
+
+**`attestation`** — public entries, ordering is everything:
+> all **9** per-type guards (`:430`–`:487`) must stay **above** the generic
+> `OpUpdate::Entry { action, .. }` author-check at `:490`.
+
+Reproduced by negative control 2026-07-30: moving the `ValidationAttestation` guard below
+`:490` made the forbidden update **succeed**, because the generic arm's author-check passes
+for the entry's own author.
+
+**`validator_workspace`** (`:149`–`:217`) and **`researcher_repository`** (`:150`–`:206`) —
+all entries private, so the shape differs:
+> the blanket `OpUpdate::PrivateEntry { .. } => Invalid` arm (`:210` / `:199`) must stay
+> **above** the catch-all `RegisterUpdate(_) => Valid` (`:217` / `:206`).
+
+⚠️ Note what is *not* the invariant here. The per-type guards at `validator_workspace:149,157`
+and `researcher_repository:150`, **and the generic `OpUpdate::Entry` arm at `:200`/`:189`, are
+all dead code** — private entries can only ever surface as `OpUpdate::PrivateEntry`. So the
+relative order of `:200` and `:210` is irrelevant; only `:210` vs `:217` matters. **One arm is
+the entire immutability guard for each of these two DNAs.**
+
+**`governance`** — a third shape again. It has no generic `OpUpdate::Entry` arm, but its
+**`ValidatorReputation` update arm carries the `system_coordinator_key` authorisation check**.
+Dropped below the `Update(_)` catch-all it becomes dead code and *any agent may rewrite any
+reputation record* — a **privilege escalation**, not merely a lost immutability guard.
+
+🔑 **The generalisation:** the hazard is not "guards above the generic arm". It is **"any arm
+carrying logic must stay above any broader arm that would swallow it"** — which is an
+immutability guard in `attestation`, an authorisation check in `governance`, and a
+whole-DNA blanket rule in the two private DNAs.
+
+#### Port results
+
+| zome | arms | result |
+|---|---|---|
+| attestation | 27 | clean first build, zero warnings; all 29 top-level arms in identical positions with identical selectors |
+| governance | 13 | clean first build, zero warnings; 15/15 arms in identical order |
+| validator_workspace | 6 | clean build, zero warnings; 7/7 in order |
+| researcher_repository | 5 | clean build, zero warnings; 6/6 in order |
+
+Verified with a genuine from-scratch rebuild (WASM artifacts and fingerprints deleted first —
+an incremental *"Finished in 0.08s"* is not evidence). **All 8 zomes, zero errors, zero
+warnings. 51/51 arms ported; 57/57 top-level match arms confirmed in identical order.**
+
+#### Two negative controls, both run before trusting the result
+
+Compile-clean is exactly what broken ordering looks like, so neither check was trusted until
+it was shown to fail.
+
+1. **The arm-ordering checker.** Reproduced the 2026-07-30 accident on a copy — moved the
+   `ValidationAttestation` guard below the generic `Update` arm — and the checker reported
+   **10 mismatches**. Negative-controlled separately on all three hazard shapes: governance's
+   authorisation arm (2 mismatches) and both private-DNA blanket arms. Restores verified
+   byte-identical each time.
+2. **rustc helps, partially.** Each broken copy produced `warning: unreachable pattern`.
+   Useful because our correct build produces **zero** warnings, so any warning is signal.
+   Unchanged caveat: it is a warning not an error, and it catches **only** shadowing — not a
+   deleted arm, nor one whose pattern stops matching after a rename.
+
+⚠️ **Sequencing constraint: the tripwires cannot run per-zome.** They need all four DNAs
+packed, `sweettest_integration` on 0.7, *and* a 0.7 `hc` binary. The achievable per-zome check
+is `cargo build -p <zome> --target wasm32-unknown-unknown --release` plus the two above; the
+tripwires run once the whole of Phase A compiles.
+
+### 44.3 API surprises the checklist did NOT predict
+
+#### `action.author` breaks everywhere — but the compiler catches all of it
+
+`TypedAction<D>` is `{ header: ActionHeader, data: D }` with `Deref<Target = D>`. So a field
+access on `action` resolves against **`D`**, not the header. `ActionHeader` owns `author` /
+`timestamp` / `action_seq` / `prev_action`; the per-variant `D` structs (`CreateData`,
+`UpdateData`, `DeleteData`, `CreateLinkData`, `DeleteLinkData`) own **none** of them.
+
+| 0.6 expression | 0.7 | why | sites |
+|---|---|---|---|
+| `action.original_action_address` | ✅ **unchanged** | `UpdateData.original_action_address` — same field, reached via `Deref` | 4 |
+| `action.deletes_address` | ✅ **unchanged** | `DeleteData.deletes_address` — ditto | 4 |
+| `action.author` | 🔴 **compile error** → `action.author()` | no `author` field on any `D`; it is an accessor on `TypedAction` | **~20** |
+
+**This is the good case** — every broken site is a hard compile error (`no field 'author' on
+type 'UpdateData'`), so none can slip through silently. Note the type change too: `author()`
+returns `&AgentPubKey`, so comparisons against an owned `AgentPubKey` need a deref
+(`anchor.validator != *action.author()`) and `.to_string()` sites just chain.
+
+⚠️ **The two "unchanged" rows are the ones to watch** — they compile silently. They were
+checked field-by-field against the 0.7.0 struct definitions; names and meanings are identical.
+
+#### 🔴 THE ONE THE AUDIT MISSED — `Action::<Variant>(..)` matching in **coordinators**
+
+The v2 Action model was on the checklist, but the mechanical audit that declared everything
+zero **only covered the four integrity zomes, `shared_types` and `sweettest_integration`** —
+it never grepped the *coordinator* zomes. Three real sites, found only when the full workspace
+build failed:
+
+| file | 0.6 | 0.7 |
+|---|---|---|
+| `validator_workspace_coordinator/src/lib.rs:290` | `if let Action::Create(create) = signed.action()` | `if let ActionData::Create(create) = &signed.action().data` |
+| `attestation_coordinator/src/lib.rs:90` | `if let Action::AgentValidationPkg(avp) = record.action()` | `if let ActionData::AgentValidationPkg(avp) = &record.action().data` |
+| `attestation_coordinator/src/lib.rs:1938` | `if let Action::Create(_) = signed_action.action()` | `if let ActionData::Create(_) = &signed_action.action().data` |
+
+`Action` in 0.7 is a **struct** `{ header: ActionHeader, data: ActionData }`, not an enum —
+hence `no associated item named 'Create' found for struct 'Action'`. Per-variant payload field
+names all survive (`CreateData.entry_hash`, `AgentValidationPkgData.membrane_proof`), so only
+the match shape changes.
+
+⚠️ **Lesson for Phases B and C: treat the audit's "confirmed ZERO" table as scoped to the
+files it actually grepped.** Two of those three sites are in `post_commit` — the commit-reveal
+notification path — so this would have been a runtime break in the protocol's critical path.
+
+#### `sweettest_integration` broke in a completely different place than predicted
+
+The checklist predicted PR #5898's re-layering of conductor state types would surface as
+*"unresolved names scattered through the tests"*, because two of three imports are globs.
+**That did not happen at all.** Not one name moved out from under the globs. Three unrelated
+things broke instead:
+
+**1. `pkcs8` pin — the dependency graph would not even resolve.** `sweettest_integration`
+pinned `pkcs8 = "=0.11.0-rc.11"` as a 0.6.x workaround. 0.7.0 pulls `ed25519-dalek 3.0.0-rc.0`
+via `iroh 1.0.0` ← `kitsune2_transport_iroh 0.5.0`, which **requires `pkcs8 ^0.11` stable**.
+The pin made the graph unresolvable. Its own comment said to drop it on upgrade — past-us left
+the right instruction, and it was correct.
+
+**2. `serde_yaml` → `yaml_serde`.** `YamlProperties::new` now takes a `yaml_serde::Value`.
+Holochain 0.7 moved off the deprecated `serde_yaml 0.9.34+deprecated` to `yaml_serde 0.10.4`,
+an API-compatible rename (same `from_str`, `Value`, `Mapping`, `as_mapping_mut`). 13 use sites
+plus the `Cargo.toml` dep. rustc says *"have similar names, but are actually distinct types"*.
+
+**3. `SweetConductor::from_standard_config()` REMOVED → `SweetConductor::standard()`.**
+
+⚠️ **This cost a full red tripwire run, and the mistake is the most transferable thing here.**
+
+Comparing only the *constructor* bodies across versions:
+
+| version | body |
+|---|---|
+| 0.6.2 `from_standard_config()` | `from_config(SweetConductorConfig::standard())` — passes `config.get_rendezvous()`, which was `None` |
+| 0.7.0 `standard()` | `from_config_rendezvous(SweetConductorConfig::rendezvous(true), SweetLocalRendezvous::new())` — spawns a rendezvous server |
+
+…reads as "0.7's `standard()` adds a rendezvous server the 0.6 one didn't have", and invites a
+supposedly-faithful port to `create_with_defaults(SweetConductorConfig::standard(), None, …)`.
+
+**That is wrong, because `SweetConductorConfig::standard()` ALSO changed.** In 0.7 it sets
+(`sweet_conductor_config.rs:65–66`):
+
+```rust
+network_config.bootstrap_url = url2::url2!("rendezvous:");
+network_config.relay_url     = url2::url2!("rendezvous:");
+```
+
+and `create_with_defaults` **panics by design** when given that config with `rendezvous: None`
+(`sweet_conductor.rs:172`). There is no non-rendezvous `standard()` config in 0.7.
+**`SweetConductor::standard()` is simply the correct replacement.** The consequence is real
+but forced by upstream: single-conductor sweettests now each spawn a local rendezvous server.
+
+🔑 **An equivalence argument across a version bump has to check every moving part, not the one
+that looks like the subject.** Two of three parts were compared; the third
+(`SweetConductorConfig::standard()` itself) was *assumed* unchanged and was the one that moved.
+The result was asserted as "verified equivalent" and was not — the same failure family as the
+checklist errors this migration was set up to avoid, just committed by the porter rather than
+inherited.
+
+`SweetConductorBatch::from_standard_config_rendezvous(n)` → `from_config_rendezvous(n,
+SweetConductorConfig::rendezvous(true))` **is** an exact equivalent — literally the old
+function's body. 5 sites in `tests/`, 1 in `src/lib.rs`.
+
+#### Smaller confirmed findings
+
+- **`OpEntry::CreateEntry` carries `TypedAction<CreateData>`**, not `EntryCreationData`. The
+  latter exists in `hdi 0.8.0` but is used by `OpRecord`/`OpActivity`, not by the arm we match.
+- **`OpLink` accessors exist and we need none of them.** All 8 link arms match on `link_type`
+  and discard the rest with `..`; no integrity zome reads a link base/target/tag.
+- **`AgentValidationPkg` — rename only, as predicted.** Shipped
+  `OpActivity::AgentValidationPkg { membrane_proof, action }` retains `membrane_proof` and our
+  single arm destructures exactly `{ membrane_proof, .. }`. Confirms the checklist's ❌
+  correction against the official upgrade guide, whose rewrite recipe applies to
+  `OpActivity::CreateAgent` — a variant we never match.
+- ❌ **The sweettest "feature flag" migration is ZERO work.** `CLAUDE.md` prescribes
+  `default-features = false, features = ["encryption", "wasmer-sys-cranelift"]`. **That recipe
+  is for a manifest that named the old features explicitly. Ours does not** — it is plain
+  defaults plus `test_utils`. Shipped 0.7.0's own defaults are
+  `["encryption", "schema", "wasmer-sys-cranelift"]`, i.e. the renamed features *are* already
+  the defaults. The correct edit is the version bump alone; **applying the prescribed line as
+  written would be a regression**, silently dropping `schema`.
+- **`[workspace.dev-dependencies]` is not a real Cargo key.** `cargo` reports
+  `unused manifest key` for `valichord/Cargo.toml:34`; dev-dependencies are not inheritable
+  this way. The `fixt` pin there has **always** been inert, on 0.6.2 as much as 0.7.
+  Pre-existing, not migration fallout — recorded so it is not mistaken for it.
+- **Version strings — 7, exactly as counted.** `valichord/Cargo.toml:18-19` (`hdi`, `hdk`) and
+  `sweettest_integration/Cargo.toml:39–43` (`holochain`, `holochain_types`,
+  `holochain_keystore`, `hdk`, `holo_hash`). Every zome uses `{ workspace = true }`.
+  ✅ `holochain_serialized_bytes = "=0.0.57"` (`Cargo.toml:21`) **resolved fine** — the lock
+  carries exactly one copy, so `hdi 0.8.0` agrees with the pin. No change needed.
+
+### 44.4 Conductor configs — the predicted two-line fix, applied
+
+Applied exactly as predicted from the 2026-07-30 empirical check against the real 0.7.0 binary.
+**Wrong config fails to start (exit 42); it does not degrade.**
+
+```diff
+  network:
+-   signal_url: <anything>          # REMOVED in 0.7 — NetworkConfig rejects unknown fields
+- db_sync_strategy: Fast            # demo/conductor-config-node.yaml
++ db_sync_level: Off
+- db_sync_strategy: Resilient       # valichord-ui/dev-conductor.yaml
++ db_sync_level: Normal
+```
+
+`demo/rehearse-autoupdate.sh` needed the `signal_url` removal only. In
+`demo/conductor-config-node.yaml` the `__SIGNAL_URL__` placeholder is now consumed only by
+`relay_url` — the placeholder *name* was kept deliberately so `node-entrypoint.sh` needs no
+change.
+
+⚠️ **The `Fast`→`Off` / `Resilient`→`Normal` semantic mapping is still the upgrade guide's
+claim, not ours.** The three valid values (`Full`/`Normal`/`Off`) are verified; the mapping is
+plausible (it matches SQLite `synchronous` levels) but not independently confirmed.
+
+**Gotcha worth remembering:** a long `data_root_path` makes the in-process lair keystore fail
+with `path must be shorter than SUN_LEN`. It looks like a config error and is not. Keep test
+conductor paths short (`mktemp -d /tmp/hc7XXXX`).
+
+### 44.5 Bundles repacked — every DNA hash changed
+
+Rebuilt on `hdi 0.8.0` / `hdk 0.7.0` and repacked with `hc 0.7.0` (2026-08-01):
+
+| DNA | 0.7.0 hash |
+|---|---|
+| attestation | `uhC0kcEbtE9PQceAHu--XzLS71Kg7l_UQewJsTvxkyyDTwVIyiq3p` |
+| researcher_repository | `uhC0kgYckp73ECuNpZkSbTsyy_n0GVu-Y9YmzsnPTqiVg05Xjvlw1` |
+| validator_workspace | `uhC0kEZGGnF6RC2BHa5SFi0KWYiR9VkcsLowD9hynfPdto7YVfPIQ` |
+| governance | `uhC0kcKEFEoEGHCSG1XKTXW4EbEIB9bjIEhfTbmVwm8L1kK4X6bxd` |
+
+Only the three `.happ` bundles are tracked in git; `workdir/*.dna` is gitignored.
+
+Checks run rather than assumed: `./check-no-test-hooks.sh` in **both** directions (passes on
+`workdir/`, still fails on `workdir-test/`); each hApp unpacked and its embedded DNAs hashed
+(all four distinct and matching the standalone files — the `pack_dna.py` failure mode absent);
+role bundles carry the right subsets; `allow_deferred_memproofs: true` and every role's
+`modifiers` block survive the 0.7 packer. 0.7 additionally writes explicit defaults
+(`installed_hash: null`, `clone_limit: 0`, `bootstrap_url`/`relay_url: null`).
+
+⚠️ **A DNA hash change forks the network.** Agents on the old hash and the new one cannot see
+each other, every published HarmonyRecord URL dies, and Oracle needs `down -v`. This is why
+any *other* hash-breaking change is free if it rides along with the migration and costs a
+second void event if it comes later.
+
+### 44.6 Toolchain note
+
+`hc` and `holochain` on `PATH` in Codespaces are **still 0.6.2**. The 0.7 binaries must be
+downloaded per-session:
+
+```bash
+BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.0
+curl -sSL $BASE/hc-x86_64-unknown-linux-gnu        -o <dir>/hc
+curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu -o <dir>/holochain
+```
+
+`hc 0.7.0` packs our existing `dna.yaml` / `happ.yaml` manifests unchanged.
+
+### 44.7 Tripwire runs — the safety net for the arm port
+
+`sweettest_integration/tests/immutability_tripwire.rs`, 5 tests. See `CLAUDE.md` for the
+build-and-run recipe (they need `--features test_utils` DNAs in `workdir-test/`).
+
+| when | result | notes |
+|---|---|---|
+| baseline, unmodified 0.6.2 | ✅ **5 passed** (833.80 s) | Run *before* touching any zome code. Safety net confirmed live before the port began. |
+| first run on 0.7.0 | ❌ **2 passed, 3 failed** (481.56 s) | **Not a guard regression.** All 3 were the `setup_single` tests, panicking in sweettest's own constructor — the `SweetConductorConfig::standard()` trap (§44.3). The guards were never reached. |
+| after the `setup_single` fix | ✅ **5 passed** (686.69 s) | Immutability holds on 0.7 across all four DNAs. |
+
+**Reading the red run correctly mattered.** A failing tripwire immediately after a 51-arm port
+invites the conclusion that the port broke a guard. It had not: the panic was in
+`sweet_conductor.rs`, before any zome code ran, and the failure set correlated exactly with
+the setup helper rather than with any DNA or entry type. The tripwires were still doing their
+job — they failed loudly at the first thing that was actually wrong.
+
+⚠️ **Log-filter footgun, found while verifying the green run.** The retry piped through
+`grep -v sqlcipher_mlock` to suppress ENOMEM spam that is new under 0.7 in Codespaces. But the
+mlock lines share a line with the `test <name> ... ok` line, so the filter **deleted one test's
+result line entirely** — the summary said 5 passed while only 4 names were greppable. Filter on
+the reported summary and per-test re-runs, never with a pattern that can consume a result line.
+Closed by re-running that one test alone and unfiltered rather than arguing from the summary.
+
+### 44.8 What is verified at the end of Phase A — and what is not
+
+✅ **Verified on 0.7, in CI, on a clean runner** (run `30659873225`, commit `719c62ce`):
+
+- All 8 zomes build; 51/51 `FlatOp` arms ported with ordering proven mechanically.
+- **All 5 immutability tripwires pass** — the four integrity zomes still reject forbidden updates.
+- **All 5 sweettest suites pass** — attestation, governance, researcher_repository,
+  validator_workspace, security. This is the checkpoint that matters beyond the tripwires:
+  it covers commit-reveal, phase transitions, quorum counting, cross-DNA calls and badge
+  issuance. **A green tripwire run after a 51-arm port is necessary, not sufficient** — this is
+  the sufficient part.
+- The `no-test-hooks` guard passes on the repacked bundles, and still fails on `workdir-test/`.
+
+⚠️ **NOT verified — do not assume any of this works on 0.7:**
+
+1. **The 97 Tryorama tests** — deliberately skipped on this branch; Phase B is blocked.
+2. **The Svelte UI** — `ui-e2e` deliberately skipped. `valichord-ui/src/lib/types.ts:331`
+   still needs `.header.author`, untouched and untested.
+3. **The Docker demo stack** — `demo/conductor-config-node.yaml` was edited but a 0.7 conductor
+   has never been started from it in anger, and no live demo round has run on 0.7.
+4. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
+   on 0.7.
+5. **`wind-tunnel/`** — untouched; Phase C blocked.
+6. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
+   did not exercise them.
+7. **The `db_sync_level` semantic mapping** (§44.4).
+
+⚠️ **`.github/workflows/tests.yml` on this branch is marked REVERT BEFORE MERGE.** It skips
+`test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
+skipped. None of that should reach `main` as-is.
+
+### 44.9 Known flake, not a 0.7 regression
+
+`silver_badge_issued_with_five_validators` (`sweettest_integration/tests/governance.rs:1092`)
+fails intermittently on the badge-index assertion. It passed on `719c62ce` and failed on
+`70cd07dc`, which is a **docs-only** commit — identical test and zome code, opposite results.
+The badge reads are `GetStrategy::Network` on `StudyToBadge`/`BadgePath` links, which is
+correct (badges can be authored by other agents), so this is gossip lag on a loaded 5-conductor
+runner, not a read-strategy error.
+
+⚠️ Commit `1152fd38` fixed a retry loop that `unwrap()`ed inside itself and so panicked on its
+own first iteration — *a flake mitigation that could not absorb the flake it was written for*.
+That fix is real, but the underlying lag can still outlast all 5 retry rounds (~5 minutes of
+`await_consistency`). **The mitigation now works and is still not sufficient.**
 
 ---
 
