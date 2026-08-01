@@ -769,6 +769,23 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      ValidationAttestation.request_ref".into(),
                 ));
             }
+            // Shape only, mirroring the CommitmentAnchor.commitment_hash check above.
+            // A wrong-length value is a malformed commitment, not a disagreement, and
+            // it would otherwise sit in the record looking like a real binding.
+            //
+            // ⚠️ Do NOT attempt to validate the bundle itself here. The bundle lives
+            // off-DHT; validate() cannot fetch it and must stay deterministic. What is
+            // enforced is that the validator committed to *some specific* 32-byte
+            // content_hash and cannot swap it afterwards — not that the bundle behind
+            // it is genuine. That is the bundle's own faithfulness property.
+            if let Some(h) = att.reproduction_bundle_hash.as_ref() {
+                if h.len() != 32 {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "ValidationAttestation.reproduction_bundle_hash must be exactly \
+                         32 bytes (SHA-256 content_hash)".into(),
+                    ));
+                }
+            }
             // Discipline consistency: walk the inductive chain one step further
             // to the ValidationRequest and verify the study's declared discipline.
             let req_record =

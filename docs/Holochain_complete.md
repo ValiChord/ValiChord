@@ -1459,10 +1459,16 @@ Rebuilt on `hdi 0.8.0` / `hdk 0.7.0` and repacked with `hc 0.7.0` (2026-08-01):
 
 | DNA | 0.7.0 hash |
 |---|---|
-| attestation | `uhC0kcEbtE9PQceAHu--XzLS71Kg7l_UQewJsTvxkyyDTwVIyiq3p` |
-| researcher_repository | `uhC0kgYckp73ECuNpZkSbTsyy_n0GVu-Y9YmzsnPTqiVg05Xjvlw1` |
-| validator_workspace | `uhC0kEZGGnF6RC2BHa5SFi0KWYiR9VkcsLowD9hynfPdto7YVfPIQ` |
-| governance | `uhC0kcKEFEoEGHCSG1XKTXW4EbEIB9bjIEhfTbmVwm8L1kK4X6bxd` |
+| attestation | `uhC0kV1fbN0Bk66wjmmgWG-fkXJq1MVxctBgBeaxdEOWJc5T20ScU` |
+| researcher_repository | `uhC0kpk2bwTZGnxNt-jZAhRMFrl0K5k2UruVxuL6yhlwS9rQhC5Xg` |
+| validator_workspace | `uhC0kWnbQf-oZ0wYHJGn593jIomZZbD39syCTzrBbsHwOjXEKz85H` |
+| governance | `uhC0kbRGPGtC0lKu9f19zo5U84AQTxaQBd13_YZ27Wdgfnkjz4Gsw` |
+
+⚠️ These are the hashes **after** the validator→bundle binding landed on top of the port, which
+is the state actually committed. The port-only repack earlier the same day produced a different
+set; they are not recorded here because nothing was ever shipped at those values, and a table of
+hashes that no bundle has is worse than no table. All four moved again because
+`reproduction_bundle_hash` sits in `shared_types`, which every DNA depends on.
 
 Only the three `.happ` bundles are tracked in git; `workdir/*.dna` is gitignored.
 

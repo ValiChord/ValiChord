@@ -101,6 +101,15 @@ pub struct ValidatorPrivateAttestation {
     /// SHA-256(msgpack(ValidationAttestation) || nonce). Published to the
     /// CommitmentAnchor on the shared DHT; stored here as an audit record.
     pub commitment_hash:         Vec<u8>,
+    /// `content_hash` of this validator's own reproduction bundle, carried through
+    /// from the sealed `ValidationAttestation` so the full public attestation can be
+    /// reconstructed at reveal time — the same reason `discipline` is stored here.
+    ///
+    /// If this is dropped from the reconstruction, the revealed attestation no longer
+    /// matches what was hashed at seal time and the reveal fails hash verification.
+    /// `None` means the validator bound no bundle.
+    #[serde(default)]
+    pub reproduction_bundle_hash: Option<Vec<u8>>,
 }
 
 // ---------------------------------------------------------------------------

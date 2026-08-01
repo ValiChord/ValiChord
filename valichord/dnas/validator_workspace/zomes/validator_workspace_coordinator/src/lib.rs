@@ -106,6 +106,7 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
         confidence,
         discipline,
         commitment_anchor_hash: _, // set by attestation coordinator after reveal
+        reproduction_bundle_hash,
     } = input.attestation;
     let private_attestation = ValidatorPrivateAttestation {
         request_ref,
@@ -119,6 +120,9 @@ pub fn seal_private_attestation(input: SealAttestationInput) -> ExternResult<Act
         discipline,
         nonce,
         commitment_hash,
+        // Carried, not dropped: this field was included in the msgpack bytes hashed
+        // above, so the reveal must present it again or verification fails.
+        reproduction_bundle_hash,
     };
 
     let attestation_hash =

@@ -1,7 +1,44 @@
 # Binding validator verdicts to their reproduction bundles
 
-**Status:** scoped, not built · **Written:** 2026-07-31 · **Origin:** the open gap documented in
-falsify-cookbook Pattern 13 (co-authored with ValiChord)
+**Status:** ✅ **BUILT 2026-08-01** on the `v0.7.0` branch · **Scoped:** 2026-07-31 · **Origin:**
+the open gap documented in falsify-cookbook Pattern 13 (co-authored with ValiChord)
+
+---
+
+## What shipped
+
+Built as planned, riding along with the 0.7 DNA-hash break so it costs no second void event.
+The estimate held: one field, and the leverage came from `commitment_msgpack_bytes()` already
+being the shared seam between commit and reveal.
+
+| Piece | Where |
+|---|---|
+| `reproduction_bundle_hash: Option<Vec<u8>>` | `shared_types` → `ValidationAttestation` |
+| carried through the seal | `validator_workspace_integrity` → `ValidatorPrivateAttestation`, and the destructure in `validator_workspace_coordinator` |
+| 32-byte shape guard | `attestation_integrity`, in the `ValidationAttestation` `CreateEntry` arm |
+| TS mirror | `valichord-ui/src/lib/types.ts` |
+| tests | `sweettest_integration/tests/security.rs` — S9 / S10 / S11 |
+
+**No change to the hashing path, no new verification code, no new protocol message.** The field
+is bound into the commitment automatically because it lives on the struct that
+`commitment_msgpack_bytes()` serialises.
+
+### The negative control ran, and it fired
+
+The plan's rule was *prove the check can fail before trusting that it passes*. Adding the single
+line `canonical.reproduction_bundle_hash = None;` to `commitment_msgpack_bytes()` — the field
+present but unbound, which is exactly the accident a well-meaning "normalise the optional
+fields" edit would cause — made the substituted-bundle reveal **succeed and return a real
+`ActionHash`**, while every other test in the suite stayed green. S9 was the only thing that
+caught it. Removing the line turned it red again.
+
+That is the same failure signature as the 2026-07-30 immutability negative control, and the
+reason the field's doc comment in `shared_types` now carries an explicit warning against
+normalising it.
+
+⚠️ **What did NOT need doing, contrary to the plan:** no test was needed for the `None` /
+unbound case. `make_validation_attestation` already leaves the field `None`, so **S7 is that
+test** — a fourth test would have added ~2 minutes of CI and no signal.
 
 ---
 

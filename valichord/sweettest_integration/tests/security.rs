@@ -16,6 +16,14 @@
 //!   S6. reveal_researcher_result idempotency — second call rejected
 //!   S7. Real-nonce reveal passes hash verification (genuine seal flow)
 //!   S8. Tampered reveal rejected by hash verification ("Hash mismatch")
+//!   S9.  Reveal with a DIFFERENT reproduction bundle hash is rejected
+//!   S10. Reveal with the SAME reproduction bundle hash succeeds
+//!   S11. A wrong-length reproduction_bundle_hash is rejected by validate()
+//!
+//! S9–S11 cover validator→bundle binding. The "unbound verdict" case
+//! (`reproduction_bundle_hash: None`) needs no test of its own — **S7 already is
+//! that test**, because `make_validation_attestation` leaves the field `None`. A
+//! fourth test asserting the same path would add ~2 minutes of CI and no signal.
 
 use valichord_sweettest::*;
 use holochain_types::prelude::YamlProperties;
@@ -651,5 +659,167 @@ async fn s8_tampered_reveal_rejected_by_hash_verification() {
     assert!(
         format!("{err:?}").contains("Hash mismatch"),
         "rejection must come from hash verification, got: {err:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Shared driver for the bundle-binding tests (S9 / S10)
+// ---------------------------------------------------------------------------
+//
+// Seals `sealed`, then reveals `revealed`, and returns the reveal result. The
+// two differ only in `reproduction_bundle_hash` at the call sites below, so any
+// difference in outcome is attributable to that field and nothing else.
+
+async fn seal_then_reveal(
+    request_ref: ExternalHash,
+    sealed: ValidationAttestation,
+    revealed: ValidationAttestation,
+) -> holochain::conductor::api::error::ConductorApiResult<ActionHash> {
+    let (conductor, app) = setup_single().await;
+    let att_zome = app.attestation_zome();
+    let vw_zome  = app.validator_zome();
+
+    conductor
+        .call::<_, ActionHash>(
+            &att_zome,
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+
+    let task_hash: ActionHash = conductor
+        .call(&vw_zome, "receive_task", make_task(request_ref.clone()))
+        .await;
+    let _sealed: ActionHash = conductor
+        .call(
+            &vw_zome,
+            "seal_private_attestation",
+            validator_workspace_coordinator::SealAttestationInput {
+                task_hash: task_hash.clone(),
+                attestation: sealed,
+            },
+        )
+        .await;
+
+    let private_record: Option<Record> = conductor
+        .call(&vw_zome, "get_private_attestation_for_task", task_hash)
+        .await;
+    let private_att: validator_workspace_integrity::ValidatorPrivateAttestation = private_record
+        .expect("sealed private attestation must be retrievable")
+        .entry()
+        .to_app_option()
+        .expect("entry must deserialize")
+        .expect("entry must be a ValidatorPrivateAttestation");
+
+    // post_commit's notify_commitment_sealed runs asynchronously after seal
+    // returns, so retry while the anchor has not landed yet.
+    let mut last: Option<Result<ActionHash, _>> = None;
+    for _ in 0..20 {
+        let attempt = conductor
+            .call_fallible(
+                &att_zome,
+                "submit_attestation",
+                RevealInput {
+                    attestation: revealed.clone(),
+                    nonce: private_att.nonce.clone(),
+                },
+            )
+            .await;
+        let anchor_pending = matches!(
+            &attempt,
+            Err(e) if format!("{e:?}").contains("No CommitmentAnchor")
+        );
+        last = Some(attempt);
+        if !anchor_pending { break; }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    last.expect("at least one submit_attestation attempt")
+}
+
+// ---------------------------------------------------------------------------
+// S9. Validator→bundle binding — reveal with a DIFFERENT bundle hash is rejected
+// ---------------------------------------------------------------------------
+//
+// THIS IS THE NEGATIVE CONTROL FOR THE WHOLE FEATURE, and the only test that
+// distinguishes "the field exists" from "the field is bound".
+//
+// The validator seals a verdict committing to bundle A, then reveals the same
+// verdict claiming bundle B. Everything else — outcome, confidence, timings,
+// nonce — is byte-identical. Before this feature the reveal SUCCEEDED, because
+// nothing tied the verdict to the work behind it: that is precisely the gap
+// documented against ValiChord in falsify-cookbook Pattern 13.
+//
+// ⚠️ Verified to be able to fail, per the repo's standing rule. With the single
+// line `canonical.reproduction_bundle_hash = None;` added to
+// `commitment_msgpack_bytes()` — i.e. the field present but unbound, the exact
+// accident a well-meaning "normalise the optional fields" edit would cause —
+// this test PASSES WRONGLY and every other test in the suite stays green.
+// Removing that line turns it red again. The binding is what it detects.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s9_reveal_with_different_bundle_hash_is_rejected() {
+    let request_ref = fake_external_hash(0x59);
+    let sealed   = make_validation_attestation_bound(request_ref.clone(), fake_bundle_hash(0xAA));
+    let revealed = make_validation_attestation_bound(request_ref.clone(), fake_bundle_hash(0xBB));
+
+    let err = seal_then_reveal(request_ref, sealed, revealed)
+        .await
+        .expect_err(
+            "revealing a bundle hash other than the one committed to must be rejected — \
+             if this passes, validator verdicts are not bound to their reproduction work",
+        );
+    assert!(
+        format!("{err:?}").contains("Hash mismatch"),
+        "rejection must come from commitment hash verification, got: {err:?}",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S10. Validator→bundle binding — the honest path still works
+// ---------------------------------------------------------------------------
+//
+// The complement to S9, and not a formality: S9 alone would also pass if the
+// binding rejected *everything*. This proves the happy path is intact, so the
+// two together show the check discriminates rather than merely refuses.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s10_reveal_with_same_bundle_hash_succeeds() {
+    let request_ref = fake_external_hash(0x5A);
+    let bundle = fake_bundle_hash(0xCC);
+    let att = make_validation_attestation_bound(request_ref.clone(), bundle);
+
+    let result = seal_then_reveal(request_ref, att.clone(), att).await;
+    assert!(
+        result.is_ok(),
+        "revealing the same bundle hash that was sealed must pass hash \
+         verification, got: {:?}",
+        result.err(),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S11. Shape guard — a wrong-length bundle hash is rejected by validate()
+// ---------------------------------------------------------------------------
+//
+// A 31-byte value is not a SHA-256 content_hash. It survives commit-reveal
+// verification (both sides hash the same 31 bytes), so the coordinator has no
+// reason to object — the integrity zome is the only thing standing between a
+// malformed binding and a record that *looks* bound but commits to nothing
+// checkable. Asserts on the specific guard message, never a bare is_err(): a
+// bare is_err() here would also pass on "function not found", which is exactly
+// how three earlier "immutability" tests spent months proving nothing.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s11_wrong_length_bundle_hash_is_rejected() {
+    let request_ref = fake_external_hash(0x5B);
+    let att = make_validation_attestation_bound(request_ref.clone(), vec![0xDD; 31]);
+
+    let err = seal_then_reveal(request_ref, att.clone(), att)
+        .await
+        .expect_err("a 31-byte reproduction_bundle_hash must be rejected");
+    assert!(
+        format!("{err:?}").contains("reproduction_bundle_hash must be exactly 32 bytes"),
+        "rejection must come from the integrity zome's shape guard, not from \
+         something incidental, got: {err:?}",
     );
 }

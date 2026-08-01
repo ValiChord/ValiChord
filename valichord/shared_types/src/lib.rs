@@ -340,6 +340,25 @@ pub struct ValidationAttestation {
     /// Set by the coordinator (not the caller) — `None` only for entries predating this field.
     #[serde(default)]
     pub commitment_anchor_hash:  Option<ActionHash>,
+    /// `content_hash` of the validator's own `valichord_attestation` bundle for this
+    /// reproduction — SHA-256 over the bundle's canonical (JCS) content, excluding the
+    /// `meta` provenance block, so two validators who genuinely produced the same
+    /// per-sample outputs commit to the same value even though their timestamps differ.
+    ///
+    /// **This is what turns a verdict into a claim about specific work.** Without it a
+    /// validator commits to the word "Reproduced" and nothing binds that word to the
+    /// numbers they actually got; they could reveal any bundle afterwards. Because the
+    /// field lives on this struct, it is bound into `commitment_hash` automatically by
+    /// `commitment_msgpack_bytes()` — no separate hashing path, no new protocol message.
+    ///
+    /// `None` is legitimate and permanent, not a migration artefact: a validator who ran
+    /// no tooling has no bundle to bind. It means "unbound verdict", and consumers should
+    /// read it that way rather than as "not yet populated".
+    ///
+    /// Use the bundle's `content_hash`, never its `bundle_hash` — the latter covers
+    /// `Bundle.meta` (provenance, timestamps), so two honest validators would never match.
+    #[serde(default)]
+    pub reproduction_bundle_hash: Option<Vec<u8>>,
 }
 
 impl ValidationAttestation {
@@ -354,6 +373,15 @@ impl ValidationAttestation {
     /// `commitment_anchor_hash` is always normalised to `None` before
     /// serialisation so the output is independent of injection order.
     /// Callers do not need to ensure the field is unset before calling.
+    ///
+    /// ⚠️ **`reproduction_bundle_hash` must NOT be normalised here.** It is excluded
+    /// from that treatment deliberately: binding it into the commitment is the entire
+    /// point of the field, and normalising it to `None` would silently unbind every
+    /// validator's verdict from the work behind it — with no compile error and no test
+    /// failure except `s9_reveal_with_different_bundle_hash_is_rejected`, which exists
+    /// precisely to catch this. `commitment_anchor_hash` is normalised only because the
+    /// coordinator injects it *after* sealing, so it cannot be known at commit time.
+    /// That reasoning does not extend to any other field.
     pub fn commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
         let mut canonical = self.clone();
         canonical.commitment_anchor_hash = None;
@@ -584,6 +612,7 @@ mod tests {
             },
             discipline: Discipline::ComputationalBiology,
             commitment_anchor_hash: None,
+            reproduction_bundle_hash: None,
         }
     }
 

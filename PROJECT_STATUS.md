@@ -35,27 +35,32 @@ technically startable**. The **Tryorama half is not** — `@holochain/tryorama` 
 dist-tag is from 2019 — noise, not a 0.7 preview.) **Phase C unchanged:**
 `holochain_wind_tunnel_runner` last published 2026-07-21, still on `holochain = "0.6"`.
 
-### Step 1 — decide what rides along with the 0.7 hash break
+### Riding along with the 0.7 hash break — decided 2026-08-01
 
-**This is the genuinely time-limited decision, and it is yours to make.** A DNA-hash change
-forks the network: agents on the old hash and the new one cannot see each other, every
-published HarmonyRecord URL dies, and Oracle needs `down -v`. The 0.7 migration already forces
-exactly one of these. Any *other* hash-breaking change is therefore **free if it rides along,
-and costs a second void event if it comes later** — and the trap is that such changes are
-always "too expensive right now", so they defer indefinitely.
+**Decision (user):** take the **validator→bundle binding** now; do **Open Audit Mode** later,
+when it can be done properly. Both were explained before the call was made.
 
-Known candidates:
+✅ **Validator→bundle binding is BUILT** — see `docs/VALIDATOR_BUNDLE_BINDING_PLAN.md` for the
+full record. One optional field on `ValidationAttestation` (`reproduction_bundle_hash`), bound
+into the commitment automatically because `commitment_msgpack_bytes()` was already the shared
+seam between commit and reveal. No new hashing path, no new protocol message. Closes the gap
+documented publicly against ValiChord in falsify-cookbook Pattern 13: a validator's verdict is
+now a claim about *a specific set of per-sample outputs* rather than the bare word "Reproduced".
+Tests S9/S10/S11 in `security.rs`, and **the negative control fired** — deliberately unbinding
+the field made a substituted-bundle reveal succeed with a real `ActionHash` while every other
+test stayed green.
 
-1. **Validator→bundle binding** — scoped in `docs/VALIDATOR_BUNDLE_BINDING_PLAN.md`. One field
-   on `ValidationAttestation`, bound into the commitment automatically because
-   `commitment_msgpack_bytes()` is already shared between the commit and reveal paths. ~half a
-   day, mostly tests. Closes a gap documented publicly in falsify-cookbook Pattern 13.
-2. **Open Audit Mode** — `EncryptedDataset`, X25519 keys, decryption-key field on
-   `ResearcherReveal`. Phase 1, explicitly hash-breaking (architecture doc, Data Locality Modes).
+🕐 **Open Audit Mode remains outstanding, and it will cost a second hash break.** That is the
+accepted price of not rushing per-study X25519 key management. Design is in the architecture
+doc under *Data Locality Modes*. ⚠️ **When it is taken, note that its hash-breaking parts are
+small** — the `EncryptedDataset` entry type and the decryption-key field on `ResearcherReveal`.
+The bulk (key generation, mode selector, UI) is coordinator and frontend work, and coordinator
+changes hot-swap onto live nodes with **zero** hash change. So the second break can be made
+cheap if the entry shapes are settled first.
 
-⚠️ **Sequencing, if any are taken:** Phase A is green *now*, so add them as separate commits on
-top. Otherwise a failure cannot be attributed between the port and the feature, and the
-migration stops being independently verifiable.
+⚠️ **Sequencing rule that was followed and should be followed again:** Phase A was green
+*before* the binding went on top, as separate commits. A failure can therefore be attributed
+between the port and the feature, and the migration stays independently verifiable.
 
 ### Step 2 — optionally start the UI half of Phase B
 

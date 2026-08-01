@@ -180,6 +180,14 @@ export interface ValidationAttestation {
   computational_resources: ComputationalResources;
   discipline: Discipline;
   commitment_anchor_hash: ActionHash | null;
+  /**
+   * SHA-256 content_hash of the validator's own reproduction bundle, sealed into
+   * the commitment. `null` = an unbound verdict (the validator ran no tooling) —
+   * a permanent, legitimate state, not "not yet populated".
+   *
+   * Rust `Option<Vec<u8>>` → `Uint8Array | null` (Some(x) unwraps to x, None → nil).
+   */
+  reproduction_bundle_hash: Uint8Array | null;
 }
 
 // ── ValidatorProfile ──────────────────────────────────────────────────────────

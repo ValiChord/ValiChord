@@ -271,6 +271,7 @@ async fn validator_private_attestation_update_is_rejected() {
         discipline: Discipline::ComputationalBiology,
         nonce: vec![9u8; 32],
         commitment_hash: vec![9u8; 32],
+        reproduction_bundle_hash: None,
     };
 
     let err = conductor

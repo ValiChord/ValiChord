@@ -334,6 +334,10 @@ pub fn make_computational_resources() -> ComputationalResources {
 
 /// Build a `ValidationAttestation` (the type that goes into both
 /// `SealAttestationInput.attestation` and `AttestationRevealInput.attestation`).
+///
+/// `reproduction_bundle_hash` is `None` — the unbound-verdict case, which is the
+/// majority of existing tests and a permanently legitimate state, not a stub.
+/// Use [`make_validation_attestation_bound`] to exercise the bound path.
 pub fn make_validation_attestation(request_ref: ExternalHash) -> ValidationAttestation {
     ValidationAttestation {
         request_ref,
@@ -346,6 +350,27 @@ pub fn make_validation_attestation(request_ref: ExternalHash) -> ValidationAttes
         computational_resources: make_computational_resources(),
         discipline: Discipline::ComputationalBiology,
         commitment_anchor_hash: None, // filled by coordinator on reveal
+        reproduction_bundle_hash: None,
+    }
+}
+
+/// A 32-byte fake bundle `content_hash`, distinct per `seed`.
+///
+/// Deliberately NOT random: a negative-control test has to be able to state that
+/// hash A and hash B differ, and re-run to the same values.
+pub fn fake_bundle_hash(seed: u8) -> Vec<u8> {
+    vec![seed; 32]
+}
+
+/// `make_validation_attestation` with a bound reproduction bundle — the case where
+/// the validator's verdict is tied to specific per-sample outputs.
+pub fn make_validation_attestation_bound(
+    request_ref: ExternalHash,
+    bundle_hash: Vec<u8>,
+) -> ValidationAttestation {
+    ValidationAttestation {
+        reproduction_bundle_hash: Some(bundle_hash),
+        ..make_validation_attestation(request_ref)
     }
 }
 
