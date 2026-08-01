@@ -95,14 +95,49 @@ run, so that fix itself is verified independently of how the head run lands.
 *before* the binding went on top, as separate commits. A failure can therefore be attributed
 between the port and the feature, and the migration stays independently verifiable.
 
-### Next — optionally start the UI half of Phase B
+### Phase B — UI half STARTED 2026-08-01 (`6f143821`), and it is NOT finished
 
-Newly unblocked (see above). Known first edit: `valichord-ui/src/lib/types.ts:331` needs
-`.header.author` — `SignedActionHashed` is no longer generic and common action fields moved
-under `.header`. Three `@holochain/client` pins to bump: `valichord-ui/package.json`,
-`valichord/tests/package.json`, `demo/package.json`. **The Tryorama tests cannot follow yet**,
-so the UI would be moving without its integration-test net — worth weighing against just
-waiting for Tryorama.
+`valichord-ui` is on `@holochain/client` **0.21.0**. `npm run check` is 0 errors (was 2) and
+`npm run build` succeeds.
+
+**⚠️ The UI has never talked to a 0.7 conductor.** That is the whole remaining risk, and it is
+the next thing to do. Local binaries are 0.6.2, and `dev-conductor.yaml` already carries the
+0.7-only `db_sync_level`, so **it will not start here at all** — proving this needs the 0.7
+binary fetched to scratchpad (as was done for the config verification on 07-30). The e2e suite
+is blocked on the same thing.
+
+Two corrections to what the old handoff said here, both found by reading the shipped package
+instead of trusting the note:
+
+- The line number was stale (`types.ts:339`, not `:331`).
+- **"`SignedActionHashed` is no longer generic" was WRONG** — it is still
+  `SignedActionHashed<H extends Action = Action>` in 0.21.0. The real change is that **`Action`
+  is now `{ header, data }`**, with `author`/`timestamp`/`action_seq`/`prev_action` on `header`.
+- Also new, not in the note: `AppWebsocket.client` is now typed as the `AppClientTransport`
+  interface (because the App API can route over Tauri IPC, which has no socket), so it **no
+  longer exposes `close()`**. Two e2e teardown sites narrow it back to `WsClient`.
+  `AdminWebsocket.client` is unaffected. `signalingServerUrl`/`dumpNetworkStats` are zero hits
+  for us.
+
+**Only one of the three pins was bumped, deliberately.** `valichord/tests/package.json` must
+stay on 0.20.x — Tryorama 0.19.2 pins `^0.20.4` and there is no 0.7 line. `demo/package.json`
+waits until the demo stack is actually exercised on 0.7.
+
+🆕 **The bump also surfaced a real bug from `ef795736`,** unrelated to 0.21: the binding added
+`reproduction_bundle_hash` to `ValidationAttestation` and to the TS mirror but never to the
+Svelte view that constructs one, and `ValidatorPrivateAttestation`'s mirror was missing the
+field entirely. The UI had had no type-check since Phase A began. ⚠️ **The two construction
+sites are not the same fix:** the commit path passes `null` (the UI has no bundle — a
+legitimate permanent state), but the reveal path **must** read it from the private record,
+because the field was bound into `commitment_hash` at seal time and substituting anything
+there — *including `null`* — makes the reveal fail with "Hash mismatch".
+
+### Still not started — the demo stack on 0.7
+
+`demo/conductor-config-node.yaml` was edited blind and **no 0.7 conductor has ever been started
+from it.** The merge back to `main` is gated on a live demo round, so this is the item that can
+still invalidate the branch. Needs `docker compose down -v` between runs and an
+`ANTHROPIC_API_KEY` for a real round.
 
 ### The badge flake — "gossip lag" was the wrong diagnosis, twice
 
@@ -150,7 +185,15 @@ panicked on its own first iteration) was real but addressed the wrong layer.
 ### Non-negotiables (unchanged)
 
 - **`main` stays on 0.6.2** until the branch is fully green *and* the user explicitly approves the
-  merge. Every published HarmonyRecord URL and the Oracle demo depend on it.
+  merge.
+- 🆕 **Losing the published HarmonyRecord URLs at merge is ACCEPTED — decided by the user
+  2026-08-01.** The 0.7 hash break means 0.7 agents form a separate network from 0.6, so every
+  existing record URL dies. *"That's not important. We move forward and create new Harmony
+  records."* **So do not treat URL preservation as a merge blocker, or price it into future
+  decisions** — including Open Audit Mode's second hash break. What still gates the merge is a
+  green branch and a working live demo round, not record continuity. Re-check any grant or
+  outreach material that cites a record URL after the merge, though: that is a
+  correctness-of-public-claims issue, not a preservation one.
 - **`.github/workflows/tests.yml` on this branch is marked REVERT BEFORE MERGE.** It skips
   `test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
   skipped. None of that should reach `main` as-is.
