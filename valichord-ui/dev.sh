@@ -15,6 +15,13 @@ DATA_DIR="/tmp/valichord-dev-data"
 
 export PATH="/home/codespace/.cargo/bin:$PATH"
 
+# Which conductor binary to run. Defaults to whatever is on PATH, so normal use
+# is unchanged. The override is for when PATH holds a different version than the
+# branch needs — during the 0.7 migration the Codespace PATH is still 0.6.2, and
+# dev-conductor.yaml uses 0.7-only syntax, so 0.6.2 cannot start it at all:
+#   HOLOCHAIN_BIN=/path/to/0.7/holochain bash dev.sh
+HOLOCHAIN_BIN="${HOLOCHAIN_BIN:-holochain}"
+
 if [ ! -f "$HAPP" ]; then
   echo "ERROR: valichord.happ not found at $HAPP"
   echo "Build it first (from valichord/):"
@@ -41,7 +48,7 @@ echo "Starting conductor (logs → $CONDUCTOR_LOG)…"
 # the admin/app ports for the next run. setpriv --pdeathsig is the bash-native
 # equivalent of prctl(PR_SET_PDEATHSIG); degrade gracefully if it's unavailable.
 if command -v setpriv >/dev/null 2>&1; then REAP=(setpriv --pdeathsig TERM); else REAP=(); fi
-"${REAP[@]}" holochain \
+"${REAP[@]}" "$HOLOCHAIN_BIN" \
   --config-path "$SCRIPT_DIR/dev-conductor.yaml" \
   --piped \
   <<< "" \

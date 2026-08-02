@@ -3,23 +3,28 @@ name: Integration Tests
 # ═══════════════════════════════════════════════════════════════════════════════
 # ⚠️  BRANCH-SCOPED MIGRATION CHANGES — REVERT BEFORE MERGING v0.7.0 INTO main
 #
-# The Holochain 0.6.2 → 0.7.0 migration happens on the `v0.7.0` branch. Two of the
-# jobs below CANNOT pass there, because the JS ecosystem has not shipped a 0.7 line:
+# The Holochain 0.6.2 → 0.7.0 migration happens on the `v0.7.0` branch. ONE job
+# below still cannot pass there, because the JS ecosystem has not shipped a 0.7 line:
 #
-#   * `test`    (97 Tryorama) — @holochain/tryorama has no 0.7 line at all
-#   * `ui-e2e`  (Playwright)  — @holochain/client 0.21 is still rc-only
+#   * `test`    (Tryorama) — @holochain/tryorama latest is 0.19.2, pinning
+#     @holochain/client ^0.20.4. There is no 0.7 line, so there is nothing to
+#     migrate the suite TO. Re-checked 2026-08-02: unchanged. SKIPPED on the branch.
 #
-# That is migration Phase B, and it is blocked upstream, not by us. Both jobs are
-# therefore SKIPPED on the branch. `sweettest` used to be gated on `test` passing;
-# it now also runs when `test` is skipped, so Phase A (the Rust zomes) still gets
-# its full 5-leg signal — which is the whole point of having CI on the branch.
+# `ui-e2e` was skipped for the same reason and is NOT any more — @holochain/client
+# 0.21.0 went stable 2026-08-01, the UI is ported to it, and the suite has been run
+# green against a real 0.7.0 conductor (2026-08-02). It is now the only CI signal
+# covering the UI half of Phase B, so it must stay unskipped.
+#
+# `sweettest` used to be gated on `test` passing; it also runs when `test` is
+# skipped, so Phase A (the Rust zomes) still gets its full 5-leg signal — which is
+# the whole point of having CI on the branch.
 #
 # A `tripwire` job is added, branch-only: it is the only thing that proves the
 # integrity zomes still reject forbidden updates after the 51-arm FlatOp port.
 #
-# WHEN PHASE B UNBLOCKS: delete the three `if:` guards and restore
-# `needs: [test]` on sweettest. Promoting `tripwire` to all branches is a separate
-# decision to take after the migration lands.
+# WHEN PHASE B FULLY UNBLOCKS (Tryorama ships 0.7): delete the remaining `if:`
+# guard on `test` and restore `needs: [test]` on sweettest. Promoting `tripwire`
+# to all branches is a separate decision to take after the migration lands.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 on:
@@ -165,11 +170,12 @@ jobs:
   ui-e2e:
     name: UI E2E (Playwright + real conductor)
     runs-on: ubuntu-latest
-    # Migration Phase B — blocked upstream. @holochain/client 0.21 is rc-only, so
-    # the UI cannot talk to a 0.7 conductor. This job also consumes the COMMITTED
-    # workdir/valichord.happ, which is deliberately not repacked until the end of
-    # Phase A. Skipped on the v0.7.0 branch.
-    if: github.ref_name != 'v0.7.0' && github.head_ref != 'v0.7.0'
+    # ✅ UNSKIPPED 2026-08-02 — this job now runs on v0.7.0 too, and is the only
+    # thing that proves the UI half of Phase B. Both reasons it was skipped have
+    # gone: @holochain/client 0.21.0 went stable on npm `latest` 2026-08-01 (the
+    # UI is on it), and workdir/valichord.happ has been repacked on the 0.7
+    # toolchain since Phase A closed. Verified locally against a real 0.7.0
+    # conductor before unskipping — 6/6 passed.
     timeout-minutes: 30
 
     steps:

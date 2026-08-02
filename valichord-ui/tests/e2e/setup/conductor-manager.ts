@@ -35,6 +35,13 @@ export const UI_DIR = resolve(__dirname, '../../..');
 export const REPO_DIR = resolve(UI_DIR, '..');
 export const HAPP_PATH = resolve(REPO_DIR, 'valichord/workdir/valichord.happ');
 
+// Which conductor binary to run. CI puts the correct version on PATH, so the
+// default keeps CI and `main` behaviour identical. The override exists for local
+// runs where PATH holds a different version than the branch needs — during the
+// 0.7 migration the Codespace PATH is still 0.6.2, and a 0.7 binary fetched to a
+// scratchpad is pointed at with HOLOCHAIN_BIN=/path/to/holochain.
+const HOLOCHAIN_BIN = process.env.HOLOCHAIN_BIN ?? 'holochain';
+
 export const ADMIN_PORT = 4445;
 export const APP_PORT = 8889;
 export const APP_ID = 'valichord-e2e';
@@ -52,6 +59,13 @@ export interface TestEnv {
 
 function conductorConfig(): string {
   // Mirrors dev-conductor.yaml with e2e ports/paths.
+  //
+  // Holochain 0.7: NetworkConfig rejects unknown fields and the conductor exits
+  // 42 rather than degrading, so `signal_url` must be absent; `db_sync_strategy`
+  // is renamed to `db_sync_level` (Full/Normal/Off), Resilient -> Normal.
+  // Keep in sync with dev-conductor.yaml. This config is generated in TypeScript
+  // rather than committed as YAML, which is why the migration's grep for the
+  // 0.6 field names never found it.
   return [
     `data_root_path: ${DATA_DIR}`,
     'keystore:',
@@ -64,9 +78,8 @@ function conductorConfig(): string {
     "      allowed_origins: '*'",
     'network:',
     '  bootstrap_url: https://dev-test-bootstrap2.holochain.org/',
-    '  signal_url: wss://dev-test-bootstrap2.holochain.org/',
     '  relay_url: https://dev-test-bootstrap2.holochain.org/',
-    'db_sync_strategy: Resilient',
+    'db_sync_level: Normal',
     '',
   ].join('\n');
 }
@@ -91,7 +104,7 @@ export async function startConductor(): Promise<void> {
 
   console.log(`[e2e] Starting conductor (admin :${ADMIN_PORT}, logs → ${CONDUCTOR_LOG})…`);
   const logFd = (await import('node:fs')).openSync(CONDUCTOR_LOG, 'w');
-  const proc: ChildProcess = spawn('holochain', ['--config-path', CONFIG_PATH, '--piped'], {
+  const proc: ChildProcess = spawn(HOLOCHAIN_BIN, ['--config-path', CONFIG_PATH, '--piped'], {
     env: { ...process.env, PATH: `/home/codespace/.cargo/bin:${process.env.PATH ?? ''}` },
     stdio: ['pipe', logFd, logFd],
     detached: false,
