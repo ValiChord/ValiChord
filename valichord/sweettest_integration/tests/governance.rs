@@ -4,9 +4,15 @@
 //! - HarmonyRecord, ReproducibilityBadge, ValidatorReputation are open to any participant.
 //! - GovernanceDecision is gated by `system_coordinator_key` in validate().
 //!   With `system_coordinator_key: ""` (dev bypass), any agent can write.
-//! - `round_timeout_secs: 0` in test DNA properties means force_finalize_round
-//!   passes the age check immediately (elapsed_secs >= 0 always).
 //! - `min_attestations_for_finalization: 0` → treated as 1 in force_finalize_round.
+//! - ⚠️ `round_timeout_secs` is now **86400 by default**, changed 2026-08-02. It used
+//!   to be 0, which made force_finalize_round pass the age check immediately — and
+//!   that, combined with the hourly `sweep_timed_out_rounds` scheduled in the
+//!   governance `init()`, was the root cause of the long-running badge flake: any
+//!   round still in flight when the wall clock crossed the top of an hour was
+//!   force-finalised with only the attestations that had arrived, permanently (a
+//!   HarmonyRecord is immutable). `force_finalize_round_with_partial_quorum` opts
+//!   back in via `setup_two_agents_instant_timeout()`; nothing else should.
 //!
 //! Attestation flow required before any HarmonyRecord can be created:
 //!   1. submit_validation_request (attestation DNA)
@@ -383,7 +389,10 @@ async fn premature_finalization_returns_none() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn force_finalize_round_with_partial_quorum() {
-    let setup = setup_two_agents().await;
+    // Opt in to round_timeout_secs: 0 — this test is ABOUT force-finalisation.
+    // Every other multi-validator test must use the default (long) timeout, or the
+    // hourly sweep can finalise its round early with a partial validator set.
+    let setup = setup_two_agents_instant_timeout().await;
     let request_ref = fake_external_hash(0x20);
 
     // Submit ValidationRequest so force_finalize_round can verify the round age.
@@ -462,10 +471,14 @@ async fn governance_decision_non_matching_key_rejected() {
             make_governance_decision(),
         )
         .await;
-    assert!(
-        result.is_err(),
+    let err = result.expect_err(
         "GovernanceDecision write must be rejected when agent key does not match \
-         system_coordinator_key"
+         system_coordinator_key",
+    );
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "Only system_coordinator_key may write GovernanceDecision",
+        "GovernanceDecision key gate",
     );
 }
 
@@ -1315,5 +1328,75 @@ async fn get_pending_request_refs_includes_other_discipline_studies() {
     assert!(
         forced.is_some(),
         "force_finalize_round should create a HarmonyRecord for a Discipline::Other study"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 22. The scheduled sweep cannot finalise a round that is still in progress
+// ---------------------------------------------------------------------------
+//
+// REGRESSION TEST for the badge flake diagnosed 2026-08-02, and the executable
+// form of the fix in `governance_yaml_props`.
+//
+// `init()` schedules `sweep_timed_out_rounds`, which fires hourly on the wall
+// clock and calls `force_finalize_round` for every pending study. This test does
+// by hand exactly what that sweep does — call `force_finalize_round` while a
+// round is mid-flight — and asserts it declines.
+//
+// It is deterministic where the original failure was not: the real bug only
+// appeared when a multi-hour suite happened to straddle the top of an hour, which
+// is why it moved between tests and why docs-only commits flipped it. Here the
+// hazardous call is made directly, so the property is checked every run in seconds.
+//
+// The negative control is the sibling test `force_finalize_round_with_partial_quorum`,
+// which opts into `round_timeout_secs: 0` and asserts the OPPOSITE outcome on the
+// same code path. If this test could not fail, that one would be failing instead.
+#[tokio::test(flavor = "multi_thread")]
+async fn sweep_cannot_finalize_a_round_still_in_progress() {
+    let setup = setup_two_agents().await; // default: round_timeout_secs = 86400
+    let request_ref = fake_external_hash(0x21);
+
+    let mut vr = make_validation_request(request_ref.clone());
+    vr.num_validators_required = 2;
+    let _: ActionHash = setup.conductors[0]
+        .call(&setup.alice.attestation_zome(), "submit_validation_request", vr)
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Only ONE of the two required validators commits and reveals — the round is
+    // genuinely incomplete, which is the state the sweep used to destroy.
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Do what the hourly sweep does.
+    let forced: Option<ActionHash> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "force_finalize_round",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(
+        forced.is_none(),
+        "force_finalize_round must decline a round that has not timed out — with \
+         round_timeout_secs: 0 it would finalise here, permanently recording a \
+         partial validator set in an immutable HarmonyRecord"
+    );
+
+    // And no HarmonyRecord may exist as a result.
+    let record: Option<Record> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "get_harmony_record",
+            request_ref,
+        )
+        .await;
+    assert!(
+        record.is_none(),
+        "no HarmonyRecord may exist while the round is still in progress"
     );
 }

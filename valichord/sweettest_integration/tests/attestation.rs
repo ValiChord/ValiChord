@@ -31,7 +31,7 @@
 
 use valichord_sweettest::*;
 use attestation_integrity::{AssessmentConfidence, DifficultyTier, ResearcherRevealInput, StudyClaim};
-use attestation_coordinator::{AssessDifficultyInput, LinkAgentIdentityInput, ReclaimInput, UpdateValidatorProfileInput};
+use attestation_coordinator::{AssessDifficultyInput, LinkAgentIdentityInput, ReclaimInput};
 use valichord_shared_types::Discipline;
 
 // ---------------------------------------------------------------------------
@@ -418,9 +418,15 @@ async fn claim_study_coi_same_institution_rejected() {
     let result: Result<ActionHash, _> = conductor
         .call_fallible(&zome, "claim_study", request_ref)
         .await;
-    assert!(
-        result.is_err(),
-        "claim_study must be rejected when validator and researcher share the same institution"
+    let err = result
+        .expect_err("claim_study must be rejected when validator and researcher share an institution");
+    // The COI rule lives in validate(), not the coordinator — assert on the
+    // integrity guard's own wording so a coordinator-level failure (bad payload,
+    // missing request, an earlier guard) cannot masquerade as COI enforcement.
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "Conflict of interest",
+        "claim_study same-institution COI",
     );
 }
 
@@ -574,7 +580,16 @@ async fn link_agent_identity_self_link_rejected() {
             },
         )
         .await;
-    assert!(result.is_err(), "linking an agent to itself must be rejected");
+    let err = result.expect_err("linking an agent to itself must be rejected");
+    // NOTE: the coordinator rejects this before validate() is reached, so this
+    // asserts the COORDINATOR's message. The integrity guard behind it
+    // ("AgentIdentityAttestation requires two distinct agents") is therefore
+    // still unproven — it is unreachable through any coordinator call.
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "Cannot link an agent to itself",
+        "self-link rejection",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -989,4 +1004,109 @@ async fn get_my_claimed_studies_filtered_by_release() {
         ref_b.get_raw_32(),
         "remaining claimed study should be study B"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 24. A researcher cannot claim their own study  (ported from Tryorama)
+// ---------------------------------------------------------------------------
+//
+// This is the guard that makes "independent validator" mean anything. Without
+// it a researcher could submit a study and then validate it themselves, and
+// every downstream claim ValiChord makes — blind commit-reveal, independent
+// reproduction, the HarmonyRecord — would rest on nothing.
+//
+// It lives in validate() (integrity), not the coordinator, so it is asserted on
+// the integrity guard's own wording.
+//
+// The validator profile deliberately names a DIFFERENT institution from the
+// request's `researcher_institution` ("Open Science Lab"). The conflict-of-
+// interest guard fires on matching institutions and would otherwise reject this
+// claim first — the test would still pass, while proving the wrong rule.
+#[tokio::test(flavor = "multi_thread")]
+async fn researcher_cannot_claim_their_own_study() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.attestation_zome();
+    let request_ref = fake_external_hash(0x71);
+
+    let _: ActionHash = conductor
+        .call(&zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+        .await;
+
+    // Same agent, unrelated institution → only the self-claim rule can reject.
+    let _: ActionHash = conductor
+        .call(&zome, "publish_validator_profile", make_validator_profile("Somewhere Else"))
+        .await;
+
+    let result: Result<ActionHash, _> = conductor
+        .call_fallible(&zome, "claim_study", request_ref)
+        .await;
+    let err = result.expect_err("a researcher claiming their own study must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "Researcher cannot claim their own study",
+        "self-claim",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 25. Claiming a study that is already at capacity is rejected  (ported)
+// ---------------------------------------------------------------------------
+//
+// `num_validators_required` is the size of the validator cohort. Without this
+// guard a study could accumulate unbounded claims, and the quorum that gates
+// the reveal phase would stop meaning "the requested cohort has committed".
+//
+// Needs three agents: a researcher (who cannot claim — see test 24), a validator
+// who takes the single slot, and a second validator to be refused.
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_rejected_when_study_is_at_capacity() {
+    let mut conductors =
+        SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
+    let dnas = dnas_with_roles().await;
+    let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
+    let mut it = apps.into_inner().into_iter();
+    let researcher = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let first = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let second = ValiChordApp::from_sweet_app(it.next().unwrap());
+
+    // Capacity of exactly one, so the second claim is over the line.
+    let mut vr = make_validation_request(fake_external_hash(0x72));
+    vr.num_validators_required = 1;
+    let request_ref = vr.data_hash.clone();
+
+    let _: ActionHash = conductors[0]
+        .call(&researcher.attestation_zome(), "submit_validation_request", vr)
+        .await;
+    await_consistency_s(60, [
+        &researcher.attestation, &first.attestation, &second.attestation,
+    ])
+    .await
+    .unwrap();
+
+    for (i, app) in [(1usize, &first), (2usize, &second)] {
+        let _: ActionHash = conductors[i]
+            .call(
+                &app.attestation_zome(),
+                "publish_validator_profile",
+                make_validator_profile("Independent"),
+            )
+            .await;
+    }
+
+    // First validator takes the only slot.
+    let _: ActionHash = conductors[1]
+        .call(&first.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+    await_consistency_s(60, [
+        &researcher.attestation, &first.attestation, &second.attestation,
+    ])
+    .await
+    .unwrap();
+
+    // Second validator must be refused — the study is full.
+    let result: Result<ActionHash, _> = conductors[2]
+        .call_fallible(&second.attestation_zome(), "claim_study", request_ref)
+        .await;
+    let err = result.expect_err("claiming a study at capacity must be rejected");
+    assert_rejected_with(&format!("{err:?}"), "at capacity", "claim over capacity");
 }

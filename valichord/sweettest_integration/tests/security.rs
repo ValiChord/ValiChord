@@ -175,9 +175,11 @@ async fn s1_duplicate_attestation_rejected() {
             },
         )
         .await;
-    assert!(
-        result.is_err(),
-        "second submit_attestation for the same study must be rejected"
+    let err = result.expect_err("second submit_attestation for the same study must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "already submitted an attestation",
+        "S1 duplicate attestation",
     );
 }
 
@@ -213,9 +215,12 @@ async fn s2_duplicate_commitment_rejected() {
             },
         )
         .await;
-    assert!(
-        result.is_err(),
-        "second notify_commitment_sealed for the same study must be rejected"
+    let err =
+        result.expect_err("second notify_commitment_sealed for the same study must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "already submitted a commitment",
+        "S2 duplicate commitment",
     );
 }
 
@@ -257,9 +262,12 @@ async fn s3_researcher_commitment_idempotency() {
             },
         )
         .await;
-    assert!(
-        result.is_err(),
-        "second publish_researcher_commitment for the same study must be rejected"
+    let err = result
+        .expect_err("second publish_researcher_commitment for the same study must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "researcher commitment already exists",
+        "S3 researcher commitment idempotency",
     );
 }
 
@@ -490,9 +498,12 @@ async fn s6_reveal_researcher_result_idempotency() {
     let result: Result<ActionHash, _> = conductor
         .call_fallible(&zome, "reveal_researcher_result", reveal_payload)
         .await;
-    assert!(
-        result.is_err(),
-        "second reveal_researcher_result for the same study must be rejected"
+    let err =
+        result.expect_err("second reveal_researcher_result for the same study must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "researcher reveal already exists",
+        "S6 researcher reveal idempotency",
     );
 }
 

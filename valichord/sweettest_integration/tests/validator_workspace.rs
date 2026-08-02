@@ -295,5 +295,10 @@ async fn duplicate_abstention_is_rejected() {
     let result: Result<ActionHash, _> = conductor
         .call_fallible(&zome, "record_deliberate_abstention", abstention)
         .await;
-    assert!(result.is_err(), "recording a second abstention for the same request must fail");
+    let err = result.expect_err("recording a second abstention for the same request must fail");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "deliberate abstention already exists",
+        "duplicate abstention",
+    );
 }

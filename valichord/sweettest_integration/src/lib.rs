@@ -68,7 +68,52 @@ fn attestation_yaml_props() -> yaml_serde::Value {
 
 /// Governance DNA properties for tests (system_coordinator_key = "" → dev bypass).
 /// round_timeout_secs: 0 bypasses the clock constraint in force_finalize_round.
+/// Governance DNA properties for ordinary tests.
+///
+/// ⚠️ `round_timeout_secs` is deliberately LARGE, and changing it back to 0 will
+/// reintroduce an intermittent failure that took three sessions to diagnose.
+///
+/// `init()` in the governance coordinator calls `schedule("sweep_timed_out_rounds")`,
+/// which fires **hourly on the wall clock** (`"0 0 * * * * *"`) on *every* conductor
+/// and calls `force_finalize_round` for every pending study. That function finalises
+/// a round when BOTH:
+///
+///   * `attestation_records.len() >= min_required`, where
+///     `min_required = if min_attestations_for_finalization == 0 { 1 } else { .. }`
+///     — so a `0` here means **one attestation is enough**; and
+///   * `elapsed_secs >= round_timeout_secs` — so a `0` here means **always**.
+///
+/// With both at 0, any multi-validator test whose round is still in progress when the
+/// clock crosses the top of an hour has that round force-finalised early, with only
+/// the attestations that happen to have arrived. A HarmonyRecord is immutable, so the
+/// late validators can never be added: `participating_validators` is permanently short
+/// and the badge tier is permanently wrong.
+///
+/// That is what produced `gold_badge_issued_with_seven_validators`'s
+/// `left: 5, right: 7` on 2026-08-02 — the test ran 16:31→17:02 and straddled
+/// 17:00:00 — and it is the same shape as the earlier `left: 6, right: 7`. It also
+/// explains why the failure moved between tests, why docs-only commits flipped it
+/// (they shift start times), and why widening retry windows never helped: the record
+/// already existed and could not be rewritten.
+///
+/// The safe configuration is the default; tests that are *about* force-finalisation
+/// opt into the dangerous one via [`governance_yaml_props_instant_timeout`].
 fn governance_yaml_props() -> yaml_serde::Value {
+    yaml_serde::from_str(
+        "system_coordinator_key: \"\"\n\
+         min_attestations_for_finalization: 0\n\
+         round_timeout_secs: 86400\n",
+    )
+    .unwrap()
+}
+
+/// Governance properties with `round_timeout_secs: 0` — force-finalisation fires
+/// immediately.
+///
+/// Only for tests that are specifically exercising `force_finalize_round`. Any test
+/// running a full multi-validator round must NOT use this: see the warning on
+/// [`governance_yaml_props`].
+fn governance_yaml_props_instant_timeout() -> yaml_serde::Value {
     yaml_serde::from_str(
         "system_coordinator_key: \"\"\n\
          min_attestations_for_finalization: 0\n\
@@ -223,13 +268,84 @@ pub struct TwoAgentSetup {
 
 /// Spin up two conductors with rendezvous, each with their own ValiChord app.
 pub async fn setup_two_agents() -> TwoAgentSetup {
+    setup_two_agents_with_governance(governance_yaml_props()).await
+}
+
+/// Two agents whose governance DNA has `round_timeout_secs: 0`, so
+/// `force_finalize_round` finalises immediately.
+///
+/// ⚠️ Only for tests *about* force-finalisation. In this configuration the hourly
+/// `sweep_timed_out_rounds` can finalise any in-flight round with a single
+/// attestation — see the warning on `governance_yaml_props`.
+pub async fn setup_two_agents_instant_timeout() -> TwoAgentSetup {
+    setup_two_agents_with_governance(governance_yaml_props_instant_timeout()).await
+}
+
+async fn setup_two_agents_with_governance(props: yaml_serde::Value) -> TwoAgentSetup {
     let mut conductors = SweetConductorBatch::from_config_rendezvous(2, SweetConductorConfig::rendezvous(true)).await;
-    let dnas = dnas_with_roles().await;
+    let governance = SweetDnaFile::from_bundle_with_overrides(
+        &dna_path("governance.dna"),
+        DnaModifiersOpt {
+            properties: Some(YamlProperties::new(props)),
+            ..DnaModifiersOpt::none()
+        },
+    )
+    .await
+    .expect("governance.dna not found");
+
+    let [r, v, a, _g] = load_dnas().await;
+    let [rn, vn, an, gn] = role_names();
+    let dnas: [(RoleName, DnaFile); 4] = [(rn, r), (vn, v), (an, a), (gn, governance)];
+
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut app_iter = apps.into_inner().into_iter();
     let alice = ValiChordApp::from_sweet_app(app_iter.next().unwrap());
     let bob   = ValiChordApp::from_sweet_app(app_iter.next().unwrap());
     TwoAgentSetup { conductors, alice, bob }
+}
+
+// ---------------------------------------------------------------------------
+// Rejection assertions
+// ---------------------------------------------------------------------------
+
+/// Assert that an error came from a **specific** guard, naming the message that
+/// guard emits.
+///
+/// Use this instead of `assert!(result.is_err())`. A bare `is_err()` passes
+/// whenever the call fails *for any reason at all* — a renamed zome function, a
+/// serde mismatch on the payload, a different guard firing earlier in the same
+/// function. It cannot distinguish "the protection I am testing worked" from
+/// "something unrelated broke", which is the whole point of the test.
+///
+/// That is not a hypothetical here. Three tests in this repo were deleted on
+/// 2026-07-30 and eight more on 2026-08-01 because they asserted `is_err()`
+/// against zome functions that had never been written: every one passed on
+/// *"function not found"* while claiming to prove a guard rejected something.
+/// See `CLAUDE.md` → "Assertion discipline".
+///
+/// On mismatch this prints the actual error, and adds a hint when the failure
+/// looks like a missing function rather than a rejection. The hint is only
+/// consulted *after* the fragment check fails, so guards whose own wording
+/// legitimately contains "not found" (`"ValidationRequest not found — cannot
+/// verify researcher identity"`, `"StudyClaim record not found"`) still pass
+/// normally.
+pub fn assert_rejected_with(err_dbg: &str, expected_fragment: &str, what: &str) {
+    if err_dbg.contains(expected_fragment) {
+        return;
+    }
+    let hint = if err_dbg.contains("Unresolved")
+        || err_dbg.contains("not found in this zome")
+        || err_dbg.contains("FunctionNotFound")
+    {
+        "\n  NOTE: this looks like the zome function is MISSING, not like a guard \
+         rejection. A test that passes on this proves nothing."
+    } else {
+        ""
+    };
+    panic!(
+        "{what}: expected rejection from the guard emitting {expected_fragment:?}, \
+         but got a different error.\n  actual: {err_dbg}{hint}"
+    );
 }
 
 // ---------------------------------------------------------------------------
