@@ -1226,7 +1226,11 @@ async fn silver_badge_issued_with_five_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_pending_request_refs_includes_other_discipline_studies() {
-    let setup = setup_two_agents().await;
+    // Part (c) below force-finalises a round, so this test needs round_timeout_secs: 0
+    // like `force_finalize_round_with_partial_quorum`. It broke when the default moved
+    // to 86400 on 2026-08-02 — correctly: with a real timeout the round has not aged
+    // out and force_finalize_round declines, which is the whole point of that change.
+    let setup = setup_two_agents_instant_timeout().await;
 
     // a. Empty before any submissions.
     let initial: Vec<ExternalHash> = setup.conductors[0]

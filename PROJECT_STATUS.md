@@ -62,6 +62,28 @@ It bundles four separate things:
 **Recommended first action:** cherry-pick the two verified items onto `v0.7.0` so the migration
 branch carries them, and leave the experiment here. They are independent of the flake fix.
 
+### ✅ RESULT OF THAT RUN (completed 2026-08-02): the flake fix WORKS
+
+`18 passed, 1 failed`. **Gold, silver and bronze all passed** — the badge flake is fixed — and
+the new `sweep_cannot_finalize_a_round_still_in_progress` regression test passed too.
+
+⚠️ **The one failure was caused by the fix, and was legitimate.**
+`get_pending_request_refs_includes_other_discipline_studies` force-finalises a round in its part
+(c), so it genuinely needed `round_timeout_secs: 0`. With a real timeout the round has not aged
+out and `force_finalize_round` correctly declines — which is precisely the behaviour the change
+exists to produce. Fixed by moving that test to `setup_two_agents_instant_timeout()`, alongside
+`force_finalize_round_with_partial_quorum`. **Not yet re-run.**
+
+All four `force_finalize_round` call sites are now deliberately configured:
+`force_finalize_round_with_partial_quorum` and `get_pending_request_refs_…` use the instant
+timeout (they assert finalisation *succeeds*); `sweep_cannot_finalize_a_round_still_in_progress`
+uses the safe default (it asserts a decline); `live_claim_blocks_force_finalize` /
+`released_claim_allows_force_finalize` use instant so the claim gate is the only deciding factor.
+
+⚠️ `run-sweettest.sh`'s cross-check fired again (4 result lines vs 19) — the ENOMEM splice, not
+lost data. It will fire on every memory-pressured run; see the note about teaching its extractor
+the spliced form.
+
 ### What was running when the session ended
 
 `./run-sweettest.sh governance` on the investigation branch (~2 h, was ~4/18 tests in). It was
