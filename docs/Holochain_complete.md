@@ -1591,10 +1591,12 @@ that line number was stale). Details and the sixth config hit site: §44.11.
    culled in `cc19e8c4` as fakes) — deliberately skipped on this branch. Still blocked upstream:
    re-checked 2026-08-02, `@holochain/tryorama` latest is `0.19.2`, pinning
    `@holochain/client ^0.20.4`, with no 0.7 line to migrate to.
-2. **The Docker demo stack** — `demo/conductor-config-node.yaml` was edited but a 0.7 conductor
-   has never been started from it in anger, and no live demo round has run on 0.7.
+2. **`demo/ai_validator.py`** — the demo stack itself now runs a full commit-reveal round on 0.7
+   (§44.12), but that round was driven directly over the node HTTP bridges. The AI-driven
+   script has not been run, because it needs a real `ANTHROPIC_API_KEY`. What is unproven is
+   that script's own logic, **not** the protocol underneath it.
 3. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
-   on 0.7.
+   on 0.7. Its version-pin fallback was bumped to 0.7.0 with the demo work, still untested.
 4. **`wind-tunnel/`** — untouched; Phase C blocked.
 5. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
    did not exercise them.
@@ -1728,8 +1730,71 @@ conductor on this branch at all.
 
 ⚠️ **What this does NOT prove.** The e2e suite is single-agent, single-conductor, and covers
 UI↔conductor wiring only — connection, form → zome call → DHT, zome-seeded record → render. It
-runs no commit-reveal round, no multi-validator quorum, no reveal. The demo stack on 0.7
-(§44.8 item 2) remains the outstanding risk to the branch, and it is the one gating the merge.
+runs no commit-reveal round, no multi-validator quorum, no reveal. That gap is closed separately
+by §44.12.
+
+### 44.12 The demo stack on 0.7 — a full multi-agent round, and four more breakages
+
+**A complete commit-reveal round now runs on the 0.7 Docker stack** (commit `316abb7b`,
+2026-08-02): five containers, five conductors, real cross-container gossip. This is the first
+thing on 0.7 to exercise the protocol with **multiple agents on separate conductors** — the
+sweettests are in-process and the UI e2e is single-agent.
+
+The config had been edited blind on 07-30 and never started. Starting it found **four** further
+breakages the edit had not addressed:
+
+| # | Breakage | Why it mattered |
+|---|---|---|
+| 1 | `Dockerfile.node` still pinned `HOLOCHAIN_VERSION=0.6.2` | Containers would have run 0.6.2 conductors against a 0.7-packed happ. |
+| 2 | Bundled-binary check was `--version >/dev/null` | **A guard that could not fail.** `demo/bin/kitsune2-bootstrap-srv` is **0.4.1** and execs fine on x86_64, so it would have been silently preferred over the 0.5.0 the release ships — and 0.7 bumped the p2p wire protocol **2 → 3**. Nodes would have failed to talk with nothing pointing at the bootstrap server. |
+| 3 | `--sbd-disable-rate-limiting` removed in kitsune2 0.5.0 | The whole `--sbd-*` family is gone (SBD signalling replaced by iroh relay). Bootstrap container exited on an unknown argument. |
+| 4 | `relay_url` carried the old `ws://` signal URL | See below — it failed **twice, differently**. |
+
+**#4 is the instructive one, because its two failure modes sit on opposite ends of the
+loud/silent axis:**
+
+- `ws://…` — iroh rejects the scheme (`URL scheme is not allowed`), but **the conductor starts
+  and the happ installs**. The only symptom is a warning repeating every few hundred
+  milliseconds while relay connectivity is quietly degraded. Easy to ship.
+- `http://…` — kitsune2 0.5.0 refuses a plaintext relay and **the conductor crashes**
+  (`K2Error(Other { ctx: "Disallowed plaintext relay URL" })`). Loud, immediate, unmissable.
+
+The second is strictly better despite looking worse, and the fix was already recorded in
+`CLAUDE.md` from the 07-30 config verification: `http://` **plus** the explicit opt-in
+`advanced.irohTransport.relayAllowPlainText: true`. A local plaintext relay needs it; a
+production deployment behind a real TLS relay must not set it.
+
+**What the round proved**, step by step — each step is a distinct 0.7 risk retired:
+
+1. `lock_researcher_result` on DNA 1 (all-private), including the new `data_locality_mode` field
+   and the msgpack nonce decode.
+2. `submit_validation_request` onto the shared DHT.
+3. **Three validators on three separate conductors each read that request across container
+   boundaries** and sealed a private attestation — DNA 2 `post_commit` → cross-DNA call → a
+   `CommitmentAnchor` on DNA 3. This is the cross-container gossip proof.
+4. Quorum reached; `PhaseMarker` written by a validator and gossiped to the researcher; phase
+   flipped `null` → `RevealOpen` (~10 s).
+5. Researcher reveal **passed the on-chain `SHA-256(msgpack(metrics) || nonce)` verification** —
+   the cryptographic core of commit-reveal, on 0.7.
+6. Three validator reveals, then a `HarmonyRecord` on the governance DNA, read back as
+   **Reproduced / ExactMatch / `validator_count: 3`**.
+
+⚠️ **That last number is evidence in its own right.** It is the `60a5609c` HarmonyRecord
+undercount fix holding on a real multi-agent round — the exact scenario that produced
+`left: 6, right: 7` in CI. No in-process test can demonstrate it under real gossip.
+
+Stack health: 5 containers up, **0 restarts, 0 crashes**, both relay error classes at zero.
+
+⚠️ **Not proven:** `demo/ai_validator.py` itself has not been run (needs a real
+`ANTHROPIC_API_KEY`). The round above was driven directly over the node HTTP bridges, so what
+is untested is that script's logic, not the protocol beneath it.
+
+🆕 **One methodological note, since it cost time.** `/record?hash=` takes the **`request_ref`
+`ExternalHash`** (`uhC8k…`), *not* the HarmonyRecord's `ActionHash` (`uhCkk…`) — there is a
+separate `get_harmony_record_by_hash` for the latter. Passing the wrong one returns a
+`Deserialize` error from the extern that reads like a 0.7 serde regression and is not one.
+0.7 validates the HoloHash type prefix on deserialization, so the mistake surfaces here where
+it may not have before.
 
 ---
 

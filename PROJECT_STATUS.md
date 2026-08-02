@@ -20,9 +20,13 @@ the `ui-e2e` job is unskipped on the branch and passed on a clean runner. Gettin
 **sixth conductor-config site that no audit had found**, because it is *generated* in TypeScript
 rather than committed as YAML. Details below and in §44.11.
 
-**👉 The next step is the Docker demo stack on 0.7** — see the section marked THE NEXT STEP. It
-is the last item that can invalidate the branch, and the only one that exercises a full
-multi-agent commit-reveal round on 0.7.
+**✅ AND THE DEMO STACK RUNS A FULL COMMIT-REVEAL ROUND ON 0.7** (`316abb7b`, same day) — five
+containers, five conductors, real cross-container gossip, HarmonyRecord read back as
+**Reproduced / ExactMatch / 3 validators**. Starting it found **four more breakages** the blind
+config edit had missed. §44.12.
+
+**👉 What is left:** `ai_validator.py` with a real API key, and the coordinator auto-updater
+rehearsal — see THE NEXT STEP.
 
 The full evidence log is **`docs/Holochain_complete.md` §44** (folded in from the standalone
 migration log, which is deleted). **§44.8 is the honest list of what is *not* verified — read it
@@ -170,23 +174,48 @@ legitimate permanent state), but the reveal path **must** read it from the priva
 because the field was bound into `commitment_hash` at seal time and substituting anything
 there — *including `null`* — makes the reveal fail with "Hash mismatch".
 
-### 👉 THE NEXT STEP — the demo stack on 0.7 (not started)
+### ✅ The demo stack runs a full round on 0.7 (`316abb7b`, 2026-08-02)
 
-**This is now the top of the queue**, and the last thing on the branch that can still invalidate
-it. `demo/conductor-config-node.yaml` was edited blind and **no 0.7 conductor has ever been
-started from it.** The merge back to `main` is gated on a live demo round. Needs
-`docker compose down -v` between runs (0.7 renamed the databases — a binary swap is not enough)
-and an `ANTHROPIC_API_KEY` for a real round.
+**A complete commit-reveal round now runs on the 0.7 Docker stack** — five containers, five
+conductors, real cross-container gossip. Full record: `docs/Holochain_complete.md` §44.12.
 
-It is also the first thing on 0.7 that exercises a **full commit-reveal round with multiple
-agents** — five containers, real DHT gossip, quorum, reveal. Neither the sweettests
-(in-process) nor the UI e2e (single-agent, wiring only) cover that.
+The config had been edited blind on 07-30; starting it found **four more breakages** the edit had
+not touched: the Dockerfile still pinned Holochain **0.6.2**; the bundled-binary check was
+`--version >/dev/null` (*"does it execute?"*) and the committed `kitsune2-bootstrap-srv` is
+**0.4.1**, which execs fine and would have been silently preferred over 0.5.0 — across a p2p wire
+protocol bump 2→3; `--sbd-disable-rate-limiting` no longer exists in kitsune2 0.5.0; and
+`relay_url` still carried the old `ws://` signal URL.
 
-⚠️ **Check the generated-config lesson first.** The sixth config site was found in a *generator*,
-not a committed file. Before starting containers, grep `demo/` for `signal_url` /
-`db_sync_strategy` **and** for anything that writes a conductor config at runtime —
-`demo/rehearse-autoupdate.sh:56` is a known embedded one, and `node-entrypoint.sh` is worth
-reading for the same reason.
+⚠️ **That last one failed twice, in opposite directions, and it is the lesson worth keeping.**
+`ws://` → iroh rejects the scheme but **the conductor starts and the happ installs**, so it only
+degrades relay connectivity behind a warning that repeats a few times a second. `http://` →
+kitsune2 **crashes the conductor** outright (`Disallowed plaintext relay URL`). **The crash is the
+better outcome**, and the fix was already sitting in `CLAUDE.md` from the 07-30 verification:
+`http://` plus `advanced.irohTransport.relayAllowPlainText: true`.
+
+**What the round proved:** DNA 1 private lock (incl. the new `data_locality_mode`) →
+`submit_validation_request` → **three validators on three separate conductors reading that request
+across container boundaries** and sealing private attestations → quorum → `PhaseMarker` gossiped,
+phase `null` → `RevealOpen` → researcher reveal **passing on-chain SHA-256 verification** → three
+validator reveals → HarmonyRecord read back as **Reproduced / ExactMatch / `validator_count: 3`**.
+
+⚠️ **That count is evidence by itself:** it is the `60a5609c` undercount fix holding under real
+gossip — the exact scenario that produced `left: 6, right: 7` in CI, and one no in-process test
+can reproduce. Stack health: 5 up, **0 restarts, 0 crashes**.
+
+### 👉 THE NEXT STEP
+
+Two items remain before the branch is merge-ready, then the merge itself.
+
+1. **`demo/ai_validator.py` on 0.7 — needs your `ANTHROPIC_API_KEY`.** The round above was driven
+   directly over the node HTTP bridges, so the *protocol* is proven; what is untested is that
+   script's own logic. This is the last "live demo round" item gating the merge.
+2. **The coordinator auto-updater on 0.7** — `demo/rehearse-autoupdate.sh` was edited and never
+   re-rehearsed. Needs no API key. Its fallback pin was bumped to 0.7.0 with the demo work,
+   also untested.
+
+Then merge prep: **revert the branch-only CI changes** (see Non-negotiables — but note `ui-e2e`
+must stay unskipped), and take the merge decision explicitly with the user.
 
 ⚠️ **The Oracle box is a separate question and is NOT part of this.** It runs the live 0.6.2
 demo. Do not touch it until the branch merges — and when it happens it is a full rebuild with
