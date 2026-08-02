@@ -32,8 +32,78 @@ That was the merge-gating "live demo round".
 **✅ AND THE COORDINATOR AUTO-UPDATER REHEARSES GREEN ON 0.7** — hot-swap applied to all four
 cells, DNA hash unchanged on each.
 
-**👉 Everything that gated the merge is now green.** What is left is merge prep — reverting the
+**👉 Everything that gated the 0.7 merge is green.** What is left is merge prep — reverting the
 branch-only CI changes and the merge decision itself, which is the user's. See THE NEXT STEP.
+
+---
+
+## 🔴 READ THIS FIRST IF THE SESSION RESTARTED — state as of 2026-08-02, late
+
+**You are probably on the wrong branch.** Three branches are live:
+
+| Branch | What is on it | Trust level |
+|---|---|---|
+| `main` | Holochain 0.6.2, the publicly-demoed stack | untouched, stays 0.6.2 |
+| `v0.7.0` | the whole 0.7 migration, up to `af4ba3e5` | ✅ CI-green, merge-ready |
+| `investigate/harmony-record-undercount` | branched off `v0.7.0`; badge-flake diagnosis + fix, plus test work | 🟠 **mixed — see below** |
+
+### ⚠️ The investigation branch mixes VERIFIED work with an UNVERIFIED experiment
+
+`e1b701f3` is a bad commit boundary — my error, flagged so it gets fixed rather than inherited.
+It bundles four separate things:
+
+| In that commit | Status |
+|---|---|
+| `tests/membrane_proof.rs` (5 tests) | ✅ **VERIFIED — 5/5 green.** Belongs on `v0.7.0`. |
+| 8 bare `is_err()` assertions strengthened + `assert_rejected_with()` in `src/lib.rs` | ✅ **VERIFIED** — security suite 12/12. Belongs on `v0.7.0`. |
+| 2 new attestation tests (self-claim, capacity) | 🟠 compiles, **never run** |
+| `governance_yaml_props` `round_timeout_secs` 0 → 86400 | 🟠 **the experiment** — being verified when the session ended |
+
+**Recommended first action:** cherry-pick the two verified items onto `v0.7.0` so the migration
+branch carries them, and leave the experiment here. They are independent of the flake fix.
+
+### What was running when the session ended
+
+`./run-sweettest.sh governance` on the investigation branch (~2 h, was ~4/18 tests in). It was
+verifying **only** the test-config fix. Raw log: `/tmp/sweettest-governance-*.log` — gone if the
+Codespace was rebuilt, in which case just re-run it.
+
+⚠️ **It was started BEFORE `fd56cc41` (the liveness gate), and the sweettests load
+`workdir/governance.dna`, which is the OLD build.** So that run does **not** test the gate. Do
+not read it as if it does.
+
+### ⚠️ The liveness gate is committed but NEVER RUN
+
+`fd56cc41` changes `force_finalize_round` (governance coordinator). To actually test it:
+
+```bash
+export PATH="/home/codespace/.cargo/bin:$PATH"
+cd valichord && cargo build --target wasm32-unknown-unknown --release
+# ⚠️ hc on PATH is 0.6.2 — use a 0.7 hc (fetch from the holochain-0.7.0 release)
+<0.7-hc> dna pack dnas/governance -o workdir/governance.dna
+<0.7-hc> app pack . -o workdir/valichord.happ
+./run-sweettest.sh governance
+```
+
+**Sanity check before trusting a green result:** `live_claim_blocks_force_finalize` must FAIL
+against the *old* `governance.dna`. If it passes without the rebuild, the test is not exercising
+the gate and is worthless — fix the test before believing it.
+
+### The 0.7 binaries are in a scratchpad that does NOT survive a restart
+
+`holochain` and `hc` on `PATH` are **0.6.2**, deliberately. Everything 0.7 used a scratchpad copy.
+Re-fetch with `gh release download holochain-0.7.0 --repo holochain/holochain -p '<name>-x86_64-unknown-linux-gnu'`
+(`holochain`, `hc`, `kitsune2-bootstrap-srv`, `lair-keystore` all exist there), then
+`HOLOCHAIN_BIN=/path/to/holochain` — `dev.sh`, the e2e harness and `rehearse-autoupdate.sh` all
+honour that override.
+
+### The demo stack is stopped, not destroyed
+
+`docker compose -f demo/docker-compose.yml start` brings it back with volumes intact (it was
+`stop`, not `down -v`). `ANTHROPIC_API_KEY` was appended to `~/.bashrc` — note bash's
+non-interactive guard means it is NOT inherited by tool shells; read it out of the file instead.
+
+---
 
 The full evidence log is **`docs/Holochain_complete.md` §44** (folded in from the standalone
 migration log, which is deleted). **§44.8 is the honest list of what is *not* verified — read it
@@ -248,18 +318,100 @@ against client 0.21), so a binary check is the only available proxy; it is now e
 `HOLOCHAIN_BIN`-overridable, and documented for what it actually establishes. ✅ **It failed
 CLOSED** — it refused a correct update rather than applying a mismatched one.
 
+### 🆕 The badge flake is SOLVED — it was the scheduled sweep, not gossip lag (2026-08-02)
+
+Three sessions guessed at this area. It is now established from code, with each link checked:
+
+1. `init()` schedules `sweep_timed_out_rounds` on cron `"0 0 * * * * *"` — **hourly, on the wall
+   clock**, on every conductor — which calls `force_finalize_round` for every pending study.
+2. That function finalises when **both** `attestation_records.len() >= min_required` (where
+   `min_attestations_for_finalization: 0` **silently coerces to 1**) and
+   `elapsed_secs >= round_timeout_secs` (`0` → always true). The test properties had **both at
+   zero**, so both gates were open.
+3. So any multi-validator test still mid-round when the clock crossed the top of an hour had its
+   round force-finalised with a partial set — permanently, since a HarmonyRecord is immutable.
+4. **Proof by elimination:** `check_and_create_harmony_record` *cannot* write a short record. Its
+   gate requires `len() >= num_validators_required`, the warrant filter re-checks the same bound,
+   and `validator_attestation_pairs` is 1:1 with an explicit length check that errors.
+   `force_finalize_round` is the only lower-threshold path, and the sweep is its only caller here.
+5. **Timing corroborates:** gold ran 16:31→17:02, straddling 17:00:00 → failed `left: 5,
+   right: 7`. Silver ran 17:09→17:31, straddled nothing → passed.
+
+This explains everything "gossip lag" never did: why the failure **moved between tests**, why
+**docs-only commits flipped it** (they shift start times), why **widening retries never helped**
+(the record already existed and is immutable), and why it presented as a **count** error.
+
+⚠️ **The test-config fix does NOT fix the underlying design.** See Phase 0 limitation 6 in
+`docs/7_ValiChord_4-DNA_architecture_technical.md`: age is not evidence of abandonment, and a
+slow-but-healthy round is indistinguishable from an abandoned one. `fd56cc41` implements the real
+fix (gate on live claims) but **has not been run**.
+
+🆕 **An idle timeout does NOT work** — recorded because it looks obviously right. A validator
+claims a slot then does the reproduction work for days, emitting **no DHT activity at all**; the
+silence *is* the work. An idle clock reads a room of working validators as empty. Do not build it.
+
+### 🆕 Test-suite audit — 2026-08-02
+
+Two mechanical sweeps, both reproducible:
+
+- **Integrity guards vs assertions.** 83 distinct `Invalid()` messages across the four integrity
+  zomes. **12** are asserted by any test — **10 of those are the immutability tripwires**. 71 have
+  no test at all. Many are unreachable through any coordinator call by design (which is why the
+  tripwires need test-only externs), but the real safety net is those 10 tests, not the 92-test
+  Tryorama suite anyone would assume covered it.
+- **Assertion quality.** 8 sweettests used bare `is_err()` — same class as the fakes culled on
+  07-30 and 08-01. Now fixed via `assert_rejected_with()`, which checks the expected fragment
+  *first* so guards legitimately containing "not found" do not false-positive.
+  ⚠️ One finding: `link_agent_identity_self_link_rejected` is rejected by the **coordinator**, so
+  `validate()` is never reached — the integrity guard behind it remains unproven and unreachable.
+
+### 🆕 Tryorama: retire it, don't migrate it — scoped 2026-08-02
+
+**Upstream `@holochain/tryorama` is dead**: an unmaintained banner landed Jan 2026 saying
+*"support for Holochain 0.7+ should not be expected"* and pointing at **sweettest**. A community
+fork (`@holochain-open-dev/tryorama` 0.20.0, MIT, targets 0.7 + client 0.21) does exist — so the
+long-standing "no 0.7 line, blocked upstream" note was checking the wrong package.
+
+Scoping says **retire rather than port**: of 92 tests, **~69 are already duplicated in sweettest**
+(`researcher_repository` 13/13 and `validator_workspace` 7/7 are 100% redundant) and ~23 unique.
+✅ The 5 membrane-proof tests — the only coverage of DNA 3's credentialed membrane anywhere, since
+sweettest runs entirely in dev-bypass — **are ported and green**. ~15 unique tests remain, mostly
+edge cases; 3 are `"no delete fn exists"` assertions superseded by the delete tripwires.
+
+⚠️ **Trap for the port:** `verify_signature(key, sig, data)` does **not** verify over `data` as
+given — `VerifySignature::new` stores `holochain_serialized_bytes::encode(&data)`, so a `Vec<u8>`
+is verified as a msgpack *array of integers*, not raw bytes. Sign via `Sign::new`, which routes
+through the same `encode()`. Signing raw bytes fails in a way indistinguishable from "the guard
+works".
+
 ### 👉 THE NEXT STEP — merge prep
 
 Everything that gated the merge is now green. What remains is process, not verification:
 
-1. **Revert the branch-only CI changes** — see Non-negotiables. ⚠️ **`ui-e2e` must stay
+Ordered. Items 1–3 are the investigation branch; 4–6 are the migration itself.
+
+1. **Cherry-pick the verified test work onto `v0.7.0`** — `membrane_proof.rs` and the 8
+   strengthened assertions. Both are verified and independent of the experiment.
+2. **Rebuild + repack, then run the governance suite** to test the liveness gate (`fd56cc41`).
+   Confirm `live_claim_blocks_force_finalize` **fails** against the old DNA first, or the test is
+   not exercising the gate.
+3. **Decide on the honest-record change** — `HarmonyRecord` carrying *both* the requested cohort
+   size and the number who reported, so an early close is visibly incomplete rather than quietly
+   false. Integrity-level, so it wants to ride the 0.7 hash break rather than buy its own — but
+   the branch is otherwise merge-ready, so this is a scope call: take it now and delay, or accept
+   a second break later. `OpenAudit` groundwork was banked for exactly this reason.
+4. **Revert the branch-only CI changes** — see Non-negotiables. ⚠️ **`ui-e2e` must stay
    unskipped**; only the `test` skip, the `sweettest` gating change and the branch-only
    `tripwire` job are the ones to reconsider.
-2. **Take the merge decision explicitly with the user** — it is theirs, and it has never been
+5. **Take the merge decision explicitly with the user** — it is theirs, and it has never been
    given. Accepted cost, already decided: every published HarmonyRecord URL dies at the hash
    break.
-3. **Oracle is a separate, later job** — a full rebuild with state loss, **not** an upgrade, and
+6. **Oracle is a separate, later job** — a full rebuild with state loss, **not** an upgrade, and
    not to be touched until after the merge.
+
+⚠️ **The finalisation hazard is PRE-EXISTING on `main`** — it is not something the 0.7 migration
+introduced, and shipping 0.7 does not worsen it. It need not block the merge unless the user
+wants it to.
 
 Tryorama and `wind-tunnel` stay blocked upstream and are **not** merge blockers — they were
 already skipped/untouched before this branch existed.
