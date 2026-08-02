@@ -84,32 +84,52 @@ uses the safe default (it asserts a decline); `live_claim_blocks_force_finalize`
 lost data. It will fire on every memory-pressured run; see the note about teaching its extractor
 the spliced form.
 
-### What was running when the session ended
+### ✅ The liveness gate IS built, packed and under test (updated 2026-08-02, late)
 
-`./run-sweettest.sh governance` on the investigation branch (~2 h, was ~4/18 tests in). It was
-verifying **only** the test-config fix. Raw log: `/tmp/sweettest-governance-*.log` — gone if the
-Codespace was rebuilt, in which case just re-run it.
+Superseding the earlier "committed but NEVER RUN" note:
 
-⚠️ **It was started BEFORE `fd56cc41` (the liveness gate), and the sweettests load
-`workdir/governance.dna`, which is the OLD build.** So that run does **not** test the gate. Do
-not read it as if it does.
+- WASM rebuilt and `workdir/governance.dna` + `workdir/valichord.happ` repacked with 0.7 `hc`.
+- **Verified the packed DNA really contains the gate** — sha256 of the coordinator WASM inside
+  `governance.dna` matches the freshly built one (`40ec846f408c478a`). Worth doing: a stale pack
+  would have produced a green run that proved nothing.
+- **DNA hash byte-identical before and after** (`uhC0kRrX19H1PP-lfWYhBc6vRUIDAG1CkI7zMWVOD9AZ15xoGwZSC`),
+  so "coordinator-only, hot-swappable, zero hash change" is now measured, not asserted. It can
+  reach the live Oracle nodes without touching any published record URL.
+- `./run-sweettest.sh governance` was **in flight** against that build when the session ended.
+  It contains `live_claim_blocks_force_finalize` + `released_claim_allows_force_finalize`.
 
-### ⚠️ The liveness gate is committed but NEVER RUN
+**If that run's result is not recorded below, it did not finish — re-run it.** The two liveness
+tests are a matched pair and must both pass: one proves the gate blocks, the other that it opens.
+If only the first passes, the gate may be refusing unconditionally and the sweep is dead.
 
-`fd56cc41` changes `force_finalize_round` (governance coordinator). To actually test it:
+### ⚠️ `workdir/*.dna` IS GITIGNORED — a fresh Codespace has no DNAs
+
+`valichord/.gitignore` ignores `workdir/*.dna`; only `workdir/valichord.happ` is tracked. So after
+a rebuild the four `.dna` files are **absent**, and every sweettest fails with "…dna not found".
+Rebuild before running anything:
 
 ```bash
 export PATH="/home/codespace/.cargo/bin:$PATH"
 cd valichord && cargo build --target wasm32-unknown-unknown --release
-# ⚠️ hc on PATH is 0.6.2 — use a 0.7 hc (fetch from the holochain-0.7.0 release)
-<0.7-hc> dna pack dnas/governance -o workdir/governance.dna
+for d in attestation researcher_repository validator_workspace governance; do
+  <0.7-hc> dna pack dnas/$d -o workdir/$d.dna
+done
 <0.7-hc> app pack . -o workdir/valichord.happ
-./run-sweettest.sh governance
 ```
 
-**Sanity check before trusting a green result:** `live_claim_blocks_force_finalize` must FAIL
-against the *old* `governance.dna`. If it passes without the rebuild, the test is not exercising
-the gate and is worthless — fix the test before believing it.
+### 🟠 Nine ported Tryorama tests are committed and UNRUN
+
+`e6b27849` + `ad593e1c`. All compile; none have executed. Run
+`./run-sweettest.sh attestation` and `./run-sweettest.sh governance` before trusting them.
+
+**Do NOT delete the Tryorama suite until they are green.** Retiring it is the last step of that
+task and is deliberately gated on these runs — removing the old tests before the new ones pass is
+exactly the mistake this repo keeps finding.
+
+Deliberately NOT ported: the badge-outcome variants (`FailedReproduction`, `Divergent`). Their
+logic already has 27 unit tests in `shared_types` covering every agreement level and threshold, so
+an integration test would re-prove arithmetic at ~30 min a run while exercising round wiring the
+bronze test already covers.
 
 ### The 0.7 binaries are in a scratchpad that does NOT survive a restart
 
