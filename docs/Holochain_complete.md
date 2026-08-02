@@ -1591,16 +1591,12 @@ that line number was stale). Details and the sixth config hit site: §44.11.
    culled in `cc19e8c4` as fakes) — deliberately skipped on this branch. Still blocked upstream:
    re-checked 2026-08-02, `@holochain/tryorama` latest is `0.19.2`, pinning
    `@holochain/client ^0.20.4`, with no 0.7 line to migrate to.
-2. **`demo/ai_validator.py`** — the demo stack itself now runs a full commit-reveal round on 0.7
-   (§44.12), but that round was driven directly over the node HTTP bridges. The AI-driven
-   script has not been run, because it needs a real `ANTHROPIC_API_KEY`. What is unproven is
-   that script's own logic, **not** the protocol underneath it.
-3. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
+2. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
    on 0.7. Its version-pin fallback was bumped to 0.7.0 with the demo work, still untested.
-4. **`wind-tunnel/`** — untouched; Phase C blocked.
-5. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
+3. **`wind-tunnel/`** — untouched; Phase C blocked.
+4. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
    did not exercise them.
-6. **The `db_sync_level` semantic mapping** (§44.4). ⚠️ Still unverified *semantically*, but it
+5. **The `db_sync_level` semantic mapping** (§44.4). ⚠️ Still unverified *semantically*, but it
    is now exercised: `Normal` is what the e2e conductor ran on for the whole passing suite, so
    the value is at least known-good operationally.
 
@@ -1785,9 +1781,31 @@ undercount fix holding on a real multi-agent round — the exact scenario that p
 
 Stack health: 5 containers up, **0 restarts, 0 crashes**, both relay error classes at zero.
 
-⚠️ **Not proven:** `demo/ai_validator.py` itself has not been run (needs a real
-`ANTHROPIC_API_KEY`). The round above was driven directly over the node HTTP bridges, so what
-is untested is that script's logic, not the protocol beneath it.
+✅ **`demo/ai_validator.py` then ran the same round for real** (2026-08-02, with a live
+`ANTHROPIC_API_KEY`) — this is the "live demo round" that gated the merge, and it passed:
+
+- Three **independent Claude validators** formed verdicts blind, sealed them, and committed to
+  three separate conductors.
+- Phase gate opened after 2 polls; researcher reveal passed on-chain SHA-256 verification;
+  all three validators broke their seals — **Reproduced (High) ×3**.
+- HarmonyRecord: **Reproduced (3/3) / ExactMatch / ComputationalBiology**, read back with
+  `validator_count: 3` and the full `committed_claim` block (slope / intercept / R²).
+
+⚠️ **One warning in that run is an environment artifact, not a defect.** The script prints
+`WARNING: Could not reach viewer: <urlopen error timed out>`. `ai_validator.py:582` deliberately
+rewrites `localhost` to a **detected public IP** so the printed URL is shareable — correct on
+Oracle, where that address really is reachable — then fetches its own URL to self-verify. In a
+Codespace the detected address (`20.61.126.215`) has no inbound route, so the fetch times out.
+**The record itself is fine**: fetching the identical `request_ref` against `localhost:3001`
+returns the complete record. Do not chase this on 0.7; it will not reproduce on Oracle.
+
+⚠️ **Observed but NOT diagnosed:** `integrate_dht_ops_consumer` logs recurring
+`SqliteError { code: 5 / 517, "database is locked" }` across the conductors, in both the manual
+and the AI round. Neither round failed and every assertion held, so it did not affect outcomes.
+Five conductors on a 2-core Codespace is heavy SQLite contention and is the likelier
+explanation, but **that is a hypothesis, not a finding** — it has not been compared against a
+0.6.2 run on the same box, which is what would settle it. Worth checking on Oracle (1 OCPU)
+before the demo is relied on there.
 
 🆕 **One methodological note, since it cost time.** `/record?hash=` takes the **`request_ref`
 `ExternalHash`** (`uhC8k…`), *not* the HarmonyRecord's `ActionHash` (`uhCkk…`) — there is a

@@ -25,8 +25,12 @@ containers, five conductors, real cross-container gossip, HarmonyRecord read bac
 **Reproduced / ExactMatch / 3 validators**. Starting it found **four more breakages** the blind
 config edit had missed. §44.12.
 
-**👉 What is left:** `ai_validator.py` with a real API key, and the coordinator auto-updater
-rehearsal — see THE NEXT STEP.
+**✅ AND THE LIVE AI DEMO ROUND PASSED ON 0.7** — three independent Claude validators, blind
+commit, phase gate, on-chain-verified reveal, HarmonyRecord **Reproduced (3/3) / ExactMatch**.
+That was the merge-gating "live demo round".
+
+**👉 What is left:** the coordinator auto-updater rehearsal (no API key needed), then merge prep
+— see THE NEXT STEP.
 
 The full evidence log is **`docs/Holochain_complete.md` §44** (folded in from the standalone
 migration log, which is deleted). **§44.8 is the honest list of what is *not* verified — read it
@@ -203,19 +207,38 @@ validator reveals → HarmonyRecord read back as **Reproduced / ExactMatch / `va
 gossip — the exact scenario that produced `left: 6, right: 7` in CI, and one no in-process test
 can reproduce. Stack health: 5 up, **0 restarts, 0 crashes**.
 
+### ✅ The live AI demo round passed on 0.7 (2026-08-02)
+
+**`demo/ai_validator.py --mode decentralised` ran for real against the 0.7 stack** with a live
+`ANTHROPIC_API_KEY`. **This was the "live demo round" gating the merge.** Three independent
+Claude validators formed verdicts blind, committed to three separate conductors, the phase gate
+opened, the researcher reveal passed on-chain SHA-256 verification, and all three broke their
+seals: **Reproduced (High) ×3** → HarmonyRecord **Reproduced (3/3) / ExactMatch**.
+
+⚠️ **The one warning it prints is an environment artifact, not a defect.**
+`WARNING: Could not reach viewer: <urlopen error timed out>` — the script rewrites `localhost`
+to a **detected public IP** so the URL is shareable (right on Oracle), then fetches its own URL
+to self-verify. A Codespace has no inbound route to that address. The record itself reads back
+completely from `localhost:3001`. **It will not reproduce on Oracle; don't chase it.**
+
+⚠️ **Observed, not diagnosed:** recurring `database is locked` errors from
+`integrate_dht_ops_consumer` in both rounds. Nothing failed and every assertion held. Five
+conductors on a 2-core box is the likely cause, but **that is a hypothesis** — it was not
+compared against a 0.6.2 run on the same hardware, which is what would settle it. Worth watching
+on Oracle (1 OCPU).
+
 ### 👉 THE NEXT STEP
 
-Two items remain before the branch is merge-ready, then the merge itself.
+1. **The coordinator auto-updater on 0.7** — `demo/rehearse-autoupdate.sh` was edited and never
+   re-rehearsed. **Needs no API key.** It now takes `HOLOCHAIN_BIN`, so it can be pointed at a
+   0.7 binary while `PATH` stays 0.6.2. Its fallback pin was bumped to 0.7.0, also untested.
+   Run `node demo/pack-coordinators.mjs --holochain 0.7.0` first — its auto-detection would
+   otherwise read the 0.6.2 on `PATH` and stamp the manifest with the wrong pin.
+2. **Merge prep** — revert the branch-only CI changes (see Non-negotiables; **`ui-e2e` must stay
+   unskipped**), then take the merge decision explicitly with the user.
 
-1. **`demo/ai_validator.py` on 0.7 — needs your `ANTHROPIC_API_KEY`.** The round above was driven
-   directly over the node HTTP bridges, so the *protocol* is proven; what is untested is that
-   script's own logic. This is the last "live demo round" item gating the merge.
-2. **The coordinator auto-updater on 0.7** — `demo/rehearse-autoupdate.sh` was edited and never
-   re-rehearsed. Needs no API key. Its fallback pin was bumped to 0.7.0 with the demo work,
-   also untested.
-
-Then merge prep: **revert the branch-only CI changes** (see Non-negotiables — but note `ui-e2e`
-must stay unskipped), and take the merge decision explicitly with the user.
+Tryorama and `wind-tunnel` stay blocked upstream and are **not** merge blockers — they were
+already skipped/untouched before this branch existed.
 
 ⚠️ **The Oracle box is a separate question and is NOT part of this.** It runs the live 0.6.2
 demo. Do not touch it until the branch merges — and when it happens it is a full rebuild with

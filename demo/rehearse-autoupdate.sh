@@ -12,6 +12,12 @@
 set -uo pipefail
 
 export PATH="/home/codespace/.cargo/bin:$PATH"
+
+# Which conductor binary to rehearse against. Defaults to PATH so CI and main
+# are unchanged. Needed on the v0.7.0 branch, where PATH is still 0.6.2 while
+# the happ and coordinator WASMs are 0.7 builds:
+#   HOLOCHAIN_BIN=/path/to/0.7/holochain ./demo/rehearse-autoupdate.sh
+HOLOCHAIN_BIN="${HOLOCHAIN_BIN:-holochain}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADMIN_PORT="${ADMIN_PORT:-4446}"
 HTTP_PORT="${HTTP_PORT:-8791}"
@@ -32,7 +38,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-command -v holochain >/dev/null 2>&1 || { echo "ERROR: holochain not on PATH"; exit 1; }
+command -v "$HOLOCHAIN_BIN" >/dev/null 2>&1 || { echo "ERROR: holochain not found ($HOLOCHAIN_BIN)"; exit 1; }
 [ -f "$HAPP" ]   || { echo "ERROR: no happ at $HAPP (pack it first)"; exit 1; }
 [ -f "$CLIENT" ] || { echo "ERROR: @holochain/client not found (npm install in demo/ or valichord-ui/)"; exit 1; }
 [ -f "$UPDATES/coordinators-manifest.json" ] || { echo "ERROR: no manifest (run node demo/pack-coordinators.mjs)"; exit 1; }
@@ -57,7 +63,7 @@ network:
 EOF
 
 echo "=== starting conductor ==="
-echo "rehearse-pass" | holochain --config-path "$WORK/conductor-config.yaml" --piped > "$WORK/conductor.log" 2>&1 &
+echo "rehearse-pass" | "$HOLOCHAIN_BIN" --config-path "$WORK/conductor-config.yaml" --piped > "$WORK/conductor.log" 2>&1 &
 COND=$!
 READY=0
 for i in $(seq 1 120); do
