@@ -43,7 +43,7 @@
 
 use valichord_sweettest::*;
 use governance_coordinator::ReputationUpdateInput;
-use governance_integrity::{HarmonyRecord, ValidatorReputation};
+use governance_integrity::{GovernanceDecision, HarmonyRecord, ValidatorReputation};
 use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorType};
 
 
@@ -1557,4 +1557,62 @@ async fn released_claim_allows_force_finalize() {
         .call(&setup.alice.governance_zome(), "get_harmony_record", request_ref)
         .await;
     assert!(record.is_some(), "HarmonyRecord must exist after a valid force-finalise");
+}
+
+// ---------------------------------------------------------------------------
+// 25. GovernanceDecision round-trip, and multiple decisions  (ported from Tryorama)
+// ---------------------------------------------------------------------------
+//
+// The suite already asserts that a NON-matching key is rejected
+// (governance_decision_non_matching_key_rejected). Nothing asserted the happy
+// path — so a change that rejected *everything* would have left that test green
+// while silently breaking the feature. A rejection test needs its positive
+// counterpart or it only proves the door is shut, never that it opens.
+//
+// Runs under the dev bypass (`system_coordinator_key: ""`), where any agent may
+// write; in production this is key-gated.
+#[tokio::test(flavor = "multi_thread")]
+async fn governance_decisions_round_trip_and_accumulate() {
+    let (conductor, app) = setup_single().await;
+    let gov_zome = app.governance_zome();
+
+    let before: Vec<Record> = conductor
+        .call(&gov_zome, "get_all_governance_decisions", ())
+        .await;
+    assert!(before.is_empty(), "no decisions should exist initially");
+
+    let _: ActionHash = conductor
+        .call(&gov_zome, "create_governance_decision", make_governance_decision())
+        .await;
+
+    let after_one: Vec<Record> = conductor
+        .call(&gov_zome, "get_all_governance_decisions", ())
+        .await;
+    assert_eq!(after_one.len(), 1, "the written decision must be retrievable");
+
+    // Read the content back rather than only counting: a length check passes even
+    // if the entry decodes to something else entirely.
+    let decision: GovernanceDecision = after_one[0]
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .expect("record must carry a GovernanceDecision entry");
+    assert_eq!(decision.votes_for, 7, "votes_for must survive the round trip");
+    assert_eq!(decision.votes_against, 2, "votes_against must survive the round trip");
+
+    // A second decision must not replace the first — the index is append-only.
+    let mut second = make_governance_decision();
+    second.proposal = "Add new discipline: Metabolomics".into();
+    let _: ActionHash = conductor
+        .call(&gov_zome, "create_governance_decision", second)
+        .await;
+
+    let after_two: Vec<Record> = conductor
+        .call(&gov_zome, "get_all_governance_decisions", ())
+        .await;
+    assert_eq!(
+        after_two.len(),
+        2,
+        "both decisions must be returned — the decision history is append-only"
+    );
 }

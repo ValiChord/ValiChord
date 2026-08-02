@@ -1110,3 +1110,186 @@ async fn claim_rejected_when_study_is_at_capacity() {
     let err = result.expect_err("claiming a study at capacity must be rejected");
     assert_rejected_with(&format!("{err:?}"), "at capacity", "claim over capacity");
 }
+
+// ---------------------------------------------------------------------------
+// 26. A validator cannot claim the same study twice  (ported from Tryorama)
+// ---------------------------------------------------------------------------
+//
+// Without this, one validator could occupy several slots of the same cohort and
+// the "N independent validators" claim would be false while looking satisfied —
+// the capacity guard in test 25 counts claims, not distinct people.
+#[tokio::test(flavor = "multi_thread")]
+async fn same_validator_cannot_claim_a_study_twice() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0x73);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let _: ActionHash = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    let _: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let result: Result<ActionHash, _> = setup.conductors[1]
+        .call_fallible(&setup.bob.attestation_zome(), "claim_study", request_ref)
+        .await;
+    let err = result.expect_err("a second claim by the same validator must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "already claimed this study",
+        "duplicate claim by same validator",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 27. reclaim_abandoned_claim refuses once the validator has attested  (ported)
+// ---------------------------------------------------------------------------
+//
+// Reclaiming frees a slot so a replacement can be found. Doing that to a
+// validator who has ALREADY submitted their attestation would vacate a slot that
+// was properly filled, and — given the liveness gate now keys finalisation on
+// live claims — could let a round close while misrepresenting who took part.
+//
+// Note this guard returns Ok(false), not an error: "no reclamation needed" is a
+// normal outcome, not a rejection. Asserting on a message here would be wrong.
+#[tokio::test(flavor = "multi_thread")]
+async fn reclaim_refused_once_validator_has_attested() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0x74);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let _: ActionHash = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    let claim_hash: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob does the work: commit then reveal. His slot is now properly filled.
+    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // timeout_secs: 0 isolates the already-attested guard — the age check cannot
+    // be what refuses, so a `false` here can only come from the attestation check.
+    let reclaimed: bool = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "reclaim_abandoned_claim",
+            ReclaimInput {
+                request_ref: request_ref.clone(),
+                claim_hash,
+                timeout_secs: 0,
+            },
+        )
+        .await;
+    assert!(
+        !reclaimed,
+        "reclaim must refuse a slot whose validator has already attested — freeing it \
+         would vacate a properly filled slot"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 28. A third party cannot revoke someone else's identity link  (ported)
+// ---------------------------------------------------------------------------
+//
+// An AgentIdentityAttestation asserts that two keys are the same person, and it
+// feeds reputation aggregation across devices. If any passer-by could revoke it,
+// they could sever a validator's device links and reset their standing.
+#[tokio::test(flavor = "multi_thread")]
+async fn third_party_cannot_revoke_an_identity_link() {
+    let mut conductors =
+        SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
+    let dnas = dnas_with_roles().await;
+    let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
+    let mut it = apps.into_inner().into_iter();
+    let alice = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let bob = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let mallory = ValiChordApp::from_sweet_app(it.next().unwrap());
+
+    let alice_sig: Signature = conductors[0]
+        .call(
+            &alice.attestation_zome(),
+            "sign_for_identity_link",
+            bob.attestation.agent_pubkey().clone(),
+        )
+        .await;
+    let bob_sig: Signature = conductors[1]
+        .call(
+            &bob.attestation_zome(),
+            "sign_for_identity_link",
+            alice.attestation.agent_pubkey().clone(),
+        )
+        .await;
+
+    let att_hash: ActionHash = conductors[0]
+        .call(
+            &alice.attestation_zome(),
+            "link_agent_identity",
+            LinkAgentIdentityInput {
+                other_agent: bob.attestation.agent_pubkey().clone(),
+                my_signature: alice_sig,
+                other_signature: bob_sig,
+            },
+        )
+        .await;
+    await_consistency_s(60, [&alice.attestation, &bob.attestation, &mallory.attestation])
+        .await
+        .unwrap();
+
+    // Mallory is neither named agent.
+    let result: Result<ActionHash, _> = conductors[2]
+        .call_fallible(
+            &mallory.attestation_zome(),
+            "revoke_agent_identity_link",
+            att_hash,
+        )
+        .await;
+    let err = result.expect_err("a third party must not be able to revoke an identity link");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "Only one of the two named agents may revoke",
+        "third-party identity revocation",
+    );
+}
