@@ -28,6 +28,22 @@
 //!  18.  get_researcher_reveal — None before reveal, Some after (new)
 //!  19.  revoke_agent_identity_link — live entry deleted, get_linked_agents returns empty (new)
 //!  20.  get_my_claimed_studies — own claims visible, filtered by release (new)
+//!
+//! Ported from the Tryorama suite 2026-08-02 as part of retiring it (upstream
+//! @holochain/tryorama is unmaintained and will not support Holochain 0.7). Only
+//! the tests with NO sweettest equivalent were carried over — an audit found ~69
+//! of the 92 Tryorama tests already duplicated here:
+//!  24.  researcher cannot claim their own study (validate() guard)
+//!  25.  claim rejected when the study is at capacity
+//!  26.  same validator cannot claim the same study twice
+//!  27.  reclaim refused once the validator has attested
+//!  28.  third party cannot revoke someone else's identity link
+//!  29.  validator profiles indexed by discipline AND institution
+//!  30.  pending requests indexed by discipline
+//!  31.  attestations indexed by discipline
+//!
+//! The five membrane-proof tests went to `membrane_proof.rs` instead — they need
+//! a real issuer key rather than this file's dev bypass.
 
 use valichord_sweettest::*;
 use attestation_integrity::{AssessmentConfidence, DifficultyTier, ResearcherRevealInput, StudyClaim};
@@ -1292,4 +1308,130 @@ async fn third_party_cannot_revoke_an_identity_link() {
         "Only one of the two named agents may revoke",
         "third-party identity revocation",
     );
+}
+
+// ---------------------------------------------------------------------------
+// 29-31. Public read filters — index by discipline / institution  (ported)
+// ---------------------------------------------------------------------------
+//
+// These four functions are in the coordinator's Unrestricted cap grant, so they
+// are the PUBLIC read surface — what the UI and the HTTP gateway call. None had
+// sweettest coverage; the audit on 2026-08-02 found them tested only in Tryorama.
+//
+// Each test asserts BOTH directions in one body: the matching query returns the
+// record, and a non-matching query returns empty. A positive-only test passes
+// against a function that ignores its filter entirely and returns everything.
+
+#[tokio::test(flavor = "multi_thread")]
+async fn validator_profiles_are_indexed_by_discipline_and_institution() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.attestation_zome();
+
+    let _: ActionHash = conductor
+        .call(&zome, "publish_validator_profile", make_validator_profile("Cardiff University"))
+        .await;
+
+    // make_validator_profile declares ComputationalBiology only.
+    let matching: Vec<Record> = conductor
+        .call(&zome, "get_validators_for_discipline", Discipline::ComputationalBiology)
+        .await;
+    assert_eq!(matching.len(), 1, "profile must be indexed under its own discipline");
+
+    let other: Vec<Record> = conductor
+        .call(&zome, "get_validators_for_discipline", Discipline::MachineLearning)
+        .await;
+    assert!(
+        other.is_empty(),
+        "a discipline the validator did not declare must return nothing — got {}",
+        other.len()
+    );
+
+    let by_inst: Vec<Record> = conductor
+        .call(&zome, "get_validators_for_institution", "Cardiff University".to_string())
+        .await;
+    assert_eq!(by_inst.len(), 1, "profile must be indexed under its institution");
+
+    let wrong_inst: Vec<Record> = conductor
+        .call(&zome, "get_validators_for_institution", "Somewhere Else".to_string())
+        .await;
+    assert!(wrong_inst.is_empty(), "a different institution must return nothing");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pending_requests_are_indexed_by_discipline() {
+    let (conductor, app) = setup_single().await;
+    let zome = app.attestation_zome();
+
+    // make_validation_request declares ComputationalBiology.
+    let _: ActionHash = conductor
+        .call(
+            &zome,
+            "submit_validation_request",
+            make_validation_request(fake_external_hash(0x75)),
+        )
+        .await;
+
+    let matching: Vec<Record> = conductor
+        .call(&zome, "get_pending_requests_for_discipline", Discipline::ComputationalBiology)
+        .await;
+    assert_eq!(matching.len(), 1, "request must appear under its own discipline");
+
+    let other: Vec<Record> = conductor
+        .call(&zome, "get_pending_requests_for_discipline", Discipline::MachineLearning)
+        .await;
+    assert!(
+        other.is_empty(),
+        "a different discipline must return nothing — got {}",
+        other.len()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn attestations_are_indexed_by_discipline() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0x76);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Two commits open the reveal phase (num_validators_required = 2).
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let matching: Vec<Record> = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "get_attestations_for_discipline",
+            Discipline::ComputationalBiology,
+        )
+        .await;
+    assert_eq!(matching.len(), 1, "attestation must be indexed under its discipline");
+
+    let other: Vec<Record> = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "get_attestations_for_discipline",
+            Discipline::MachineLearning,
+        )
+        .await;
+    assert!(other.is_empty(), "a different discipline must return nothing");
 }
