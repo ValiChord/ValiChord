@@ -5,7 +5,7 @@
 
 ---
 
-# 🚦 START HERE — next session (rewritten 2026-08-01, evening)
+# 🚦 START HERE — next session (updated 2026-08-02)
 
 **✅ PHASE A IS COMPLETE AND CI-GREEN.** All 51 `FlatOp` arms ported, all 8 zomes on
 `hdi 0.8.0` / `hdk 0.7.0`, conductor configs fixed, bundles repacked on 0.7, and **run
@@ -14,26 +14,38 @@ sweettest suites, and the hook guard.** The sweettest sweep is the one that matt
 covers commit-reveal, phase transitions, quorum counting, cross-DNA calls and badge issuance,
 so the protocol is proven to still *work* on 0.7, not merely to still reject forbidden updates.
 
-The full evidence log is now **`docs/Holochain_complete.md` §44** (folded in from the
-standalone migration log, which is deleted). §44.8 is the honest list of what is *not*
-verified — read it before assuming anything outside Phase A works.
+**✅ AND THE UI HALF OF PHASE B IS NOW DONE TOO** (`10c92fe5`, 2026-08-02). `valichord-ui` runs
+**6/6 Playwright e2e green against a real `holochain 0.7.0` conductor**, locally *and* in CI —
+the `ui-e2e` job is unskipped on the branch and passed on a clean runner. Getting there needed a
+**sixth conductor-config site that no audit had found**, because it is *generated* in TypeScript
+rather than committed as YAML. Details below and in §44.11.
 
-**`main` remains on 0.6.2**, at `03fc16f4`.
+**👉 The next step is the Docker demo stack on 0.7** — see the section marked THE NEXT STEP. It
+is the last item that can invalidate the branch, and the only one that exercises a full
+multi-agent commit-reveal round on 0.7.
+
+The full evidence log is **`docs/Holochain_complete.md` §44** (folded in from the standalone
+migration log, which is deleted). **§44.8 is the honest list of what is *not* verified — read it
+before assuming anything works.** §44.11 covers the UI half.
+
+**`main` remains on 0.6.2**, at `03fc16f4`. Branch head is `10c92fe5` (+ this docs commit).
 
 ### The state of the three phases
 
 | Phase | Scope | Status |
 |---|---|---|
 | **A** | 4 DNA zomes, `sweettest_integration`, configs, bundles | ✅ **complete, CI-green** |
-| **B** | Tryorama suite (92 tests, was 98 — see below) + Svelte UI | 🟠 **half-unblocked, newly** |
+| **B** | Svelte UI | ✅ **done 2026-08-02 — 6/6 e2e green on a real 0.7 conductor** |
+| **B** | Tryorama suite (92 tests, was 98 — see below) | 🔴 blocked upstream, re-checked 2026-08-02 |
 | **C** | `valichord/wind-tunnel/` | 🔴 blocked upstream |
 
-🆕 **Phase B changed on 2026-08-01: `@holochain/client` **0.21.0** and `@holochain/hc-spin`
-**0.700.0** both went stable on npm `latest`.** So the **Svelte UI half of Phase B is now
-technically startable**. The **Tryorama half is not** — `@holochain/tryorama` latest is still
-`0.19.2` and pins `@holochain/client ^0.20.4`; there is no 0.7 line. (Its `beta: 0.3.0-rc.4`
-dist-tag is from 2019 — noise, not a 0.7 preview.) **Phase C unchanged:**
-`holochain_wind_tunnel_runner` last published 2026-07-21, still on `holochain = "0.6"`.
+**Upstream re-checked 2026-08-02 — no change.** `@holochain/tryorama` latest is still `0.19.2`,
+pinning `@holochain/client ^0.20.4`; there is no 0.7 line, so there is nothing to migrate the
+suite *to*. (Its `beta: 0.3.0-rc.4` dist-tag is from 2019 — noise, not a 0.7 preview.) **Phase C
+unchanged:** `holochain_wind_tunnel_runner` last published 2026-07-21, still on
+`holochain = "0.6"`. What unblocked the UI half on 2026-08-01 was `@holochain/client` **0.21.0**
+and `@holochain/hc-spin` **0.700.0** going stable on npm `latest`; that half is now **done**
+(see below).
 
 ### Riding along with the 0.7 hash break — decided 2026-08-01
 
@@ -95,16 +107,42 @@ run, so that fix itself is verified independently of how the head run lands.
 *before* the binding went on top, as separate commits. A failure can therefore be attributed
 between the port and the feature, and the migration stays independently verifiable.
 
-### Phase B — UI half STARTED 2026-08-01 (`6f143821`), and it is NOT finished
+### Phase B — UI half is DONE (`10c92fe5`, 2026-08-02)
 
-`valichord-ui` is on `@holochain/client` **0.21.0**. `npm run check` is 0 errors (was 2) and
-`npm run build` succeeds.
+`valichord-ui` is on `@holochain/client` **0.21.0**, and it is now **proven, not just
+type-checked: 6/6 Playwright e2e tests pass against a real `holochain 0.7.0` binary**, and the
+`ui-e2e` CI job is **unskipped on this branch** so the result is repeatable rather than
+remembered. Full record: `docs/Holochain_complete.md` §44.11.
 
-**⚠️ The UI has never talked to a 0.7 conductor.** That is the whole remaining risk, and it is
-the next thing to do. Local binaries are 0.6.2, and `dev-conductor.yaml` already carries the
-0.7-only `db_sync_level`, so **it will not start here at all** — proving this needs the 0.7
-binary fetched to scratchpad (as was done for the config verification on 07-30). The e2e suite
-is blocked on the same thing.
+🆕 **A sixth conductor-config site existed that no audit had found.** The checklist lists five,
+all found by grepping YAML for `signal_url` / `db_sync_strategy`.
+`valichord-ui/tests/e2e/setup/conductor-manager.ts` doesn't *read* a config — it **generates**
+one as a TypeScript string array, and still emitted both 0.6-only fields. On 0.7 that is fatal
+(exit 42, hard parse error), so the e2e suite could not have started at all, regardless of the
+UI code. ⚠️ **The lesson: a grep for a config field cannot find a config that doesn't exist
+until runtime — audit generators, not just committed files.** Same shape as the
+`check-no-test-hooks.sh` bug: a search that couldn't see its target and so reported clean.
+
+**Two claims were kept separate on purpose, and the config bug is why it mattered.** *Did the
+UI port correctly?* — `npm run check` answered that on 08-01. *Does it actually talk to a 0.7
+conductor?* — nothing answered that until this run, and a type-check never could: the broken
+config type-checked perfectly and would have died on the first byte of a real run.
+
+**Evidence the run was genuine** (a bare "6 passed" is exactly what this branch has learned to
+distrust): the same config run against the 0.6.2 still on `PATH` fails with ``missing field
+`signal_url` ``, so the conductor cannot have been 0.6.2; and the tests are falsifiable — one
+reads a form-submitted request back through a *different role view*, another pushes a typed
+payload through a direct zome call and asserts the UI renders it, both of which break on serde
+drift at the msgpack boundary.
+
+`HOLOCHAIN_BIN` now overrides the conductor binary in `dev.sh` and the e2e harness (defaults to
+`holochain` on `PATH`, so CI and `main` are unaffected). It is needed because the Codespace
+`PATH` is deliberately still 0.6.2 while `dev-conductor.yaml` is 0.7-only — without it
+`bash dev.sh` cannot start a conductor on this branch at all.
+
+⚠️ **What this does NOT prove:** the suite is single-agent, single-conductor, and covers
+UI↔conductor wiring only. **No commit-reveal round, no quorum, no reveal.** The demo stack on
+0.7 is still the outstanding risk, and it is what gates the merge.
 
 Two corrections to what the old handoff said here, both found by reading the shipped package
 instead of trusting the note:
@@ -132,12 +170,27 @@ legitimate permanent state), but the reveal path **must** read it from the priva
 because the field was bound into `commitment_hash` at seal time and substituting anything
 there — *including `null`* — makes the reveal fail with "Hash mismatch".
 
-### Still not started — the demo stack on 0.7
+### 👉 THE NEXT STEP — the demo stack on 0.7 (not started)
 
-`demo/conductor-config-node.yaml` was edited blind and **no 0.7 conductor has ever been started
-from it.** The merge back to `main` is gated on a live demo round, so this is the item that can
-still invalidate the branch. Needs `docker compose down -v` between runs and an
-`ANTHROPIC_API_KEY` for a real round.
+**This is now the top of the queue**, and the last thing on the branch that can still invalidate
+it. `demo/conductor-config-node.yaml` was edited blind and **no 0.7 conductor has ever been
+started from it.** The merge back to `main` is gated on a live demo round. Needs
+`docker compose down -v` between runs (0.7 renamed the databases — a binary swap is not enough)
+and an `ANTHROPIC_API_KEY` for a real round.
+
+It is also the first thing on 0.7 that exercises a **full commit-reveal round with multiple
+agents** — five containers, real DHT gossip, quorum, reveal. Neither the sweettests
+(in-process) nor the UI e2e (single-agent, wiring only) cover that.
+
+⚠️ **Check the generated-config lesson first.** The sixth config site was found in a *generator*,
+not a committed file. Before starting containers, grep `demo/` for `signal_url` /
+`db_sync_strategy` **and** for anything that writes a conductor config at runtime —
+`demo/rehearse-autoupdate.sh:56` is a known embedded one, and `node-entrypoint.sh` is worth
+reading for the same reason.
+
+⚠️ **The Oracle box is a separate question and is NOT part of this.** It runs the live 0.6.2
+demo. Do not touch it until the branch merges — and when it happens it is a full rebuild with
+state loss, not an upgrade (accepted: see the record-URL note in Non-negotiables).
 
 ### The badge flake — "gossip lag" was the wrong diagnosis, twice
 
@@ -195,8 +248,9 @@ panicked on its own first iteration) was real but addressed the wrong layer.
   outreach material that cites a record URL after the merge, though: that is a
   correctness-of-public-claims issue, not a preservation one.
 - **`.github/workflows/tests.yml` on this branch is marked REVERT BEFORE MERGE.** It skips
-  `test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
-  skipped. None of that should reach `main` as-is.
+  `test`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is skipped.
+  None of that should reach `main` as-is. ⚠️ **`ui-e2e` came OFF that list on 2026-08-02** — it
+  is unskipped and must stay unskipped; it is the only CI signal covering the UI on 0.7.
 - **Never weaken a test to a bare `is_err()`.**
 
 ### The lesson that keeps recurring

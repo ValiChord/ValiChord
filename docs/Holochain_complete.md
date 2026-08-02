@@ -1579,23 +1579,34 @@ failure can still be attributed between the port and the feature. **The sequenci
 that possible — get Phase A green first, then build on it as separate commits — is worth repeating
 for Phases B and C.** The list below is unchanged by any of it.
 
+✅ **ADDED 2026-08-02 — the Svelte UI is now verified on 0.7** (was item 2 of the list below).
+`valichord-ui` on `@holochain/client` 0.21.0 runs 6/6 Playwright e2e tests against a real
+`holochain 0.7.0` binary, and `ui-e2e` is unskipped in CI so the result is repeatable rather
+than remembered. `types.ts` `.header.author` is done (line 354, not the `:331` recorded here —
+that line number was stale). Details and the sixth config hit site: §44.11.
+
 ⚠️ **NOT verified — do not assume any of this works on 0.7:**
 
-1. **The 97 Tryorama tests** — deliberately skipped on this branch; Phase B is blocked.
-2. **The Svelte UI** — `ui-e2e` deliberately skipped. `valichord-ui/src/lib/types.ts:331`
-   still needs `.header.author`, untouched and untested.
-3. **The Docker demo stack** — `demo/conductor-config-node.yaml` was edited but a 0.7 conductor
+1. **The Tryorama suite** (92 declarations, 1 `test.skip` — *not* the long-quoted 97; six were
+   culled in `cc19e8c4` as fakes) — deliberately skipped on this branch. Still blocked upstream:
+   re-checked 2026-08-02, `@holochain/tryorama` latest is `0.19.2`, pinning
+   `@holochain/client ^0.20.4`, with no 0.7 line to migrate to.
+2. **The Docker demo stack** — `demo/conductor-config-node.yaml` was edited but a 0.7 conductor
    has never been started from it in anger, and no live demo round has run on 0.7.
-4. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
+3. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
    on 0.7.
-5. **`wind-tunnel/`** — untouched; Phase C blocked.
-6. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
+4. **`wind-tunnel/`** — untouched; Phase C blocked.
+5. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
    did not exercise them.
-7. **The `db_sync_level` semantic mapping** (§44.4).
+6. **The `db_sync_level` semantic mapping** (§44.4). ⚠️ Still unverified *semantically*, but it
+   is now exercised: `Normal` is what the e2e conductor ran on for the whole passing suite, so
+   the value is at least known-good operationally.
 
 ⚠️ **`.github/workflows/tests.yml` on this branch is marked REVERT BEFORE MERGE.** It skips
-`test`/`ui-e2e`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is
-skipped. None of that should reach `main` as-is.
+`test`, adds a branch-only `tripwire` job, and lets `sweettest` run when `test` is skipped.
+None of that should reach `main` as-is. (`ui-e2e` was on that list until 2026-08-02 and is
+**not** any more — it is unskipped and must stay that way; it is the only CI signal covering
+the UI on 0.7.)
 
 ### 44.9 The badge flake — and why "gossip lag" was the wrong diagnosis for two sessions
 
@@ -1670,6 +1681,55 @@ tripwire so nobody reinstates them. Five delete tripwires now mirror the five up
 
 ⚠️ **Carry this into Phases B and C:** a green safety net proves what it tests. Before trusting one
 across a version bump, check that it can fail for the specific thing you are about to change.
+
+### 44.11 Phase B, UI half — done 2026-08-02, and the sixth conductor config
+
+`valichord-ui` is proven on 0.7: **6/6 Playwright e2e tests green against a real `holochain
+0.7.0` binary**, and `ui-e2e` is unskipped in CI. Commit `10c92fe5`.
+
+**The config hit list was five, and it should have been six.** The migration checklist records
+five conductor-config sites (`demo/conductor-config-node.yaml:19,21`,
+`valichord-ui/dev-conductor.yaml:17,19`, `demo/rehearse-autoupdate.sh:56`), and every one was
+found by grepping YAML for `signal_url` / `db_sync_strategy`. The sixth is
+`valichord-ui/tests/e2e/setup/conductor-manager.ts` — the e2e harness does not *read* a config,
+it **generates** one as a TypeScript string array at runtime, and it still emitted both 0.6-only
+fields. On 0.7 that is fatal, not cosmetic: the conductor exits 42 on a hard parse error, so the
+suite could not have started at all, independently of the UI code being correct.
+
+⚠️ **The generalisable point: a grep for a config field cannot find a config that does not exist
+until runtime.** Audit generators, not just committed files. This is the same shape as the
+`check-no-test-hooks.sh` bug (§ tripwires) — a search that could not see its target and therefore
+reported clean. Next migration: grep for the *values* and the surrounding structure
+(`bootstrap_url`, `admin_interfaces`) as well as the field names, which would have caught this.
+
+**Two claims were separated deliberately, because only one of them was ever in doubt:**
+
+- *Did the UI code port correctly?* — `npm run check` answered that in `6f143821` (0 errors).
+- *Does the UI actually talk to a 0.7 conductor?* — nothing answered that until this run, and the
+  type-check could never have. **The config bug is the proof of the distinction**: it type-checked
+  perfectly and would have failed on the first byte of a real run.
+
+**Evidence the run was genuine**, recorded because "6 passed" on its own is exactly the kind of
+green tick this branch has learned to distrust:
+
+1. **Negative control on the binary.** The same config run against the 0.6.2 still on `PATH`
+   fails with ``network: missing field `signal_url` ``. The config that served the passing run is
+   0.7-only syntax, so the conductor cannot have been the 0.6.2 one. Conductor log clean.
+2. **The tests can fail.** Test 4 reads the form-submitted request back through a *different role
+   view* and asserts the deposit-URL string; test 5 pushes a typed payload via a direct zome call
+   (adjacent-tag `{type:"ComputationalBiology"}`, external-tag `"Basic"`) and asserts the UI
+   renders it. Both break on serde drift at the msgpack boundary — the failure mode this layer
+   exists for, and the one sweettest structurally cannot see.
+
+**`HOLOCHAIN_BIN` override added** to the e2e harness and `dev.sh`, defaulting to `holochain` on
+`PATH` so CI and `main` are unaffected. It exists because the Codespace `PATH` is deliberately
+still 0.6.2 while `dev-conductor.yaml` is 0.7-only — without it, `bash dev.sh` cannot start a
+conductor on this branch at all.
+
+⚠️ **What this does NOT prove.** The e2e suite is single-agent, single-conductor, and covers
+UI↔conductor wiring only — connection, form → zome call → DHT, zome-seeded record → render. It
+runs no commit-reveal round, no multi-validator quorum, no reveal. The demo stack on 0.7
+(§44.8 item 2) remains the outstanding risk to the branch, and it is the one gating the merge.
 
 ---
 
