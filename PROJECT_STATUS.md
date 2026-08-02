@@ -102,6 +102,29 @@ Superseding the earlier "committed but NEVER RUN" note:
 tests are a matched pair and must both pass: one proves the gate blocks, the other that it opens.
 If only the first passes, the gate may be refusing unconditionally and the sweep is dead.
 
+### ✅✅ THE LIVENESS GATE IS VERIFIED (governance run, 2026-08-02 late)
+
+**21 passed, 0 failed** against the rebuilt DNA. Both halves of the matched pair passed:
+
+| Test | Result |
+|---|---|
+| `live_claim_blocks_force_finalize` | ✅ the gate **blocks** a round with a live claim |
+| `released_claim_allows_force_finalize` | ✅ the gate **opens** once the slot is released |
+| `sweep_cannot_finalize_a_round_still_in_progress` | ✅ |
+| gold / silver / bronze | ✅ badge-flake fix confirmed a second time |
+
+Both directions matter: the blocking test alone would be satisfied by a gate that refuses
+everything, which would leave the sweep unable to close genuinely stuck rounds.
+
+⚠️ **21 = 18 pre-existing + 3 new.** `governance_decisions_round_trip_and_accumulate` was added
+*after* that run started, so it is **not** in this result — it is being run separately, along with
+the attestation suite carrying the 8 ported tests.
+
+⚠️ `run-sweettest.sh`'s cross-check fired again (3 lines vs 21). Reconciled by hand: 3 intact
+result lines + 18 standalone `ok` continuations = 21, with 0 FAILED and 0 panics. It is the ENOMEM
+splice, not lost data — but it will keep firing on this box, and a guard that cries wolf gets
+ignored. Teaching its extractor the spliced form is worth doing.
+
 ### ⚠️ `workdir/*.dna` IS GITIGNORED — a fresh Codespace has no DNAs
 
 `valichord/.gitignore` ignores `workdir/*.dna`; only `workdir/valichord.happ` is tracked. So after
