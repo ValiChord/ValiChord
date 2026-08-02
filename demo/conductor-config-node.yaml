@@ -1,11 +1,20 @@
 # Conductor config template for per-container decentralised demo nodes.
-# node-entrypoint.sh uses sed to substitute __BOOTSTRAP_URL__ and __SIGNAL_URL__
-# before passing this to holochain.
+# node-entrypoint.sh uses sed to substitute __BOOTSTRAP_URL__ before passing
+# this to holochain.
 #
 # Holochain 0.7: `signal_url` was REMOVED and NetworkConfig now rejects unknown
-# fields — the conductor exits 42 on startup rather than ignoring them. The
-# __SIGNAL_URL__ placeholder is therefore now consumed only by `relay_url`; the
-# placeholder name is kept so node-entrypoint.sh needs no change.
+# fields — the conductor exits 42 on startup rather than ignoring them.
+#
+# ⚠️ `relay_url` must be an http(s):// URL on 0.7, NOT the ws:// one that fed the
+# old `signal_url`. Under 0.6 (tx5/WebRTC signalling) ws:// was correct here.
+# 0.7 replaces that with iroh's relay, and iroh rejects the scheme outright:
+#   probe failed: builder error for url (ws://bootstrap:9000/ping):
+#   URL scheme is not allowed
+# The conductor still STARTS and the happ still installs, so this does not show
+# up as a failure — it only degrades relay connectivity, in a warning that
+# repeats every few hundred ms. Both URLs point at the same
+# kitsune2-bootstrap-srv, which hosts bootstrap and the embedded relay on one
+# port, so __BOOTSTRAP_URL__ is the right value for both.
 #
 # Admin WebSocket : ws://localhost:__ADMIN_PORT__
 # App   WebSocket : ws://localhost:4500  (attached by node-setup.mjs)
@@ -21,6 +30,14 @@ admin_interfaces:
       allowed_origins: '*'
 network:
   bootstrap_url: __BOOTSTRAP_URL__
-  relay_url: __SIGNAL_URL__
+  relay_url: __BOOTSTRAP_URL__
+  # kitsune2 0.5.0 refuses a non-TLS relay outright — the conductor CRASHES at
+  # startup with `K2Error(Other { ctx: "Disallowed plaintext relay URL" })`
+  # rather than warning. The demo's relay is a local container on plain http,
+  # so it needs the explicit opt-in. Production/Oracle deployments that put a
+  # real TLS relay in front of the bootstrap server should NOT set this.
+  advanced:
+    irohTransport:
+      relayAllowPlainText: true
 db_sync_level: Off
 db_max_readers: 4

@@ -52,7 +52,13 @@ const COORDINATORS = [
   { role: 'validator_workspace',   zome: 'validator_workspace_coordinator',   integrity: 'validator_workspace_integrity' },
 ];
 
-const DEFAULT_HOLOCHAIN = '0.6.2';
+// Fallback only — the version is normally detected from `holochain --version`.
+// It pins the conductor version the manifest is valid for, and the updater
+// refuses to apply a manifest whose pin does not match the running conductor,
+// so a stale value here fails closed rather than dangerously. Bumped with the
+// 0.7 migration. ⚠️ The auto-updater has NOT been re-rehearsed on 0.7 —
+// see Holochain_complete.md §44.8.
+const DEFAULT_HOLOCHAIN = '0.7.0';
 const SCHEMA = 'valichord-coordinators-manifest/v1';
 
 // ── arg parsing ───────────────────────────────────────────────────────────────

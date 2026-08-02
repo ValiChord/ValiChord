@@ -9,12 +9,16 @@
 #
 # Prerequisites
 # ─────────────
-# 1. demo/bin/holochain     — Holochain 0.6.x binary (linux/amd64 or linux/arm64).
-#                             Download from https://github.com/holochain/holochain/releases
-#                             or copy from your Oracle server:
-#                               scp oracle:~/.cargo/bin/holochain demo/bin/holochain
+# 1. demo/bin/holochain     — OPTIONAL. Dockerfile.node downloads the pinned
+#                             version (0.7.0) if this is absent or is the wrong
+#                             version. Only supply it to save the download.
 #
-# 2. demo/bin/kitsune2-bootstrap-srv — already committed to the repo.
+# 2. demo/bin/kitsune2-bootstrap-srv — committed to the repo, but it is 0.4.1,
+#                             which is Holochain 0.6.2's kitsune2 line. On 0.7
+#                             it no longer matches the pin (0.5.0), so
+#                             Dockerfile.node ignores it and downloads the right
+#                             one. Left in place for the 0.6 stack; refresh or
+#                             delete it once nothing needs 0.6.
 #
 # 3. valichord/workdir/valichord.happ — built by `hc app pack valichord/workdir/`.
 #
@@ -51,7 +55,14 @@ services:
       - kitsune2-bootstrap-srv
       - --listen
       - 0.0.0.0:9000
-      - --sbd-disable-rate-limiting
+      # NOTE: `--sbd-disable-rate-limiting` was REMOVED in kitsune2 0.5.0 (the
+      # line Holochain 0.7.0 pins), along with the whole --sbd-* family — SBD
+      # signalling is gone, iroh relay replaces it. Passing it makes the
+      # container exit on an unknown-argument error. Dropping it preserves the
+      # original intent exactly: 0.5.0's replacement pacing
+      # (--relay-client-rx-bytes-per-second) is OFF unless explicitly set, so
+      # the default is already "no rate limiting", which is what the demo wants
+      # for 4 local nodes.
     networks:
       - valichord
     healthcheck:

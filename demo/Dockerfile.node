@@ -10,12 +10,16 @@
 # No manual setup required — docker compose up --build handles everything.
 # Requires: Docker, Docker Compose, and ANTHROPIC_API_KEY in the environment.
 
-ARG HOLOCHAIN_VERSION=0.6.2
+ARG HOLOCHAIN_VERSION=0.7.0
+# kitsune2 ships on its own version line; 0.7.0 pins kitsune2 0.5.0. The binary
+# comes from the Holochain release, so these two must be bumped together.
+ARG KITSUNE2_VERSION=0.5.0
 ARG HOLOCHAIN_BASE=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}
 
 FROM node:20-bookworm-slim
 
 ARG HOLOCHAIN_VERSION
+ARG KITSUNE2_VERSION
 ARG HOLOCHAIN_BASE
 
 # Runtime dependencies for the Holochain binary.
@@ -33,10 +37,19 @@ RUN cd /app/demo && npm install --omit=dev
 COPY demo/bin/ /app/demo/bin/
 RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv
 
-# Use bundled binaries when they run on this architecture; otherwise download
-# the arch-matched build from the Holochain release (which also ships
-# kitsune2-bootstrap-srv). A bundled x86_64 binary on an aarch64 host (e.g.
-# Oracle Ampere A1) fails the exec test and triggers the download instead.
+# Use a bundled binary only when it is the RIGHT VERSION for this build;
+# otherwise download the arch-matched build from the Holochain release (which
+# also ships kitsune2-bootstrap-srv).
+#
+# ⚠️ This check used to be `--version >/dev/null` — i.e. "does it execute?" — and
+# that is a check that cannot fail for the case that matters. The committed
+# demo/bin/kitsune2-bootstrap-srv is 0.4.1 (Holochain 0.6.2's kitsune2 line) and
+# executes perfectly well on x86_64, so on the 0.7 bump it would have been
+# silently preferred over the 0.5.0 the release ships — and 0.7 bumped the p2p
+# wire protocol 2 -> 3, so the nodes would have failed to talk to each other with
+# no hint that the bootstrap server was the wrong build. Matching the version
+# string subsumes the old arch check too: a wrong-arch binary cannot exec, so it
+# produces no output and no match, and the download still fires.
 RUN set -e; \
     case "$(uname -m)" in \
         x86_64)  target="x86_64-unknown-linux-gnu" ;; \
@@ -44,14 +57,20 @@ RUN set -e; \
         *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;; \
     esac; \
     for bin in holochain kitsune2-bootstrap-srv; do \
+        case "$bin" in \
+            holochain)              want="${HOLOCHAIN_VERSION}" ;; \
+            kitsune2-bootstrap-srv) want="${KITSUNE2_VERSION}" ;; \
+        esac; \
         if [ -f "/app/demo/bin/$bin" ] && chmod +x "/app/demo/bin/$bin" \
-            && "/app/demo/bin/$bin" --version >/dev/null 2>&1; then \
-            echo "Using bundled $bin binary."; \
+            && "/app/demo/bin/$bin" --version 2>/dev/null | grep -Fq " $want"; then \
+            echo "Using bundled $bin (matches $want)."; \
         else \
-            echo "Downloading $bin ${HOLOCHAIN_VERSION} ($target)..."; \
+            echo "Downloading $bin $want ($target)..."; \
             curl -fsSL "${HOLOCHAIN_BASE}/$bin-$target" -o "/app/demo/bin/$bin"; \
             chmod +x "/app/demo/bin/$bin"; \
         fi; \
+        "/app/demo/bin/$bin" --version 2>/dev/null | grep -Fq " $want" \
+            || { echo "FATAL: $bin is not $want after setup" >&2; exit 1; }; \
     done
 
 # Copy the compiled role-filtered happs.

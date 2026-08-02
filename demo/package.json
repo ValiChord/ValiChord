@@ -5,6 +5,6 @@
   "type": "module",
   "description": "ValiChord browser demo — Node.js runtime deps for setup.mjs",
   "dependencies": {
-    "@holochain/client": "0.20.2"
+    "@holochain/client": "0.21.0"
   }
 }

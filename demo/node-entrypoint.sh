@@ -21,8 +21,10 @@ NETWORK_SEED="${NETWORK_SEED:-valichord-demo-decentralised}"
 HAPP_PATH="${HAPP_PATH:-/app/valichord/workdir/${ROLE}.happ}"
 PASSPHRASE="${HOLOCHAIN_PASSPHRASE:-demo-passphrase}"
 
-# Derive WebSocket signal URL from bootstrap HTTP URL (same port, different scheme).
-SIGNAL_URL="${BOOTSTRAP_URL/http:/ws:}"
+# Holochain 0.7 removed `signal_url` (tx5/WebRTC signalling is gone) and its
+# replacement, iroh's `relay_url`, must be http(s):// — it rejects a ws:// URL
+# outright. There is no longer any WebSocket-scheme URL to derive, so the old
+# SIGNAL_URL derivation is deleted rather than left unused.
 
 echo "=== ValiChord node: role=$ROLE bootstrap=$BOOTSTRAP_URL ==="
 
@@ -31,7 +33,6 @@ echo "=== ValiChord node: role=$ROLE bootstrap=$BOOTSTRAP_URL ==="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_OUT="/tmp/conductor-config.yaml"
 sed -e "s|__BOOTSTRAP_URL__|$BOOTSTRAP_URL|g" \
-    -e "s|__SIGNAL_URL__|$SIGNAL_URL|g" \
     -e "s|__ADMIN_PORT__|$ADMIN_PORT|g" \
     "$SCRIPT_DIR/conductor-config-node.yaml" > "$CONFIG_OUT"
 
