@@ -104,9 +104,20 @@ function writeMarker(n) {
   writeFileSync(MARKER, `${n}\n`);
 }
 
+// ⚠️ This reads the version of a holochain BINARY, not of the conductor this
+// poller is about to update. They are the same thing in the deployment that
+// matters -- the poller runs inside the node container alongside its conductor
+// -- and the admin API exposes no conductor-version call to ask directly
+// (checked against @holochain/client 0.21). So this is a deliberate proxy, not
+// an oversight, and it is only sound while poller and conductor share a
+// filesystem. HOLOCHAIN_BIN exists for the case where they do not: notably
+// rehearse-autoupdate.sh on the v0.7.0 branch, where PATH is still 0.6.2 while
+// the conductor under test is 0.7. Without it the guard compares the manifest
+// against an unrelated binary and refuses a correct update.
 function runningHolochainVersion() {
   try {
-    const out = execFileSync('holochain', ['--version'], { encoding: 'utf8' });
+    const bin = process.env.HOLOCHAIN_BIN || 'holochain';
+    const out = execFileSync(bin, ['--version'], { encoding: 'utf8' });
     return out.match(/(\d+\.\d+\.\d+)/)?.[1] ?? null;
   } catch { return null; }
 }

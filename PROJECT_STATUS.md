@@ -29,8 +29,11 @@ config edit had missed. §44.12.
 commit, phase gate, on-chain-verified reveal, HarmonyRecord **Reproduced (3/3) / ExactMatch**.
 That was the merge-gating "live demo round".
 
-**👉 What is left:** the coordinator auto-updater rehearsal (no API key needed), then merge prep
-— see THE NEXT STEP.
+**✅ AND THE COORDINATOR AUTO-UPDATER REHEARSES GREEN ON 0.7** — hot-swap applied to all four
+cells, DNA hash unchanged on each.
+
+**👉 Everything that gated the merge is now green.** What is left is merge prep — reverting the
+branch-only CI changes and the merge decision itself, which is the user's. See THE NEXT STEP.
 
 The full evidence log is **`docs/Holochain_complete.md` §44** (folded in from the standalone
 migration log, which is deleted). **§44.8 is the honest list of what is *not* verified — read it
@@ -227,15 +230,36 @@ conductors on a 2-core box is the likely cause, but **that is a hypothesis** —
 compared against a 0.6.2 run on the same hardware, which is what would settle it. Worth watching
 on Oracle (1 OCPU).
 
-### 👉 THE NEXT STEP
+### ✅ The coordinator auto-updater rehearses green on 0.7 (2026-08-02)
 
-1. **The coordinator auto-updater on 0.7** — `demo/rehearse-autoupdate.sh` was edited and never
-   re-rehearsed. **Needs no API key.** It now takes `HOLOCHAIN_BIN`, so it can be pointed at a
-   0.7 binary while `PATH` stays 0.6.2. Its fallback pin was bumped to 0.7.0, also untested.
-   Run `node demo/pack-coordinators.mjs --holochain 0.7.0` first — its auto-detection would
-   otherwise read the 0.6.2 on `PATH` and stamp the manifest with the wrong pin.
-2. **Merge prep** — revert the branch-only CI changes (see Non-negotiables; **`ui-e2e` must stay
-   unskipped**), then take the merge decision explicitly with the user.
+`./demo/rehearse-autoupdate.sh` **PASSES**: four WASMs sha256-verified before anything was
+applied, `UpdateCoordinators` applied to all four cells, **DNA hash unchanged on each**, verify
+call OK, marker 0 → 2. The zero-hash-change hot-swap path works on 0.7 — the mechanism that
+lets coordinator fixes reach live nodes without breaking published record URLs. Full record:
+§44.13. To reproduce: `node demo/pack-coordinators.mjs --holochain 0.7.0` then
+`HOLOCHAIN_BIN=<0.7 binary> ./demo/rehearse-autoupdate.sh`.
+
+🆕 **It found a latent bug on the way, worth knowing about.** `runningHolochainVersion()` in
+`coordinator-autoupdate.mjs` shells out to `holochain --version` **from `PATH`** — it never asks
+the conductor it is updating, despite the guard's stated job being *"must match the running
+conductor version"*. It is correct on Oracle only because the poller runs inside the node
+container beside its own conductor. The admin API has **no conductor-version call** (checked
+against client 0.21), so a binary check is the only available proxy; it is now explicit,
+`HOLOCHAIN_BIN`-overridable, and documented for what it actually establishes. ✅ **It failed
+CLOSED** — it refused a correct update rather than applying a mismatched one.
+
+### 👉 THE NEXT STEP — merge prep
+
+Everything that gated the merge is now green. What remains is process, not verification:
+
+1. **Revert the branch-only CI changes** — see Non-negotiables. ⚠️ **`ui-e2e` must stay
+   unskipped**; only the `test` skip, the `sweettest` gating change and the branch-only
+   `tripwire` job are the ones to reconsider.
+2. **Take the merge decision explicitly with the user** — it is theirs, and it has never been
+   given. Accepted cost, already decided: every published HarmonyRecord URL dies at the hash
+   break.
+3. **Oracle is a separate, later job** — a full rebuild with state loss, **not** an upgrade, and
+   not to be touched until after the merge.
 
 Tryorama and `wind-tunnel` stay blocked upstream and are **not** merge blockers — they were
 already skipped/untouched before this branch existed.

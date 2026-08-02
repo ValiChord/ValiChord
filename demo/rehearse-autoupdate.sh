@@ -100,8 +100,13 @@ SRV=$!
 for i in $(seq 1 20); do curl -sf "http://localhost:$HTTP_PORT/coordinators-manifest.json" >/dev/null 2>&1 && break; sleep 0.3; done
 
 echo "=== run coordinator-autoupdate --once ==="
+# HOLOCHAIN_BIN is passed explicitly: the poller's version guard shells out to a
+# holochain binary, and it must be the SAME one this script started the
+# conductor with, not whatever is on PATH. Relying on export semantics here
+# would break the moment someone sets HOLOCHAIN_BIN as a plain shell variable.
 AUTOUPDATE_MANIFEST_URL="http://localhost:$HTTP_PORT/coordinators-manifest.json" \
 AUTOUPDATE_MARKER="$MARKER" ADMIN_PORT="$ADMIN_PORT" APP_ID="valichord" CLIENT_PATH="$CLIENT" \
+HOLOCHAIN_BIN="$HOLOCHAIN_BIN" \
   node "$REPO_ROOT/demo/coordinator-autoupdate.mjs" --once
 RC=$?
 

@@ -1591,12 +1591,10 @@ that line number was stale). Details and the sixth config hit site: §44.11.
    culled in `cc19e8c4` as fakes) — deliberately skipped on this branch. Still blocked upstream:
    re-checked 2026-08-02, `@holochain/tryorama` latest is `0.19.2`, pinning
    `@holochain/client ^0.20.4`, with no 0.7 line to migrate to.
-2. **The coordinator auto-updater** — `demo/rehearse-autoupdate.sh` edited, never re-rehearsed
-   on 0.7. Its version-pin fallback was bumped to 0.7.0 with the demo work, still untested.
-3. **`wind-tunnel/`** — untouched; Phase C blocked.
-4. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
+2. **`wind-tunnel/`** — untouched; Phase C blocked.
+3. **Every section of this file outside the ✅/🟢 rows in the version-scope table** — the port
    did not exercise them.
-5. **The `db_sync_level` semantic mapping** (§44.4). ⚠️ Still unverified *semantically*, but it
+4. **The `db_sync_level` semantic mapping** (§44.4). ⚠️ Still unverified *semantically*, but it
    is now exercised: `Normal` is what the e2e conductor ran on for the whole passing suite, so
    the value is at least known-good operationally.
 
@@ -1806,6 +1804,44 @@ Five conductors on a 2-core Codespace is heavy SQLite contention and is the like
 explanation, but **that is a hypothesis, not a finding** — it has not been compared against a
 0.6.2 run on the same box, which is what would settle it. Worth checking on Oracle (1 OCPU)
 before the demo is relied on there.
+
+### 44.13 The coordinator auto-updater on 0.7 — and a guard that measured the wrong thing
+
+✅ **`./demo/rehearse-autoupdate.sh` PASSES on 0.7** (2026-08-02): all four coordinator WASMs
+sha256-verified before anything was applied, `UpdateCoordinators` applied to all four cells,
+the **DNA-hash-unchanged invariant held on each**, the read-only verify call
+(`attestation.get_my_claimed_studies`) returned OK, and the applied-revision marker advanced
+0 → 2. So the zero-hash-change hot-swap path — the mechanism that lets coordinator fixes reach
+live nodes without breaking published record URLs — works on 0.7.
+
+**The first run failed, and the failure was the interesting part:**
+
+```
+[autoupdate] ERROR: holochain mismatch: running 0.6.2, manifest built for 0.7.0 — refusing
+```
+
+The conductor under test was **0.7.0**. The poller said 0.6.2. `runningHolochainVersion()` in
+`coordinator-autoupdate.mjs` shells out to `holochain --version` **from `PATH`** — it never asks
+the conductor it is about to update. The function is named for the conductor and reports a
+binary.
+
+⚠️ **This is not merely a test-harness annoyance.** The guard's stated purpose (line 15 of that
+file) is *"manifest.holochain must match the running conductor version, else refuse"*, and that
+is not what it measures. It happens to be correct in the deployment that matters — the poller
+runs inside the node container beside its own conductor, so the `PATH` binary **is** the running
+conductor — but that is an environmental coincidence, not something the code establishes.
+
+**Why it was not "properly" fixed:** the admin API exposes **no conductor-version call**
+(checked against `@holochain/client` 0.21 — nothing in `AdminWebsocket`). There is no way to ask
+the conductor directly, so a binary check is the only available proxy. The fix is therefore to
+make the proxy **explicit and overridable** (`HOLOCHAIN_BIN`, the same override now used by
+`dev.sh`, the e2e harness and `rehearse-autoupdate.sh`) and to document precisely what it does
+and does not establish, rather than to leave a guard whose name overstates it.
+
+✅ **The guard behaved correctly throughout: it FAILED CLOSED.** It refused a real, correct
+update rather than applying a mismatched one. Given the choice between a guard that measures a
+proxy and refuses when unsure, and one that waves things through, this is the right failure
+direction — the same judgement recorded for the relay URL in §44.12.
 
 🆕 **One methodological note, since it cost time.** `/record?hash=` takes the **`request_ref`
 `ExternalHash`** (`uhC8k…`), *not* the HarmonyRecord's `ActionHash` (`uhCkk…`) — there is a
