@@ -307,6 +307,51 @@ pub fn force_finalize_round(
         None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
     }
 
+    // 3b. LIVENESS GATE — do not finalise while a validator still holds a live claim.
+    //
+    // Age is not evidence of abandonment. Reproduction legitimately takes days or
+    // weeks, and a validator doing that work emits NO DHT activity between claiming
+    // a slot and revealing — so "old" and "abandoned" are indistinguishable by time
+    // alone. Without this gate the hourly sweep closes slow-but-healthy rounds and
+    // orphans the late attestations permanently, because a HarmonyRecord is
+    // immutable: participation is understated forever and the badge tier derived
+    // from that count is wrong. See architecture doc, Phase 0 limitation 6.
+    //
+    // A live StudyClaim is the validator asserting "I hold this slot". It stays
+    // live until they reveal or someone explicitly releases it via
+    // release_claim / reclaim_abandoned_claim. So "is anyone still working?" is
+    // answerable exactly, without guessing from a clock — and the decision to
+    // declare a validator absent stays where it belongs: a deliberate, auditable
+    // act governed by min_claim_timeout_secs, not an inference by a scheduled job.
+    //
+    // ⚠️ An idle timeout ("time since the last event for this round") is the
+    // obvious-looking alternative and it does NOT work: it fails on precisely the
+    // case this protects, because the silent stretch IS the work. Do not swap this
+    // for one.
+    let claim_records: Vec<Record> =
+        match call_attestation_zome_opt("get_claims_for_request", request_ref.clone())? {
+            Some(records) => records,
+            // Cannot determine who still holds a slot — abort conservatively, the
+            // same way the age check above treats a missing ValidationRequest. An
+            // open round can still be resolved later; a wrongly-closed one is
+            // permanent and publicly wrong.
+            None => return Ok(None),
+        };
+    // get_claims_for_request already filters out released claims, so every record
+    // here is a slot someone still holds. A claimant who has revealed has finished,
+    // and their claim being un-released is normal — match on the author rather than
+    // requiring a release.
+    let attested: HashSet<AgentPubKey> = attestation_records
+        .iter()
+        .map(|r| r.action().author().clone())
+        .collect();
+    let still_working = claim_records
+        .iter()
+        .any(|c| !attested.contains(c.action().author()));
+    if still_working {
+        return Ok(None); // A validator is still on this round — it is not abandoned.
+    }
+
     // Filter out attestations from warranted agents — mirrors the same guard in
     // check_and_create_harmony_record (lines 184-195).  Without this, a validator
     // who received a warrant after claiming would still contribute to the immutable

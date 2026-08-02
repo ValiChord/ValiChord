@@ -1400,3 +1400,157 @@ async fn sweep_cannot_finalize_a_round_still_in_progress() {
         "no HarmonyRecord may exist while the round is still in progress"
     );
 }
+
+// ---------------------------------------------------------------------------
+// 23-24. Liveness gate — a live claim protects a round from the sweep
+// ---------------------------------------------------------------------------
+//
+// These two are a matched pair and must be read together: one proves the gate
+// BLOCKS, the other proves it OPENS. Either alone would be satisfied by a
+// degenerate implementation ("always refuse" / "always allow"), which is the
+// failure mode this repo keeps rediscovering.
+//
+// Both use `setup_two_agents_instant_timeout()` — round_timeout_secs: 0 — on
+// purpose. That makes the AGE check pass immediately, so the claim gate is the
+// only thing that can decide the outcome. Running these with the safe default
+// timeout would prove nothing: the age check would block regardless and both
+// tests would "pass" without the gate existing at all.
+
+/// A validator holding a live claim is still working — the round is NOT abandoned,
+/// and `force_finalize_round` must decline even though the age check passes.
+///
+/// This is the case Phase 0 limitation 6 is about: reproduction takes days or
+/// weeks and produces no DHT activity while it is happening, so a clock cannot
+/// tell "working" from "gone". The claim can.
+#[tokio::test(flavor = "multi_thread")]
+async fn live_claim_blocks_force_finalize() {
+    let setup = setup_two_agents_instant_timeout().await;
+    let request_ref = fake_external_hash(0x22);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob claims a slot and then goes quiet — he is doing the reproduction work.
+    // Institution differs from the request's "Open Science Lab" so the COI guard
+    // does not reject the claim for an unrelated reason.
+    let _: ActionHash = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    let _: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+
+    // Alice finishes her half.
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let forced: Option<ActionHash> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "force_finalize_round",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(
+        forced.is_none(),
+        "force_finalize_round must decline while Bob still holds a live claim — \
+         finalising here would orphan his attestation permanently, because a \
+         HarmonyRecord is immutable"
+    );
+
+    let record: Option<Record> = setup.conductors[0]
+        .call(&setup.alice.governance_zome(), "get_harmony_record", request_ref)
+        .await;
+    assert!(
+        record.is_none(),
+        "no HarmonyRecord may exist while a validator still holds the slot"
+    );
+}
+
+/// Once the absent validator's slot is formally released, the round IS abandoned
+/// and `force_finalize_round` proceeds.
+///
+/// The permissive half of the pair. Without it, `live_claim_blocks_force_finalize`
+/// would still pass if the gate simply refused everything — and the sweep would be
+/// silently dead rather than correct.
+#[tokio::test(flavor = "multi_thread")]
+async fn released_claim_allows_force_finalize() {
+    let setup = setup_two_agents_instant_timeout().await;
+    let request_ref = fake_external_hash(0x23);
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let _: ActionHash = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Independent"),
+        )
+        .await;
+    let _: ActionHash = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    // Bob vacates the slot — the deliberate, auditable act that declares him absent.
+    let _: () = setup.conductors[1]
+        .call(&setup.bob.attestation_zome(), "release_claim", request_ref.clone())
+        .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
+
+    let forced: Option<ActionHash> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "force_finalize_round",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(
+        forced.is_some(),
+        "with no live claims outstanding the round IS abandoned and must finalise — \
+         if this fails the liveness gate has become an unconditional refusal and the \
+         sweep can never close a genuinely stuck round"
+    );
+
+    let record: Option<Record> = setup.conductors[0]
+        .call(&setup.alice.governance_zome(), "get_harmony_record", request_ref)
+        .await;
+    assert!(record.is_some(), "HarmonyRecord must exist after a valid force-finalise");
+}
