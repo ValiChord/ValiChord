@@ -58,6 +58,44 @@ jobs:
           chmod +x valichord/check-no-test-hooks.sh
           ./valichord/check-no-test-hooks.sh
 
+  # ── Unit tests — conductor-free, and the fastest real signal in the matrix ───
+  #
+  # ⚠️ ADDED 2026-08-03. These 30 tests had NO CI coverage: `valichord_shared_types`
+  # appeared nowhere in this workflow, so TESTING.md's "all run in CI" was false for
+  # them. They run natively in under a second — there was never a cost reason.
+  #
+  # What they cover is not incidental: `evaluate_badge`, `derive_agreement_level` and
+  # `derive_majority_outcome` are the arithmetic every HarmonyRecord's badge tier rests
+  # on, and a HarmonyRecord is immutable — a wrong tier is wrong permanently. The
+  # 3 governance_coordinator tests cover validator_attestation_pairs, split out of
+  # write_harmony_record after the undercount bug (60a5609c) so it could be tested in
+  # 0.00s instead of a 7-conductor round.
+  unit:
+    name: Unit tests (conductor-free)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-unit-${{ hashFiles('valichord/Cargo.lock') }}
+
+      # Native host build, NOT wasm32 — these are plain Rust unit tests.
+      - name: Run unit tests
+        working-directory: valichord
+        run: |
+          cargo test -p valichord_shared_types
+          cargo test -p governance_coordinator
+
   # ── UI E2E: Playwright against a real conductor ──────────────────────────────
   # Fast independent signal (~5–10 min): uses the COMMITTED workdir/valichord.happ
   # (repo convention: always repack + commit after source changes), so no Rust

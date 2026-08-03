@@ -536,6 +536,70 @@ Same four arguments, same argument types (`ChainQueryFilter`, `ActivityRequest`,
 2. **holonix `main-0.7`** branch (does not exist yet; use `ref=main`).
 3. **Source-chain restore** (PR #5920) landing in a later 0.7.x — reactivates the `AppStatus`/`RestoreComplete` checklist items and makes the private-entry-loss risk real for validators.
 
+### 🗺️ What is actually in 0.7.1 — read from the roadmap board, 2026-08-03
+
+Source: `holochain` org **project 11**, roadmap slice *"Holochain 0.7.1"* — **13 items** (against
+117 for 0.7, so a stabilisation release, not a breaking one). Needs the `read:project` scope:
+`GITHUB_TOKEN= gh auth refresh -s read:project --hostname github.com`, then
+`GITHUB_TOKEN= gh project item-list 11 --owner holochain --limit 2000 --format json`.
+
+**🔴 SOURCE-CHAIN RESTORE IS IN 0.7.1 AND IN PROGRESS.** This supersedes the inference above that
+it would land in "a later 0.7.x":
+- **#5800** *Source chain restore: end-to-end restore workflow* — **In Progress** (this is PR #5920)
+- **#5809** *Source chain restore: per-app orchestrator and conductor wiring* — **Ready**
+
+⚠️ So the `AppStatus::AwaitingRestore` / `RestoreComplete` checklist items recorded above as **DEAD
+for 0.7.0 are alive for 0.7.1**, and the private-entry loss stops being hypothetical:
+`ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are **not recovered by a restore**.
+A validator who loses their machine mid-round loses their sealed attestation silently.
+
+**🟠 #5288 — `get_agent_activity` returns an empty response when the only known peers are local**
+(*Awaiting clarification*). **This is the one that touches our code.** `reject_if_warranted`
+(`attestation_coordinator/src/lib.rs:636`) does:
+
+```rust
+let activity = get_agent_activity(agent, …, GetOptions::network())?;
+if !activity.warrants.is_empty() { return Err(…"outstanding warrants"…) }
+```
+
+An empty response therefore reads as **"no warrants" → allowed**: the gate **fails OPEN**, which is
+the wrong direction. "Only local peers" describes every sweettest run, the Docker demo stack, and
+any freshly-bootstrapped network. Three call sites share the pattern — `attestation:637`,
+`governance:188`, `governance:367` (⚠️ the older note in this file said `:322`; that line has moved).
+Not confirmed to affect us — the upstream bug is still awaiting clarification — but **do not cite
+the warrant gate as a safety property without checking this first.**
+
+**Also in 0.7.1, context only:** **#5781** *[CRITICAL] validation receipts accepted without
+receive-side signature verification* (*Awaiting clarification*) — Holochain's own machinery, and we
+never read receipts. Eight of the thirteen items sit under one epic, *Data Model Consistency*.
+
+### 🟢 `holochain-0.8.0-dev.0` (2026-08-03) is EMPTY — do not investigate it again
+
+It appeared on the GitHub feed 4 days after 0.7.0 stable and looks alarming. It is not. Verified
+against the release, the consolidated CHANGELOG, four per-crate CHANGELOGs and the commit list:
+
+- **Three commits past `holochain-0.7.0`**, in full: `29256467` *Format toml files*, `147019b1`
+  *chore: Switch to dev releases for 0.8*, `390835a4` *create a release from branch …*.
+- **Every `0.8.0-dev.0` changelog section is blank** — `hdi`, `hdk`, `holochain`,
+  `holochain_conductor_api`. Not small: empty.
+- `develop` is only **6 ahead** of 0.7.0; the rest is a crates-io source refresh and release-branch
+  merges. **Nothing functional has landed since 0.7.0.**
+
+🆕 **`147019b1` is the counterpart of the `d1ec5a72` tell recorded above, and worth knowing as a
+pair.** `d1ec5a72` flipped the crates `!pre_minor rc` → `minor`, which is what makes the automation
+cut a stable minor — the "stable is imminent" signal. `147019b1` flips them back to
+`!pre_minor dev`, opening the next line so later merges cut `0.8.0-dev.N` rather than `0.7.1`.
+**A `-dev.0` tag with an empty changelog is routine line-opening, not a preview of anything.**
+Judge 0.8 by commits on `develop`, never by the existence of a dev tag.
+
+Version numbers to expect whenever 0.8 does acquire content: **`hdi` 0.8.0 → 0.9.0**, **`hdk`
+0.7.0 → 0.8.0**, Rust **`holochain_client` 0.9.0 → 0.10.0**.
+
+⚠️ **Re-checked 2026-08-03: PR #5920 (source-chain restore) is still `OPEN`, `draft`,
+`CONFLICTING`, last touched 2026-07-30T17:33Z** — about an hour after 0.7.0 shipped, and untouched
+since. It did not slip into 0.8 either. The private-entry-loss risk for validators stays
+theoretical for now.
+
 **Blocker-remover — ✅ LANDED on kitsune2 `main` 2026-07-27 and ✅ NOW PUBLISHED in kitsune2 `v0.5.0` (2026-07-28), which holochain `0.7.0-rc.5` pins.** What was tracked as branch `fix/491-stabilize-the-iroh-relay-hosted-in-bootstrap_srv` merged as **`3746be1` *"feat: stabilize authenticated iroh relay hosted in the bootstrap server"*** (refs #492; 16 files, ~+1160/−490). Relay access is gated by a bearer token on the relay WebSocket upgrade (`RelayConfig::with_auth_token`), validated in `AccessControl::on_connect`; bootstrap client gains `blocking_fetch_relay_token`; a client-side registration heartbeat (`relayReRegistrationIntervalS`, default 120 s) + token-rotating watchdog work around iroh 1.0.0 capturing the relay token once per connection actor; legacy `PUT /relay/register` allowlist retained for 0.4.x clients. Covered by unit, server-side auth-flow, and an end-to-end bootstrap-restart recovery test. **This removes the "need a separate Iroh relay" blocker for both the deferred wind-tunnel kitsune live run and kangaroo desktop packaging — as a 0.7-migration item, not something available on 0.6.2.** The re-check condition recorded here on 2026-07-27 ("does the picked-up kitsune2 actually carry `3746be1`?") **is now answered: YES.** Verified 2026-07-30: `v0.5.0` is 7 ahead / 0 behind `3746be1`, and the commit appears in the `v0.5.0-dev.6...v0.5.0` list (24 commits) along with two relay follow-ups on top of it — **`03d21103`** *"negotiate relay protocol version, enabling V2"* and **`768b01b1`** *"add TLS security headers to relay HTTP responses"*. holochain `0.7.0-rc.5` pins `kitsune2_* 0.5.0` (PR #5913). Our 0.6.2 stays on `0.4.1`, so **none of this is reachable until we migrate** — plan the relay work as part of the 0.7 migration, not before. **Note the holochain side's own backport branch has NOT consumed it:** `holochain/holochain`'s own `fix/491-…` branch is stale — last commit 2026-04-22, 114 behind `develop`, 1 commit ahead containing only `build: kitsune #491`.
 
 **`holochain/holochain` branch watch — re-verified 2026-07-30 against `develop` (default branch is `develop`, not `main`).** Only two things are live; everything else previously listed here is stale or has merged:

@@ -59,7 +59,7 @@ cargo run -p validation_request_throughput -- --agents 4 --duration 60
 
 Before any conductor-based run, kill stale conductors: `pkill -f holochain; pkill -f lair-keystore; sleep 2`.
 
-In CI (`.github/workflows/tests.yml`): four jobs run on every push/PR — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the immutability tripwires. The e2e job needs no Rust toolchain — it uses the committed `valichord/workdir/valichord.happ` — and reports in ~2 minutes.
+In CI (`.github/workflows/tests.yml`): five jobs run on every push/PR — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the conductor-free `unit` job, the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the immutability tripwires. The e2e job needs no Rust toolchain — it uses the committed `valichord/workdir/valichord.happ` — and reports in ~2 minutes.
 
 ---
 
