@@ -44,8 +44,40 @@ branch-only CI changes and the merge decision itself, which is the user's. See T
 | Branch | What is on it | Trust level |
 |---|---|---|
 | `main` | Holochain 0.6.2, the publicly-demoed stack | untouched, stays 0.6.2 |
-| `v0.7.0` | the whole 0.7 migration, up to `af4ba3e5` | ✅ CI-green, merge-ready |
+| `v0.7.0` | the whole 0.7 migration, up to `af4ba3e5` | 🔴 **NOT green — see below** |
 | `investigate/harmony-record-undercount` | branched off `v0.7.0`; badge-flake diagnosis + fix, plus test work | 🟠 **mixed — see below** |
+
+### 🔴 CORRECTION — `v0.7.0` IS NOT CI-GREEN (found 2026-08-03)
+
+This file said `v0.7.0` was "✅ CI-green, merge-ready". **It is not.** Its head commit
+`af4ba3e5` has a **failed** run (`30754216764`, 2026-08-02):
+
+```
+failure  Sweettest (governance)
+success  no-test-hooks, tripwires, ui-e2e, attestation,
+         security, researcher_repository, validator_workspace
+```
+
+```
+test gold_badge_issued_with_seven_validators ... FAILED
+assertion `left == right` failed: the finalised record must count all 7
+validators (else a sub-Gold badge is issued)
+  left: 5
+ right: 7
+```
+
+**That is the badge flake, and the fix for it is on THIS branch, not on `v0.7.0`** —
+`e1b701f3` (`round_timeout_secs` 0 → 86400). So the branch queued for `main` currently fails its
+own governance suite, and would keep failing until this branch reaches it.
+
+⚠️ **This changes the cherry-pick question.** It is no longer "should `v0.7.0` take some verified
+test work?" — `v0.7.0` is **red without it**. Merging or rebasing this branch there is repair, not
+enhancement.
+
+⚠️ **And it is why the gold badge result in the current CI run matters more than the rest.** That
+test has never failed locally; CI is the only place it fails. A green gold badge on a clean runner
+is the first real evidence the scheduled-sweep diagnosis was right, rather than the fourth
+plausible theory.
 
 ### ⚠️ The investigation branch mixes VERIFIED work with an UNVERIFIED experiment
 
