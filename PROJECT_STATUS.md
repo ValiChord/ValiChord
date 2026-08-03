@@ -398,6 +398,46 @@ validator reveals → HarmonyRecord read back as **Reproduced / ExactMatch / `va
 gossip — the exact scenario that produced `left: 6, right: 7` in CI, and one no in-process test
 can reproduce. Stack health: 5 up, **0 restarts, 0 crashes**.
 
+### ✅✅ RE-RUN 2026-08-03 ON THE HONEST-RECORD DNA — still passes, and the new field works
+
+The 08-02 round below was on the **previous** governance DNA. `bc3ed82b` changed the hash
+(`uhC0kRrX19H1PP…` → `uhC0k-KuuIMxxHdI…`), so that evidence no longer covered the shipped
+bundles. Re-run in full on the current build:
+
+```
+Outcome:            Reproduced (3/3 validators)
+Agreement level:    ExactMatch
+HarmonyRecord:      uhCkk60AU3uqW5w1hAVybMRBIId72BMnMHxJ9pnu0KDIRUZKVPkRQ
+validator_count:      3
+validators_requested: 3      ← the honest record, read back through the HTTP viewer
+```
+
+Three independent Claude validators, three separate conductors, real cross-container
+gossip, blind commit → phase gate (`RevealOpen` after 2 polls) → researcher reveal
+**passing on-chain SHA-256 verification** → three seals broken. Stack health: **5 up, 0
+restarts, 0 crashes.**
+
+⚠️ **The volumes had to be destroyed first (`down -v`), not restarted.** They held state
+for the old DNA hash. `docker compose … start` would have brought back four conductors
+holding cells for a DNA that no longer exists. The volumes now match the current build, so
+a plain `start` is safe again — until the next hash change.
+
+🆕 **`--build` is required, not optional.** The compose build context is the repo root and
+the image bakes in `workdir/valichord.happ`; without `--build` the containers run the
+previously baked hApp and the round proves nothing about the new one.
+
+✅ **What this adds beyond the sweettests:** the honest record's *complete* case under real
+gossip, and the completeness gate visibly declining to write early —
+`[/create-harmony-record] attempt 1: null` → `attempt 2: <hash>`. That is the undercount
+fix working in the wild: the first call found the attestation set not yet fully gossiped
+and returned `None` conservatively rather than committing a short record permanently.
+
+⚠️ The `Could not reach viewer: <urlopen error timed out>` warning appeared again. Still an
+environment artifact — the script rewrites the URL to a detected **public** IP so it is
+shareable, then fetches it to self-verify, and a Codespace has no inbound route to its own
+public address. The record reads back completely from `localhost:3001`. Will not reproduce
+on Oracle; **do not chase it.**
+
 ### ✅ The live AI demo round passed on 0.7 (2026-08-02)
 
 **`demo/ai_validator.py --mode decentralised` ran for real against the 0.7 stack** with a live
