@@ -1484,3 +1484,63 @@ async fn attestations_are_indexed_by_discipline() {
         .await;
     assert!(other.is_empty(), "a different discipline must return nothing");
 }
+
+// ---------------------------------------------------------------------------
+// 32. link_agent_identity — a corrupted counter-signature is rejected  (ported)
+// ---------------------------------------------------------------------------
+//
+// Found by the 2026-08-03 retirement audit: the signature-verification path in
+// `link_agent_identity` had NO coverage here at all. Test 13 above says so in
+// its own body — it passes 64 zero bytes, because the self-link check fires
+// first and the signatures are never reached. So both of this function's
+// `verify_signature` calls were untested, and an implementation that skipped
+// them entirely would have kept every existing test green.
+//
+// That matters because an AgentIdentityAttestation asserts two keys are the
+// same person and feeds cross-device reputation. Without signature checking,
+// anyone could assert a link to anyone.
+//
+// ⚠️ The signature MUST come from `sign_for_identity_link`, not from signing
+// the payload by hand. `verify_signature(key, sig, data)` does not verify over
+// `data` as given — `VerifySignature::new` stores
+// `holochain_serialized_bytes::encode(&data)`, so hand-signed raw bytes fail in
+// a way indistinguishable from "the guard works".
+#[tokio::test(flavor = "multi_thread")]
+async fn link_agent_identity_bad_signature_rejected() {
+    let setup = setup_two_agents().await;
+    let bob_key = setup.bob.attestation.agent_pubkey().clone();
+
+    // Alice's own half of the ceremony, correctly signed over the canonical
+    // sorted-pair payload.
+    let alice_sig: Signature = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "sign_for_identity_link",
+            bob_key.clone(),
+        )
+        .await;
+
+    // Flip one byte and offer it as BOB's half. Alice's own signature stays
+    // valid, so the caller check passes and `other_signature` is the only thing
+    // left that can reject — which is what makes the assertion below specific.
+    let mut corrupted = alice_sig.0;
+    corrupted[10] ^= 0xff;
+
+    let result: Result<ActionHash, _> = setup.conductors[0]
+        .call_fallible(
+            &setup.alice.attestation_zome(),
+            "link_agent_identity",
+            LinkAgentIdentityInput {
+                other_agent:     bob_key,
+                my_signature:    alice_sig,
+                other_signature: Signature(corrupted),
+            },
+        )
+        .await;
+    let err = result.expect_err("a corrupted counter-signature must be rejected");
+    assert_rejected_with(
+        &format!("{err:?}"),
+        "other_signature failed verification",
+        "corrupted counter-signature",
+    );
+}

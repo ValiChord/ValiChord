@@ -1297,3 +1297,33 @@ mod tests {
         }
     }
 }
+
+// ===========================================================================
+// TEST-ONLY IMMUTABILITY TRIPWIRE HOOK
+// ===========================================================================
+//
+// Compiled ONLY under `--features test_utils`. Absent from every production
+// build, packed only to `workdir-test/`, and caught by `./check-no-test-hooks.sh`
+// if it ever reaches a committed bundle.
+//
+// WHY IT EXISTS. `validate()` in governance_integrity refuses deletes of
+// HarmonyRecord, GovernanceDecision and ReproducibilityBadge (lines 431-460).
+// Until 2026-08-03 nothing could fail if those three arms were removed. What
+// looked like coverage were three Tryorama tests asserting only that "no delete
+// function exists in the coordinator API" — an API-surface check that says
+// nothing about whether the integrity zome would refuse a delete, and which
+// passes just as happily against a DNA with no guards at all.
+//
+// The gap surfaced while auditing the Tryorama suite for retirement: those
+// three tests were the *only* thing naming these guards, and they were about to
+// be deleted along with the suite. The guards are the reason a HarmonyRecord is
+// a permanent public record rather than a retractable claim — the whole point
+// of publishing one.
+//
+// See `sweettest_integration/tests/immutability_tripwire.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
+    delete_entry(hash)
+}

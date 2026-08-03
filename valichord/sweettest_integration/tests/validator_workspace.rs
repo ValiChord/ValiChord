@@ -302,3 +302,83 @@ async fn duplicate_abstention_is_rejected() {
         "duplicate abstention",
     );
 }
+
+// ---------------------------------------------------------------------------
+// 7. Bob cannot read Alice's sealed private attestation  (ported from Tryorama)
+// ---------------------------------------------------------------------------
+//
+// ⚠️ The ONLY test in this file that is not single-agent — and the only test
+// ANYWHERE that asserts DNA 2's central privacy guarantee across agents. A
+// ValidatorPrivateAttestation lives in its author's source chain and is never
+// published to the shared DHT, so a second agent asking their OWN workspace
+// cell for it by ActionHash must get None.
+//
+// Found missing by the 2026-08-03 Tryorama retirement audit. It is worth the
+// extra conductor because the failure mode is documented and real: `get()`
+// inside a test conductor can leak across cell boundaries, which is exactly why
+// coordinators must use `query()` for private entries (CLAUDE.md, read-strategy
+// rule). If that rule were broken, every other test in this file would still
+// pass — they only ever ask the author about their own data.
+#[tokio::test(flavor = "multi_thread")]
+async fn bob_cannot_read_alices_sealed_private_attestation() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0xa2);
+
+    // A ValidationRequest must exist first: seal_private_attestation's
+    // post_commit calls notify_commitment_sealed, which resolves the
+    // study.{request_ref} path. post_commit is infallible, so this is not
+    // strictly required — but it keeps the test about privacy rather than
+    // running with a broken cross-DNA call underneath it.
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+
+    let task_hash: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.validator_zome(),
+            "receive_task",
+            make_task(request_ref.clone()),
+        )
+        .await;
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.validator_zome(),
+            "seal_private_attestation",
+            SealAttestationInput {
+                task_hash: task_hash.clone(),
+                attestation: make_validation_attestation(request_ref),
+            },
+        )
+        .await;
+
+    // The positive half, and it is not optional: without it, a
+    // get_private_attestation_for_task that returned None for EVERYONE would
+    // satisfy the real assertion below while the feature was broken.
+    let mine: Option<Record> = setup.conductors[0]
+        .call(
+            &setup.alice.validator_zome(),
+            "get_private_attestation_for_task",
+            task_hash.clone(),
+        )
+        .await;
+    assert!(mine.is_some(), "Alice must be able to read her own sealed attestation");
+
+    // Bob asks HIS OWN workspace cell for Alice's task hash. He holds no
+    // TaskToPrivateAttestation link and no local copy of the private entry.
+    let theirs: Option<Record> = setup.conductors[1]
+        .call(
+            &setup.bob.validator_zome(),
+            "get_private_attestation_for_task",
+            task_hash,
+        )
+        .await;
+    assert!(
+        theirs.is_none(),
+        "PRIVACY BREACH: Bob read Alice's private attestation from his own cell",
+    );
+}

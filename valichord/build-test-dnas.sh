@@ -9,7 +9,7 @@
 # --------------------------------------
 # The tripwire tests must issue an Update against a committed entry to prove the
 # integrity zome rejects it. No production coordinator exposes `update_entry`, so
-# three coordinators carry `#[cfg(feature = "test_utils")]` externs that do.
+# four coordinators carry `#[cfg(feature = "test_utils")]` externs that do.
 #
 # Those externs must never reach a production hApp. This script keeps them
 # quarantined by construction:
@@ -32,6 +32,7 @@ export PATH="/home/codespace/.cargo/bin:$PATH"
 
 FEATURES="attestation_coordinator/test_utils,\
 validator_workspace_coordinator/test_utils,\
+governance_coordinator/test_utils,\
 researcher_repository_coordinator/test_utils"
 
 echo "==> [1/3] production build (integrity zomes + governance) -> target/"
@@ -41,10 +42,18 @@ echo "==> [2/3] test-feature build (coordinators only) -> target-test/"
 cargo build --target wasm32-unknown-unknown --release \
   --target-dir target-test --features "$FEATURES"
 
-echo "==> [3/3] packing test DNAs -> workdir-test/"
+# HC_BIN overrides the packing tool, mirroring HOLOCHAIN_BIN in dev.sh and the
+# e2e harness. It is REQUIRED on the v0.7.0 branch: `hc` on PATH in the
+# Codespace is deliberately still 0.6.2, and a DNA packed by 0.6.2 is not what
+# the 0.7 sweettest conductor loads from workdir/. Packing with the wrong
+# version produces bundles that differ from the production ones for a reason
+# that has nothing to do with the code under test.
+HC_BIN="${HC_BIN:-hc}"
+
+echo "==> [3/3] packing test DNAs -> workdir-test/  (using: $("$HC_BIN" --version))"
 mkdir -p workdir-test
 for d in attestation researcher_repository validator_workspace governance; do
-  hc dna pack "test-dnas/$d" -o "workdir-test/$d.dna"
+  "$HC_BIN" dna pack "test-dnas/$d" -o "workdir-test/$d.dna"
 done
 
 echo

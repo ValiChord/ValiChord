@@ -661,3 +661,214 @@ async fn locked_result_delete_is_allowed_in_gdpr_mode() {
         result.err(),
     );
 }
+
+// ===========================================================================
+// GOVERNANCE DELETE TRIPWIRES — added 2026-08-03
+// ===========================================================================
+//
+// The three governance entry types had NO delete coverage that could fail.
+// What appeared to cover them were three Tryorama tests asserting that "no
+// delete function exists in the coordinator API" — an API-surface check that
+// says nothing about whether the integrity zome would refuse a delete, and
+// which passes identically against a DNA with no guards at all. They surfaced
+// only because retiring the Tryorama suite meant reading every test in it.
+//
+// These matter more than most: a HarmonyRecord is the protocol's permanent
+// public output. If it could be deleted it would be a retractable claim, and
+// the reason for publishing one at all would be gone. Same for the badge
+// derived from it and for the governance decisions that record how the
+// protocol's own rules were changed.
+//
+// Requires the governance test build (governance_coordinator/test_utils), added
+// at the same time — governance had no tripwire hooks before this.
+
+/// Commit phase for one validator.
+async fn commit(conductor: &SweetConductor, app: &ValiChordApp, request_ref: ExternalHash) {
+    let _: () = conductor
+        .call(
+            &app.attestation_zome(),
+            "notify_commitment_sealed",
+            CommitmentSealedInput { request_ref, commitment_hash: vec![0u8; 32] },
+        )
+        .await;
+}
+
+/// Reveal phase for one validator.
+async fn reveal(conductor: &SweetConductor, app: &ValiChordApp, request_ref: ExternalHash) {
+    let _: ActionHash = conductor
+        .call(
+            &app.attestation_zome(),
+            "submit_attestation",
+            RevealInput {
+                attestation: make_validation_attestation(request_ref),
+                nonce: vec![], // empty = dev bypass skips hash verification
+            },
+        )
+        .await;
+}
+
+// ---------------------------------------------------------------------------
+// 11. HarmonyRecord cannot be deleted
+// ---------------------------------------------------------------------------
+//
+// Needs a real round, because there is no other way to produce a HarmonyRecord
+// — it is written by check_and_create_harmony_record once quorum is met.
+#[tokio::test(flavor = "multi_thread")]
+async fn harmony_record_delete_is_rejected() {
+    let setup = setup_two_agents().await;
+    let request_ref = fake_external_hash(0xe1);
+    let att = [&setup.alice.attestation, &setup.bob.attestation];
+
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
+        .await;
+    await_consistency_s(20, att).await.unwrap();
+
+    commit(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    await_consistency_s(20, att).await.unwrap();
+    commit(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, att).await.unwrap();
+
+    reveal(&setup.conductors[0], &setup.alice, request_ref.clone()).await;
+    reveal(&setup.conductors[1], &setup.bob, request_ref.clone()).await;
+    await_consistency_s(20, att).await.unwrap();
+
+    let harmony: Option<ActionHash> = setup.conductors[0]
+        .call(
+            &setup.alice.governance_zome(),
+            "check_and_create_harmony_record",
+            request_ref,
+        )
+        .await;
+    let harmony = harmony.expect("a full round must produce a HarmonyRecord to delete");
+
+    let err = setup.conductors[0]
+        .call_fallible::<_, ActionHash>(
+            &setup.alice.governance_zome(),
+            "test_force_delete_entry",
+            harmony,
+        )
+        .await
+        .expect_err("deleting a HarmonyRecord must be rejected by validate()");
+
+    assert_rejected_by_guard(
+        &format!("{err:?}"),
+        "HarmonyRecord is immutable",
+        "HarmonyRecord (delete)",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 12. GovernanceDecision cannot be deleted
+// ---------------------------------------------------------------------------
+//
+// Single agent: create_governance_decision is key-gated in production, but the
+// test properties use the dev bypass (`system_coordinator_key: ""`), so any
+// agent may write one. The delete guard is not key-gated either way.
+#[tokio::test(flavor = "multi_thread")]
+async fn governance_decision_delete_is_rejected() {
+    let (conductor, app) = setup_single().await;
+    let gov_zome = app.governance_zome();
+
+    let decision: ActionHash = conductor
+        .call(&gov_zome, "create_governance_decision", make_governance_decision())
+        .await;
+
+    let err = conductor
+        .call_fallible::<_, ActionHash>(&gov_zome, "test_force_delete_entry", decision)
+        .await
+        .expect_err("deleting a GovernanceDecision must be rejected by validate()");
+
+    assert_rejected_by_guard(
+        &format!("{err:?}"),
+        "GovernanceDecision is immutable",
+        "GovernanceDecision (delete)",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 13. ReproducibilityBadge cannot be deleted
+// ---------------------------------------------------------------------------
+//
+// The most expensive tripwire in the file: a badge only exists as a by-product
+// of a round that met a badge threshold, so it needs three validators to reach
+// BronzeReproducible. There is no cheaper path — no coordinator function issues
+// a badge directly, by design.
+#[tokio::test(flavor = "multi_thread")]
+async fn reproducibility_badge_delete_is_rejected() {
+    let mut conductors =
+        SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
+    let dnas = dnas_with_roles().await;
+    let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
+    let mut it = apps.into_inner().into_iter();
+    let alice = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let bob   = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let carol = ValiChordApp::from_sweet_app(it.next().unwrap());
+
+    let mut vr = make_validation_request(fake_external_hash(0xe3));
+    vr.num_validators_required = 3;
+    let request_ref = vr.data_hash.clone();
+    let att = [&alice.attestation, &bob.attestation, &carol.attestation];
+    let gov = [&alice.governance, &bob.governance, &carol.governance];
+
+    let _: ActionHash = conductors[0]
+        .call(&alice.attestation_zome(), "submit_validation_request", vr)
+        .await;
+    await_consistency_s(60, att).await.unwrap();
+
+    for (i, app) in [(0usize, &alice), (1, &bob), (2, &carol)] {
+        commit(&conductors[i], app, request_ref.clone()).await;
+        await_consistency_s(60, att).await.unwrap();
+    }
+    for (i, app) in [(0usize, &alice), (1, &bob), (2, &carol)] {
+        reveal(&conductors[i], app, request_ref.clone()).await;
+        await_consistency_s(60, att).await.unwrap();
+    }
+    await_consistency_s(60, gov).await.unwrap();
+
+    let harmony: Option<ActionHash> = conductors[0]
+        .call(
+            &alice.governance_zome(),
+            "check_and_create_harmony_record",
+            request_ref.clone(),
+        )
+        .await;
+    assert!(harmony.is_some(), "a full 3-agent round must produce a HarmonyRecord");
+
+    // Same retry shape as the bronze badge test: the badge is issued by the call
+    // above, but its indexes can lag by a gossip round on a loaded box.
+    let mut badges: Vec<Record> = Vec::new();
+    for _ in 0..5 {
+        await_consistency_s(60, gov).await.unwrap();
+        badges = conductors[0]
+            .call(&alice.governance_zome(), "get_badges_for_study", request_ref.clone())
+            .await;
+        if !badges.is_empty() {
+            break;
+        }
+    }
+    let badge_hash = badges
+        .first()
+        .expect("three Reproduced attestations must issue a BronzeReproducible badge")
+        .action_address()
+        .clone();
+
+    let err = conductors[0]
+        .call_fallible::<_, ActionHash>(
+            &alice.governance_zome(),
+            "test_force_delete_entry",
+            badge_hash,
+        )
+        .await
+        .expect_err("deleting a ReproducibilityBadge must be rejected by validate()");
+
+    assert_rejected_by_guard(
+        &format!("{err:?}"),
+        "ReproducibilityBadge is immutable",
+        "ReproducibilityBadge (delete)",
+    );
+}

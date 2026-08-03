@@ -15,3 +15,8 @@ valichord_shared_types = { path = "../../../../shared_types" }
 valichord_coordinator_utils = { workspace = true }
 governance_integrity = { path = "../governance_integrity" }
 getrandom = { workspace = true }
+
+[features]
+# Test-only immutability tripwire externs (see src/lib.rs tail).
+# NEVER enable for a production build or a packed production hApp.
+test_utils = []

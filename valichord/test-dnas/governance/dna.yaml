@@ -4,7 +4,8 @@
 # shipped DNA). Only the coordinator comes from target-test/, where it is
 # built with --features test_utils to expose the immutability tripwire hooks.
 # Built + packed by ./build-test-dnas.sh into ../workdir-test/.
-# governance has no tripwire hooks; both zomes are the production build.
+# The coordinator comes from target-test/ (delete tripwire hooks for HarmonyRecord,
+# GovernanceDecision and ReproducibilityBadge). The integrity zome is production.
 manifest_version: "0"
 name: governance
 integrity:
@@ -21,6 +22,6 @@ coordinator:
   zomes:
     - name: governance_coordinator
       hash: ~
-      path: "../../target/wasm32-unknown-unknown/release/governance_coordinator.wasm"
+      path: "../../target-test/wasm32-unknown-unknown/release/governance_coordinator.wasm"
       dependencies:
         - name: governance_integrity

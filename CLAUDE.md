@@ -63,7 +63,13 @@ cd valichord
 ./build-test-dnas.sh                       # builds --features test_utils -> target-test/, packs -> workdir-test/
 cd sweettest_integration
 VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
-# 10 tests (5 update + 5 delete), ~30 min (each scenario JIT-compiles ~30 MB WASM)
+# 15 tests (5 update + 10 delete), ~50 min (each scenario JIT-compiles ~30 MB WASM)
+#
+# ⚠️ HC_BIN is REQUIRED on the v0.7.0 branch: build-test-dnas.sh packs with `hc`
+# from PATH, which is deliberately still 0.6.2 here. Pack with the same version
+# workdir/ was packed with, or the test bundles differ from production for a
+# reason unrelated to the code under test:
+#   HC_BIN=/path/to/hc-0.7.0 ./build-test-dnas.sh
 #
 # ⚠️ Run via ./run-sweettest.sh, NOT a hand-rolled `| grep -v sqlcipher_mlock`.
 # ENOMEM spam splices into the MIDDLE of a `test <name> ... ok` line, so an
@@ -76,14 +82,16 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --t
 
 **Proven to work — negative control, 2026-07-30.** Moving the `ValidationAttestation` guard behind the generic `OpUpdate::Entry { action, .. }` arm (exactly the accident a `FlatOp` rename can cause) made the forbidden update **succeed** — it returned a real `ActionHash`, because it fell through to the generic arm whose author-check passes for the entry's own author. The tripwire test failed as designed; restoring the guard turned it green. **The hazard is real and the wire is connected.**
 
+**Second negative control, 2026-08-03 — the governance delete guards.** Deleting the `GovernanceDecision` arm from `governance_integrity`'s `FlatOp::Delete` match made the forbidden delete **succeed with a real `ActionHash`** (`uhCkkxGoGL6xkAzvDjE7aNnrA2ajzzZWHaXaX0OV-NoNOZ1yFwcUo`) — it fell through to "only the original author may delete", which the author passes by definition. `governance_decision_delete_is_rejected` failed; restoring the arm turned it green. ⚠️ **These three guards (HarmonyRecord / GovernanceDecision / ReproducibilityBadge) had NO test that could fail until this date.** What looked like coverage were three Tryorama tests asserting only that *"no delete function exists in the coordinator API"* — an API-surface check that passes identically against a DNA with no guards at all, and which was about to be deleted along with that suite. Found by reading every test in Tryorama before retiring it, not by any automated check.
+
 ⚠️ **Partial compiler safety net, do not rely on it.** `rustc` *does* emit `warning: unreachable pattern` when a specific arm is moved behind a broader one. But it is a **warning, not an error**, in a build that emits others — and it catches **only** the shadowing case. It will NOT catch an arm that is deleted outright, or one whose pattern stops matching after a variant rename. The tests catch all three.
 
 **Safety design** (these hooks must never ship):
-- `#[cfg(feature = "test_utils")]` externs in 3 coordinators — absent from every production build
+- `#[cfg(feature = "test_utils")]` externs in **all 4** coordinators — absent from every production build
 - feature build → `target-test/` (separate target dir, cannot overwrite `target/`)
 - packs → `workdir-test/` (never the committed `workdir/`)
 - `test-dnas/*/dna.yaml` point their **integrity** zome at the *production* build and only the **coordinator** at `target-test/` — so the integrity zome under test is byte-identical to what ships
-- `./check-no-test-hooks.sh` scans the committed production bundles for the **`test_force_` prefix** and fails if found. ✅ **Wired into CI** as the `no-test-hooks` job (dependency-free, ~seconds, fails fast ahead of the 90-minute matrix). Verified in **both** directions: passes on `workdir/`, and `NEEDLE_SCAN_DIR=workdir-test ./check-no-test-hooks.sh` correctly **fails** on the three bundles that carry hooks while still passing `governance.dna`, which has none.
+- `./check-no-test-hooks.sh` scans the committed production bundles for the **`test_force_` prefix** and fails if found. ✅ **Wired into CI** as the `no-test-hooks` job (dependency-free, ~seconds, fails fast ahead of the 90-minute matrix). Verified in **both** directions: passes on `workdir/`, and `NEEDLE_SCAN_DIR=workdir-test ./check-no-test-hooks.sh` correctly **fails** on **all four** bundles. ⚠️ Until 2026-08-03 governance had no hooks and *passed* that check; it now fails it, which is the negative control proving the guard sees newly-added hooks rather than only the ones it was written for.
   ⚠️ **The needle is a prefix, not a name — do not narrow it back.** It was `test_force_update` until 2026-08-01, when delete hooks were added and it would silently have ignored `test_force_delete_entry`: a guard that only catches the hooks existing when it was written has an expiry date nobody is told about. Matching the naming convention covers future hooks the day they are written. Verified with the needle narrowed to `test_force_delete` alone — fails on `workdir-test/`, passes on `workdir/` — so it demonstrably sees the new hooks, not just the old ones.
   ⚠️ **It must decompress before searching — do not "simplify" it back to `grep`.** The first version grepped the bundle files directly and reported "clean" for *everything*, including bundles that definitely contained the hooks: Holochain bundles are compressed, so the symbol names are never in the raw bytes (`*.dna` = one gzip layer; `*.happ` = gzip → msgpack → nested gzip, so two). It was a guard that could not fail. Re-run the two-direction check above after any edit to that script.
 - `target-test/` + `workdir-test/` are gitignored
