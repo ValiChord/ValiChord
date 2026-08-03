@@ -412,27 +412,50 @@ async fn claim_and_release_study() {
 //
 // validate() in attestation_integrity rejects StudyClaim when
 // validator_institution == researcher_institution (conflict of interest).
+//
+// ⚠️ MUST BE TWO AGENTS, and this test proves why. It was written on a single
+// conductor, so the researcher and the would-be validator were the SAME agent —
+// and the self-claim guard sits AHEAD of the COI guard in validate() (see
+// attestation_integrity/src/lib.rs:665, then :677). The claim was therefore
+// rejected before the COI comparison was ever reached, and the COI rule had no
+// coverage at all. It looked green only because the assertion was a bare
+// `is_err()`; strengthening it to `assert_rejected_with` on 2026-08-02 exposed
+// the substitution immediately, with the self-claim message in the error.
+// Same shape as `link_agent_identity_self_link_rejected` — a test that passes
+// on the wrong guard tests nothing it claims to.
 
 #[tokio::test(flavor = "multi_thread")]
 async fn claim_study_coi_same_institution_rejected() {
-    let (conductor, app) = setup_single().await;
-    let zome = app.attestation_zome();
-
+    let setup = setup_two_agents().await;
     let request_ref = fake_external_hash(0x51);
 
-    // ValidationRequest with researcher_institution = "Open Science Lab".
-    conductor
-        .call::<_, ActionHash>(&zome, "submit_validation_request", make_validation_request(request_ref.clone()))
+    // Alice is the researcher. make_validation_request declares
+    // researcher_institution = "Open Science Lab".
+    let _: ActionHash = setup.conductors[0]
+        .call(
+            &setup.alice.attestation_zome(),
+            "submit_validation_request",
+            make_validation_request(request_ref.clone()),
+        )
         .await;
+    await_consistency_s(20, [&setup.alice.attestation, &setup.bob.attestation])
+        .await
+        .unwrap();
 
-    // Validator profile with SAME institution → COI violation.
-    conductor
-        .call::<_, ActionHash>(&zome, "publish_validator_profile", make_validator_profile("Open Science Lab"))
+    // Bob is a DIFFERENT agent — so the self-claim guard passes and the COI
+    // guard is the only one left that can reject — but declares the SAME
+    // institution, which is the violation under test.
+    let _: ActionHash = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "publish_validator_profile",
+            make_validator_profile("Open Science Lab"),
+        )
         .await;
 
     // validate() should reject the StudyClaim.
-    let result: Result<ActionHash, _> = conductor
-        .call_fallible(&zome, "claim_study", request_ref)
+    let result: Result<ActionHash, _> = setup.conductors[1]
+        .call_fallible(&setup.bob.attestation_zome(), "claim_study", request_ref)
         .await;
     let err = result
         .expect_err("claim_study must be rejected when validator and researcher share an institution");
@@ -1072,34 +1095,48 @@ async fn researcher_cannot_claim_their_own_study() {
 // guard a study could accumulate unbounded claims, and the quorum that gates
 // the reveal phase would stop meaning "the requested cohort has committed".
 //
-// Needs three agents: a researcher (who cannot claim — see test 24), a validator
-// who takes the single slot, and a second validator to be refused.
+// ⚠️ CAPACITY CANNOT BE 1 HERE. This was written with
+// `num_validators_required = 1` and three agents, and failed at the FIRST call:
+// the attestation DNA properties used by these tests set `minimum_validators: 2`,
+// and validate() rejects a ValidationRequest below that floor
+// (attestation_integrity/src/lib.rs:614) — so the request was never written and
+// the capacity guard was never reached. Lowering the DNA floor to suit the test
+// would have been the wrong fix: that floor exists so a single colluding
+// validator cannot satisfy the commitment gate alone.
+//
+// Capacity 2 is also the better test. It needs FOUR agents — a researcher (who
+// cannot claim at all, see test 24), two validators who fill the cohort, and a
+// third to be refused — but it asserts BOTH directions: the second claim must
+// SUCCEED, which a guard that simply refused every claim after the first would
+// fail. At capacity 1 that guard would have passed.
 #[tokio::test(flavor = "multi_thread")]
 async fn claim_rejected_when_study_is_at_capacity() {
     let mut conductors =
-        SweetConductorBatch::from_config_rendezvous(3, SweetConductorConfig::rendezvous(true)).await;
+        SweetConductorBatch::from_config_rendezvous(4, SweetConductorConfig::rendezvous(true)).await;
     let dnas = dnas_with_roles().await;
     let apps = conductors.setup_app("valichord", &dnas).await.unwrap();
     let mut it = apps.into_inner().into_iter();
     let researcher = ValiChordApp::from_sweet_app(it.next().unwrap());
     let first = ValiChordApp::from_sweet_app(it.next().unwrap());
     let second = ValiChordApp::from_sweet_app(it.next().unwrap());
+    let third = ValiChordApp::from_sweet_app(it.next().unwrap());
 
-    // Capacity of exactly one, so the second claim is over the line.
+    // Capacity of exactly two — the DNA minimum — so the third claim is the
+    // first one over the line.
     let mut vr = make_validation_request(fake_external_hash(0x72));
-    vr.num_validators_required = 1;
+    vr.num_validators_required = 2;
     let request_ref = vr.data_hash.clone();
 
     let _: ActionHash = conductors[0]
         .call(&researcher.attestation_zome(), "submit_validation_request", vr)
         .await;
     await_consistency_s(60, [
-        &researcher.attestation, &first.attestation, &second.attestation,
+        &researcher.attestation, &first.attestation, &second.attestation, &third.attestation,
     ])
     .await
     .unwrap();
 
-    for (i, app) in [(1usize, &first), (2usize, &second)] {
+    for (i, app) in [(1usize, &first), (2usize, &second), (3usize, &third)] {
         let _: ActionHash = conductors[i]
             .call(
                 &app.attestation_zome(),
@@ -1109,19 +1146,31 @@ async fn claim_rejected_when_study_is_at_capacity() {
             .await;
     }
 
-    // First validator takes the only slot.
+    // The two slots are filled one at a time, with the first claim gossiped
+    // before the second is made — otherwise both validators could count one
+    // active claim and the cohort would be over-filled for reasons unrelated to
+    // the guard. That the SECOND claim succeeds is half of what this test proves.
     let _: ActionHash = conductors[1]
         .call(&first.attestation_zome(), "claim_study", request_ref.clone())
         .await;
     await_consistency_s(60, [
-        &researcher.attestation, &first.attestation, &second.attestation,
+        &researcher.attestation, &first.attestation, &second.attestation, &third.attestation,
     ])
     .await
     .unwrap();
 
-    // Second validator must be refused — the study is full.
-    let result: Result<ActionHash, _> = conductors[2]
-        .call_fallible(&second.attestation_zome(), "claim_study", request_ref)
+    let _: ActionHash = conductors[2]
+        .call(&second.attestation_zome(), "claim_study", request_ref.clone())
+        .await;
+    await_consistency_s(60, [
+        &researcher.attestation, &first.attestation, &second.attestation, &third.attestation,
+    ])
+    .await
+    .unwrap();
+
+    // Third validator must be refused — the study is full.
+    let result: Result<ActionHash, _> = conductors[3]
+        .call_fallible(&third.attestation_zome(), "claim_study", request_ref)
         .await;
     let err = result.expect_err("claiming a study at capacity must be rejected");
     assert_rejected_with(&format!("{err:?}"), "at capacity", "claim over capacity");

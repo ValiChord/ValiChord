@@ -117,8 +117,9 @@ Both directions matter: the blocking test alone would be satisfied by a gate tha
 everything, which would leave the sweep unable to close genuinely stuck rounds.
 
 ⚠️ **21 = 18 pre-existing + 3 new.** `governance_decisions_round_trip_and_accumulate` was added
-*after* that run started, so it is **not** in this result — it is being run separately, along with
-the attestation suite carrying the 8 ported tests.
+*after* that run started, so it is **not** in this result. ✅ **It has since been run on its own
+(2026-08-03) and passed** — 1 passed, 0 failed, cross-check clean. So the governance suite stands
+at 22 known-green, though never all in one sweep.
 
 ⚠️ `run-sweettest.sh`'s cross-check fired again (3 lines vs 21). Reconciled by hand: 3 intact
 result lines + 18 standalone `ok` continuations = 21, with 0 FAILED and 0 panics. It is the ENOMEM
@@ -140,14 +141,34 @@ done
 <0.7-hc> app pack . -o workdir/valichord.happ
 ```
 
-### 🟠 Nine ported Tryorama tests are committed and UNRUN
+### ✅ The ported Tryorama tests are RUN AND GREEN — and two of them were fake (2026-08-03)
 
-`e6b27849` + `ad593e1c`. All compile; none have executed. Run
-`./run-sweettest.sh attestation` and `./run-sweettest.sh governance` before trusting them.
+`e6b27849` + `ad593e1c`, executed after the Codespace restart. Full attestation suite:
+**27 passed, 2 failed** (4171 s); governance `governance_decisions_round_trip_and_accumulate`:
+**1 passed** (97 s, cross-check clean). **Both failures were test bugs, not protocol bugs — and
+both tests were passing against the wrong guard entirely.** Fixed, re-run as the `claim_*` subset:
+**7 passed, 0 failed** (1347 s).
 
-**Do NOT delete the Tryorama suite until they are green.** Retiring it is the last step of that
-task and is deliberately gated on these runs — removing the old tests before the new ones pass is
-exactly the mistake this repo keeps finding.
+| Failure | What it actually proved |
+|---|---|
+| `claim_study_coi_same_institution_rejected` | **The COI rule had NO coverage at all.** The test ran on a *single* conductor, so researcher and validator were the same agent — and the self-claim guard (`attestation_integrity/src/lib.rs:665`) sits **ahead** of the COI comparison (`:677`), so the claim was rejected before the institution check was reached. The error text said so verbatim. Fixed with `setup_two_agents()`: Alice submits, Bob declares the same institution. |
+| `claim_rejected_when_study_is_at_capacity` | **Never reached the capacity guard.** It set `num_validators_required = 1`, but the test DNA properties set `minimum_validators: 2` and `validate()` rejects below that floor (`:614`) — the *first* call failed and the request was never written. |
+
+⚠️ **The first one is the finding worth keeping.** It looked green only because its assertion was
+a bare `is_err()`; the 2026-08-02 audit's `assert_rejected_with()` strengthening (`e1b701f3`) is
+what exposed it, on the first run after. **That audit paid for itself.** Same shape as
+`link_agent_identity_self_link_rejected`. Both now assert the guard's own wording, so they are
+provably reaching the guard they name.
+
+⚠️ **Lowering the DNA floor would have been the wrong fix for the second** — that floor is what
+stops a single colluding validator satisfying the commitment gate alone. It is now capacity 2 with
+a **fourth** agent, which also makes it assert **both** directions: the second claim must *succeed*,
+so a guard that refused everything after the first would fail it. At capacity 1 it would not have.
+
+The other 22 attestation tests were not re-run after the fix — the edits touch two test bodies
+only, no shared helper — so the clean 29/29 sweep is not on the record.
+
+**Tryorama can now be retired**: this was the gate on it.
 
 Deliberately NOT ported: the badge-outcome variants (`FailedReproduction`, `Divergent`). Their
 logic already has 27 unit tests in `shared_types` covering every agreement level and threshold, so
