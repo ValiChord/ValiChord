@@ -5,6 +5,10 @@ edition = "2021"
 
 [lib]
 crate-type = ["rlib"]
+# doctest = false so `cargo test` emits ONE result block, not a trailing
+# "Doc-tests / running 0 tests" that makes `| tail` report the wrong answer.
+# See CLAUDE.md. Neither crate has doc examples; re-enable if that changes.
+doctest = false
 
 [dependencies]
 hdi = { workspace = true }

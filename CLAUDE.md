@@ -103,6 +103,29 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --t
 - `attestation` (public) — per-type arms are live, ordering matters → 3 per-type tests
 - `validator_workspace` / `researcher_repository` (all private) — per-type arms are dead code; **one blanket `OpUpdate::PrivateEntry` arm is the entire guard** → 1 test each, aimed at that arm
 
+### Unit tests (conductor-free, <1 s) — and the `tail` trap
+
+```bash
+cd valichord
+cargo test -p valichord_shared_types    # 27 — badge/agreement arithmetic
+cargo test -p governance_coordinator    #  3 — validator_attestation_pairs
+```
+
+Run by the `unit` CI job. They cover `evaluate_badge`, `derive_agreement_level` and
+`derive_majority_outcome` — the arithmetic every HarmonyRecord's badge tier rests on, and a
+HarmonyRecord is immutable, so a wrong tier is wrong permanently.
+
+⚠️ **`cargo test … | tail -5` USED TO LIE, and both crates now set `doctest = false` to stop it.**
+Cargo prints one result block per test binary and doc-tests come **last**, so with no doc examples
+the final block reads `running 0 tests` / `test result: ok. 0 passed` while the real result sits
+one block earlier. Observed 2026-08-03: I read the tail and concluded the 27 tests did not exist.
+`doctest = false` removes the trailing block, so the last line is now the true one.
+
+**Do not delete those two `doctest = false` lines as tidying** — re-enable them only alongside a
+real doc example, and expect the trap to return when you do. If a crate ever legitimately needs
+doc-tests, the durable fix is the `run-sweettest.sh` pattern: extract **every** `test result:` line
+and cross-check the sum, rather than reading the last one.
+
 ### Sweettest (in-process conductors, separate workspace)
 
 ```bash
