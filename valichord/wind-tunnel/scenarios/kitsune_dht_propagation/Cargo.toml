@@ -39,22 +39,24 @@ name = "kitsune_dht_propagation"
 path = "src/main.rs"
 
 [dependencies]
-kitsune_wind_tunnel_runner = "0.7"
+# Pinned to a git REV, not crates.io. The published runner (0.7.1, 2026-07-21)
+# still binds holochain 0.6 -> holo_hash 0.6, which collides with
+# valichord_shared_types (hdi 0.8.0 -> holo_hash 0.8) and fails to compile.
+# This rev IS upstream's "Update to Holochain 0.7.0" commit (2026-07-31).
+# Swap back to a version requirement once they publish a 0.7-era release.
+kitsune_wind_tunnel_runner = { git = "https://github.com/holochain/wind-tunnel", rev = "e48614573c246a1b468dcd16e94030da97d3f2e0" }
 anyhow = "1"
 rand = "0.9"
 tokio = { version = "1", features = ["time"] }
 
-# --- Transitive pre-release pins (DO NOT REMOVE) ---------------------------
-# kitsune_wind_tunnel_runner -> kitsune2 -> kitsune2_transport_iroh ->
-# iroh-base-holochain 0.95.1 -> ed25519-dalek 3.0.0-pre.1, a pre-release that
-# only compiles against the RELEASE-CANDIDATE pkcs8/ed25519 crates (the final
-# 0.11.0 / 3.0.0 releases changed `pkcs8::Error::KeyMalformed` from a unit to a
-# tuple variant and break the build). An unconstrained `cargo update` greedily
-# picks the final releases and silently breaks the Kitsune scenario, so we pin
-# the two transitive crates here as direct (otherwise-unused) deps to keep the
-# constraint in the manifest, not just Cargo.lock. These match the versions in
-# holochain/wind-tunnel's own committed lockfile. The Holochain scenarios are
-# unaffected (they use ed25519-dalek 2.x). Revisit when the iroh stack moves to
-# a non-pre-release ed25519-dalek.
-pkcs8 = "=0.11.0-rc.11"
-ed25519 = "=3.0.0-rc.4"
+# --- Transitive pre-release pins: REMOVED 2026-08-03 -----------------------
+# These were `pkcs8 = "=0.11.0-rc.11"` and `ed25519 = "=3.0.0-rc.4"`, held because
+# kitsune2 0.4.x -> iroh-base-holochain 0.95.1 -> ed25519-dalek 3.0.0-pre.1 only
+# compiled against the release-candidate crates. The pin carried its own expiry:
+# "Revisit when the iroh stack moves to a non-pre-release ed25519-dalek."
+#
+# It has. kitsune2 0.5.0 -> iroh 1.0.0 -> ed25519-dalek 3.0.0-rc.0, which requires
+# ed25519 ^3 (i.e. the final 3.0.0). The old pins then became the blocker, not the
+# fix: cargo could not resolve `=3.0.0-rc.4` against `^3` and refused the whole
+# workspace. Removed rather than bumped -- there is no longer a pre-release to
+# protect against.

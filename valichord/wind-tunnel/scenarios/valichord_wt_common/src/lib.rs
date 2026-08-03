@@ -36,12 +36,12 @@ pub fn valichord_roles_settings() -> HashMap<String, RoleSettings> {
     let dev_memproof: MembraneProof =
         Arc::new(SerializedBytes::from(UnsafeBytes::from(vec![0x42u8; 64])));
 
-    let attestation_props: serde_yaml::Value = serde_yaml::from_str(
+    let attestation_props: yaml_serde::Value = yaml_serde::from_str(
         "minimum_validators: 1\ndiscipline: genomics\nauthorized_joining_certificate_issuer: \"\"",
     )
     .expect("static attestation properties");
-    let governance_props: serde_yaml::Value =
-        serde_yaml::from_str("system_coordinator_key: \"\"\nharmony_record_creator_key: \"\"")
+    let governance_props: yaml_serde::Value =
+        yaml_serde::from_str("system_coordinator_key: \"\"\nharmony_record_creator_key: \"\"")
             .expect("static governance properties");
 
     HashMap::from([

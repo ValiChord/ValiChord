@@ -97,6 +97,16 @@ fn make_attestation(request_ref: ExternalHash) -> ValidationAttestation {
             troubleshooting_secs: 300,
         },
         confidence: AttestationConfidence::High,
+        // Added by the validator->bundle binding (ef795736). None = an UNBOUND
+        // verdict, which is what a load-test scenario should assert: it performs no
+        // reproduction, so it has no per-sample outputs to bind to.
+        //
+        // Safe here because this scenario runs the dev bypass end to end --
+        // commitment_hash is [0u8; 32] and nonce is empty, so no on-chain hash
+        // verification happens. ⚠️ If this scenario is ever changed to use REAL
+        // nonces, this field is bound into commitment_msgpack_bytes() and the value
+        // used at commit must be byte-identical at reveal, including None.
+        reproduction_bundle_hash: None,
         deviation_flags: vec![],
         computational_resources: ComputationalResources {
             personal_hardware_sufficient: true,

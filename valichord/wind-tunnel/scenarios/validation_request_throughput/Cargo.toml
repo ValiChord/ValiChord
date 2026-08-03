@@ -16,8 +16,13 @@ name = "validation_request_throughput"
 path = "src/main.rs"
 
 [dependencies]
-holochain_wind_tunnel_runner = "0.7"
-holo_hash = "0.6"
+# Pinned to a git REV, not crates.io. The published runner (0.7.1, 2026-07-21)
+# still binds holochain 0.6 -> holo_hash 0.6, which collides with
+# valichord_shared_types (hdi 0.8.0 -> holo_hash 0.8) and fails to compile.
+# This rev IS upstream's "Update to Holochain 0.7.0" commit (2026-07-31).
+# Swap back to a version requirement once they publish a 0.7-era release.
+holochain_wind_tunnel_runner = { git = "https://github.com/holochain/wind-tunnel", rev = "e48614573c246a1b468dcd16e94030da97d3f2e0" }
+holo_hash = "0.7"        # 0.6 -> 0.7 with the Holochain 0.7 merge; must match the runner's line
 serde = { version = "1", features = ["derive"] }
 valichord_wt_common = { path = "../valichord_wt_common" }
 

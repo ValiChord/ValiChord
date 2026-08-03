@@ -385,26 +385,44 @@ Checked 2026-07-30, ~15 min after the release:
 
 Re-check the table above before starting Phase B, and crates.io for `holochain_wind_tunnel_runner` before Phase C.
 
-### 🔴 THE WIND-TUNNEL CI JOB IS DISABLED (`if: false`) — RE-ENABLE IT, DO NOT DELETE IT
+### ✅ Wind-tunnel builds on 0.7 — fixed 2026-08-03 (Phase C is further along than the note below)
 
-Set 2026-08-03, immediately after `main` merged to 0.7. `valichord/wind-tunnel/` **cannot
-build**: its scenarios depend on `valichord_shared_types` **by path** (now `hdi 0.8.0` →
-`holo_hash 0.8`) while the crates.io runner drags in holochain 0.6 → `holo_hash 0.6`, so
-two versions of `holo_hash` land in one dependency graph:
+⚠️ **The Phase C note below is now partly superseded.** `valichord/wind-tunnel/` **builds and
+its unit tests pass on the 0.7 stack**, by pinning the runner to a git **rev** of
+`holochain/wind-tunnel` (`e4861457`, their "Update to Holochain 0.7.0" commit) instead of the
+crates.io release. Verified: `cargo build` clean in 3m40s, `cargo test -p dht_sync_lag` 4
+passed. CI job re-enabled.
+
+🆕 **The merge to 0.7 broke this workspace, and the "blocked upstream" note is why it was
+missed.** Phase C was recorded as "not a merge blocker — the load tests were untouched".
+Untouched was true; **unaffected was not.** The scenarios depend on `valichord_shared_types`
+**by path**, so migrating that crate to `hdi 0.8.0` (→ `holo_hash 0.8`) collided with the
+crates.io runner's holochain 0.6 (→ `holo_hash 0.6`):
 
 ```
 error[E0308]: expected `HoloHash<External>`, found `HoloHash<holo_hash::hash_type::External>`
 note: there are multiple different versions of crate `holo_hash` in the dependency graph
 ```
 
-⚠️ **This was missed at merge time.** Phase C was recorded as "not a merge blocker — the
-load tests were untouched". Untouched was true; harmless was not. **Untouched code that
-depends on migrated code breaks.** Check path-dependent workspaces before any future
-version bump, not just the ones being changed.
+⚠️ **Rule: before any version bump, check every workspace with a PATH dependency on the crate
+being bumped — not just the ones being changed.** A separate Cargo workspace is isolated for
+*compilation targets*, not from your own source.
 
-**The fix is available now** — see the Phase C note below: upstream `main` is already on
-Holochain 0.7, just unpublished, so pin the runner to a **git rev** in all six scenario
-manifests. Then delete the `if: false` in `.github/workflows/wind-tunnel-smoke.yml`.
+**Four more layers sat behind the first**, each hidden by the one in front:
+1. Direct `holo_hash = "0.6"` / `holochain_types = "0.6"` pins in five scenario manifests —
+   a 0.7 runner alone would still have dragged the old `holo_hash` back in.
+2. `ed25519 = "=3.0.0-rc.4"` / `pkcs8 = "=0.11.0-rc.11"` — held for kitsune2 0.4.x's
+   pre-release iroh stack. kitsune2 0.5.0 → iroh 1.0.0 wants final `ed25519 ^3`, so the pins
+   became the blocker. ✅ **Their comment named its own expiry condition** ("revisit when the
+   iroh stack moves to a non-pre-release ed25519-dalek"), which turned an afternoon into five
+   minutes. **Write pins that way.**
+3. `YamlProperties::new` takes `yaml_serde::Value` on 0.7, not `serde_yaml::Value` — the same
+   swap `sweettest_integration` made in Phase A.
+4. `ValidationAttestation` needed `reproduction_bundle_hash` (validator→bundle binding). Set
+   to `None` — an unbound verdict, correct for a load test that performs no reproduction.
+   ⚠️ Safe only because the scenario uses the dev bypass (`commitment_hash = [0u8; 32]`,
+   empty nonce). **With real nonces this field is bound into `commitment_msgpack_bytes()`
+   and must be byte-identical at commit and reveal, including `None`.**
 
 ### 🟠 Phase C — the upstream migration is FINISHED; only the release is missing (checked 2026-08-03)
 

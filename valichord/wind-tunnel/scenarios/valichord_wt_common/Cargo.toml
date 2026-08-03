@@ -14,6 +14,14 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-holochain_wind_tunnel_runner = "0.7"
-holochain_types = "0.6"
-serde_yaml = "0.9"
+# Pinned to a git REV, not crates.io. The published runner (0.7.1, 2026-07-21)
+# still binds holochain 0.6 -> holo_hash 0.6, which collides with
+# valichord_shared_types (hdi 0.8.0 -> holo_hash 0.8) and fails to compile.
+# This rev IS upstream's "Update to Holochain 0.7.0" commit (2026-07-31).
+# Swap back to a version requirement once they publish a 0.7-era release.
+holochain_wind_tunnel_runner = { git = "https://github.com/holochain/wind-tunnel", rev = "e48614573c246a1b468dcd16e94030da97d3f2e0" }
+holochain_types = "0.7"
+# holochain 0.7 moved off the deprecated serde_yaml to yaml_serde (API-compatible
+# rename); YamlProperties::new takes a yaml_serde::Value, so we must match.
+# Same swap sweettest_integration made during the Phase A port.
+yaml_serde = "0.10"

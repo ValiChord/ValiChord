@@ -65,34 +65,17 @@ jobs:
   build-and-test:
     name: build all scenarios + unit tests
     runs-on: ubuntu-latest
-    # ═══════════════════════════════════════════════════════════════════════════
-    # 🔴 DISABLED 2026-08-03 — CANNOT BUILD, and this is expected. RE-ENABLE, do
-    #    not delete: this is a mute on a known-broken build, not a retirement.
+    # ✅ RE-ENABLED 2026-08-03, same day it was disabled. It was `if: false` for a
+    # few hours after the 0.7 merge because this workspace could not build: the
+    # scenarios depend on valichord_shared_types BY PATH (hdi 0.8.0 -> holo_hash 0.8)
+    # while the crates.io runner pinned holochain 0.6 -> holo_hash 0.6, putting two
+    # holo_hash versions in one graph.
     #
-    # `main` moved to Holochain 0.7 (merge 38ea2123). The scenarios depend on
-    # `valichord_shared_types` BY PATH, which is now on hdi 0.8.0 -> holo_hash 0.8.
-    # But `holochain_wind_tunnel_runner = "0.7"` resolves to the crates.io 0.7.1
-    # release (2026-07-21), which still pins holochain 0.6 -> holo_hash 0.6. Two
-    # versions of holo_hash in one graph, so the build fails with:
-    #
-    #   error[E0308]: expected `HoloHash<External>`,
-    #                    found `HoloHash<holo_hash::hash_type::External>`
-    #   note: there are multiple different versions of crate `holo_hash`
-    #
-    # ⚠️ THE CRATE VERSION IS A TRAP: `holochain_wind_tunnel_runner` 0.7.x has
-    #    nothing to do with HOLOCHAIN 0.7. 0.7.1 is a Holochain *0.6* runner.
-    #
-    # THE FIX (tracked — see PROJECT_STATUS.md "THE NEXT STEP" and CLAUDE.md):
-    # upstream `holochain/wind-tunnel` main migrated to Holochain 0.7.0 on
-    # 2026-07-31 and pins hdk 0.7.0 / hdi 0.8.0 / kitsune2 0.5.0 — the same stack
-    # we are on. It is simply not published yet. So either pin the runner to a git
-    # REV of that repo, or wait for their next crates.io release. Then delete this
-    # `if:` and confirm the job goes green.
-    #
-    # Nothing shipped depends on this workspace: it is load-test scenarios only.
-    # The four DNAs, the UI and the demo stack are unaffected.
-    # ═══════════════════════════════════════════════════════════════════════════
-    if: false
+    # Fixed by pinning the runner to a git REV of holochain/wind-tunnel (e4861457 =
+    # their "Update to Holochain 0.7.0" commit) rather than the crates.io release,
+    # which is still a Holochain 0.6 runner despite its 0.7.x version number.
+    # Verified locally with exactly the two commands below: build clean in 3m40s,
+    # dht_sync_lag 4 passed / 0 failed.
     timeout-minutes: 90
 
     steps:
