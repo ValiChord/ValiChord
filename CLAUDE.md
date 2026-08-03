@@ -41,18 +41,19 @@ hc app pack .                           -o workdir/valichord.happ
 
 **Never use `pack_dna.py`** — it is broken and embeds the same DNA bytes for all four roles.
 
-### Tryorama integration tests (91 active + 1 skipped)
+### ~~Tryorama integration tests~~ — RETIRED 2026-08-03, do not resurrect
 
-```bash
-cd valichord/tests && npm test
+`valichord/tests/` is **deleted**. Upstream `@holochain/tryorama` is unmaintained — a banner landed Jan 2026 saying Holochain 0.7+ support *"should not be expected"*, pointing at sweettest. There is nothing to migrate to, and porting to a dead runner would have been work with a known expiry date.
 
-# Single test file
-npx vitest run src/attestation.test.ts
-```
+**It was audited before it was deleted, one test at a time** — ~69 of its 92 were already duplicated in sweettest, and every unique test was ported and run green FIRST. That audit is the reason this was not a silent loss: it found **three guards with no working coverage at all**, each now covered by a test that has been *seen to fail*:
 
-All per-test timeouts are 900 000 ms — each `runScenario` JIT-compiles ~30 MB of WASM. Timeouts are slow conductor startup, not logic errors. `DepMissingFromDht` in logs is transient gossip lag, also not a root cause.
+- the **conflict-of-interest** guard — its test ran on one conductor, so the self-claim guard rejected the claim first and the COI comparison was never reached
+- **DNA 2's cross-agent privacy** — no test anywhere asked whether a *second* agent could read a sealed private attestation
+- **`link_agent_identity`'s two signature checks** — the existing test passes 64 zero bytes and says so in its own body
 
-The one skipped test (`GoldReproducible badge — 7 validators`) exhausts WebSocket connections in Codespaces. It is covered by sweettest 15 instead.
+Deliberately NOT ported: the `FailedReproduction` / `Divergent` badge variants. That arithmetic has 27 unit tests in `shared_types`; an integration test would re-prove it at ~30 min a run.
+
+⚠️ **If you are tempted to re-add a TypeScript integration suite, read `docs/Holochain_complete.md` §44 first.** The lesson of this retirement is not "TypeScript bad" — it is that a suite nobody can run becomes a place where fake tests accumulate unseen. Eleven of them were found across two culls, several inside the long-quoted "97 passing".
 
 ### Immutability tripwire tests (REQUIRED before/after any `validate()` refactor)
 
@@ -330,7 +331,7 @@ Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-
 ### ⚠️ WE ARE STILL ON 0.6.2 — TWO STANDING RULES
 
 1. **Do NOT auto-upgrade.** Migration is deliberate and planned.
-2. **MIGRATION IS BRANCH-ONLY — `main` STAYS ON 0.6.2.** User decision, 2026-07-30: this is a major change and must happen on a dedicated **`v0.7.0` branch**, never directly on `main`. `main` keeps the working, publicly-demoed 0.6.2 stack until the branch is fully green (Tryorama + all 5 sweettest suites + UI e2e + a live demo round) **and** the user explicitly approves the merge. 0.7.0 being superior does not make a broken intermediate state acceptable. See `user_ceri_working_style` — core is paranoid.
+2. **MIGRATION IS BRANCH-ONLY — `main` STAYS ON 0.6.2.** User decision, 2026-07-30: this is a major change and must happen on a dedicated **`v0.7.0` branch**, never directly on `main`. `main` keeps the working, publicly-demoed 0.6.2 stack until the branch is fully green (all sweettest suites + UI e2e + a live demo round — Tryorama was retired 2026-08-03 and is no longer a gate) **and** the user explicitly approves the merge. 0.7.0 being superior does not make a broken intermediate state acceptable. See `user_ceri_working_style` — core is paranoid.
 
 ### 🔴 BLOCKER: the JS/tooling ecosystem has NOT shipped — the migration is TWO-PHASE
 
@@ -344,9 +345,9 @@ Checked 2026-07-30, ~15 min after the release:
 | holonix | *no `main-0.7` branch* | only `update-to-0.7.0-rc.0` |
 | docs-pages upgrade guide PR #647 | open, last updated **07-28** (pre-release) | — |
 
-**Consequence: the Tryorama suite and the Svelte UI CANNOT migrate yet** — there is no stable client or Tryorama to migrate *to*. The Rust zomes + `sweettest_integration` can migrate today.
+**Consequence (as written 2026-07-30): the Tryorama suite and the Svelte UI could not migrate yet.** ✅ Both are resolved: the UI shipped on `@holochain/client` 0.21.0 (2026-08-02), and Tryorama was **retired** rather than migrated (2026-08-03) — see the retirement note above.
 
-⚠️ **The long-quoted "97 Tryorama tests" is stale as of `cc19e8c4` (2026-08-01).** Six tests were removed as fakes that passed on *"function not found"*; the suite now declares **92 tests, 1 of them `test.skip`**. Counted from the source, not from a run — the suite cannot be executed at all until Phase B unblocks. Note the count of declarations before the cull was **98**, one more than the "96 pass + 1 skipped" recorded here for months, so treat any quoted total as approximate until the suite runs again.
+⚠️ **Any quoted "97 / 92 Tryorama tests" figure is dead — the suite is gone (2026-08-03).** For the record of why the number kept moving: six declarations were culled in `cc19e8c4` as fakes passing on *"function not found"*, taking 98 → 92, and the "97 passing" quoted for months was never reconciled against the source. Current counts live in `TESTING.md`, derived from the source rather than remembered.
 
 **🔴 AND A THIRD BLOCKER — `wind-tunnel` (found in the 2026-07-30 API audit, not previously recorded).** `valichord/wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate that pulls `holochain = "0.6"`. That crate must ship a 0.7 version before the load-test workspace can move. Independent of both the zomes and the JS side.
 
@@ -355,7 +356,8 @@ Checked 2026-07-30, ~15 min after the release:
 | Phase | Scope | Status |
 |---|---|---|
 | **A** | 4 DNA zomes + `sweettest_integration` | ✅ **unblocked — can start now** |
-| **B** | Tryorama tests + Svelte UI | 🔴 blocked: no stable `@holochain/client` 0.21, no 0.7 Tryorama |
+| **B** | Svelte UI | ✅ done 2026-08-02 — 6/6 e2e green on a real 0.7 conductor |
+| **B** | ~~Tryorama tests~~ | ✅ resolved 2026-08-03 by **retiring** the suite, not migrating it |
 | **C** | `wind-tunnel/` | 🔴 blocked: `holochain_wind_tunnel_runner` on 0.6 |
 
 Re-check the table above before starting Phase B, and crates.io for `holochain_wind_tunnel_runner` before Phase C.

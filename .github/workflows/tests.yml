@@ -1,30 +1,25 @@
 name: Integration Tests
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ⚠️  BRANCH-SCOPED MIGRATION CHANGES — REVERT BEFORE MERGING v0.7.0 INTO main
+# The Tryorama suite was RETIRED 2026-08-03 and its `test` job deleted with it.
 #
-# The Holochain 0.6.2 → 0.7.0 migration happens on the `v0.7.0` branch. ONE job
-# below still cannot pass there, because the JS ecosystem has not shipped a 0.7 line:
+# Upstream @holochain/tryorama is unmaintained: an unmaintained banner landed
+# Jan 2026 saying support for Holochain 0.7+ "should not be expected", pointing
+# at sweettest instead. Rather than port 92 tests to a dead runner, they were
+# audited one by one against sweettest: ~69 were already duplicated there, and
+# every unique test was ported before anything was deleted.
 #
-#   * `test`    (Tryorama) — @holochain/tryorama latest is 0.19.2, pinning
-#     @holochain/client ^0.20.4. There is no 0.7 line, so there is nothing to
-#     migrate the suite TO. Re-checked 2026-08-02: unchanged. SKIPPED on the branch.
+# That audit found three real gaps, all now closed and each with a test that has
+# been SEEN to fail (see the negative controls in CLAUDE.md):
+#   * the conflict-of-interest guard had no working coverage at all
+#   * DNA 2's cross-agent privacy guarantee had none
+#   * link_agent_identity's two signature checks had none
 #
-# `ui-e2e` was skipped for the same reason and is NOT any more — @holochain/client
-# 0.21.0 went stable 2026-08-01, the UI is ported to it, and the suite has been run
-# green against a real 0.7.0 conductor (2026-08-02). It is now the only CI signal
-# covering the UI half of Phase B, so it must stay unskipped.
-#
-# `sweettest` used to be gated on `test` passing; it also runs when `test` is
-# skipped, so Phase A (the Rust zomes) still gets its full 5-leg signal — which is
-# the whole point of having CI on the branch.
-#
-# A `tripwire` job is added, branch-only: it is the only thing that proves the
-# integrity zomes still reject forbidden updates after the 51-arm FlatOp port.
-#
-# WHEN PHASE B FULLY UNBLOCKS (Tryorama ships 0.7): delete the remaining `if:`
-# guard on `test` and restore `needs: [test]` on sweettest. Promoting `tripwire`
-# to all branches is a separate decision to take after the migration lands.
+# ⚠️ `tripwire` is NO LONGER branch-scoped. It was gated to the v0.7.0 branch,
+# which would have meant it stopped running the moment that branch merged and
+# disappeared — silently removing the only proof that the integrity zomes still
+# reject forbidden updates and deletes. With Tryorama gone it is the sole
+# immutability signal, so it runs everywhere. It costs ~50 min.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 on:
@@ -62,105 +57,6 @@ jobs:
         run: |
           chmod +x valichord/check-no-test-hooks.sh
           ./valichord/check-no-test-hooks.sh
-
-  test:
-    name: 97 Integration Tests (4 DNAs)
-    runs-on: ubuntu-latest
-    # Migration Phase B — blocked upstream. @holochain/tryorama has no 0.7 line,
-    # so there is nothing to migrate these 97 tests TO. Skipped on the v0.7.0
-    # branch; restore by deleting this `if:` once Tryorama ships 0.7.
-    if: github.ref_name != 'v0.7.0' && github.head_ref != 'v0.7.0'
-    timeout-minutes: 90
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # ── Rust toolchain ──────────────────────────────────────────────────────
-      - name: Install Rust (stable + wasm32 target)
-        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
-
-      # ── Caches ─────────────────────────────────────────────────────────────
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('valichord/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-registry-
-
-      # Static key: busts only when we edit the version string below.
-      # Both jobs share this key — whichever runs first populates it.
-      - name: Cache Holochain binaries
-        uses: actions/cache@v4
-        id: cache-hc-bin
-        with:
-          path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.7.0
-
-      - name: Cache WASM build artifacts
-        uses: actions/cache@v4
-        id: cache-wasm
-        with:
-          path: valichord/target
-          key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-wasm-
-
-      # ── Download pre-built Holochain binaries (skipped on cache hit) ────────
-      # Binaries are published to the holochain/holochain GitHub release.
-      # Downloading takes ~10 s vs ~20 min for cargo install from source.
-      - name: Download Holochain binaries
-        if: steps.cache-hc-bin.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.0
-          curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
-          curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
-          curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
-          curl -sSL $BASE/kitsune2-bootstrap-srv-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/kitsune2-bootstrap-srv
-          chmod +x ~/.local/bin/hc-tools/*
-
-      - name: Add Holochain tools to PATH
-        run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
-
-      # ── Build WASMs (skipped on cache hit) ─────────────────────────────────
-      - name: Build WASM zomes
-        if: steps.cache-wasm.outputs.cache-hit != 'true'
-        working-directory: valichord
-        run: cargo build --target wasm32-unknown-unknown --release
-
-      # ── Pack DNAs and hApp (always — yaml changes don't invalidate wasm cache)
-      - name: Pack DNAs and bundle hApp
-        working-directory: valichord
-        run: |
-          hc dna pack dnas/attestation            -o workdir/attestation.dna
-          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
-          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
-          hc dna pack dnas/governance             -o workdir/governance.dna
-          hc app pack .                           -o workdir/valichord.happ
-
-      # ── Node / test deps ────────────────────────────────────────────────────
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: valichord/tests/package-lock.json
-
-      - name: Install test dependencies
-        working-directory: valichord/tests
-        run: npm install
-
-      # ── Run tests ───────────────────────────────────────────────────────────
-      - name: Kill any orphaned Holochain processes
-        run: |
-          pkill -f holochain   || true
-          pkill -f lair-keystore || true
-          sleep 2
-
-      - name: Run integration tests
-        working-directory: valichord/tests
-        run: npm test
 
   # ── UI E2E: Playwright against a real conductor ──────────────────────────────
   # Fast independent signal (~5–10 min): uses the COMMITTED workdir/valichord.happ
@@ -247,28 +143,30 @@ jobs:
     name: Sweettest (${{ matrix.test }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
-    # `needs: [test]` is kept for fail-fast on main: if the 10-minute Tryorama job
-    # is already red there is no point burning ~2 h of sweettest. But on the v0.7.0
-    # branch `test` is SKIPPED (Phase B blocked), and a skipped dependency would
-    # normally skip this matrix too — losing the only Phase A signal we have.
-    # `always()` + an explicit result check keeps both behaviours:
-    #   main   → test success  → run;  test failure → skip (fail-fast preserved)
-    #   v0.7.0 → test skipped  → run
-    needs: [test]
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    # No `needs:` — the Tryorama `test` job it used to fail-fast behind was deleted
+    # with the suite (2026-08-03). These five legs are now the primary signal.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - test: attestation           # 19 tests ≈  80 min
+          # Counts re-derived from the source 2026-08-03, after the Tryorama port
+          # (they had drifted badly). Timeouts carry headroom for the growth:
+          # attestation 19→30 tests and governance 17→22.
+          - test: attestation           # 30 tests
+            timeout_minutes: 180
+          - test: governance            # 22 tests (gold=34 min, silver=30 min)
+            timeout_minutes: 240
+          - test: security              # 12 tests
             timeout_minutes: 150
-          - test: governance            # 17 tests ≈ 170 min (gold=34 min, silver=30 min)
-            timeout_minutes: 200
-          - test: security              #  7 tests ≈  30 min
+          - test: researcher_repository # 17 tests
             timeout_minutes: 150
-          - test: researcher_repository # 17 tests ≈  70 min
+          - test: validator_workspace   # 13 tests
             timeout_minutes: 150
-          - test: validator_workspace   #  9 tests ≈  38 min
+          # ⚠️ ADDED 2026-08-03 — was never in the matrix, so its 5 tests had NO CI
+          # signal at all. They are the only coverage anywhere of DNA 3's
+          # credentialed membrane: every other suite runs under the dev bypass
+          # (`authorized_joining_certificate_issuer: ""`), which skips it entirely.
+          - test: membrane_proof        #  5 tests
             timeout_minutes: 150
 
     steps:
@@ -369,24 +267,26 @@ jobs:
         working-directory: valichord/sweettest_integration
         run: cargo test --test ${{ matrix.test }} -- --test-threads=1
 
-  # ── Immutability tripwires — BRANCH-ONLY, added for the 0.7 migration ────────
+  # ── Immutability tripwires — the only proof the integrity guards hold ────────
   #
   # The 51-arm FlatOp port can silently disable immutability: Rust match ORDERING
   # is the enforcement mechanism, so an arm reflowed behind the generic update arm
   # compiles clean, passes every other test, and lets a forbidden update through.
   # That is not hypothetical — it was reproduced by negative control on 2026-07-30
-  # (the forbidden update returned a real ActionHash) and these 5 tests caught it.
+  # (the forbidden update returned a real ActionHash) and these tests caught it.
   #
   # They are deliberately NOT part of the sweettest matrix: they need a different
   # build (`--features test_utils` -> target-test/, packed to workdir-test/), because
   # no production coordinator exposes update_entry. See build-test-dnas.sh.
   #
-  # Branch-scoped because it adds ~35 min to a run. Promoting it to main is a
-  # separate decision to take once the migration lands.
+  # ⚠️ Runs on ALL branches since 2026-08-03. It was v0.7.0-only, which would have
+  # silently switched it off at merge — and with Tryorama retired it is the ONLY
+  # test anywhere proving the integrity zomes reject forbidden updates and deletes.
+  # 15 tests, ~50 min. Proven able to fail: two negative controls, 2026-07-30 and
+  # 2026-08-03, both made a forbidden write SUCCEED and both were caught here.
   tripwire:
     name: Immutability tripwires (integrity zomes)
     runs-on: ubuntu-latest
-    if: github.ref_name == 'v0.7.0' || github.head_ref == 'v0.7.0'
     timeout-minutes: 90
 
     steps:

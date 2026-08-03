@@ -4,13 +4,18 @@ ValiChord is tested at four layers. Every layer runs against real Holochain cond
 
 | Layer | Suite | Tool | Count | What it proves |
 | :--- | :--- | :--- | :--- | :--- |
-| Unit | `valichord/shared_types` | `cargo test` | < 1 s, conductor-free | Pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`) |
-| Integration | `valichord/tests/` | Tryorama (TypeScript) | 97 (1 skipped) | Multi-conductor protocol flows over a real peer-to-peer network |
-| Integration | `valichord/sweettest_integration/` | Sweettest (Rust, native conductor) | 80 | Zome logic, validation rules, cross-DNA calls, badge issuance |
+| Unit | `valichord/shared_types` + coordinators | `cargo test` | 30, conductor-free | Pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`, `evaluate_badge`) |
+| Integration | `valichord/sweettest_integration/` | Sweettest (Rust, native conductor) | 94 | Zome logic, validation rules, cross-DNA calls, badge issuance |
+| Membrane | `sweettest_integration/tests/membrane_proof.rs` | Sweettest + real Ed25519 issuer | 5 | DNA 3's credentialed membrane — the only tests that do NOT use the dev bypass |
+| Immutability | `sweettest_integration/tests/immutability_tripwire.rs` | Sweettest + `--features test_utils` | 15 | That the integrity zomes REJECT forbidden updates and deletes |
 | Browser E2E | `valichord-ui/tests/e2e/` | Playwright + real conductor | 6 | The real Svelte UI driving real zome calls in a real browser |
 | Performance | `valichord/wind-tunnel/` | Wind-Tunnel (Rust) | 5 scenarios | Throughput, DHT propagation latency, load behaviour |
 
-**Totals: 183 automated tests (182 passing, 1 Tryorama test skipped for Codespace RAM — its sweettest equivalent passes). All suites run in CI on every push and PR.**
+**Totals: 150 automated tests, none skipped — 114 sweettest (including 15 immutability tripwires and 5 membrane-proof), 30 Rust unit, 6 Playwright browser e2e. All run in CI on every push and PR.**
+
+> **The Tryorama suite (TypeScript, 92 tests) was retired on 2026-08-03**, not lost. Upstream `@holochain/tryorama` is unmaintained and will not support Holochain 0.7. Roughly 69 of its tests were already duplicated in sweettest; every unique one was ported and run green *before* the suite was deleted. That audit found three guards with no working coverage at all — the conflict-of-interest rule, DNA 2's cross-agent privacy, and `link_agent_identity`'s signature checks — each now covered by a test that has been **seen to fail**. The headline count drops because a suite of duplicates was removed, not because coverage did.
+
+⚠️ **Counts here are derived from the source, not from memory.** The retired suite was quoted as "97 passing" for months while the source declared 98 then 92, and eleven tests across two culls turned out to pass on *"function not found"* — asserting against zome functions that were never written. A test count is only worth as much as the last time somebody checked it against the files.
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
@@ -24,16 +29,23 @@ Build and pack the hApp first (see the [README Quickstart](README.md#-quickstart
 # Unit — pure outcome functions, < 1 s
 cargo test -p valichord_shared_types                  # from valichord/
 
-# Tryorama integration (97 tests)
-cd valichord/tests && npm install && npm test
+# Sweettest (94 tests; separate Cargo workspace — native conductor deps)
+# Use ./run-sweettest.sh, not a hand-rolled `| grep -v`: under memory pressure
+# SQLCipher ENOMEM spam splices into the MIDDLE of a result line, and an
+# exclusive filter deletes the result along with the noise. The script keeps the
+# raw log and cross-checks named results against cargo's own summary.
+cd valichord
+./run-sweettest.sh attestation
+./run-sweettest.sh governance
+./run-sweettest.sh researcher_repository
+./run-sweettest.sh validator_workspace
+./run-sweettest.sh security
+./run-sweettest.sh membrane_proof
 
-# Sweettest (80 tests; separate Cargo workspace — native conductor deps)
-cd valichord/sweettest_integration
-cargo test --test attestation
-cargo test --test governance
-cargo test --test researcher_repository
-cargo test --test validator_workspace
-cargo test --test security
+# Immutability tripwires (15 tests, ~50 min) — need their own build, because no
+# production coordinator exposes update_entry or delete_entry.
+cd valichord && ./build-test-dnas.sh
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire
 
 # Browser e2e (6 tests, ~1.5 min; needs the packed hApp + chromium)
 cd valichord-ui && npm install
@@ -47,7 +59,7 @@ cargo run -p validation_request_throughput -- --agents 4 --duration 60
 
 Before any conductor-based run, kill stale conductors: `pkill -f holochain; pkill -f lair-keystore; sleep 2`.
 
-In CI (`.github/workflows/tests.yml`): the Tryorama suite and the browser e2e job run on every push/PR, and the sweettest suite runs as five parallel matrix jobs (one per test binary). The e2e job needs no Rust toolchain — it uses the committed `valichord/workdir/valichord.happ` — and reports in ~2 minutes.
+In CI (`.github/workflows/tests.yml`): four jobs run on every push/PR — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the immutability tripwires. The e2e job needs no Rust toolchain — it uses the committed `valichord/workdir/valichord.happ` — and reports in ~2 minutes.
 
 ---
 

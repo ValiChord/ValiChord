@@ -7,7 +7,7 @@
 [![Integration Tests](https://github.com/ValiChord/ValiChord/actions/workflows/tests.yml/badge.svg)](https://github.com/ValiChord/ValiChord/actions/workflows/tests.yml)
 [![Status](https://img.shields.io/badge/Status-E2E_Tested_in_CI-brightgreen?style=for-the-badge)](https://valichord.github.io/ValiChord)
 [![Language](https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/valichord/)
-[![Tests](https://img.shields.io/badge/Tests-182_pass_%7C_1_skipped-brightgreen?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/valichord/tests/)
+[![Tests](https://img.shields.io/badge/Tests-150_pass-brightgreen?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/TESTING.md)
 [![Commit--Reveal](https://img.shields.io/badge/Commit--Reveal-Fully_Symmetric-blue?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/README.md#-the-blind-commit-reveal-protocol)
 [![UI](https://img.shields.io/badge/UI-Svelte_5_%2B_TypeScript-ff3e00?style=for-the-badge)](https://github.com/ValiChord/ValiChord/blob/main/valichord-ui/FRONTEND.md)
 
@@ -150,8 +150,7 @@ valichord/
 │   ├── researcher_repository/ — DNA 1: private, single-agent
 │   ├── validator_workspace/   — DNA 2: private, single-agent  
 │   └── governance/         — DNA 4: public DHT, HTTP Gateway
-├── tests/                  — Tryorama integration suite (one .test.ts per DNA + security)
-├── sweettest_integration/  — Rust sweettest suite (native conductor)
+├── sweettest_integration/  — Rust sweettest suite (native conductor) — the integration suite
 ├── wind-tunnel/            — Wind-Tunnel performance scenarios (throughput, DHT propagation, load)
 └── happ.yaml               — all four DNA roles bundled
 
@@ -168,7 +167,7 @@ valichord-ui/               — Svelte 5 + TypeScript browser UI
 └── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
-**180 automated tests across three suites (97 Tryorama, 77 Rust sweettest, 6 Playwright browser e2e) — all running in CI.** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
+**150 automated tests across three suites (114 Rust sweettest, 30 Rust unit, 6 Playwright browser e2e) — all running in CI, none skipped.** The system is also integration-ready: a REST API (`POST /validate`, `GET /result/<job_id>`) connects the analysis pipeline to the live Holochain network, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports API key authentication, webhook callbacks, and a full [OpenAPI 3.0 spec](backend/openapi.yaml) with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
@@ -405,7 +404,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/ValiChord/ValiChord/tree/main/valichord-ui) |
 | Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/ValiChord/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
 | Testing guide — all four layers, run commands, coverage inventory | [`TESTING.md`](https://github.com/ValiChord/ValiChord/blob/main/TESTING.md) |
-| Test suite + build instructions | [`valichord/tests/README.md`](https://github.com/ValiChord/ValiChord/blob/main/valichord/tests/README.md) |
+| Test suite + build instructions | [`TESTING.md`](https://github.com/ValiChord/ValiChord/blob/main/TESTING.md) |
 | Wind-Tunnel performance scenarios | [`valichord/wind-tunnel/`](https://github.com/ValiChord/ValiChord/tree/main/valichord/wind-tunnel) |
 | Architecture Scaffold v12 | [`docs/4_ValiChord_RUST_Scaffold.rs`](https://github.com/ValiChord/ValiChord/blob/main/docs/4_ValiChord_RUST_Scaffold.rs) |
 | Technical Architecture | [`docs/7_ValiChord_4-DNA_architecture_technical.md`](https://github.com/ValiChord/ValiChord/blob/main/docs/7_ValiChord_4-DNA_architecture_technical.md) |

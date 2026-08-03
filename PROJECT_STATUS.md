@@ -451,44 +451,86 @@ Two mechanical sweeps, both reproducible:
   ⚠️ One finding: `link_agent_identity_self_link_rejected` is rejected by the **coordinator**, so
   `validate()` is never reached — the integrity guard behind it remains unproven and unreachable.
 
-### 🆕 Tryorama: retire it, don't migrate it — scoped 2026-08-02
+### ✅ TRYORAMA IS RETIRED — done 2026-08-03, and the audit paid for itself three times
 
-**Upstream `@holochain/tryorama` is dead**: an unmaintained banner landed Jan 2026 saying
-*"support for Holochain 0.7+ should not be expected"* and pointing at **sweettest**. A community
-fork (`@holochain-open-dev/tryorama` 0.20.0, MIT, targets 0.7 + client 0.21) does exist — so the
-long-standing "no 0.7 line, blocked upstream" note was checking the wrong package.
+`valichord/tests/` is **deleted** (22 files, 14 246 lines), and its CI `test` job with it.
+Upstream `@holochain/tryorama` is unmaintained — a banner landed Jan 2026 saying Holochain 0.7+
+support *"should not be expected"*, pointing at sweettest. Porting to a dead runner would have
+been work with a known expiry date.
 
-Scoping says **retire rather than port**: of 92 tests, **~69 are already duplicated in sweettest**
-(`researcher_repository` 13/13 and `validator_workspace` 7/7 are 100% redundant) and ~23 unique.
-✅ The 5 membrane-proof tests — the only coverage of DNA 3's credentialed membrane anywhere, since
-sweettest runs entirely in dev-bypass — **are ported and green**. ~15 unique tests remain, mostly
-edge cases; 3 are `"no delete fn exists"` assertions superseded by the delete tripwires.
+**Nothing was deleted before its replacement was green.** All 92 tests were mapped by hand
+against the 124 sweettest functions first. That mapping is the reason this was not a silent loss
+— the handoff's claim that every unique test had already been ported **was wrong**, and the audit
+found three guards with NO working coverage at all:
 
-⚠️ **Trap for the port:** `verify_signature(key, sig, data)` does **not** verify over `data` as
-given — `VerifySignature::new` stores `holochain_serialized_bytes::encode(&data)`, so a `Vec<u8>`
-is verified as a msgpack *array of integers*, not raw bytes. Sign via `Sign::new`, which routes
-through the same `encode()`. Signing raw bytes fails in a way indistinguishable from "the guard
-works".
+| Gap found | Why it had gone unnoticed |
+|---|---|
+| **Conflict-of-interest guard** | Its test ran on ONE conductor, so researcher and validator were the same agent — the self-claim guard rejected the claim first and the COI comparison was never reached. Passed on a bare `is_err()`. |
+| **DNA 2 cross-agent privacy** | No test anywhere asked whether a *second* agent could read a sealed private attestation. Every private-entry test asks the author about their own data. |
+| **`link_agent_identity` signature checks** | Both `verify_signature` calls untested; the existing test passes 64 zero bytes and says so in its own body. |
+| **Governance delete guards** | HarmonyRecord / GovernanceDecision / ReproducibilityBadge — "covered" only by three Tryorama tests asserting *"no delete function exists in the API"*, which passes identically against a DNA with no guards. |
+
+All four are now closed, each asserting its guard's own message, and the governance ones carry a
+**negative control**: removing the guard made the forbidden delete succeed with a real
+`ActionHash`, and the test failed as designed. See `d2ea6104`.
+
+Deliberately NOT ported: the `FailedReproduction` / `Divergent` badge variants — 27 unit tests in
+`shared_types` already cover that arithmetic, and an integration test would re-prove it at ~30 min
+a run.
+
+⚠️ **Trap, recorded because it nearly bit:** `verify_signature(key, sig, data)` does **not** verify
+over `data` as given — `VerifySignature::new` stores `holochain_serialized_bytes::encode(&data)`,
+so a `Vec<u8>` is verified as a msgpack *array of integers*. The port signs via the zome's own
+`sign_for_identity_link`, which routes through the same `encode()`. Signing raw bytes fails in a
+way indistinguishable from "the guard works".
+
+### ✅ CI IS CLEANED UP — done 2026-08-03 (was item 4)
+
+`.github/workflows/tests.yml` no longer carries a REVERT-BEFORE-MERGE banner. Four jobs:
+`no-test-hooks`, `ui-e2e`, `sweettest` (**six** matrix legs), `tripwire`.
+
+- **`test` job deleted** with the suite it ran.
+- **`sweettest` lost `needs: [test]`** and its `always()` workaround — there is no `test` job to
+  gate on. The five legs are now the primary signal.
+- 🆕 **`tripwire` is NO LONGER branch-scoped.** It was `if: github.ref_name == 'v0.7.0'`, which
+  would have **switched it off at merge** when that branch disappeared — silently removing the
+  only proof the integrity zomes reject forbidden writes. It costs ~50 min and it runs everywhere.
+- 🆕 **`membrane_proof` added as a sixth matrix leg.** It was never in the matrix, so its 5 tests
+  had **no CI signal at all** — and they are the only coverage anywhere of DNA 3's credentialed
+  membrane, since every other suite runs under the dev bypass.
+- Matrix test counts re-derived from source (they had drifted: attestation 19→30, governance
+  17→22) and timeouts given headroom.
+
+⚠️ **Public claims were updated with it** — `README.md` (badge + the "180 tests across three
+suites" line + the directory tree + a dead link to `valichord/tests/README.md`) and `TESTING.md`.
+Deleting the suite while the README advertised 97 Tryorama tests is exactly the drift this project
+does not accept. New figures, derived from source: **150 automated tests** — 114 sweettest
+(incl. 15 tripwires + 5 membrane-proof), 30 Rust unit, 6 Playwright.
+
+⚠️ **The 150-pass claim is asserted, not yet CI-confirmed as one sweep.** Every one of those tests
+has been run green, but not all in a single run since the changes. The next push settles it.
 
 ### 👉 THE NEXT STEP — merge prep
 
 Everything that gated the merge is now green. What remains is process, not verification:
 
-Ordered. Items 1–3 are the investigation branch; 4–6 are the migration itself.
+✅ **Items 1, 2 and 4 are DONE** (2026-08-03): the ported tests are run and green, the liveness
+gate is verified in both directions, Tryorama is retired and CI is cleaned up. What is left is
+**two decisions and a deployment** — none of them mine to take.
 
-1. **Cherry-pick the verified test work onto `v0.7.0`** — `membrane_proof.rs` and the 8
-   strengthened assertions. Both are verified and independent of the experiment.
-2. **Rebuild + repack, then run the governance suite** to test the liveness gate (`fd56cc41`).
-   Confirm `live_claim_blocks_force_finalize` **fails** against the old DNA first, or the test is
-   not exercising the gate.
+1. ~~Cherry-pick the verified test work onto `v0.7.0`~~ — ⚠️ **still open, and now bigger.** This
+   branch has since accumulated the two fixed claim tests, four ported tests, three governance
+   tripwires, the CI rework and the doc updates. It is no longer a two-item cherry-pick; the
+   realistic options are to merge this branch into `v0.7.0` wholesale, or to rebase it there.
+2. ~~Run the governance suite against the liveness gate~~ — ✅ done, 21 passed, both directions.
 3. **Decide on the honest-record change** — `HarmonyRecord` carrying *both* the requested cohort
    size and the number who reported, so an early close is visibly incomplete rather than quietly
    false. Integrity-level, so it wants to ride the 0.7 hash break rather than buy its own — but
    the branch is otherwise merge-ready, so this is a scope call: take it now and delay, or accept
    a second break later. `OpenAudit` groundwork was banked for exactly this reason.
-4. **Revert the branch-only CI changes** — see Non-negotiables. ⚠️ **`ui-e2e` must stay
-   unskipped**; only the `test` skip, the `sweettest` gating change and the branch-only
-   `tripwire` job are the ones to reconsider.
+4. ~~Revert the branch-only CI changes~~ — ✅ done. Note it was **not** a revert: the `test` job
+   was deleted rather than un-skipped (un-skipping it would have meant a permanently failing
+   build, since Tryorama cannot run on 0.7), and `tripwire` was promoted rather than removed.
 5. **Take the merge decision explicitly with the user** — it is theirs, and it has never been
    given. Accepted cost, already decided: every published HarmonyRecord URL dies at the hash
    break.
@@ -499,8 +541,9 @@ Ordered. Items 1–3 are the investigation branch; 4–6 are the migration itsel
 introduced, and shipping 0.7 does not worsen it. It need not block the merge unless the user
 wants it to.
 
-Tryorama and `wind-tunnel` stay blocked upstream and are **not** merge blockers — they were
-already skipped/untouched before this branch existed.
+`wind-tunnel` stays blocked upstream (Phase C: `holochain_wind_tunnel_runner` is still on
+`holochain = "0.6"`) and is **not** a merge blocker — it was untouched before this branch existed.
+Tryorama is no longer a consideration at all: retired 2026-08-03.
 
 ⚠️ **The Oracle box is a separate question and is NOT part of this.** It runs the live 0.6.2
 demo. Do not touch it until the branch merges — and when it happens it is a full rebuild with
