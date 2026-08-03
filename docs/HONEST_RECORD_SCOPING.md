@@ -1,7 +1,20 @@
 # Honest-record scoping — should `HarmonyRecord` say how many validators were *asked*?
 
-**Status: SCOPING ONLY. Nothing here is implemented.** Written 2026-08-03 so the decision in
-`PROJECT_STATUS.md` → "THE NEXT STEP" item 3 can be taken on facts rather than on a summary.
+**Status: ✅ IMPLEMENTED 2026-08-03** on `investigate/harmony-record-undercount`, by user decision
+after reading this. Kept as the record of what was weighed, including the two arguments AGAINST
+(§4) — the field is disclosure, not enforcement, and the badge tier was already honest.
+
+⚠️ **One thing was decided differently from the recommendation in §7:** it was taken *before*
+merging to `v0.7.0`, not after. It is a separate commit on top of a CI-green branch, so failure is
+still attributable between the migration and this feature — which was the point of the sequencing
+rule, if not its letter.
+
+What shipped, against §3: `validators_requested: u32` with `#[serde(default)]`; a validation guard
+rejecting `participating > requested` (a contradiction inside the record, so no cross-DNA call is
+needed); both write paths supplying it, with `force_finalize_round` **aborting** rather than
+writing `0` if it cannot determine the count; and the UI rendering "3 of 7 · validators
+(incomplete)". Verified: partial quorum records **1 of 2**, a full round records **2 of 2**, and
+all 15 immutability tripwires still pass against the rebuilt integrity zome.
 
 **The decision is one thing:** take this now, while the 0.7 migration is already breaking every
 DNA hash, or accept that taking it later costs a *second* break. It is not a question of whether

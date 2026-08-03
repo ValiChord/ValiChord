@@ -217,8 +217,15 @@ pub fn check_and_create_harmony_record(
         }
     }
 
-    // 4-7. Assemble and write.
-    let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
+    // 4-7. Assemble and write. min_validators IS the requested cohort size — this
+    // path only writes once the full set has reported, so requested == participating
+    // here and the record reads "N of N".
+    let hash = write_harmony_record(
+        request_ref,
+        attestation_records,
+        anchor_key,
+        min_validators as u32,
+    )?;
     Ok(Some(hash))
 }
 
@@ -307,6 +314,26 @@ pub fn force_finalize_round(
         None => return Ok(None), // VR not found — cannot verify age; abort conservatively.
     }
 
+    // 3a. The requested cohort size, for the honest-record field.
+    //
+    // Fetched the same way the quorum gate fetches it, rather than decoded from the
+    // ValidationRequest above, because `ValidationRequest` is an attestation-DNA type
+    // and this crate does not depend on that integrity zome.
+    //
+    // ⚠️ A failure here aborts rather than writing 0. Writing 0 would mean "not
+    // recorded", which is exactly the ambiguity this field exists to remove — and it
+    // would do so on the ONE path that can produce a short record. Aborting matches
+    // how this function already treats a missing ValidationRequest: an unfinalised
+    // round can be closed later, a permanently misleading record cannot be fixed.
+    let validators_requested: u32 =
+        match call_attestation_zome_opt::<ExternalHash, u8>(
+            "get_num_validators_required",
+            request_ref.clone(),
+        )? {
+            Some(n) => n as u32,
+            None => return Ok(None),
+        };
+
     // 3b. LIVENESS GATE — do not finalise while a validator still holds a live claim.
     //
     // Age is not evidence of abandonment. Reproduction legitimately takes days or
@@ -374,7 +401,18 @@ pub fn force_finalize_round(
     }
 
     // 4-7. Assemble and write with whatever attestations are present.
-    let hash = write_harmony_record(request_ref, attestation_records, anchor_key)?;
+    //
+    // ⚠️ THIS is the path the requested count exists for. It writes a record with
+    // FEWER validators than were asked for, and until now the shortfall was
+    // invisible: the result was indistinguishable from a smaller round that
+    // completed in full. Recording the request makes an early close read as
+    // "3 of 7" instead of silently as "3".
+    let hash = write_harmony_record(
+        request_ref,
+        attestation_records,
+        anchor_key,
+        validators_requested,
+    )?;
     Ok(Some(hash))
 }
 
@@ -453,6 +491,11 @@ fn write_harmony_record(
     request_ref: ExternalHash,
     attestation_records: Vec<Record>,
     anchor_key: EntryHash,
+    // How many validators the ValidationRequest asked for. Both callers already
+    // hold this: the quorum gate reads it, and force_finalize_round fetches the
+    // ValidationRequest for its age check. Passing it in keeps this function free
+    // of cross-DNA calls on the write path.
+    validators_requested: u32,
 ) -> ExternResult<ActionHash> {
     // Build (validator, attestation) pairs in a single pass — guarantees that
     // participating_validators and attestations are always the same length so
@@ -538,6 +581,7 @@ fn write_harmony_record(
         validator_types: validator_types.clone(),
         validation_duration_secs,
         discipline,                 // moved — no clone
+        validators_requested,
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 

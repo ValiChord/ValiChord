@@ -291,6 +291,9 @@ const server = createServer(async (req, res) => {
         discipline:      hr.discipline      ?? null,
         validator_count: Array.isArray(hr.participating_validators)
                            ? hr.participating_validators.length : 0,
+        // 0 = not recorded (record predates the field); the viewer shows the bare
+        // count in that case rather than "3 of 0".
+        validators_requested: hr.validators_requested ?? 0,
       };
 
       // Enrich with the numeric-convergence headline. Degrade, never 500:

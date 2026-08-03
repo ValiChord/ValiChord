@@ -555,7 +555,11 @@ gate is verified in both directions, Tryorama is retired and CI is cleaned up. W
    tripwires, the CI rework and the doc updates. It is no longer a two-item cherry-pick; the
    realistic options are to merge this branch into `v0.7.0` wholesale, or to rebase it there.
 2. ~~Run the governance suite against the liveness gate~~ — ✅ done, 21 passed, both directions.
-3. **Decide on the honest-record change** — `HarmonyRecord` carrying *both* the requested cohort
+3. ~~Decide on the honest-record change~~ — ✅ **DECIDED AND BUILT 2026-08-03.** Taken now rather
+   than deferred, so it rides the 0.7 hash break instead of buying a second one. Governance DNA
+   hash moved `uhC0kRrX19H1PP…` → `uhC0k-KuuIMxxHdI…`. Both directions tested (1 of 2, and 2 of 2)
+   and all 15 tripwires green afterwards. Record: `docs/HONEST_RECORD_SCOPING.md`.
+   ~~Original text: decide on the honest-record change~~ — `HarmonyRecord` carrying *both* the requested cohort
    size and the number who reported, so an early close is visibly incomplete rather than quietly
    false. Integrity-level, so it wants to ride the 0.7 hash break rather than buy its own — but
    the branch is otherwise merge-ready, so this is a scope call: take it now and delay, or accept

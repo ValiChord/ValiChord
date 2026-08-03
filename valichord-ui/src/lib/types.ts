@@ -213,6 +213,10 @@ export interface HarmonyRecord {
   validator_types: (ValidatorAgentType | null)[];
   validation_duration_secs: number;
   discipline: Discipline;
+  /** How many validators were REQUESTED. 0 = not recorded (pre-field records).
+   *  Rust side is #[serde(default)], so older records decode with 0 rather than
+   *  failing — treat 0 as "unknown", never as "a cohort of zero". */
+  validators_requested: number;
 }
 
 // ── BadgeType ─────────────────────────────────────────────────────────────────

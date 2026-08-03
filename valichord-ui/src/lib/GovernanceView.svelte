@@ -250,8 +250,21 @@
             <!-- Stats -->
             <div class="stats-row">
               <div class="stat">
-                <span class="stat-value">{entry.participating_validators.length}</span>
-                <span class="stat-label">validators</span>
+                <!-- "3 of 7" when a round closed short, plain "3" when it did not.
+                     requested === 0 means the record predates the field, so we show
+                     the bare count rather than inventing "3 of 0". -->
+                <span class="stat-value">
+                  {#if entry.validators_requested > 0 && entry.participating_validators.length < entry.validators_requested}
+                    {entry.participating_validators.length} of {entry.validators_requested}
+                  {:else}
+                    {entry.participating_validators.length}
+                  {/if}
+                </span>
+                <span class="stat-label">
+                  {entry.validators_requested > 0 && entry.participating_validators.length < entry.validators_requested
+                    ? "validators (incomplete)"
+                    : "validators"}
+                </span>
               </div>
               <div class="stat">
                 <span class="stat-value">{formatDuration(entry.validation_duration_secs)}</span>

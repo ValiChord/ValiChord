@@ -78,6 +78,28 @@ pub struct HarmonyRecord {
     /// Max time invested across validators (Phase 0 data collection).
     pub validation_duration_secs: u64,
     pub discipline:               Discipline,
+    /// How many validators the `ValidationRequest` asked for, captured at
+    /// finalisation. `0` means "not recorded" — records written before this
+    /// field existed, which `#[serde(default)]` keeps readable.
+    ///
+    /// WHY THIS EXISTS. Without it a record saying "Reproduced / ExactMatch /
+    /// 5 validators" is ambiguous: it reads identically whether 5 were asked
+    /// for and 5 reported (complete), or 7 were asked for and 5 reported
+    /// (incomplete). `force_finalize_round` can write the second case, and a
+    /// HarmonyRecord is immutable, so the ambiguity is permanent. Recording
+    /// the requested count makes an early close visibly incomplete —
+    /// "5 of 7" — rather than quietly indistinguishable from a full round.
+    ///
+    /// ⚠️ This is a DISCLOSURE field, not an enforcement one. `validate()`
+    /// cannot make cross-DNA calls (see the HarmonyRecord create arm), so the
+    /// author asserts this value and the integrity zome cannot check it
+    /// against the ValidationRequest in DNA 3 — exactly as it already cannot
+    /// check `participating_validators`. The authoritative count stays public
+    /// and immutable in DNA 3 for anyone who verifies. What this buys is that
+    /// incompleteness is visible by DEFAULT rather than only to someone who
+    /// goes looking.
+    #[serde(default)]
+    pub validators_requested:     u32,
 }
 
 /// Per-validator reputation score.
@@ -270,6 +292,26 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             } else {
                 props.min_attestations_for_finalization
             };
+            // A record may report FEWER participants than were requested — that is
+            // precisely what force_finalize_round produces and what the field exists
+            // to disclose. It may never report MORE: a cohort of N cannot have had
+            // N+1 members, so this is a contradiction inside the record itself and
+            // needs no cross-DNA call to detect.
+            //
+            // Skipped when validators_requested is 0, which means "not recorded"
+            // (pre-field records, kept readable by #[serde(default)]) rather than
+            // "a cohort of zero" — num_validators_required has a hard floor of 1 in
+            // DNA 3, so 0 can never be a genuine requested count.
+            if record.validators_requested > 0
+                && (record.participating_validators.len() as u32) > record.validators_requested
+            {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "HarmonyRecord reports {} participating validators but only {} were \
+                     requested — a cohort cannot have more members than it asked for",
+                    record.participating_validators.len(),
+                    record.validators_requested,
+                )));
+            }
             if (record.participating_validators.len() as u32) < min_required {
                 return Ok(ValidateCallbackResult::Invalid(format!(
                     "HarmonyRecord requires at least {} participating validator(s) \

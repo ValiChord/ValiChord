@@ -211,7 +211,22 @@ async fn full_round_creates_harmony_record() {
     let record: Option<Record> = setup.conductors[0]
         .call(&setup.alice.governance_zome(), "get_harmony_record", request_ref)
         .await;
-    assert!(record.is_some(), "HarmonyRecord should be visible on the governance DHT");
+    let record = record.expect("HarmonyRecord should be visible on the governance DHT");
+
+    // THE HONEST RECORD, complete half — and it is not optional. Asserting only the
+    // incomplete case would pass against an implementation that hard-coded a
+    // shortfall, or that always reported requested > participating. A full round
+    // must read "2 of 2".
+    let hr: HarmonyRecord = record
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .expect("record must carry a HarmonyRecord entry");
+    assert_eq!(hr.participating_validators.len(), 2, "both validators attested");
+    assert_eq!(
+        hr.validators_requested, 2,
+        "a complete round must report requested == participating",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -448,7 +463,26 @@ async fn force_finalize_round_with_partial_quorum() {
     let record: Option<Record> = setup.conductors[0]
         .call(&setup.alice.governance_zome(), "get_harmony_record", request_ref)
         .await;
-    assert!(record.is_some(), "HarmonyRecord should be visible after force_finalize_round");
+    let record = record.expect("HarmonyRecord should be visible after force_finalize_round");
+
+    // THE HONEST RECORD, incomplete half. This round asked for 2 validators and
+    // closed with 1. Before validators_requested existed, the record said "1" and
+    // was indistinguishable from a 1-validator round that completed in full —
+    // permanently, because a HarmonyRecord is immutable. It must now say "1 of 2".
+    let hr: HarmonyRecord = record
+        .entry()
+        .to_app_option()
+        .unwrap()
+        .expect("record must carry a HarmonyRecord entry");
+    assert_eq!(
+        hr.participating_validators.len(),
+        1,
+        "only Alice attested, so only Alice may be counted",
+    );
+    assert_eq!(
+        hr.validators_requested, 2,
+        "the record must preserve the REQUESTED cohort size, not the size that turned up —          otherwise an early close is silently indistinguishable from a complete round",
+    );
 }
 
 // ---------------------------------------------------------------------------
