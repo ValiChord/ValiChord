@@ -1,83 +1,86 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-08-01
-**Phase:** Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.1** (GitHub release, 2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
+**Last updated:** 2026-08-03
+**Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ⚠️ **Oracle still runs 0.6.2**, so the live public demo and `main` describe different stacks until Oracle is rebuilt — a full rebuild with state loss, not an upgrade. Every previously published HarmonyRecord URL is dead (accepted). Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.1** (GitHub release, 2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **five adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 537 valichord_attestation tests, 97% line coverage.
 
 ---
 
-# 🚦 START HERE — next session (updated 2026-08-02)
+# 🚦 START HERE — next session (updated 2026-08-03)
 
-**✅ PHASE A IS COMPLETE AND CI-GREEN.** All 51 `FlatOp` arms ported, all 8 zomes on
-`hdi 0.8.0` / `hdk 0.7.0`, conductor configs fixed, bundles repacked on 0.7, and **run
-`30659873225` (commit `719c62ce`) was fully green — all 5 immutability tripwires, all 5
-sweettest suites, and the hook guard.** The sweettest sweep is the one that matters most: it
-covers commit-reveal, phase transitions, quorum counting, cross-DNA calls and badge issuance,
-so the protocol is proven to still *work* on 0.7, not merely to still reject forbidden updates.
+# ✅✅ THE 0.7 MIGRATION IS MERGED. `main` IS ON HOLOCHAIN 0.7.
 
-**✅ AND THE UI HALF OF PHASE B IS NOW DONE TOO** (`10c92fe5`, 2026-08-02). `valichord-ui` runs
-**6/6 Playwright e2e green against a real `holochain 0.7.0` conductor**, locally *and* in CI —
-the `ui-e2e` job is unskipped on the branch and passed on a clean runner. Getting there needed a
-**sixth conductor-config site that no audit had found**, because it is *generated* in TypeScript
-rather than committed as YAML. Details below and in §44.11.
+Merged 2026-08-03: `03fc16f4..38ea2123`. Everything below this heading that talks about
+branches, merge prep or "main stays on 0.6.2" is **historical** — kept because the
+reasoning is worth more than the status, not because it is current.
 
-**✅ AND THE DEMO STACK RUNS A FULL COMMIT-REVEAL ROUND ON 0.7** (`316abb7b`, same day) — five
-containers, five conductors, real cross-container gossip, HarmonyRecord read back as
-**Reproduced / ExactMatch / 3 validators**. Starting it found **four more breakages** the blind
-config edit had missed. §44.12.
+| Branch | State |
+|---|---|
+| `main` | **Holochain 0.7**, at `38ea2123` |
+| `v0.7.0` | same commit; merged, can be deleted |
+| `investigate/harmony-record-undercount` | same commit; merged, can be deleted |
 
-**✅ AND THE LIVE AI DEMO ROUND PASSED ON 0.7** — three independent Claude validators, blind
-commit, phase gate, on-chain-verified reveal, HarmonyRecord **Reproduced (3/3) / ExactMatch**.
-That was the merge-gating "live demo round".
+**How it merged:** `investigate/…` → `v0.7.0` (fast-forward, 18 commits, which also
+repaired `v0.7.0`'s red badge-flake run) → `main` → `v0.7.0` (reconciling 2 commits that
+turned out to be **already applied under different SHAs**, so no net content) → `v0.7.0` →
+`main` (fast-forward, 52 commits).
 
-**✅ AND THE COORDINATOR AUTO-UPDATER REHEARSES GREEN ON 0.7** — hot-swap applied to all four
-cells, DNA hash unchanged on each.
+**Verification standing behind it:** CI run `30819563258` on `bc3ed82b` was **10/10 green**
+— 114 sweettest, 30 unit, 6 Playwright, 15 immutability tripwires, the hook guard. Nothing
+but markdown changed between that commit and the merge. Plus a full demo-stack round on the
+merged DNA (below).
 
-**👉 Everything that gated the 0.7 merge is green.** What is left is merge prep — reverting the
-branch-only CI changes and the merge decision itself, which is the user's. See THE NEXT STEP.
+## 🔴 THE ONE THING THAT IS NOW OUT OF STEP: ORACLE
 
----
+**Oracle still runs Holochain 0.6.2.** `main` and the live public demo now describe
+**different stacks**. That is the outstanding job and it is deliberate — it was never part
+of the merge.
 
-## 🔴 READ THIS FIRST IF THE SESSION RESTARTED — state as of 2026-08-02, late
+- It is a **full rebuild with state loss**, not an upgrade. 0.7 agents form a separate
+  network from 0.6.
+- ⚠️ **Every published HarmonyRecord URL is already dead** — accepted by the user
+  2026-08-01 and reaffirmed at the merge. Do not treat this as a bug to fix.
+- ⚠️ **Until Oracle is rebuilt, be careful about public claims**: the README describes
+  what `main` is, which is no longer what the demo runs. See `user_ceri_working_style` —
+  public claims must match deployed reality.
 
-**You are probably on the wrong branch.** Three branches are live:
+## Where the phases landed
 
-| Branch | What is on it | Trust level |
+| Phase | Scope | Status |
 |---|---|---|
-| `main` | Holochain 0.6.2, the publicly-demoed stack | untouched, stays 0.6.2 |
-| `v0.7.0` | the whole 0.7 migration, up to `af4ba3e5` | 🔴 **NOT green — see below** |
-| `investigate/harmony-record-undercount` | branched off `v0.7.0`; badge-flake diagnosis + fix, plus test work | 🟠 **mixed — see below** |
+| **A** | 4 DNA zomes, sweettest, configs, bundles | ✅ complete, merged |
+| **B** | Svelte UI | ✅ complete — 6/6 e2e on a real 0.7 conductor |
+| **B** | Tryorama suite | ✅ **retired 2026-08-03**, not migrated — upstream is unmaintained |
+| **C** | `valichord/wind-tunnel/` | 🟠 blocked on an upstream **release**, not on work — see `CLAUDE.md` |
 
-### 🔴 CORRECTION — `v0.7.0` IS NOT CI-GREEN (found 2026-08-03)
+## What shipped on top of the migration
 
-This file said `v0.7.0` was "✅ CI-green, merge-ready". **It is not.** Its head commit
-`af4ba3e5` has a **failed** run (`30754216764`, 2026-08-02):
+Protocol work that rode the hash break rather than buying a second one:
 
-```
-failure  Sweettest (governance)
-success  no-test-hooks, tripwires, ui-e2e, attestation,
-         security, researcher_repository, validator_workspace
-```
+- **Validator→bundle binding** (`ef795736`) — a verdict is now a claim about a specific set
+  of per-sample outputs, not the bare word "Reproduced".
+- **HarmonyRecord undercount fix** (`60a5609c`) — participation could be understated
+  permanently, and the count feeds the badge tier.
+- **The honest record** (`bc3ed82b`) — `validators_requested` beside the participant list,
+  so an early close reads "3 of 7" rather than silently "3". Record:
+  `docs/HONEST_RECORD_SCOPING.md`, including the two arguments *against* it.
+- **`DataLocalityMode`** (`171b7042`) — `Gdpr` | `OpenAudit` groundwork, plus the
+  `LockedResult` delete guard that had been missing entirely.
+- **The liveness gate** (`fd56cc41`) — force-finalisation now refuses while a validator
+  still holds a live claim. Age alone is not evidence of abandonment.
+- **Four coverage gaps closed** that the Tryorama retirement audit exposed: the
+  conflict-of-interest guard, DNA 2 cross-agent privacy, `link_agent_identity`'s two
+  signature checks, and the three governance delete guards — each now with a test that has
+  been *seen to fail*.
 
-```
-test gold_badge_issued_with_seven_validators ... FAILED
-assertion `left == right` failed: the finalised record must count all 7
-validators (else a sub-Gold badge is issued)
-  left: 5
- right: 7
-```
+## 👉 THE NEXT STEP
 
-**That is the badge flake, and the fix for it is on THIS branch, not on `v0.7.0`** —
-`e1b701f3` (`round_timeout_secs` 0 → 86400). So the branch queued for `main` currently fails its
-own governance suite, and would keep failing until this branch reaches it.
+1. **Oracle rebuild**, when chosen. Full rebuild, state loss, published URLs already gone.
+2. **Delete the merged branches** (`v0.7.0`, `investigate/harmony-record-undercount`).
+3. **Tag a release.** `main` has moved a long way past `v0.6.1` and nothing marks it.
+4. **Phase C** whenever upstream publishes the wind-tunnel runner.
 
-⚠️ **This changes the cherry-pick question.** It is no longer "should `v0.7.0` take some verified
-test work?" — `v0.7.0` is **red without it**. Merging or rebasing this branch there is repair, not
-enhancement.
+---
 
-⚠️ **And it is why the gold badge result in the current CI run matters more than the rest.** That
-test has never failed locally; CI is the only place it fails. A green gold badge on a clean runner
-is the first real evidence the scheduled-sweep diagnosis was right, rather than the fourth
-plausible theory.
 
 ### ⚠️ The investigation branch mixes VERIFIED work with an UNVERIFIED experiment
 
@@ -668,7 +671,9 @@ panicked on its own first iteration) was real but addressed the wrong layer.
   tests never looked at the Tryorama suite, where five more of them lived — inside the
   97-passing figure.
 
-### Non-negotiables (unchanged)
+### Non-negotiables — ⚠️ HISTORICAL, superseded by the merge (2026-08-03)
+
+Kept for the reasoning. The "`main` stays on 0.6.2" rule below was satisfied and then retired: the branch went fully green, the user approved, and the merge happened. The accepted-cost items (dead record URLs, Oracle as a rebuild) are still live facts.
 
 - **`main` stays on 0.6.2** until the branch is fully green *and* the user explicitly approves the
   merge.
