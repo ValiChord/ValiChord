@@ -385,6 +385,27 @@ Checked 2026-07-30, ~15 min after the release:
 
 Re-check the table above before starting Phase B, and crates.io for `holochain_wind_tunnel_runner` before Phase C.
 
+### 🔴 THE WIND-TUNNEL CI JOB IS DISABLED (`if: false`) — RE-ENABLE IT, DO NOT DELETE IT
+
+Set 2026-08-03, immediately after `main` merged to 0.7. `valichord/wind-tunnel/` **cannot
+build**: its scenarios depend on `valichord_shared_types` **by path** (now `hdi 0.8.0` →
+`holo_hash 0.8`) while the crates.io runner drags in holochain 0.6 → `holo_hash 0.6`, so
+two versions of `holo_hash` land in one dependency graph:
+
+```
+error[E0308]: expected `HoloHash<External>`, found `HoloHash<holo_hash::hash_type::External>`
+note: there are multiple different versions of crate `holo_hash` in the dependency graph
+```
+
+⚠️ **This was missed at merge time.** Phase C was recorded as "not a merge blocker — the
+load tests were untouched". Untouched was true; harmless was not. **Untouched code that
+depends on migrated code breaks.** Check path-dependent workspaces before any future
+version bump, not just the ones being changed.
+
+**The fix is available now** — see the Phase C note below: upstream `main` is already on
+Holochain 0.7, just unpublished, so pin the runner to a **git rev** in all six scenario
+manifests. Then delete the `if: false` in `.github/workflows/wind-tunnel-smoke.yml`.
+
 ### 🟠 Phase C — the upstream migration is FINISHED; only the release is missing (checked 2026-08-03)
 
 **`holochain/wind-tunnel` `main` migrated to Holochain 0.7.0 on 2026-07-31** — the day after 0.7.0

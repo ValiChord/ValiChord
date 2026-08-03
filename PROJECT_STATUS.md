@@ -74,6 +74,21 @@ Protocol work that rode the hash break rather than buying a second one:
 
 ## 👉 THE NEXT STEP
 
+0. 🔴 **RE-ENABLE THE WIND-TUNNEL CI JOB — it is currently `if: false`.**
+   **This is a mute on a known-broken build, not a retirement. Do not delete the job.**
+   The merge to 0.7 broke `valichord/wind-tunnel/`: its scenarios depend on
+   `valichord_shared_types` **by path** (now `hdi 0.8.0` → `holo_hash 0.8`), while
+   `holochain_wind_tunnel_runner = "0.7"` resolves to the crates.io 0.7.1 release, which
+   still pins holochain 0.6 → `holo_hash 0.6`. Two `holo_hash` versions in one graph:
+   ``error[E0308]: expected `HoloHash<External>`, found `HoloHash<holo_hash::hash_type::External>` ``.
+   ⚠️ **The crate version is a trap** — runner 0.7.x has nothing to do with *Holochain* 0.7;
+   0.7.1 is a Holochain **0.6** runner.
+   **The fix:** upstream `holochain/wind-tunnel` `main` migrated to Holochain 0.7.0 on
+   2026-07-31 and pins `hdk 0.7.0` / `hdi 0.8.0` / `kitsune2 0.5.0` — our exact stack. It is
+   merely unpublished. So pin the runner to a **git rev** of that repo (all six scenario
+   manifests), or wait for their next crates.io release. Then delete the `if: false` in
+   `.github/workflows/wind-tunnel-smoke.yml` and confirm the job goes green.
+   ⚠️ Nothing shipped depends on this workspace — load-test scenarios only.
 1. **Oracle rebuild**, when chosen. Full rebuild, state loss, published URLs already gone.
 2. **Delete the merged branches** (`v0.7.0`, `investigate/harmony-record-undercount`).
 3. **Tag a release.** `main` has moved a long way past `v0.6.1` and nothing marks it.
