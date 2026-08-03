@@ -372,7 +372,7 @@ Checked 2026-07-30, ~15 min after the release:
 
 ⚠️ **Any quoted "97 / 92 Tryorama tests" figure is dead — the suite is gone (2026-08-03).** For the record of why the number kept moving: six declarations were culled in `cc19e8c4` as fakes passing on *"function not found"*, taking 98 → 92, and the "97 passing" quoted for months was never reconciled against the source. Current counts live in `TESTING.md`, derived from the source rather than remembered.
 
-**🔴 AND A THIRD BLOCKER — `wind-tunnel` (found in the 2026-07-30 API audit, not previously recorded).** `valichord/wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate that pulls `holochain = "0.6"`. That crate must ship a 0.7 version before the load-test workspace can move. Independent of both the zomes and the JS side.
+**🟠 AND A THIRD BLOCKER — `wind-tunnel` (found in the 2026-07-30 API audit).** `valichord/wind-tunnel/` depends on **`holochain_wind_tunnel_runner`**, a third-party crate that pulls `holochain = "0.6"`. ⚠️ **PARTLY RESOLVED 2026-08-03 — upstream `main` migrated to 0.7 on 07-31; only the crates.io release is missing. See "Phase C — the upstream migration is FINISHED" below before treating this as blocked.** Independent of both the zomes and the JS side.
 
 **So the migration is THREE phases, two of them blocked on upstream:**
 
@@ -381,9 +381,45 @@ Checked 2026-07-30, ~15 min after the release:
 | **A** | 4 DNA zomes + `sweettest_integration` | ✅ **unblocked — can start now** |
 | **B** | Svelte UI | ✅ done 2026-08-02 — 6/6 e2e green on a real 0.7 conductor |
 | **B** | ~~Tryorama tests~~ | ✅ resolved 2026-08-03 by **retiring** the suite, not migrating it |
-| **C** | `wind-tunnel/` | 🔴 blocked: `holochain_wind_tunnel_runner` on 0.6 |
+| **C** | `wind-tunnel/` | 🟠 **upstream work is DONE, awaiting a crates.io release** — see below |
 
 Re-check the table above before starting Phase B, and crates.io for `holochain_wind_tunnel_runner` before Phase C.
+
+### 🟠 Phase C — the upstream migration is FINISHED; only the release is missing (checked 2026-08-03)
+
+**`holochain/wind-tunnel` `main` migrated to Holochain 0.7.0 on 2026-07-31** — the day after 0.7.0
+stable, via `feat: Update to Holochain 0.7.0` (preceded by rc.1 on 07-17 and rc.3 on 07-28). `main`
+now pins `hdk 0.7.0`, `hdi 0.8.0`, `holochain_types 0.7.0`, `holochain_client 0.9.0`,
+`kitsune2 0.5.0` — our exact stack. The repo is active (pushed 2026-08-03).
+
+**But it is NOT published.** Latest on crates.io is `holochain_wind_tunnel_runner` **0.7.1, dated
+2026-07-21** — *ten days before* the migration — and it still pins `holochain_types ^0.6.3` and
+`kitsune2_api ^0.4.1`.
+
+⚠️ **VERSION-NAME TRAP, AND WE ARE INSIDE IT.** Our scenarios declare
+`holochain_wind_tunnel_runner = "0.7"` (all five: `valichord_wt_common`,
+`validation_request_throughput`, `phase_observation_latency`, `concurrent_reveal_throughput`,
+`dht_sync_lag`; plus `kitsune_wind_tunnel_runner = "0.7"` in `kitsune_dht_propagation`).
+**The crate's own 0.7.x has nothing to do with Holochain 0.7 — 0.7.1 is a Holochain *0.6* runner.**
+This is the inverse of the trap already recorded above ("never infer *not published* from a crate
+version that trails the release name"): here, do not infer *already migrated* from a crate version
+that matches it. Reading `= "0.7"` and concluding Phase C is fine would be wrong.
+
+**So Phase C is blocked on a RELEASE, not on development.** Two routes when it is wanted, neither a
+merge blocker:
+1. Wait for their next crates.io release (they cut them periodically — look for `chore: Prepare
+   next release` on `main`).
+2. Point the scenarios at the git repo pinned to a **rev** rather than a branch. Unblocks
+   immediately; cost is a non-published dependency.
+
+🆕 **Unrelated to the migration but worth a look:** branch `214-mixed-full-arc-and-zero-arc-scenarios`
+and **issue #214 *"Mixed full arc and zero arc network scenarios"* (CLOSED, follows on from #161)**.
+Its framing is close to the polite-shrink thesis — *"a network with many zero arc conductors,
+supported by a smaller number of full arc conductors… what we don't know is how hard the full arc
+conductors will have to work to carry the validation load"*. ⚠️ The branch's last commit is
+**2025-10-07**, so the scenario work stalled even though the issue closed. Relevant to the #160
+outreach, not to this migration — see `project_arc_sim_windtunnel_plan` in memory.
+
 
 ### Evidence legend for everything below
 
