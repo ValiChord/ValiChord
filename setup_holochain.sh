@@ -23,16 +23,16 @@ echo "Adding wasm32 target..."
 rustup target add wasm32-unknown-unknown
 
 # Install holochain
-echo "Installing holochain 0.6.1 (takes ~10 min)..."
-cargo install holochain --version 0.6.1 --locked --force
+echo "Installing holochain 0.7.0 (takes ~10 min)..."
+cargo install holochain --version 0.7.0 --locked --force
 
 # Install hc CLI
-echo "Installing hc 0.6.1..."
-cargo install holochain_cli --version 0.6.1 --locked --force
+echo "Installing hc 0.7.0..."
+cargo install holochain_cli --version 0.7.0 --locked --force
 
 # Install bootstrap server
-echo "Installing kitsune2-bootstrap-srv 0.4.1..."
-cargo install kitsune2_bootstrap_srv --version 0.4.1 --locked --force
+echo "Installing kitsune2-bootstrap-srv 0.5.0..."
+cargo install kitsune2_bootstrap_srv --version 0.5.0 --locked --force
 
 # Add PATH permanently
 if ! grep -q '.cargo/bin' ~/.bashrc; then
