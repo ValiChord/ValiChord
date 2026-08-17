@@ -437,6 +437,10 @@ def test_path_loading_calls_read_functions(monkeypatch, tmp_path):
     fake_log = _mock_log()
     fake_samples = [_mock_sample(i) for i in range(3)]
 
+    # The readers below are mocked, so the real inspect_ai is never called — but the
+    # adapter's availability guard fires before it reaches them. Without this the test
+    # only passes on a machine that happens to have the optional extra installed.
+    monkeypatch.setattr(mod, "_INSPECT_AI_AVAILABLE", True)
     monkeypatch.setattr(mod, "_read_eval_log", lambda _: fake_log)
     monkeypatch.setattr(mod, "_read_eval_log_samples", lambda _: iter(fake_samples))
 

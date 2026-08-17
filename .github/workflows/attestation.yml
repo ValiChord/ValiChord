@@ -1,0 +1,82 @@
+name: Attestation Format
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CI for the `valichord_attestation` Python package.
+#
+# Added 2026-08-17. Until then the package had NO CI at all: 487 tests and
+# `examples/verify_examples.py` existed in the repo and were never run by
+# anything. The examples check was the sharper gap of the two — it recomputes
+# each example's bundle hash and Merkle root from the embedded samples and
+# compares them to the stored values, so without it a change to the hashing or
+# Merkle code could land while the committed examples still advertised the old
+# digests, and nothing would say so.
+#
+# That failure mode hides itself. Anyone who then tried to verify an example by
+# hand would get a mismatch and conclude they were holding it wrong, not that
+# the file was stale. (Same shape as the sha256sum-on-unsorted-YAML error found
+# in falsify-cookbook Pattern 8, 2026-08-17 — which is what prompted this.)
+#
+# Three parties are now implementing against format v1.2 externally, so the
+# committed examples are a de-facto conformance reference. They have to be
+# recomputed on every push, not trusted.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'valichord_attestation/**'
+      - '.github/workflows/attestation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'valichord_attestation/**'
+      - '.github/workflows/attestation.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: attestation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  attestation:
+    name: tests + example verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: valichord_attestation
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor from pyproject `requires-python`, plus current stable.
+        python-version: ['3.10', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: valichord_attestation/pyproject.toml
+
+      # No optional extras. The suite must pass on the base dependency set —
+      # a test that silently needs `inspect-ai` was doing exactly that until
+      # 2026-08-17 (it mocked the readers but not the availability flag, so it
+      # only passed on machines that happened to have the extra installed).
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Tests
+        run: pytest -q
+
+      # The load-bearing step. Recomputes bundle_hash and outputs_merkle_root
+      # from each example's embedded samples and checks the stored values,
+      # rather than trusting that whoever last edited the hashing kept them
+      # in sync.
+      - name: Verify committed examples
+        run: python examples/verify_examples.py
