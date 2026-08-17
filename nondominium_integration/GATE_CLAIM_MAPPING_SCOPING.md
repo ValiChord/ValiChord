@@ -10,6 +10,59 @@ into). A separate internal worked-example covers the general *whole-device* repr
 
 ---
 
+> **🔄 Update 2026-08-16 — re-verified against `dev`. One item is materially *easier* than recorded;
+> four are new constraints from ADR-010–013.** Architecture delta in `NONDOMINIUM_ARCHITECTURE.md`.
+>
+> **✅ Step 3 needs no enum variant from them — this supersedes flag (1) of the 2026-07-08 update.**
+> The *implemented* integrity type is open-ended:
+> ```rust
+> pub struct GovernanceRule {
+>   pub rule_type: String,           // e.g. "access_requirement", "usage_limit", "transfer_conditions"
+>   pub rule_data: String,           // JSON-encoded rule parameters
+>   pub enforced_by: Option<String>, // Role required to enforce this rule
+> }
+> ```
+> The `GovernanceRuleType` enum that lacks `ExternalValidation` lives in the **v1.0 design document**,
+> not in the code. In code, `rule_type: "external_validation"` with `rule_data` as JSON is expressible
+> **today — no enum PR, no integrity-zome change, no DNA-hash change on their side.** The June/July
+> framing of step 3 as "a request we must make explicitly" overstated the ask. It is now a
+> documentation-and-policy conversation, not a code change.
+>
+> **⚠️ But `SlotType` does not exist in code at all.** No slot-named file anywhere in the tree. The
+> two-tier capability-slot pattern is design-document material (`ndo_prima_materia.md` §6), so **Tier 1
+> is unimplemented too**, not just Tier 2. Step 2 of the handoff has nothing to write against yet.
+>
+> **⚠️ Governance-as-operator still unimplemented — re-verified 2026-08-16.** `zome_gouvernance`'s
+> coordinator modules are `agreement`, `commitment`, `contribution`, `economic_event`, `hard_link`,
+> `ppr`, `private_data_validation`, `validation`. There is no rule-evaluation or operator module. The
+> sequencing dependency from 2026-07-08 stands unchanged.
+>
+> **⚠️ Step 2's base hash moved.** `NondominiumIdentity` now lives inside the NDO's own clone cell
+> (ADR-010), so the slot link is written *there*, and for a migrated NDO the durable identity is the
+> cell's `DnaHash` — the `create_ndo()` `ActionHash` survives as `NdoAnchor.identity_action_hash`.
+> Pre-migration NDOs still sit in the shared cell, so **any gate implementation must handle both shapes.**
+>
+> **⚠️ Steps 4–5 now run inside one of N clone cells.** The `create_economic_resource()` →
+> `validate_new_resource()` pair exists in every `ndo` clone, so the cross-cell fetch of the
+> `HarmonyRecord` originates from a *cloned* cell rather than the shared `nondominium` cell. Worth
+> confirming with Tiberius how a clone addresses the ValiChord governance cell.
+>
+> **🆕 A step 6 is missing from the handoff below.** `lifecycle_stage` is now *also* cached on
+> `NdoAnchor` in the group cell. After a successful transition the anchor must be re-synced via
+> `refresh_ndo_anchor_lifecycle_stage`, or the group's browser view goes stale. Convergence is
+> pull-based; `remote_signal` push is `TODO(signals)` in their own ADR.
+>
+> **⚠️ The PPR sink does not fire yet.** Lifecycle transitions do not currently emit an
+> `EconomicEvent` (REQ-NDO-LC-02 / LC-03); `transition_event_hash` is `null` in the MVP. Any step that
+> assumes `log_economic_event()` runs on the gated transition — and therefore mints PPRs — is
+> premature.
+>
+> **✅ ADR-012 doubles the precedent for step 5.** *"A reader does not trust `anchor.ndo_dna_hash`. It
+> re-derives the clone from (network_seed, properties) and compares."* Verify-the-referent is now the
+> house pattern **twice over** — Unyt's RAVE fetch and their own anchor check. Lead with this.
+
+---
+
 ## 1. Be precise about *which* claim is at the gate
 
 Tiberius's gate authorises a `Prototype → Stable/Distributed` transition for a medical-device
@@ -117,8 +170,31 @@ Per `NONDOMINIUM_ARCHITECTURE.md` (custodian gate stays intact; no new governanc
    `{agreement_level, validator_count}` as compact msgpack. (`AgreementLevel` has no serde tag — it
    serialises as a plain string like `"ExactMatch"`, so Nondominium reads it without importing
    ValiChord types.)
+   > **⚠️ Corrected 2026-08-16 — the tag shape above is not theirs.** `ndo_prima_materia.md` §8.3
+   > specifies `CapabilitySlotTag { slot_type: SlotType, attached_at: Timestamp, label: Option<String> }`.
+   > There is **no field for an agreement level or validator count**, and we should not ask for one.
+   > The security note below argues the gate must never decide from the tag; a tag that *cannot*
+   > express the verdict enforces that structurally instead of by discipline. Put a display hint in
+   > `label` if a browser needs one, and have nothing parse it.
+   >
+   > On the slot type: §8.3's `SlotType` enum is `Documentation`, `IssueTracker`, `FabricationQueue`,
+   > `GovernanceDAO`, `VersionGraph`, `DigitalAsset`, `WeaveWAL`, `FlowstaIdentity`,
+   > `UnytAgreement(String)`, `CustomApp(String)`. **`CustomApp("valichord")` works today** under
+   > REQ-NDO-CS-04 — so the "SlotType has no validation slot" gap flagged on 2026-07-08 is a
+   > preference, not a blocker. A dedicated variant modelled on `UnytAgreement(String)` (REQ-NDO-CS-07)
+   > is the better ask, not a required one.
+   >
+   > **But `CapabilitySlot` is not in the implemented `LinkTypes` enum** — §8.4 lists it under
+   > "Planned additions (post-MVP)", and REQ-NDO-CS-01 is marked ❌. There is nothing to link against
+   > yet. Note REQ-NDO-CS-02 makes permissionless attachment a *design guarantee*, so Tier 1 needs no
+   > custodian permission once it exists, and REQ-NDO-CS-03 already anticipates marking individual
+   > slots trusted/untrusted — the natural revocation path for a slot pointing at a bad record.
 3. Nondominium adds a `GovernanceRuleType::ExternalValidation` rule specifying the required slot
    type + consensus threshold for medical-device resources.
+   > **Corrected 2026-08-16:** no enum variant is needed. The implemented `GovernanceRule.rule_type`
+   > is a `String`, so this is `rule_type: "external_validation"` with the threshold and required
+   > slot type carried as JSON in `rule_data`. Expressible today without touching their integrity
+   > zome. What is still missing is the *operator* that evaluates it at transition time.
 4. The custodian calls `update_lifecycle_stage()` (Prototype → Stable) / `update_resource_state()`
    (PendingValidation → Active); the governance rule **verifies the actual `HarmonyRecord`** before
    permitting the transition — it does **not** decide from the slot tag alone (see security note).
@@ -127,6 +203,11 @@ Per `NONDOMINIUM_ARCHITECTURE.md` (custodian gate stays intact; no new governanc
    governance cell (both `Unrestricted`), then checks: (a) the record's *own* `agreement_level` +
    validator count meet threshold, and (b) the record's `request_ref` binds to **this** resource's
    deposited data. The slot tag is a fast pre-filter / display hint only.
+6. **🆕 Re-sync the anchor (added 2026-08-16).** A successful transition must call
+   `refresh_ndo_anchor_lifecycle_stage` so the cached `lifecycle_stage` on the group cell's
+   `NdoAnchor` reflects the new stage. Their ADR resolves the anchor **by NDO identity**, not by
+   action hash, precisely because the client knows the NDO rather than the anchor's
+   original-vs-latest hashes. Skipping this leaves every group browser showing the pre-gate stage.
 
 > **Security note (do not gate on the tag alone — the central call-prep point).** The slot link and
 > its tag are written by the **researcher** (the party with incentive to inflate the result), and

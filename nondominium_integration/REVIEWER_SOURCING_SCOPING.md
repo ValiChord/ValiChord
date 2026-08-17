@@ -9,6 +9,40 @@ The companion question — *what specifically gets committed and reproduced at t
 
 ---
 
+> **🔄 Update 2026-08-16 — ADR-010–013 (per-NDO cells) changes two of this note's premises.**
+> Full architecture delta in `NONDOMINIUM_ARCHITECTURE.md`. The recommendation below still holds,
+> but for partly different reasons, and Option B has acquired a real cost it did not have in June.
+>
+> 1. **⚠️ The load-bearing new constraint: `zome_person` is not in the `ndo` cell.** The `ndo` DNA
+>    ships only `zome_resource` + `zome_gouvernance` (same wasms as `nondominium`, minus
+>    `zome_person` and `misc`). The gate fires inside an NDO clone; **roles, administration `Status`,
+>    affiliation and capability grants all stay in the shared `nondominium` cell.** So Option B's
+>    mechanism — *"coordinator logic checks status before letting an agent take a protocol action"* —
+>    is now a **cross-cell read from where the gate fires**, not a local lookup. That is a latency and
+>    availability dependency, and it raises a freshness question Option A does not have (a suspension
+>    written in the shared cell must be visible to the NDO cell at decision time).
+> 2. **⚠️ "Nondominium doesn't use DNA properties" is no longer true** — the claim under Option B
+>    below, and the "DNA-hash coupling" / "Native to Nondominium?" rows in the comparison table, are
+>    corrected in place. ADR-013 binds each NDO's immutable classification into clone DNA properties,
+>    and their own framing is *"immutability is hash physics, not a validation rule someone can
+>    forget."* **The strongest objection to Option A — that DNA-property-bound immutability is foreign
+>    to Nondominium — is dead.** They independently adopted the pattern.
+> 3. **Nondominium now has implicit structural admission of its own.** An NDO clone is a separate
+>    network; joining requires the `network_seed` plus matching properties (ADR-012: a reader
+>    re-derives the `DnaHash` and compares rather than trusting the anchor). So per-NDO membership is
+>    already enforced structurally, not just in application logic — which makes Option A's enforcement
+>    model easier to argue for than the June framing assumed.
+> 4. **Open question 2 (conflict-of-interest) inherits the same cross-cell problem.** Institution /
+>    affiliation lives on `zome_person` in the shared cell, so a same-institution check run at the gate
+>    is a cross-cell read too.
+>
+> **Net effect on the recommendation:** still lead with framing #2 (delegation), because the boundary
+> argument is unchanged and governance-as-operator has to land regardless. But the June rationale
+> *"Option B is more native, Option A adds foreign machinery"* should be dropped — it is no longer
+> accurate, and framing #3 (hybrid) is now a materially easier sell than it was.
+
+---
+
 ## The question, framed precisely
 
 "Where do the independent reviewers come from, and how is independence guaranteed?"
@@ -60,10 +94,17 @@ join the DHT, and participation is gated **in application logic** by a moderatio
   letting an agent take a protocol action.
 
 **Character:** admission is in-DHT, visible, reversible (flip to `Suspended` with a reason), and
-the admin set can be plural (capture-resistant). This is also **how Nondominium itself already
-works** — no DNA properties (`properties: ~`), in-DHT role hierarchy
-(`RoleType`: SimpleAgent / AccountableAgent / PrimaryAccountableAgent / …) plus an administration
-layer. So Option B is the more *native* fit for the integration substrate.
+the admin set can be plural (capture-resistant). Nondominium has the in-DHT role hierarchy this
+needs (`RoleType`: SimpleAgent / AccountableAgent / PrimaryAccountableAgent / …) plus an
+administration layer.
+
+> **⚠️ Corrected 2026-08-16.** This paragraph used to read "no DNA properties (`properties: ~`) …
+> so Option B is the more *native* fit." Both halves are now wrong. ADR-013 binds immutable NDO
+> classification into clone DNA properties (`NdoDnaProperties`), so DNA-property-bound immutability
+> **is** native to Nondominium. And the role/administration data Option B depends on lives in
+> `zome_person`, which is **absent from the `ndo` cell where the gate fires** — so Option B's check
+> costs a cross-cell read that Option A's join-time membrane does not. Option B remains defensible on
+> revocability and transparency; it is no longer the obviously more native choice.
 
 ---
 
@@ -78,7 +119,8 @@ layer. So Option B is the more *native* fit for the integration substrate.
 | Capture resistance | Weaker (single issuer = single gate) | Stronger (distributed admins, transparent) |
 | Onboarding UX | Async cert issuance (joining-service) | Self-register, then await acceptance |
 | DNA-hash coupling | Issuer baked into DNA properties (change = new network) | None — admins are in-DHT data |
-| Native to Nondominium? | No — adds ValiChord-side config | Yes — mirrors its existing model |
+| Native to Nondominium? | ~~No~~ **Yes, as of ADR-013** — they bind classification into clone DNA properties and call it "hash physics" | Yes — mirrors its role/administration model |
+| Readable from the `ndo` cell where the gate fires? | **Yes** — enforced at join, nothing to read | **No** — `zome_person` is not in the `ndo` cell; needs a cross-cell read (2026-08-16) |
 | Already built in ValiChord? | **Yes** (membrane proof + issuer property) | No — would be new application logic |
 
 Neither changes badge tiers or `minimum_validators`, and **neither is a statistical claim** —
@@ -109,11 +151,17 @@ actually matters for the integration, given the agreed split:
 
 **Lead with framing #2 (delegation), implemented as Option B on the Nondominium side.** Rationale:
 - It honours the agreed boundary — Nondominium owns admission, ValiChord owns independence.
-- It's native to how Nondominium already works (in-DHT roles + administration, no DNA properties).
+- ~~It's native to how Nondominium already works (in-DHT roles + administration, no DNA properties).~~
+  **Withdrawn 2026-08-16** — see the update block at the top. Nondominium now uses DNA-property-bound
+  immutability itself (ADR-013), and the role/administration data this option reads is in a *different
+  cell* from where the gate fires. The nativeness argument no longer favours B.
 - It keeps ValiChord a clean, reusable verifier rather than embedding a domain-specific authority.
+  **This is now the load-bearing reason**, together with the boundary argument above.
 - Option A stays available as a hardening step (framing #3) if/when a medical-device deployment
   needs structural, certificate-backed admission — but that's a later, regulatory-grade concern,
-  not the MVP gate.
+  not the MVP gate. **Note (2026-08-16): framing #3 is a materially easier sell than it was in June**,
+  because per-NDO clones already enforce admission structurally and ADR-013 establishes the
+  property-binding precedent.
 
 This preserves the "leaderless convergence" property at the *verdict* layer (commit-reveal has no
 privileged first mover) while being honest that *admission* always has an operator — and locating

@@ -6,6 +6,14 @@
 
 ---
 
+> **⚠️ Correction (2026-08-16) — the slot tag described below does not exist on their side.**
+> Their structure is `CapabilitySlotTag { slot_type: SlotType, attached_at: Timestamp, label:
+> Option<String> }` (`ndo_prima_materia.md` §8.3). There is **no** `{agreement_level,
+> validator_count}` field, and we should not request one — a tag that cannot carry the verdict makes
+> the 2026-06-16 correction below structural rather than a rule someone must remember. The wider
+> architecture delta (ADR-010–013, per-NDO cloned cells) is at the top of
+> `NONDOMINIUM_ARCHITECTURE.md`; the house-format proposal is `valichord-integration.md`.
+
 > **⚠️ Correction (2026-06-16) — the gate must verify the real `HarmonyRecord`, not the slot tag.**
 > The integration path and Decision 5 below describe NDO's governance rule checking the capability-slot
 > **tag** (`{agreement_level, validator_count}`) to permit a transition. That framing is **superseded**:
