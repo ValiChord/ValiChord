@@ -168,5 +168,13 @@
       ],
       "expected_root": "af8b75172bedba7b37f83d164612d3bf00526dac6a2448bc69277901ec74598c"
     }
+  ],
+  "error_cases": [
+    {
+      "name": "empty_sample_list",
+      "description": "An empty sample list is an error in v1.2: merkle_root raises rather than returning a root. Pinned because the spec is silent and RFC 6962 defines the empty tree as the hash of an empty string, so an implementer guessing from the RFC would conform to the RFC and diverge from this library. Same shape as the odd-node case: two implementations disagree and both believe they conform.",
+      "samples": [],
+      "expected": "error"
+    }
   ]
 }
