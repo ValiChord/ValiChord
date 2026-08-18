@@ -18,13 +18,21 @@ from __future__ import annotations
 
 from types import ModuleType
 
-from . import merkle_v1
+from . import merkle_v1, merkle_v2
 
 #: format_version → the module implementing that version's construction.
-CONSTRUCTIONS: dict[str, ModuleType] = {v: merkle_v1 for v in merkle_v1.FORMAT_VERSIONS}
+CONSTRUCTIONS: dict[str, ModuleType] = {
+    **{v: merkle_v1 for v in merkle_v1.FORMAT_VERSIONS},
+    **{v: merkle_v2 for v in merkle_v2.FORMAT_VERSIONS},
+}
 
-#: The construction used when writing new bundles. Bumped when a new format
-#: version ships; readers should pass an explicit version rather than inherit it.
+#: The construction used when writing new bundles.
+#:
+#: Still v1.2 while v2 is registered but not released. Registering the
+#: construction and switching what the library *writes* are separate steps: the
+#: first makes v2 bundles verifiable, the second changes every root this library
+#: produces and needs the spec, migration note and regenerated examples to land
+#: with it. Readers should pass an explicit version rather than inherit this.
 DEFAULT_FORMAT_VERSION = "v1.2"
 
 
