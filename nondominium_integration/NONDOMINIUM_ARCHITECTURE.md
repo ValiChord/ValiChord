@@ -1,7 +1,12 @@
 # Nondominium — Architecture Reference
 
 Quick reference for ValiChord integration work. Written March 2026 from reading the source at
-https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading the `dev` branch.
+https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading the `dev` branch, and
+**refreshed 2026-08-16 against `dev` for ADR-010–013 (per-NDO cells)** — see the re-check block below.
+
+> **Reading order.** The dated re-check blocks are newest-first and are the current truth. The
+> reference body beneath them is the March/April reading with corrections marked inline; where a
+> block and the body disagree, the block wins.
 
 > **Companion scoping notes** (pre-design, for Tiberius's integration build — written 2026-06-16,
 > closing the two open design questions from the 2026-06-14/15 Discord agreement):
@@ -10,6 +15,139 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 > - [`GATE_CLAIM_MAPPING_SCOPING.md`](./GATE_CLAIM_MAPPING_SCOPING.md) — *what gets committed at the
 >   gate*: the reference-fingerprint claim + designer/reviewer roles mapped onto the commit-reveal
 >   data model. Feeds the capability-slot-link handoff in the `zome_resource` section below.
+
+---
+
+> **🔄 Re-check 2026-08-16 — branch `dev` (the trunk; `main` has been stale since 2026-05-15).**
+> **`ADR-010`–`ADR-013` (accepted, implemented in v0.1.0, PR #128, `Closes #120`) re-shaped Layer 0.**
+> Headline: **the integration seam is unchanged; the topology around it is not.**
+>
+> 1. **✅ The seam is intact.** `ResourceState` still has the same five variants with
+>    `PendingValidation` as `#[default]`, and the `validate_new_resource` cross-zome call is **still
+>    commented out** (`economic_resource.rs` ~line 91, same TODO text). Re-verified on `dev`
+>    2026-08-16 — four months after the April confirmation. Our gap-to-fill stands.
+> 2. **Five roles now, not three** (`workdir/happ.yaml`): `lobby`, `nondominium`, **`hrea`**,
+>    `group` (`deferred`, `clone_limit: 64`), `ndo` (`deferred`, `clone_limit: 512`). The ADR-006
+>    hREA delegation flagged in point 5 of the 2026-07-08 re-check has landed as a provisioned role.
+> 3. **⚠️ The `ndo` DNA is the same zome code as `nondominium`, minus `zome_person` and `misc`.**
+>    `dnas/ndo/workdir/dna.yaml` builds from the identical `zome_resource_*` / `zome_gouvernance_*`
+>    wasms — there is no separate `dnas/ndo/zomes/` tree. Two consequences for us:
+>    - `create_economic_resource()` **and the commented-out call** exist inside *every* NDO clone, so
+>      the gate fires **per-cell, not once per network**.
+>    - **`zome_person` is absent from the `ndo` cell.** Agent identity, roles, private data,
+>      capability grants and device management stay in the shared `nondominium` cell, so any
+>      role/credential check the gate needs is a **cross-cell read from where the gate fires**. This
+>      is the single biggest new constraint on `REVIEWER_SOURCING_SCOPING.md`.
+> 4. **One cloned cell per NDO (ADR-010).** The Layer 0 `NondominiumIdentity` genesis entry now lives
+>    inside the NDO's own clone, not the shared `nondominium` cell. Pre-migration NDOs remain in the
+>    shared cell behind a legacy read fallback (`ndo.service.ts`) — **both shapes are live at once.**
+> 5. **The NDO's permanent identity is its `DnaHash` (ADR-013)**, bound through clone DNA properties.
+> 6. **⚠️ The "DnaProperties — Not implemented" section below is now wrong** and is corrected in place.
+> 7. **No global registry (ADR-011).** Discovery is per-group: `NdoAnchor` entries in each group's
+>    clone cell, *"the ONLY pointer any NDO read path follows"*. Carries `ndo_dna_hash`,
+>    `network_seed`, `identity_action_hash`, and a cached best-effort `lifecycle_stage`.
+> 8. **✅ ADR-012 is our own gate correction, arrived at independently.** *"A reader does not trust
+>    `anchor.ndo_dna_hash`. It re-derives the clone from (network_seed, properties) and compares."*
+>    That is structurally identical to our 2026-06-16 correction — don't trust the researcher-written
+>    slot tag, fetch and verify the actual `HarmonyRecord`. **Lead with this in conversation:** the
+>    verify-the-referent doctrine is now theirs, not something we are importing.
+> 9. **⚠️ Lifecycle transitions do not yet emit an `EconomicEvent`** (REQ-NDO-LC-02 / LC-03);
+>    `transition_event_hash` is `null` in the MVP. Our Step 6 PPR sink assumes `log_economic_event()`
+>    fires on the transition the gate drives. It does not yet.
+> 10. **Toolchain:** `hdi ^0.7.0`, `hdk ^0.6.0`, `holochain =0.6.0`. A `chore/holochain-0.7` branch
+>    exists (last commit 2026-08-11) but has not merged. **ValiChord's `main` is already on 0.7** — we
+>    are ahead of them here, which is a no-ask conversation opener.
+> 11. **Documentation gap worth naming.** `documentation/requirements/post-mvp/` is where an accepted
+>    external integration lives — `flowsta-integration.md` (2026-03-24) and `unyt-integration.md`
+>    (2026-03-11), both "Post-MVP Design Document", both `Relates to: ndo_prima_materia.md`. **There is
+>    no `valichord-integration.md`.** Writing one, in that format, is the concrete small ask — it is
+>    how an integration becomes legible to the project's own architecture, and it costs a document
+>    rather than code.
+>
+> Source: `documentation/specifications/adr/ADR-010-013-per-ndo-cells.md`. Its long-form design of
+> record is `.local/nondominium-architecture-design-2026-08-08.md`, deliberately kept out of the
+> repo — the ADR is the only public trace, so cite the ADR.
+
+---
+
+> **📖 Read of `ndo_prima_materia.md` §4–§5 (2026-08-16) — the lifecycle model, first-hand.**
+> Previously taken second-hand from our own notes. Five findings, one of which is the strongest
+> integration argument we have.
+>
+> 1. **🎯 They have already specified our gate and not built it.** §5.3's transition table:
+>    `Prototype --> Stable : "Accept (peer validated)"`, authorized by **"Multi-agent peer validation
+>    (configurable N-of-M)"**. Every neighbouring transition is custodian-authorised; this one is not,
+>    and **no mechanism is specified for producing that validation.** `Stable` is defined as
+>    *"Production-ready, design is replicable"* — replicability is the claim, and independent
+>    reproduction is what establishes it. **Lead the pitch with this**, not with the commented-out
+>    `validate_new_resource` call.
+> 2. **What is enforced is weaker than what is specified.** MVP: transitions validated in the
+>    *integrity* zome (`validate_update_nondominium_identity`); **only the `initiator`** may call
+>    `update_lifecycle_stage`; the role table is target behaviour (REQ-NDO-LC-07); the governance zome
+>    is not yet the state transition operator (REQ-ARCH-07). So today the proposer can unilaterally
+>    declare their own design replicable. The forward chain is **monotonic — no stage skipping** — so
+>    `Stable` is on the path to everything downstream.
+> 3. **`LifecycleStage` and `OperationalState` are orthogonal — do not conflate them** (our earlier
+>    notes did). `LifecycleStage` (10 variants, on `NondominiumIdentity`, **implemented**) describes
+>    what the artefact has become. `OperationalState` (on `EconomicResource`, **not implemented** —
+>    `ResourceState` is still the conflated enum) describes what process is acting on it. The target
+>    creation-time check is `OperationalState::PendingValidation → Available`, **not** `→ Active`.
+>    ⚠️ **`Active` exists in both enums with different meanings** — always name the enum.
+> 4. **⚠️ Our 2026-07-08 flag #4 was wrong.** It recorded `PropertyRegime` as "officially reduced to 4
+>    variants — `Collective` and `Pool` removed from the Rust + shared-types". Verified in
+>    `crates/shared/src/types.rs` on `dev`: **six variants** — `Private`, `Commons`, `Collective`,
+>    `Pool`, `CommonPool`, `Nondominium`. The *UI* `packages/shared-types` exposes four, and prima
+>    materia §4.2 calls the reconciliation deferred. The Rust is the authority; the note was reversed
+>    or never right.
+> 5. **Their own docs are mid-reconciliation.** §4.2 still states the `create_ndo` action hash is "the
+>    permanent, stable Layer 0 identity" (REQ-NDO-L0-02), while ADR-013 makes the clone's `DnaHash` the
+>    permanent identity. The ADR is newer and declares itself load-bearing over the three-layer model,
+>    so it wins — but expect the tension to surface in conversation, and don't cite §4.2 as current.
+>
+> Layer 0 is ✅ implemented; Layers 1 and 2 remain post-MVP, and §5.2's layer-activation coupling is
+> "not yet enforced in code" — lifecycle stage currently advances on Layer 0 independently.
+
+---
+
+> **📖 Read of `ndo_prima_materia.md` §2, §3, §7 (2026-08-16) — the conceptual frame. Use this
+> vocabulary; it is how they argue.**
+>
+> 1. **🎯 §3.4 names our problem as their open problem.** Verbatim: *"Debuggers, type systems, and unit
+>    tests all assume reducibility. **COP requires new verification paradigms** — closer to simulation
+>    and formal methods than conventional testing."* Their answer so far is Sweettest — which verifies
+>    the *backend*, not claims the backend records. **This is the second-strongest opening after the
+>    `Prototype → Stable` gap, and it pairs with it: they named the transition and they named the
+>    missing paradigm, separately.**
+> 2. **§3.3 is our mechanism in their words.** *"Holochain's agent-centric model: there is no global
+>    state machine. Each agent runs local validation rules, and global coherence emerges from the
+>    aggregate of local actions."* Commit-reveal applies that to empirical claims — no authority
+>    decides, agreement emerges from independent local findings. The §3.2 table's *"single source of
+>    truth → distributed state with coherence protocols"* is the sentence to reuse: ValiChord is a
+>    coherence protocol.
+> 3. **§2.2 (Benkler) is the argument for staying optional.** Coordination overhead should not exceed
+>    the value of the coordination it enables — the "pay-as-you-grow" justification for layer
+>    activation. Independent reproduction is *expensive* evidence (other people's time, rigs,
+>    materials), so it belongs at specific high-consequence transitions rather than universally. Frame
+>    optionality as cost-matching, not as hedging.
+> 4. **§2.3 (Morin, Retroactive) supports the transition framing** — *"lifecycle stage changes are
+>    triggered by economic events (outputs of the system feeding back as inputs)"*, and §3.4:
+>    lifecycle transitions are *"feedback arcs"*, not state-machine edges. A verification round is such
+>    a feedback arc.
+> 5. **⚠️ Do not pitch this as a state machine or a checklist.** §2.1 argues fixed classification at
+>    t=0 is *"an FSM in disguise"* and categorically incompatible with complex human systems; §3.2
+>    frames the shift as *"programmer as god → programmer as ecologist"*. Language implying we
+>    determine or certify correctness reads as the reductive paradigm they are explicitly rejecting.
+>    "Observes whether independent parties converge" is native; "validates that the design is correct"
+>    is not — and is also false.
+> 6. **§7 status snapshot corroborates §8.4.** Patterns 1 (Identity Anchor) and 5 (Tombstone) are in
+>    MVP code; **Patterns 2, 3 and 6 "depend on link types not yet in `zome_resource`"** — Pattern 6 is
+>    the `CapabilitySlot` surface, so this is a third independent confirmation that Tier 1 is
+>    unbuilt. Note `NdoHardLink` (#103, in `zome_gouvernance`) is a *different* cross-NDO attachment
+>    mechanism, explicitly distinguished from Pattern 6 — don't conflate them.
+> 7. **A second doc/ADR tension.** Pattern 1 says the genesis action hash is the stable namespace and
+>    *"nothing else in the system references a resource by any other handle"* — which ADR-013's
+>    `DnaHash` identity contradicts, same as §4.2. Two independent sightings of the same unreconciled
+>    seam.
 
 ---
 
@@ -52,21 +190,35 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 
 ## Overview
 
-Three DNAs as of May 2026: `nondominium` (core) + `lobby` (cross-NDO federation, added PR #103) + `group` (per-group coordination DHT, added PR #107).
-HDK `^0.6.0` / HDI `0.6.x`. Tests: Sweettest (Rust, primary) — Tryorama/Vitest tests deprecated in the fork.
+**Five roles as of August 2026** (was three in May). `hdi ^0.7.0` / `hdk ^0.6.0` / `holochain =0.6.0`.
+Tests: Sweettest (Rust, primary) + Playwright browser e2e — Tryorama/Vitest tests deprecated in the fork.
 
 ```
 nondominium.happ
-├── nondominium (DNA)
+├── lobby (DNA)           — cross-group discovery and federation (see Lobby DNA section below)
+├── nondominium (DNA)     — the shared cell; the ONLY cell with zome_person
 │   ├── zome_person       — agent identity, roles, private data, capability grants, device management
 │   ├── zome_resource     — resource specs, NDO Layer 0 identity, economic resources (ValueFlows)
 │   ├── zome_gouvernance  — validation, economic events, commitments, PPRs
 │   └── misc              — coordinator only; single ping() function (test/debug scaffold)
-├── lobby (DNA)           — cross-group discovery and federation (see Lobby DNA section below)
-└── group (DNA)           — per-group coordination; provisioned as a cloned cell per group (see Group DNA section below)
+├── hrea (DNA)            — vendored hREA; VF core types per ADR-006
+├── group (DNA)           — per-group coordination; cloned per group (deferred, clone_limit 64)
+└── ndo (DNA)             — ONE CLONE PER NDO (deferred, clone_limit 512) — ADR-010
+    ├── zome_resource     — same wasm as nondominium's
+    └── zome_gouvernance  — same wasm as nondominium's
+                             ⚠️ NO zome_person in this cell
 ```
 
-**Hierarchy (PR #107):** Lobby → Groups → NDOs. The Lobby DHT is now the registry for group cells, not NDOs directly. NDOs are discovered through their host group cell.
+**⚠️ The `ndo` DNA is not new code.** `dnas/ndo/workdir/dna.yaml` builds from the identical
+`zome_resource_*` / `zome_gouvernance_*` wasms as `nondominium`; there is no `dnas/ndo/zomes/` tree.
+So `create_economic_resource()` and the commented-out `validate_new_resource` call live in **every NDO
+clone** — the ValiChord gate fires per-cell, not once per network — while `zome_person` (roles,
+credentials, capability grants) stays behind in the shared cell, one hop away.
+
+**Hierarchy:** Lobby → Groups → NDOs. The Lobby DHT is the registry for group cells. Each group cell
+holds `NdoAnchor` entries pointing at NDO clones (ADR-011); there is no global NDO registry. NDOs
+created before the migration still live in the shared `nondominium` cell behind a legacy read fallback,
+so **both shapes coexist**.
 
 **Shared crates (May 2026):**
 - `crates/shared/` (`nondominium_shared`) — `LifecycleStage`, `PropertyRegime`, `ResourceNature` types + shared error types + path helpers. The resource integrity zome re-exports these; refer to `nondominium_shared::types` when reading the source.
@@ -151,6 +303,13 @@ A permanent identity anchor for a resource, separate from the `EconomicResource`
 Exists from conception through end-of-life. **Cannot be deleted** (validated by integrity zome).
 The original `ActionHash` from `create_ndo()` is the stable Layer 0 identity for all time.
 
+> **⚠️ Superseded 2026-08-16 (ADR-010/013).** This entry now lives **inside the NDO's own clone cell**,
+> not the shared `nondominium` cell, and the stable Layer 0 identity for a migrated NDO is the cell's
+> **`DnaHash`**, not the `create_ndo()` `ActionHash` — the action hash survives as
+> `NdoAnchor.identity_action_hash`, a pointer *into* the clone. NDOs created before the migration still
+> live in the shared cell with the old semantics, so a read path must handle both. The description
+> below remains accurate for the entry's own fields and immutability rules.
+
 ```rust
 struct NondominiumIdentity {
     name: String,                              // immutable
@@ -193,6 +352,32 @@ capability slots instead:
 - After ValiChord produces the `HarmonyRecord`, the researcher (custodian) writes a capability
   slot link to NDO's DHT: base = `EconomicResource` / `NondominiumIdentity` hash, target =
   `HarmonyRecord` ActionHash, tag = `{agreement_level, validator_count}` as compact msgpack.
+
+> **⚠️ Corrected 2026-08-16 — that tag shape is ours, not theirs, and should be dropped.**
+> `ndo_prima_materia.md` §8.3 specifies the real structure:
+> ```rust
+> pub struct CapabilitySlotTag {
+>     pub slot_type: SlotType,
+>     pub attached_at: Timestamp,
+>     pub label: Option<String>,   // human-readable label for this specific slot
+> }
+> ```
+> **No agreement-level or validator-count field exists, and we should not ask for one.** The security
+> caution below says the gate must never decide from the tag; a tag that cannot express the verdict
+> enforces that structurally rather than by discipline. Use `label` for a display hint at most, and
+> parse nothing from it. Every occurrence of the `{agreement_level, validator_count}` tag in these
+> notes (`README.md`, `INTEGRATION_VISION.md`, `GATE_CLAIM_MAPPING_SCOPING.md`) is superseded by this.
+>
+> `SlotType` (same section) is `Documentation`, `IssueTracker`, `FabricationQueue`, `GovernanceDAO`,
+> `VersionGraph`, `DigitalAsset`, `WeaveWAL`, `FlowstaIdentity`, `UnytAgreement(String)`,
+> `CustomApp(String)`. **`CustomApp("valichord")` is usable today** under REQ-NDO-CS-04, so the
+> "no validation slot" gap recorded on 2026-07-08 is a preference, not a blocker. A dedicated variant
+> modelled on `UnytAgreement(String)` (REQ-NDO-CS-07) is the better ask.
+>
+> **Not yet implemented:** §8.4 lists `CapabilitySlot` under "Planned additions (post-MVP — not yet in
+> `LinkTypes` enum)" and REQ-NDO-CS-01 is marked ❌. There is nothing to link against today.
+> REQ-NDO-CS-02 makes permissionless attachment a design guarantee once it exists; REQ-NDO-CS-03
+> already anticipates marking individual slots trusted/untrusted.
   `AgreementLevel` has no serde tag attribute in ValiChord — it serialises as a plain string
   (`"ExactMatch"`, `"WithinTolerance"`, etc.), so NDO can check it without importing ValiChord
   types.
@@ -339,7 +524,7 @@ zome_gouvernance ─────────────────────
 
 zome_resource ────────────────────────────► zome_gouvernance
   create_economic_resource()                  validate_new_resource()
-  [COMMENTED OUT — pending resolution]
+  [COMMENTED OUT — pending resolution]        [still commented out on dev, 2026-08-16]
 
 zome_person ──────────────────────────────► hREA DNA (separate DNA, proven pattern)
   create_rea_agent_bridge()                   create_rea_agent()
@@ -349,14 +534,60 @@ zome_person ──────────────────────�
 The hREA cross-DNA bridge is now called automatically from `create_person()`.
 ValiChord integration follows the same pattern.
 
+> **⚠️ Updated 2026-08-16 — this map is drawn for the shared `nondominium` cell and is now
+> incomplete.** Since ADR-010 the same `zome_resource` ↔ `zome_gouvernance` pair is instantiated in
+> **every `ndo` clone cell**, so the `create_economic_resource()` → `validate_new_resource()` edge —
+> the ValiChord gate — exists once per NDO, addressed by that NDO's `DnaHash`.
+>
+> The consequential asymmetry: **`zome_person` is not in the `ndo` cell.** Both `zome_person` edges
+> above (agent validation data, capability grants) cross a cell boundary when the caller is inside an
+> NDO clone. Anything the gate needs about *who* a reviewer is — roles, credentials, private data
+> grants — is a cross-cell read from where the gate fires.
+>
+> Per ADR-012 a reader must also **re-derive the target `DnaHash` from `(network_seed, properties)`
+> and compare it against `anchor.ndo_dna_hash`** rather than trusting the anchor. Any ValiChord call
+> path that resolves an NDO through a group anchor inherits that obligation.
+
 ---
 
 ## DnaProperties
 
-**Not implemented in Nondominium.** There is no `DnaProperties` struct in any Nondominium zome,
-and `dna.yaml` has `properties: ~`. The integration docs should not assume DNA properties exist
-on the Nondominium side — any configuration of the integration layer will need to live either
-in ValiChord's DNA properties or in an application-layer config.
+> **⚠️ Corrected 2026-08-16 — this section said "Not implemented". That is no longer true.**
+> The text below it is kept because it still describes the *base* `dna.yaml` files correctly.
+
+**Implemented, and load-bearing, for `ndo` clone cells (ADR-013).** `NdoDnaProperties` has exactly
+one definition — `crates/shared/src/types.rs` — mirrored by the UI and the Sweettest suite (a
+hand-kept mirror already drifted once, on a stale `initiator` field):
+
+```rust
+pub struct NdoDnaProperties {
+  pub name: String,
+  pub property_regime: PropertyRegime,
+  pub resource_nature: ResourceNature,
+  pub created_at: Timestamp,
+}
+```
+
+`validate_create_nondominium_identity` (`dnas/nondominium/zomes/integrity/zome_resource`) rejects a
+`create_ndo` whose classification diverges from the cell's properties. Their framing: *"Immutability
+is then hash physics, not a validation rule someone can forget"* — changing a classification field
+changes the `DnaHash`, i.e. a different network.
+
+Two caveats that matter if we bind anything to these properties:
+- **`initiator` is deliberately NOT bound.** Holochain 0.6.0 transports clone properties as
+  `YamlProperties(serde_yaml::Value)`, which has no binary variant, and an `AgentPubKey` in properties
+  hangs `createCloneCell` from the JS client. `initiator` stays authoritative on the entry and is
+  cached on the anchor for display only. **Do not treat it as DnaHash-bound.**
+- **`created_at` is not a uniqueness source** — microseconds derived from a millisecond wall clock.
+  Distinctness comes from the per-NDO `network_seed`, which is also DnaHash input.
+
+**Skip path:** the shared `nondominium` cell has `properties: ~`, so deserialising to
+`NdoDnaProperties` fails and the binding check is skipped. Legacy shared-cell NDOs keep working.
+
+**Base `dna.yaml` files still carry `properties: ~`** for `lobby`, `nondominium`, `hrea`, `group` and
+the `ndo` *template* — properties are supplied per-clone at `create_clone_cell` time, not in the
+manifest. Configuration of the integration layer itself still has no home on the Nondominium side, so
+it continues to belong in ValiChord's DNA properties or an application-layer config.
 
 ---
 

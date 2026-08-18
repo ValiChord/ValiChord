@@ -19,6 +19,26 @@
 > reasoning (and the offline signature-verification alternative): `GATE_CLAIM_MAPPING_SCOPING.md` §5 +
 > the `NONDOMINIUM_ARCHITECTURE.md` security caution. See also `REVIEWER_SOURCING_SCOPING.md`.
 
+> **🔄 Re-check (2026-08-16) — against `dev`, the trunk. Read `NONDOMINIUM_ARCHITECTURE.md` (top) first.**
+> ADR-010–013 made every NDO its own cloned cell. **The seam is intact** — `ResourceState` unchanged,
+> `validate_new_resource` still commented out — but three things below are now wrong:
+> 1. **The `{agreement_level, validator_count}` slot tag is our invention, not theirs.** Their real
+>    structure is `CapabilitySlotTag { slot_type, attached_at, label: Option<String> }`
+>    (`ndo_prima_materia.md` §8.3) — no verdict field, and we should not ask for one. It makes the
+>    "never gate on the tag" rule structural instead of disciplinary. Every occurrence of that tag
+>    shape in these notes is superseded.
+> 2. **Point (2) of the 2026-07-08 re-check below overstated the ask.** The *implemented*
+>    `GovernanceRule.rule_type` is a `String`, not an enum — `"external_validation"` with JSON
+>    `rule_data` works today, no integrity change, no DNA-hash change on their side. The
+>    `GovernanceRuleType` enum lives only in the design document.
+> 3. **Point (1) likewise.** `SlotType` already has `CustomApp(String)`, and REQ-NDO-CS-04 requires
+>    supporting it — so the "no validation slot" gap is a preference, not a blocker. What *is* missing:
+>    `CapabilitySlot` is not in the implemented `LinkTypes` enum at all (§8.4, REQ-NDO-CS-01 ❌).
+>
+> Point (3) of that re-check — governance-as-operator unimplemented — **stands, re-verified**. New:
+> `zome_person` is absent from the `ndo` cell, so reviewer roles and affiliation are a cross-cell read
+> from where the gate fires. A house-format proposal now exists at `valichord-integration.md`.
+
 > **🔄 Re-check (2026-07-08) — against their active branch `ndo-layer1` (66 commits ahead of a stale `main`).**
 > Three things to carry into any implementation conversation: (1) the capability-slot two-tier pattern
 > is now **formalised in their v1.0 architecture design doc** (no longer branch-caveated), but the
