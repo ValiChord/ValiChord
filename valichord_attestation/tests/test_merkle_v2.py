@@ -25,6 +25,38 @@ def _jcs(sample: dict) -> bytes:
     return raw if isinstance(raw, bytes) else raw.encode("utf-8")
 
 
+def _mth_bottom_up(samples: list[dict]) -> str:
+    """A second reading of RFC 6962 §2.1, in a deliberately different shape.
+
+    Bottom-up, level by level, no recursion, odd tail node promoted rather than
+    duplicated — where merkle_v2 recurses on a split at the largest power of two
+    below n. Used as an oracle: an implementation checked only against itself
+    proves consistency, not correctness, and two shapes agreeing is evidence that
+    the RFC was read the same way twice.
+
+    That the two shapes coincide at all is an assumption, so it is tested across
+    a range rather than asserted. Prompted by Cüneyt Öztürk doing the same on the
+    falsify-cookbook side (falsify-cookbook#4) — his two implementations and these
+    two all agree, which is what the vectors actually rest on.
+    """
+    if not samples:
+        return hashlib.sha256(b"").hexdigest()
+    level = [hashlib.sha256(b"\x00" + _jcs(s)).digest() for s in samples]
+    while len(level) > 1:
+        nxt = [
+            hashlib.sha256(b"\x01" + level[i] + level[i + 1]).digest()
+            for i in range(0, len(level) - 1, 2)
+        ]
+        if len(level) % 2:
+            nxt.append(level[-1])
+        level = nxt
+    return level[0].hex()
+
+
+def _gen(n: int, salt: int = 0) -> list[dict]:
+    return [{"index": i, "output": str(i * 7 + salt), "correct": i % 2 == 0} for i in range(n)]
+
+
 # ---------------------------------------------------------------------------
 # Checked against the RFC by hand, not against ourselves
 # ---------------------------------------------------------------------------
@@ -151,3 +183,40 @@ def test_v1_and_v2_roots_never_coincide(n: int) -> None:
 
 def test_order_still_matters() -> None:
     assert merkle_v2.merkle_root(S[:4]) != merkle_v2.merkle_root(list(reversed(S[:4])))
+
+
+# ---------------------------------------------------------------------------
+# Cross-implementation agreement
+# ---------------------------------------------------------------------------
+
+def test_recursive_and_bottom_up_agree_across_a_range() -> None:
+    """Two shapes of the same RFC, over n = 0..64 with two sample sets each.
+
+    The single strongest check in this file. The hand-computed tests above pin
+    n = 0..3; this covers every tree shape up to 64 leaves, including the whole
+    uneven-split region where left is a perfect subtree and right is a short one.
+    """
+    for n in range(0, 65):
+        for salt in (0, 3):
+            s = _gen(n, salt)
+            assert merkle_v2.merkle_root(s) == _mth_bottom_up(s), f"disagree at n={n}, salt={salt}"
+
+
+@pytest.mark.parametrize(
+    "n,expected",
+    [
+        (5, "48392a70e7e048e4840d4e52cf8b68d957a60fe0b66185eaeccb1ca124f65fc7"),
+        (6, "5fbeada770b285b0b1e512823a49818080d4e2f680b6e147aee4663ea0cdda86"),
+        (7, "41ea9dc8dfbdf1bed157bf8b8600ebed7acba4a4987874f26864ed33acbbfedf"),
+    ],
+)
+def test_uneven_split_region_matches_an_outside_implementation(n: int, expected: str) -> None:
+    """Roots computed independently by Cüneyt Öztürk (falsify-cookbook#4, 2026-08-18).
+
+    5 ≤ n ≤ 7 is where promote-don't-duplicate is least obvious: the split is
+    uneven and the right subtree is the short one. Both vector files stop at
+    n = 4, so until these landed nothing outside this repository had checked the
+    region. These are pinned here pending the same cases arriving in
+    tests/vectors/merkle_v2.json.
+    """
+    assert merkle_v2.merkle_root(_gen(n)) == expected
