@@ -373,7 +373,7 @@ authority key) is available without disturbing anything in this document.
 
 **Neither mechanism establishes independence.** A fully credentialed pool can still collude out of
 band, and one actor can still hold two keys. Those residual risks are addressed by pool diversity and
-by cross-system person identity — Flowsta's `IsSamePerson`, currently unpopulated — and should not be
+by cross-system person identity — Flowsta's `IsSamePersonEntry`, currently unpopulated — and should not be
 attributed to either admission mechanism.
 
 ---
@@ -390,10 +390,18 @@ fingerprint**: the electrical response signature a genuine component produces wh
 a pinned procedure. The originator deposits the claim and the procedure and seals it; independent
 labs obtain genuine parts, run the same procedure, and seal their measurements; all reveal together.
 
-Two adjacent things are deliberately excluded. **Firmware verification** is a hash comparison — it
-matches or it does not, and independent agreement adds nothing, so Nondominium should do it directly.
+Two adjacent things sit outside that, for different reasons worth separating.
+
 **Whether the fingerprint discriminates genuine parts from counterfeits** is a metrology question, not
-a reproducibility one, and sits outside this mechanism entirely.
+a reproducibility one. This is a structural limit rather than a scoping choice: independent parties
+converging on the same signature does not establish that the signature identifies anything. No version
+of this mechanism reaches it.
+
+**Firmware verification** is a different case. It is a hash comparison, so every honest party gets the
+identical verdict and independent agreement adds no information — Nondominium can do it directly. That
+is an argument from value, not from capability: the protocol would happily carry it, there is simply
+no reason to pay for independence where honest verdicts cannot differ. If a deployment turns out to
+need the two bound into one record, that is a conversation rather than a redesign.
 
 The pinned procedure is the crux. Blinding is meaningless unless the method is frozen before anyone
 measures — stimulus, measurement points, environmental conditions, and the tolerance basis all hashed
