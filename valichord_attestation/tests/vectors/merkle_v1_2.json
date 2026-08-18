@@ -1,0 +1,172 @@
+{
+  "format": "valichord_attestation v1.2 as shipped",
+  "construction": {
+    "leaf": "sha256(jcs(sample))",
+    "node": "sha256(left||right)",
+    "odd_level": "duplicate last node before pairing",
+    "empty": "error"
+  },
+  "note": "Generated with valichord_attestation at the commit noted in the PR. Bare pair hashing, no RFC 6962 domain separation. A v2 vector should replace this one, not extend it.",
+  "cases": [
+    {
+      "name": "single_sample",
+      "description": "A one-leaf tree is the leaf hash itself.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true
+        }
+      ],
+      "expected_root": "867568beae7f3421f854e45542797fee31b61686b7e8235c9c216e4d74bc6fee"
+    },
+    {
+      "name": "two_samples",
+      "description": "Smallest tree with one pairing step.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true
+        },
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        }
+      ],
+      "expected_root": "b3fdf77e04c9609cfb6af12bf45558af1340b34a156e132a4535e4ec2e9b7e26"
+    },
+    {
+      "name": "three_samples_odd_level",
+      "description": "Odd level: v1.2 pads by duplicating the last node before pairing.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true
+        },
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        },
+        {
+          "index": 2,
+          "output": "100",
+          "correct": true
+        }
+      ],
+      "expected_root": "82dbd49432097a1998c98526931b4b12dbd1e17b067dcfc3fc463b476841a9f4"
+    },
+    {
+      "name": "four_samples",
+      "description": "Balanced tree, no padding.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true
+        },
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        },
+        {
+          "index": 2,
+          "output": "100",
+          "correct": true
+        },
+        {
+          "index": 3,
+          "output": "13",
+          "correct": true
+        }
+      ],
+      "expected_root": "eb0fd1e7683939f06d9f13e01bf7e06648769a3d585b3e4cfd891d2b28d9a25c"
+    },
+    {
+      "name": "order_reversed",
+      "description": "Same members, different order \u2014 root must differ from four_samples.",
+      "samples": [
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        },
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true
+        },
+        {
+          "index": 2,
+          "output": "100",
+          "correct": true
+        },
+        {
+          "index": 3,
+          "output": "13",
+          "correct": true
+        }
+      ],
+      "expected_root": "6d492108fd360ecf97f898aa695900e742e1069b38e3e83b707c252a05e4b3d9"
+    },
+    {
+      "name": "content_changed",
+      "description": "One output edited \u2014 root must differ from four_samples.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "43",
+          "correct": true
+        },
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        },
+        {
+          "index": 2,
+          "output": "100",
+          "correct": true
+        },
+        {
+          "index": 3,
+          "output": "13",
+          "correct": true
+        }
+      ],
+      "expected_root": "0f8725de33732f54a29cd5953af5264023cf7dcaf73fcc2494c29dbe6790935d"
+    },
+    {
+      "name": "extra_field",
+      "description": "An added key changes the JCS encoding of that leaf.",
+      "samples": [
+        {
+          "index": 0,
+          "output": "42",
+          "correct": true,
+          "note": "extra"
+        },
+        {
+          "index": 1,
+          "output": "7",
+          "correct": false
+        },
+        {
+          "index": 2,
+          "output": "100",
+          "correct": true
+        },
+        {
+          "index": 3,
+          "output": "13",
+          "correct": true
+        }
+      ],
+      "expected_root": "af8b75172bedba7b37f83d164612d3bf00526dac6a2448bc69277901ec74598c"
+    }
+  ]
+}
