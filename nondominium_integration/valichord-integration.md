@@ -130,6 +130,26 @@ evidence source does not.
 replicability is precisely what independent reproduction establishes. The creation-time check is a
 secondary, and simpler, application of the same mechanism.
 
+### 2.3 This gap is not registered, and probably should be
+
+`flowsta-integration.md` §3 traces how cross-app identity entered the foundational documents: it has
+a gap row in `requirements/resources.md`, `agent.md` and `governance.md`, each naming Flowsta as the
+planned mitigation. That lineage is why Flowsta's requirements could trace to `REQ-NDO-CS-12`–`15`
+rather than invent numbers.
+
+This document has no equivalent section, because there is no equivalent row. I read all three gap
+tables. They register the absence of resource *reliability* (a tool's track record over time), of
+collective decision-making (voting schemes beyond binary validation), of sybil resistance, of
+cross-app identity. None registers the absence of *independent verification of a claim about a
+resource* — that a design is replicable, that a measured signature is what a genuine part produces.
+
+So the case here rests on §5.3 and §3.4 rather than on a pre-existing gap row, and the modest
+suggestion is that the row is missing rather than that the gap is. If it were added, the natural
+wording would be something like: *no independent verification of resource claims — a custodian's
+assertion that a design is production-ready and replicable is recorded faithfully but never checked
+by anyone who was not involved.* Whether that belongs in `resources.md` or `governance.md` is a
+question about whose problem it is, which is a fair thing to disagree about.
+
 One naming hazard worth flagging for implementers: **`Active` appears in both enums with different
 meanings** — `LifecycleStage::Active` is "in normal use", while the current `ResourceState::Active` is
 the post-validation operational state. Any rule payload should name the enum explicitly.

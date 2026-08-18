@@ -93,12 +93,18 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 >    `ResourceState` is still the conflated enum) describes what process is acting on it. The target
 >    creation-time check is `OperationalState::PendingValidation → Available`, **not** `→ Active`.
 >    ⚠️ **`Active` exists in both enums with different meanings** — always name the enum.
-> 4. **⚠️ Our 2026-07-08 flag #4 was wrong.** It recorded `PropertyRegime` as "officially reduced to 4
->    variants — `Collective` and `Pool` removed from the Rust + shared-types". Verified in
->    `crates/shared/src/types.rs` on `dev`: **six variants** — `Private`, `Commons`, `Collective`,
->    `Pool`, `CommonPool`, `Nondominium`. The *UI* `packages/shared-types` exposes four, and prima
->    materia §4.2 calls the reconciliation deferred. The Rust is the authority; the note was reversed
->    or never right.
+> 4. **`PropertyRegime` — half-corrected, then corrected again 2026-08-18.** Our 2026-07-08 flag
+>    recorded it as "officially reduced to 4 variants — `Collective` and `Pool` removed from the Rust
+>    + shared-types". `crates/shared/src/types.rs` on `dev` has **six**: `Private`, `Commons`,
+>    `Collective`, `Pool`, `CommonPool`, `Nondominium`. So the Rust half of that claim is wrong.
+>
+>    But the note was not baseless, and calling it simply "wrong" (as this block did on 2026-08-16)
+>    overstated it. `requirements/resources.md` logs the discrepancy as a **known open item on their
+>    side**: six variants in the Rust, while `IMPLEMENTATION_STATUS.md` and the UI shared-types
+>    document four with the annotation *"Collective and Pool removed after design review"*, resolution
+>    being *"reconcile in a dedicated pass"*. Our note reflected their own documentation; the Rust
+>    simply disagrees with it. **Use the Rust, and expect the count to be contested rather than
+>    settled.**
 > 5. **Their own docs are mid-reconciliation.** §4.2 still states the `create_ndo` action hash is "the
 >    permanent, stable Layer 0 identity" (REQ-NDO-L0-02), while ADR-013 makes the clone's `DnaHash` the
 >    permanent identity. The ADR is newer and declares itself load-bearing over the three-layer model,
