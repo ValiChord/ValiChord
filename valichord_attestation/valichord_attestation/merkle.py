@@ -1,76 +1,80 @@
+"""Merkle construction selection.
+
+The construction that produced a bundle's ``outputs_merkle_root`` is determined by
+that bundle's ``format_version``. This module maps one to the other, so a bundle
+written under any released format version stays verifiable after a newer
+construction ships.
+
+Every public function here takes a keyword-only ``format_version``. Where the
+caller holds a :class:`~valichord_attestation.bundle.Bundle`, pass
+``bundle.format_version`` — never rely on the default, because the default tracks
+what this library *writes*, not what the bundle in front of you *used*.
+
+See `spec/v2-backlog/04-version-dispatch.md` for the reasoning, and
+`merkle_v1.py` for the frozen v1 construction.
+"""
+
 from __future__ import annotations
 
-import hashlib
+from types import ModuleType
 
-import jcs
+from . import merkle_v1
+
+#: format_version → the module implementing that version's construction.
+CONSTRUCTIONS: dict[str, ModuleType] = {v: merkle_v1 for v in merkle_v1.FORMAT_VERSIONS}
+
+#: The construction used when writing new bundles. Bumped when a new format
+#: version ships; readers should pass an explicit version rather than inherit it.
+DEFAULT_FORMAT_VERSION = "v1.2"
 
 
-def leaf_hash(sample: dict) -> bytes:
-    """SHA-256 of the JCS-canonical encoding of a per-sample output dict.
+class UnknownFormatVersion(ValueError):
+    """Raised when a format version has no registered Merkle construction.
 
-    This is the protocol-defining leaf hash function for the Merkle tree.
-    It is public because challenge responses reference it by name.
+    Deliberately not a silent fallback to the default: a bundle declaring a
+    version this library does not know is one whose root it cannot reproduce,
+    and guessing would produce a confident wrong answer.
     """
-    raw = jcs.canonicalize(sample)
-    encoded = raw if isinstance(raw, bytes) else raw.encode("utf-8")
-    return hashlib.sha256(encoded).digest()
 
 
-def _hash_pair(left: bytes, right: bytes) -> bytes:
-    return hashlib.sha256(left + right).digest()
+def construction_for(format_version: str | None = None) -> ModuleType:
+    """Return the Merkle construction module for `format_version`."""
+    version = format_version or DEFAULT_FORMAT_VERSION
+    try:
+        return CONSTRUCTIONS[version]
+    except KeyError:
+        known = ", ".join(sorted(CONSTRUCTIONS))
+        raise UnknownFormatVersion(
+            f"No Merkle construction registered for format_version {version!r}. Known: {known}."
+        ) from None
 
 
-def _build_tree(leaves: list[bytes]) -> list[list[bytes]]:
-    """Build a complete binary Merkle tree from leaf hashes.
+def leaf_hash(sample: dict, *, format_version: str | None = None) -> bytes:
+    """SHA-256 leaf hash of a per-sample output dict, per the given format version."""
+    return construction_for(format_version).leaf_hash(sample)
 
-    Returns a list of levels: level[0] = leaves (unpadded), level[-1] = [root].
-    Odd-length levels are padded by duplicating the last node before pairing.
+
+def merkle_root(samples: list[dict], *, format_version: str | None = None) -> str:
+    """Merkle root over per-sample output dicts, as a 64-character hex string."""
+    return construction_for(format_version).merkle_root(samples)
+
+
+def merkle_proof(
+    samples: list[dict], index: int, *, format_version: str | None = None
+) -> list[dict]:
+    """Inclusion proof for the sample at `index`, as a list of path steps."""
+    return construction_for(format_version).merkle_proof(samples, index)
+
+
+def root_from_path(
+    leaf: bytes, proof: list[dict], *, format_version: str | None = None
+) -> bytes:
+    """Walk an inclusion proof from a leaf digest up to the root digest.
+
+    Used by challenge-response verification, which starts from a leaf hash the
+    holder supplied rather than a sample it can re-hash.
     """
-    if not leaves:
-        raise ValueError("Cannot build a Merkle tree from an empty sample list")
-    levels: list[list[bytes]] = [leaves[:]]
-    current = leaves[:]
-    while len(current) > 1:
-        if len(current) % 2 == 1:
-            current = current + [current[-1]]
-        current = [_hash_pair(current[i], current[i + 1]) for i in range(0, len(current), 2)]
-        levels.append(current[:])
-    return levels
-
-
-def merkle_root(samples: list[dict]) -> str:
-    """Compute the Merkle root of a list of per-sample output dicts.
-
-    Each sample dict is JCS-encoded then SHA-256 hashed to form a leaf.
-    Returns the root as a 64-character hex string.
-    """
-    leaves = [leaf_hash(s) for s in samples]
-    tree = _build_tree(leaves)
-    return tree[-1][0].hex()
-
-
-def merkle_proof(samples: list[dict], index: int) -> list[dict]:
-    """Generate a Merkle inclusion proof for the sample at `index`.
-
-    Returns a list of steps, each a dict with:
-        "sibling"  — hex-encoded sibling hash
-        "position" — "right" if the sibling is the right child (current is left),
-                     "left"  if the sibling is the left child (current is right)
-
-    The verifier reconstructs the root by combining current with each sibling
-    in the stated position at each level.
-    """
-    leaves = [leaf_hash(s) for s in samples]
-    tree = _build_tree(leaves)
-    proof: list[dict] = []
-    idx = index
-    for level in tree[:-1]:
-        padded = level + [level[-1]] if len(level) % 2 == 1 else level
-        sibling_idx = idx ^ 1
-        position = "right" if idx % 2 == 0 else "left"
-        proof.append({"position": position, "sibling": padded[sibling_idx].hex()})
-        idx //= 2
-    return proof
+    return construction_for(format_version).root_from_path(leaf, proof)
 
 
 def verify_faithfulness(
@@ -78,19 +82,17 @@ def verify_faithfulness(
     sample_index: int,
     sample: dict,
     proof: list[dict],
+    *,
+    format_version: str | None = None,
 ) -> bool:
-    """Verify that `sample` at `sample_index` is included in the Merkle tree.
+    """Verify that `sample` is included in the tree with root `root_hex`.
 
-    `sample_index` is accepted for API consistency with sparse-proof variants
-    (where the index determines path direction without a full proof list) but is
-    not used in this implementation — the `proof` list encodes all path directions.
+    ``format_version`` must match the version of the bundle the root came from.
+    It cannot be inferred: a root is 32 bytes of hex under every construction,
+    so a root produced by one and checked under another simply returns False —
+    indistinguishable from a genuine tampering result. That ambiguity is the
+    reason this parameter exists.
     """
-    _ = sample_index
-    current = leaf_hash(sample)
-    for step in proof:
-        sibling = bytes.fromhex(step["sibling"])
-        if step["position"] == "right":
-            current = _hash_pair(current, sibling)
-        else:
-            current = _hash_pair(sibling, current)
-    return current.hex() == root_hex
+    return construction_for(format_version).verify_faithfulness(
+        root_hex, sample_index, sample, proof
+    )

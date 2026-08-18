@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 
 from .bundle import Bundle
 from .challenge import Challenge, compute_challenge_hash, generate_indices
-from .merkle import leaf_hash, merkle_proof
+from .merkle import leaf_hash, merkle_proof, root_from_path
 
 
 @dataclass
@@ -53,7 +52,12 @@ class ChallengeResponse:
             raise ValueError("ChallengeResponse.samples must not be None")
 
 
-def build_response(challenge: Challenge, log_samples: list[dict]) -> ChallengeResponse:
+def build_response(
+    challenge: Challenge,
+    log_samples: list[dict],
+    *,
+    format_version: str | None = None,
+) -> ChallengeResponse:
     """Build a ChallengeResponse from the log holder's full sample list.
 
     Determines the challenged indices deterministically from the challenge,
@@ -63,6 +67,11 @@ def build_response(challenge: Challenge, log_samples: list[dict]) -> ChallengeRe
     Args:
         challenge: The Challenge issued by the verifier.
         log_samples: The holder's complete ordered list of per-sample output dicts.
+        format_version: Construction to build the proofs under. Defaults to the
+            version this library writes. **Pass the format_version of the bundle
+            being challenged** whenever it may be older: the verifier checks the
+            response against that bundle's root, so proofs built under a newer
+            construction would fail against it and look like tampering.
 
     Returns:
         A ChallengeResponse ready to hand to the verifier.
@@ -76,8 +85,8 @@ def build_response(challenge: Challenge, log_samples: list[dict]) -> ChallengeRe
 
     samples_out: list[ResponseSample] = []
     for idx in indices:
-        content_hash = leaf_hash(log_samples[idx]).hex()
-        path = merkle_proof(log_samples, idx)
+        content_hash = leaf_hash(log_samples[idx], format_version=format_version).hex()
+        path = merkle_proof(log_samples, idx, format_version=format_version)
         samples_out.append(
             ResponseSample(
                 sample_index=idx,
@@ -140,13 +149,14 @@ def verify_response(
                     "is missing 'sibling' or 'position'"
                 )
 
-        current = bytes.fromhex(sample.sample_content_hash)
-        for step in sample.merkle_path:
-            sibling = bytes.fromhex(step["sibling"])
-            if step["position"] == "right":
-                current = hashlib.sha256(current + sibling).digest()
-            else:
-                current = hashlib.sha256(sibling + current).digest()
+        # Walk the path with the construction the bundle declares. This used to
+        # inline the pair hashing, which made it a second copy of the construction
+        # that a change to merkle_v1 would have missed entirely.
+        current = root_from_path(
+            bytes.fromhex(sample.sample_content_hash),
+            sample.merkle_path,
+            format_version=bundle.format_version,
+        )
 
         if current.hex() != root:
             return False
