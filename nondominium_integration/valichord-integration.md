@@ -268,7 +268,9 @@ integration paths, not specific to this one.
 
 ### 5.2 The rule needs no type change
 
-The implemented integrity type is open:
+The implemented integrity type is open — which `flowsta-integration.md` §8 already records
+("`GovernanceRule` in `zome_resource` remains `rule_type: String` / `rule_data: String` — not a
+typed enum"):
 
 ```rust
 pub struct GovernanceRule {
@@ -433,30 +435,54 @@ Stages 1–3 are the minimum viable gate. Stage 0 costs a conversation.
 
 ## 10. Requirements
 
-Continuing the Capability Surface series from §9.5 of `ndo_prima_materia.md`, which currently ends at
-`REQ-NDO-CS-15`. Numbers are proposed, for the project to accept, renumber or reject.
+`unyt-integration.md` §11 defines its own namespace (`REQ-UNYT-NDO-*`, `-AL-*`, `-ENF-*`, `-GOV-*`)
+grouped by concern; `flowsta-integration.md` §7 instead traces to `REQ-NDO-CS-12`–`15`, numbers already
+allocated for it in `ndo_prima_materia.md` §9.5.
 
-- **REQ-NDO-CS-16** — The `SlotType` enum SHOULD support a validation variant whose target is an
-  external verification record action hash, following the `UnytAgreement(String)` precedent in
-  REQ-NDO-CS-07. Until then, `CustomApp(String)` per REQ-NDO-CS-04 is sufficient.
-- **REQ-NDO-CS-17** — Any Accountable Agent SHALL be able to attach a validation capability slot to any
-  NDO without custodian permission (Tier 1), consistent with REQ-NDO-CS-02.
-- **REQ-NDO-CS-18** — The `GovernanceRule` type SHALL support a `rule_type` of `"external_validation"`,
+This document follows Unyt, for the plainer of the two reasons: no `REQ-NDO-CS` numbers have been
+allocated for validation, and proposing to occupy a range in your series would presume a decision that
+is yours. If you would rather these were traced the way Flowsta's are, they map one-to-one onto
+`REQ-NDO-CS-16` onward and I will renumber.
+
+### 10.1 Capability surface
+
+- **REQ-VC-CS-01** — The `SlotType` enum SHOULD support a validation variant whose target is an
+  external verification record action hash, following the `UnytAgreement(String)` precedent
+  (`REQ-NDO-CS-07`). Until then, `CustomApp(String)` per `REQ-NDO-CS-04` is sufficient.
+- **REQ-VC-CS-02** — Any Accountable Agent SHALL be able to attach a validation capability slot to any
+  NDO without custodian permission (Tier 1), consistent with `REQ-NDO-CS-02`.
+
+### 10.2 State transition enforcement
+
+- **REQ-VC-ENF-01** — The `GovernanceRule` type SHALL support a `rule_type` of `"external_validation"`,
   expressing the required slot type, minimum agreement level and minimum validator count in
-  `rule_data`. No change to the `GovernanceRule` struct is required, since `rule_type` is a `String`.
-- **REQ-NDO-CS-19** — Evaluation of an `external_validation` rule SHALL fetch the referenced record and
+  `rule_data`. No change to the `GovernanceRule` struct is required, since `rule_type` is a `String` —
+  as `flowsta-integration.md` §8 already records.
+- **REQ-VC-ENF-02** — Evaluation of an `external_validation` rule SHALL fetch the referenced record and
   verify its own agreement level and validator count. It SHALL NOT decide from the
-  `CapabilitySlotTag`, which by design carries no verdict.
-- **REQ-NDO-CS-20** — Evaluation SHALL confirm the referenced record binds to the resource under
-  transition, rejecting a record that is internally valid but relates to a different subject.
-- **REQ-NDO-CS-21** — The agreement-level and validator-count thresholds SHALL be per-NDO policy, not
-  protocol constants.
-- **REQ-NDO-CS-22** — A gated lifecycle transition SHALL re-sync the cached `lifecycle_stage` on the
+  `CapabilitySlotTag`, which by design carries no verdict. Structurally identical to
+  `REQ-UNYT-ENF-02(a)`.
+- **REQ-VC-ENF-03** — Evaluation SHALL confirm the referenced record binds to the resource under
+  transition, rejecting a record that is internally valid but relates to a different subject. The
+  analogue of `REQ-UNYT-ENF-02(c)`.
+- **REQ-VC-ENF-04** — A gated lifecycle transition SHALL re-sync the cached `lifecycle_stage` on the
   hosting group's `NdoAnchor` via `refresh_ndo_anchor_lifecycle_stage`.
-- **REQ-NDO-CS-23** — Admission to a validation round SHALL be determined by Nondominium governance,
-  not by the verification protocol.
+- **REQ-VC-ENF-05** — Rule evaluation failures SHALL produce a rejection naming the cause — record not
+  found, threshold not met, record does not bind to this resource — so a custodian can act on it. The
+  round may be re-run and the transition resubmitted. Modelled on `REQ-UNYT-ENF-04`.
 
-**Open question for the project.** REQ-NDO-CS-23, and any affiliation-based conflict-of-interest check,
+### 10.3 Governance
+
+- **REQ-VC-GOV-01** — The agreement-level and validator-count thresholds SHALL be per-NDO policy, not
+  protocol constants.
+- **REQ-VC-GOV-02** — Admission to a validation round SHALL be determined by Nondominium governance,
+  not by the verification protocol.
+- **REQ-VC-GOV-03** — An NDO with no endorsed `external_validation` rule SHALL transition according to
+  its other governance rules alone. Verification SHALL be invisible and non-blocking for resources
+  that have not opted into it. This is `REQ-UNYT-GOV-04` applied to evidence rather than settlement,
+  and it is what makes §1's claim of optionality checkable rather than a promise.
+
+**Open question for the project.** `REQ-VC-GOV-02`, and any affiliation-based conflict-of-interest check,
 both need `zome_person` data — which is not present in the `ndo` cell where the rule executes. Three
 options, each with a different failure mode:
 
@@ -488,3 +514,12 @@ The choice is Nondominium's; it is a governance question wearing an architecture
 - **Nothing here is enforceable yet.** Governance-as-operator is unimplemented, and the slot surface
   exists in specification rather than in code. This document describes an attachment point, not a
   working integration.
+
+---
+
+*This document is post-MVP and proposed rather than adopted. It describes verification as a capability
+attached through the existing capability-slot surface, on the same two-tier pattern as
+`unyt-integration.md` and `flowsta-integration.md`. Nothing here requires a change to the NDO core data
+model. Section 5's Tier 1 depends on `CapabilitySlot` reaching `LinkTypes` (`REQ-NDO-CS-01`), and
+Section 9's step 4 depends on governance-as-operator (`REQ-ARCH-07`, `REQ-NDO-LC-07`) — both shared with
+the Unyt and Flowsta paths rather than specific to this one.*
