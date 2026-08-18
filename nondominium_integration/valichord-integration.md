@@ -213,9 +213,10 @@ between observation and settlement. ValiChord occupies the analogous position fo
 The parallel is exact in one respect worth drawing out. At full enforcement, Unyt's governance rule
 does not trust the capability-slot tag; the transition request carries a `rave_hash`, and the
 governance zome queries the Unyt DHT to retrieve and validate the actual RAVE against the transition
-context. ValiChord's gate must work identically: fetch the real `HarmonyRecord`, check its own
-agreement level and validator count against the threshold, and confirm its request reference binds to
-*this* resource.
+context — a Record of Agreement Verifiably Executed, per `unytco/smart_agreement_library`, which is
+the record of one execution of a Smart Agreement. ValiChord's gate must work identically: fetch the
+real `HarmonyRecord`, check its own agreement level and validator count against the threshold, and
+confirm its request reference binds to *this* resource.
 
 The reason is the same in both cases. A slot tag is written by the party who benefits from the
 transition. It is a discovery hint, never an authority.
