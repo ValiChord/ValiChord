@@ -198,7 +198,7 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 ---
 
 ### `valichord_attestation` — Canonical AI Evaluation Attestation Format
-**Status: v1.2 — standalone Python library, 259 tests, 100% line coverage**
+**Status: format v2 (package 2.0.0) — standalone Python library, 576 tests**
 
 `valichord_attestation/` is a harness-agnostic Python library that produces cryptographically verifiable attestation bundles for AI evaluation runs. It applies the same commit-hash-reveal principle that ValiChord uses for scientific reproducibility to AI capability benchmarks: a published accuracy score becomes traceable to the specific run that produced it, and any individual sample can be proven to a third party without disclosing the full log.
 
@@ -210,7 +210,9 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 |---|---|
 | `valichord_attestation/builder.py` | `build_bundle(model_id, task_id, raw_metrics, samples, ...)` — constructs and validates a `Bundle`, computes the Merkle root, enforces pre-rounding rules, rejects NaN/Infinity |
 | `valichord_attestation/canonical.py` | RFC 8785 (JCS) deterministic encoding; `hash_bundle(bundle)` — SHA-256 hex of canonical encoding; `content_hash(bundle)` — scientific equivalence hash (excludes `meta`) |
-| `valichord_attestation/merkle.py` | `merkle_root(samples)`, `merkle_proof(samples, index)`, `verify_faithfulness(root_hex, index, sample, proof)` |
+| `valichord_attestation/merkle.py` | selects the construction from `format_version`; wraps `merkle_root`, `merkle_proof`, `root_from_path`, `verify_faithfulness`. **Pass the bundle's own version when verifying** — inheriting the default checks an old root under the current construction and reports it as tampering |
+| `valichord_attestation/merkle_v1.py` | **frozen** v1 construction, kept so v1.x bundles stay verifiable |
+| `valichord_attestation/merkle_v2.py` | current construction — RFC 6962 §2.1 |
 | `valichord_attestation/bundle.py` | `Bundle` dataclass — required fields + `meta: Optional[dict]`, `samples_total: Optional[int]`; `Metric` has optional `filter` field |
 | `valichord_attestation/challenge.py` | `Challenge` dataclass, `derive_seed`, `generate_indices`, `compute_challenge_hash` — verifier-controlled randomness via HMAC-SHA256 seed + SHA-256 counter-mode index PRNG |
 | `valichord_attestation/response.py` | `build_response(challenge, samples)`, `verify_response(challenge, response, bundle)` — holder proves k random samples via Merkle paths without disclosing full log |
@@ -218,7 +220,12 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 | `valichord_attestation/adapters/inspect_evals_stub.py` | `InspectEvalsAdapter` — reads the `evaluation_report:` block from `eval.yaml`; optional `eval_yaml_metadata=` folds task-level provenance (arxiv, group, human baseline, floating-asset warnings) into `Bundle.meta` |
 | `valichord_attestation/adapters/inspect_ai_log_adapter.py` | `InspectAILogAdapter` — reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API; `inspect-ai` is an optional dependency (`pip install "valichord_attestation[inspect-ai]"`) |
 
-**Format summary (v1.2):**
+**Format summary (v2):**
+
+> v2 (2026-08-18) changed the Merkle construction to RFC 6962 §2.1 and **nothing else** — leaf/node
+> domain separation, odd subtrees promoted rather than duplicated, empty and single-leaf defined.
+> The field description below is unchanged from v1.2 and applies to both. v1.x bundles remain valid
+> and are verified under the frozen v1 construction. Spec: `spec/attestation_format_v2.md`.
 
 A bundle is a JSON document with required fields `format_version`, `generated_at`, `model_id`, `task_id`, `metrics`, `samples`, `outputs_merkle_root`, and `samples_completed`. Optional: `samples_total` (when > `samples_completed`, signals partial run), `meta` (free-form provenance dict — commit, harness version, command, timestamp; included in `bundle_hash`, excluded from `content_hash`). `Metric` has an optional `filter` field to disambiguate metrics with the same key from different scorer passes.
 

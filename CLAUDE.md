@@ -245,12 +245,20 @@ The `sweettest_integration/` and `wind-tunnel/` directories are each their own C
 |---|---|
 | `builder.py` | `build_bundle(...)` — assembles a `Bundle` from typed fields |
 | `canonical.py` | JCS (RFC 8785) encoding + `hash_bundle()` + `content_hash()` |
-| `merkle.py` | `merkle_root`, `merkle_proof`, `verify_faithfulness` |
+| `merkle.py` | construction selection by `format_version`; wrappers for `merkle_root`, `merkle_proof`, `root_from_path`, `verify_faithfulness` |
+| `merkle_v1.py` | **frozen** v1 construction — bare pair hashing, odd levels padded by duplication. Kept so v1.x bundles stay verifiable. Do not "fix" its known weaknesses here |
+| `merkle_v2.py` | current construction — RFC 6962 §2.1 |
 | `challenge.py` | Probabilistic challenge generation (HMAC-SHA256 seed, SHA-256 counter-mode PRNG) |
 | `response.py` | `build_response`, `verify_response` — Merkle-path selective disclosure |
 | `adapters/` | `AdapterBase` ABC; `InspectAILogAdapter` (reads `.eval` files); `InspectEvalsAdapter` |
 
-Format version: v1.2. Bundles have a `bundle_hash` (full content) and `content_hash` (excludes `Bundle.meta` provenance block). v1/v1.1 bundles remain valid.
+**Format version: v2** (since 2026-08-18; `build_bundle` writes `"v2"`, package 2.0.0). Bundles have a `bundle_hash` (full content) and `content_hash` (excludes `Bundle.meta` provenance block). v1/v1.1/v1.2 bundles remain valid and are **not** rewritten.
+
+**v2 changed the Merkle construction and nothing else** — RFC 6962 §2.1, adopted whole: `0x00`/`0x01` leaf/node domain separation, odd subtrees promoted rather than duplicated, empty and single-leaf cases defined. Every other part of `spec/attestation_format_v1.md` (fields, JCS encoding, both hashes, challenge-response, threat model) still applies. Spec: `spec/attestation_format_v2.md`.
+
+⚠️ **When verifying, pass the bundle's own `format_version`** — never inherit the library default. A root is 64 hex chars under every version, so checking a v1.2 root under v2 returns *does not verify*, indistinguishable from tampering. `construction_for()` raises `UnknownFormatVersion` rather than guessing. This bit three call sites during the v2 release; assume it will bite again.
+
+Conformance vectors: `tests/vectors/merkle_v1_2.json` (+ `_odd_node`) and `merkle_v2.json`. The v1.2 files are **frozen** — they are the evidence old bundles still verify. A new version adds a file, never edits these.
 
 ### Svelte UI architecture (valichord-ui/)
 

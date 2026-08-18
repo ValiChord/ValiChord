@@ -805,6 +805,51 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### `valichord_attestation` format v2 + first CI for the package — 2026-08-18 ✓ (merged to main)
+
+**Format v2 shipped.** RFC 6962 §2.1 Merkle construction, adopted whole. `build_bundle` writes
+`"v2"`; package 2.0.0. Spec `spec/attestation_format_v2.md`; construction `merkle_v2.py`; 8 vectors;
+example `simple_eval_v2.json`. **Existing bundles are untouched and not rewritten** — they declare
+v1.x and verify under the frozen `merkle_v1.py`. 576 tests, CI green on 3.10 and 3.13.
+
+**What v2 fixes** (all three were in `spec/v2-backlog/`, now marked shipped):
+1. **Domain separation** — leaves `0x00`, interior nodes `0x01`. Previously identical, which is the
+   precondition for the Merkle second-preimage attack. Recorded as deferred in the 2026-07-05 audit.
+2. **Odd-node promotion** — v1 padded odd levels by duplicating the last node, so `[A,B,C]` and
+   `[A,B,C,C]` shared a root (CVE-2012-2459 shape). Found 2026-08-17; **not** on the audit list.
+3. **Empty and single-leaf** — neither was defined in the spec; behaviour was incidental.
+
+Plus **version dispatch**: the construction is selected from `bundle.format_version`, and an
+unrecognised version raises rather than falling back.
+
+**Attestation CI created — the package had none.** 487 tests and `examples/verify_examples.py` sat
+in the repo, run by nothing. `.github/workflows/attestation.yml` now runs both on every push
+touching `valichord_attestation/**`. Prompted by the falsify-cookbook Pattern 8 audit: the examples
+check recomputes each bundle's hash and root rather than trusting the committed values.
+
+**Bugs found, all of which would have shipped silently:**
+- `verify_response` held a **second inlined copy of the pair hashing** — a v2 that shipped without
+  finding it would have left challenge-response computing v1 paths. Found by reading the file, not
+  by the backlog analysis, which predicted only `verify_faithfulness`.
+- `verify_examples.py` recomputed with the library default, not each bundle's declared version. Both
+  v1 examples would have reported "Merkle root mismatch" — which reads as corruption, not a version
+  error.
+- The contributed vector test inherited the default too, so the v1.2 conformance vectors would have
+  been evaluated under v2 and failed.
+- A test that only passed on machines with the optional `inspect-ai` extra installed.
+
+**External contribution.** [PR #29](https://github.com/ValiChord/ValiChord/pull/29) — Cüneyt Öztürk
+(Falsify maintainer, `sk8ordie84`) contributed the v1.2 conformance vectors and the odd-node
+collision vector, after reporting the Pattern 13 Merkle mismatch on
+[falsify-cookbook#4](https://github.com/studio-11-co/falsify-cookbook/issues/4). Roots verified
+independently before merge. Those vectors are what made v2 safe to build: before them, changing the
+construction meant losing the ability to show the old one still worked.
+
+⚠️ **Not yet independently verified.** v2 has been checked against the RFC by hand-computed digests
+and against itself by property tests, but no outside implementation has confirmed the roots. Cüneyt's
+Pattern 13 demo is an independent RFC 6962 implementation; agreement between the two is the first
+real check and has been requested.
+
 ### v0.6.1 release — coordinator auto-updater + live-ops hardening — 2026-07-23 ✓
 
 GitHub release **[v0.6.1](https://github.com/ValiChord/ValiChord/releases/tag/v0.6.1)** (2026-07-23), covering the 24 commits since v0.6.0. **Still on the Holochain 0.6.2 toolchain — no DNA-hash or protocol change.**

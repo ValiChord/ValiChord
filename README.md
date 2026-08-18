@@ -328,7 +328,7 @@ response = build_response(challenge, samples)          # holder's side
 ok = verify_response(challenge, response, bundle)      # verifier's side
 ```
 
-**Status:** 487 tests, 97% line coverage, format v1.2 (dual `bundle_hash`/`content_hash`, free-form `meta` provenance block). Integration with ValiChord's Holochain DHT (bundles as on-chain attestations) is v2 scope — v1.x is a standalone format library.
+**Status:** 576 tests, 97% line coverage, format v2 (RFC 6962 Merkle construction; dual `bundle_hash`/`content_hash`; free-form `meta` provenance block). Bundles written under v1.x remain valid and are verified under the earlier construction. Integration with ValiChord's Holochain DHT — bundles as on-chain attestations — is still ahead and is **not** what the format version refers to; the library is standalone at every format version.
 
 ```bash
 pip install -e "valichord_attestation[dev]"
@@ -466,7 +466,7 @@ pkill -x holochain; pkill -x lair-keystore; sleep 2   # -x, never -f: -f matches
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI browser-tested on Holochain 0.7.0 (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **REST API open: API keys, webhooks, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
 
-Probabilistic challenge-response is shipped in `valichord_attestation` (format v1.2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
+Probabilistic challenge-response is shipped in `valichord_attestation` (format v2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
 
 ---
 
