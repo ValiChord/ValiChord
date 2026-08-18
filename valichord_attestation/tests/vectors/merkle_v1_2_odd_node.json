@@ -1,0 +1,53 @@
+{
+  "format": "valichord_attestation v1.2 as shipped",
+  "title": "Odd-level padding makes the root non-injective (CVE-2012-2459 shape)",
+  "description": "Under v1.2 the last node of an odd level is duplicated before pairing, so a sample list and the same list with its final sample repeated produce an identical root. A conforming implementation should be able to tell these two inputs apart; v1.2 cannot. Recorded here so the behaviour is pinned rather than discovered.",
+  "reported_in": "https://github.com/studio-11-co/falsify-cookbook/issues/4",
+  "input_a": {
+    "samples": [
+      {
+        "index": 0,
+        "output": "42",
+        "correct": true
+      },
+      {
+        "index": 1,
+        "output": "7",
+        "correct": false
+      },
+      {
+        "index": 2,
+        "output": "100",
+        "correct": true
+      }
+    ],
+    "root": "82dbd49432097a1998c98526931b4b12dbd1e17b067dcfc3fc463b476841a9f4"
+  },
+  "input_b": {
+    "samples": [
+      {
+        "index": 0,
+        "output": "42",
+        "correct": true
+      },
+      {
+        "index": 1,
+        "output": "7",
+        "correct": false
+      },
+      {
+        "index": 2,
+        "output": "100",
+        "correct": true
+      },
+      {
+        "index": 2,
+        "output": "100",
+        "correct": true
+      }
+    ],
+    "root": "82dbd49432097a1998c98526931b4b12dbd1e17b067dcfc3fc463b476841a9f4"
+  },
+  "collides": true,
+  "expected_under_rfc6962": "Distinct roots: promoting the odd subtree instead of duplicating it removes the ambiguity."
+}
