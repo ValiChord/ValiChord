@@ -143,12 +143,18 @@ collective decision-making (voting schemes beyond binary validation), of sybil r
 cross-app identity. None registers the absence of *independent verification of a claim about a
 resource* — that a design is replicable, that a measured signature is what a genuine part produces.
 
-So the case here rests on §5.3 and §3.4 rather than on a pre-existing gap row, and the modest
-suggestion is that the row is missing rather than that the gap is. If it were added, the natural
-wording would be something like: *no independent verification of resource claims — a custodian's
-assertion that a design is production-ready and replicable is recorded faithfully but never checked
-by anyone who was not involved.* Whether that belongs in `resources.md` or `governance.md` is a
-question about whose problem it is, which is a fair thing to disagree about.
+The row is missing because nothing has yet forced it. A gap table records problems a project has hit,
+and no one has yet tried to move a real resource from `Prototype` to `Stable` and found that the
+N-of-M validation §5.3 requires has no mechanism behind it. Today the initiator can advance the stage
+alone, so the absence costs nothing and stays invisible. It becomes expensive exactly once — on the
+first transition where the claim actually matters to somebody.
+
+So the case here rests on §5.3 and §3.4 rather than on a pre-existing row, and the suggestion is only
+that the row is missing, not that the gap is. If it were added, the natural wording would be
+something like: *no independent verification of resource claims — a custodian's assertion that a
+design is production-ready and replicable is recorded faithfully but never checked by anyone who was
+not involved.* Whether that belongs in `resources.md` or `governance.md` is a question about whose
+problem it is, and a fair thing to disagree about.
 
 One naming hazard worth flagging for implementers: **`Active` appears in both enums with different
 meanings** — `LifecycleStage::Active` is "in normal use", while the current `ResourceState::Active` is
