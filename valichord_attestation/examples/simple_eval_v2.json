@@ -1,0 +1,109 @@
+{
+  "_source": {
+    "note": "The same ten samples as simple_eval.json, attested under format v2. Identical content, different outputs_merkle_root: v2 uses RFC 6962 domain separation and promotes odd subtrees instead of duplicating. Side by side, the two files are what the migration in spec/attestation_format_v2.md section 2 actually looks like.",
+    "v1_counterpart": "simple_eval.json",
+    "v1_outputs_merkle_root": "f0d29b3ab03a182cf90c1124ba8c54849a2b3a9f67d9d6183a7611fa42dbddaf",
+    "bundle_sha256": "eb88eef75b62a687124daffc8b397a4e673da268bfb087b7a4bcee33fdc68860",
+    "sample_0_proof": [
+      {
+        "position": "right",
+        "sibling": "6cbb985b118574a503cc6db193b4abeacbe502380b8e402292dee874d75c51dd"
+      },
+      {
+        "position": "right",
+        "sibling": "627d09c3a6c74ca757b717ae8ccfa7ca1015bcf9b7fb7f9028e72ba1245dec83"
+      },
+      {
+        "position": "right",
+        "sibling": "9f7882a0f64e012c2f10818661a9a2d7daf2ee4d43fcf4c0427aaf91667abb74"
+      },
+      {
+        "position": "right",
+        "sibling": "f15e30fcdeca4e7b2607433cadb61342050858f7bab9525004ff6a24d0c9944e"
+      }
+    ]
+  },
+  "bundle": {
+    "format_version": "v2",
+    "generated_at": "2026-05-05T00:00:00+00:00",
+    "metrics": [
+      {
+        "key": "accuracy",
+        "value": 0.7,
+        "stderr": 0.144914
+      }
+    ],
+    "model_id": "gpt-4o-2024-08-06",
+    "outputs_merkle_root": "84644b8be459160d531f2cd68f043513fae64157a03f2c4144ac294e690704bb",
+    "samples": {
+      "completed": 10,
+      "total": 10
+    },
+    "task_id": "gsm8k",
+    "command": "inspect eval gsm8k --model openai/gpt-4o-2024-08-06",
+    "harness_version": "inspect_ai/0.3.19",
+    "repo_commit": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+  },
+  "samples": [
+    {
+      "index": 0,
+      "output": "0",
+      "correct": false,
+      "tokens": 42
+    },
+    {
+      "index": 1,
+      "output": "7",
+      "correct": true,
+      "tokens": 43
+    },
+    {
+      "index": 2,
+      "output": "14",
+      "correct": true,
+      "tokens": 44
+    },
+    {
+      "index": 3,
+      "output": "21",
+      "correct": false,
+      "tokens": 45
+    },
+    {
+      "index": 4,
+      "output": "28",
+      "correct": true,
+      "tokens": 46
+    },
+    {
+      "index": 5,
+      "output": "35",
+      "correct": true,
+      "tokens": 47
+    },
+    {
+      "index": 6,
+      "output": "42",
+      "correct": false,
+      "tokens": 48
+    },
+    {
+      "index": 7,
+      "output": "49",
+      "correct": true,
+      "tokens": 49
+    },
+    {
+      "index": 8,
+      "output": "56",
+      "correct": true,
+      "tokens": 50
+    },
+    {
+      "index": 9,
+      "output": "63",
+      "correct": false,
+      "tokens": 51
+    }
+  ]
+}

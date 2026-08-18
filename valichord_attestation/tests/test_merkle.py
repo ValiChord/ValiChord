@@ -37,8 +37,14 @@ def test_root_sensitive_to_extra_field():
 
 
 def test_empty_samples_raises():
+    """v1 has no defined root for the empty tree, so it refuses.
+
+    Pinned to v1.2 explicitly: v2 follows RFC 6962 and *does* define
+    MTH({}) = SHA-256(), so this is version-specific behaviour rather than a
+    property of the library. See spec/v2-backlog/03-empty-and-single-leaf.md.
+    """
     with pytest.raises(ValueError, match="empty"):
-        merkle_root([])
+        merkle_root([], format_version="v1.2")
 
 
 def test_proof_and_verify_for_each_index():

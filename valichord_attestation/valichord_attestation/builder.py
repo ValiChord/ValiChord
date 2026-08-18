@@ -93,7 +93,7 @@ def build_bundle(
     ts = generated_at or datetime.now(timezone.utc).isoformat()
 
     return Bundle(
-        format_version="v1.2",
+        format_version="v2",
         generated_at=ts,
         model_id=model_id,
         task_id=task_id,

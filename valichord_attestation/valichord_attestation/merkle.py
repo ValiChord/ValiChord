@@ -28,12 +28,10 @@ CONSTRUCTIONS: dict[str, ModuleType] = {
 
 #: The construction used when writing new bundles.
 #:
-#: Still v1.2 while v2 is registered but not released. Registering the
-#: construction and switching what the library *writes* are separate steps: the
-#: first makes v2 bundles verifiable, the second changes every root this library
-#: produces and needs the spec, migration note and regenerated examples to land
-#: with it. Readers should pass an explicit version rather than inherit this.
-DEFAULT_FORMAT_VERSION = "v1.2"
+#: Readers must NOT inherit this. It tracks what the library writes, not what the
+#: bundle in front of them used — pass ``bundle.format_version`` when verifying.
+#: See `spec/attestation_format_v2.md` §2.
+DEFAULT_FORMAT_VERSION = "v2"
 
 
 class UnknownFormatVersion(ValueError):

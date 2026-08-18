@@ -1,5 +1,30 @@
 # attestation format v2 — backlog
 
+> ## ✅ All four shipped, 2026-08-18. v2 is the current format.
+>
+> Spec: `../attestation_format_v2.md`. Construction: `merkle_v2.py`.
+> Vectors: `../../tests/vectors/merkle_v2.json`. Example: `../../examples/simple_eval_v2.json`.
+>
+> | | | |
+> |---|---|---|
+> | 01 | domain separation | RFC 6962 `0x00`/`0x01` prefixes |
+> | 02 | odd-node promotion | collision gone; the v1.2 vector proves it under both |
+> | 03 | empty and single leaf | both defined; `build_bundle` still refuses empty |
+> | 04 | version dispatch | construction selected from `bundle.format_version` |
+>
+> **The files below are kept unedited as the design record** — the problem each
+> item solved, what was known at the time, and the open questions. Where a file
+> says "proposed", read it as "was proposed, and shipped". Two answers came from
+> outside the notes rather than from them, and are worth carrying forward:
+>
+> - `04` predicted the awkward call site would be `verify_faithfulness`. It was
+>   also `verify_response`, which held a **second inlined copy of the pair
+>   hashing** — found only by reading the file. A v2 that shipped without that
+>   fix would have left challenge-response silently computing v1 paths.
+> - `03` asked whether an empty sample list should be a valid bundle.
+>   `build_bundle` had already answered by rejecting it, so the format defines a
+>   root the reference implementation declines to emit.
+
 This directory tracks the changes that require a `format_version` bump to `"v2"`.
 Each file is a proposal skeleton: problem, the v1.2 position, the proposed v2 direction,
 open questions.

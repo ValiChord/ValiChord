@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from valichord_attestation import merkle_v1
+from valichord_attestation import merkle_v1, merkle_v2
 from valichord_attestation.bundle import Bundle, Metric
 from valichord_attestation.challenge import Challenge
 from valichord_attestation.merkle import (
@@ -60,13 +60,24 @@ def test_unknown_version_error_names_what_is_known() -> None:
 # ---------------------------------------------------------------------------
 
 def test_explicit_version_matches_the_default() -> None:
-    assert merkle_root(SAMPLES) == merkle_root(SAMPLES, format_version="v1.2")
+    assert merkle_root(SAMPLES) == merkle_root(SAMPLES, format_version=DEFAULT_FORMAT_VERSION)
+
+
+def test_the_default_is_not_a_v1_version() -> None:
+    """Guards against the default silently reverting: v1 is frozen, not current."""
+    assert DEFAULT_FORMAT_VERSION not in merkle_v1.FORMAT_VERSIONS
 
 
 def test_wrappers_match_the_underlying_module() -> None:
     assert merkle_root(SAMPLES, format_version="v1.2") == merkle_v1.merkle_root(SAMPLES)
     assert leaf_hash(SAMPLES[0], format_version="v1.2") == merkle_v1.leaf_hash(SAMPLES[0])
     assert merkle_proof(SAMPLES, 2, format_version="v1.2") == merkle_v1.merkle_proof(SAMPLES, 2)
+
+
+def test_wrappers_match_the_v2_module() -> None:
+    assert merkle_root(SAMPLES, format_version="v2") == merkle_v2.merkle_root(SAMPLES)
+    assert leaf_hash(SAMPLES[0], format_version="v2") == merkle_v2.leaf_hash(SAMPLES[0])
+    assert merkle_proof(SAMPLES, 2, format_version="v2") == merkle_v2.merkle_proof(SAMPLES, 2)
 
 
 @pytest.mark.parametrize("fn", [merkle_root, leaf_hash, verify_faithfulness, root_from_path])

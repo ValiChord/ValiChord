@@ -71,8 +71,12 @@ def verify_example(filename: str) -> bool:
     else:
         print(f"OK   [{filename}] bundle hash matches")
 
-    # 2. Recompute Merkle root from samples and compare to bundle field
-    computed_root = merkle_root(samples)
+    # 2. Recompute Merkle root from samples and compare to bundle field.
+    #    Under the construction THIS bundle declares, not whichever one the
+    #    library currently writes — otherwise every older example starts
+    #    failing the moment a new format version becomes the default.
+    version = bundle.format_version
+    computed_root = merkle_root(samples, format_version=version)
     stored_root = bundle_dict["outputs_merkle_root"]
     if computed_root != stored_root:
         print(f"FAIL [{filename}] Merkle root mismatch")
@@ -86,7 +90,9 @@ def verify_example(filename: str) -> bool:
     proof_key = next(k for k in source if k.endswith("_proof"))
     sample_idx = int(proof_key.split("_")[1])
     proof = source[proof_key]
-    if not verify_faithfulness(stored_root, sample_idx, samples[sample_idx], proof):
+    if not verify_faithfulness(
+        stored_root, sample_idx, samples[sample_idx], proof, format_version=version
+    ):
         print(f"FAIL [{filename}] sample {sample_idx} proof does not verify")
         ok = False
     else:
@@ -107,7 +113,10 @@ def verify_example(filename: str) -> bool:
 
 
 def main() -> None:
-    examples = ["simple_eval.json", "complex_eval.json"]
+    # v1 examples stay: they are the evidence that bundles written under the
+    # old construction still verify. The v2 example is the same samples as
+    # simple_eval.json under the new one.
+    examples = ["simple_eval.json", "complex_eval.json", "simple_eval_v2.json"]
     results = [verify_example(name) for name in examples]
     if all(results):
         print("\nAll examples verified.")

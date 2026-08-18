@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "valichord-attestation"
-version = "1.2.0"
+# Tracks the attestation format version: 1.2.0 wrote format v1.2, 2.0.0 writes v2.
+# The major bump is the Merkle construction change (spec/attestation_format_v2.md).
+version = "2.0.0"
 description = "Canonical attestation format for AI evaluation runs"
 requires-python = ">=3.10"
 license = "Apache-2.0"

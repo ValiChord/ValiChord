@@ -445,9 +445,16 @@ Missing or `None` required fields MUST raise an error rather than produce a hash
 
 ## 7. Versioning policy
 
-- The `format_version` field for new bundles is `"v1.2"`. Existing `"v1"` and `"v1.1"` bundles remain fully valid — readers MUST accept any `v1.x` version string.
+> **Superseded 2026-08-18 for newly written bundles — see `attestation_format_v2.md`.**
+> v2 changes the Merkle construction to RFC 6962 §2.1 and nothing else. Every field,
+> the JCS canonicalisation, `bundle_hash`/`content_hash`, the challenge-response
+> protocol and the threat model in this document remain current and apply to v2
+> unchanged. **This document stays normative for v1.x bundles**, which remain valid,
+> are not rewritten, and must be verified under the construction described here.
+
+- The `format_version` field for new bundles is `"v2"` (was `"v1.2"` until 2026-08-18). Existing `"v1"`, `"v1.1"` and `"v1.2"` bundles remain fully valid — readers MUST accept any `v1.x` version string, and MUST select the Merkle construction from the bundle's own `format_version` rather than assuming the one they write.
 - **Additive changes** (new optional fields, new optional Metric fields) MAY be made within the v1.x family, under the `extra="allow"` posture. v1 readers MUST ignore unrecognised fields.
-- **Breaking changes** (removing required fields, changing canonical encoding rules, changing Merkle construction) MUST increment to `"v2"`. A v2 spec will document migration from v1.
+- **Breaking changes** (removing required fields, changing canonical encoding rules, changing Merkle construction) MUST increment to `"v2"`. ✅ Done: `attestation_format_v2.md`, §2 of which documents migration. Migration there means selecting a construction from the bundle's declared version — **not** regenerating existing bundles, which stay as written.
 - The `bundle_hash` of a v1.1 bundle is **stable** — the v1.2 additions (`Metric.filter`, `Bundle.meta`) are optional fields that are absent from v1.1 encodings, so omitting them does not alter the canonical encoding.
 
 ### Changelog

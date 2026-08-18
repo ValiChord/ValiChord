@@ -24,7 +24,7 @@ def test_basic_bundle_constructs():
     b = _basic_bundle()
     assert b.model_id == "gpt-4o"
     assert b.task_id == "gsm8k"
-    assert b.format_version == "v1.2"
+    assert b.format_version == "v2"
 
 
 def test_bundle_metrics_pre_rounded():
@@ -177,9 +177,9 @@ def test_samples_total_explicit_equal_to_len():
 
 # --- format_version ---
 
-def test_format_version_is_v1_2():
+def test_format_version_is_v2():
     b = _basic_bundle()
-    assert b.format_version == "v1.2"
+    assert b.format_version == "v2"
 
 
 # --- Metric.filter via build_bundle ---
