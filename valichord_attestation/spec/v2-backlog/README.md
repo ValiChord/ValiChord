@@ -2,6 +2,10 @@
 
 > ## ✅ All four shipped, 2026-08-18. v2 is the current format.
 >
+> **Open items now live in `../format-backlog/`**, which is not version-named for the reason this
+> directory demonstrates: it closed, and nine days later there was nowhere to record what three
+> outside implementers had found.
+>
 > Spec: `../attestation_format_v2.md`. Construction: `merkle_v2.py`.
 > Vectors: `../../tests/vectors/merkle_v2.json`. Example: `../../examples/simple_eval_v2.json`.
 >
