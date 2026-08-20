@@ -258,6 +258,12 @@ The `sweettest_integration/` and `wind-tunnel/` directories are each their own C
 
 ⚠️ **When verifying, pass the bundle's own `format_version`** — never inherit the library default. A root is 64 hex chars under every version, so checking a v1.2 root under v2 returns *does not verify*, indistinguishable from tampering. `construction_for()` raises `UnknownFormatVersion` rather than guessing. This bit three call sites during the v2 release; assume it will bite again.
 
+**Open format backlog: `spec/format-backlog/`** — seven candidate additions raised by outside
+implementers, each naming who raised it and when. Not version-named on purpose: `spec/v2-backlog/`
+closed when its items shipped and new findings had nowhere to go. ⚠️ `Bundle.meta` is the obvious
+home for judge configuration / rubric versions and the **wrong** one — `meta` is excluded from
+`content_hash`, so two runs scored by different judges would compare as equivalent.
+
 Conformance vectors: `tests/vectors/merkle_v1_2.json` (+ `_odd_node`) and `merkle_v2.json`. The v1.2 files are **frozen** — they are the evidence old bundles still verify. A new version adds a file, never edits these.
 
 ### Svelte UI architecture (valichord-ui/)

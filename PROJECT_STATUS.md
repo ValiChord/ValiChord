@@ -805,6 +805,64 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 
 ## Recently completed
 
+### Outside implementers arrived, and the Nondominium proposal went out — 2026-08-14→20 ✓
+
+**Three new people started building against `valichord_attestation`**, all arriving through two GitHub
+issues filed months earlier and forgotten. Detail and vetting in memory
+`project_attestation_adopters`; the deepest of the four, Cüneyt Öztürk, is covered in the v2 entry
+below and in `project_falsify`.
+
+- **KeilerHirsch — BRONCO** (`KeilerHirsch-Labs/BRONCO-…-DIN-ISO-IEC`), eval results as metrology.
+  Solo, two-day-old repo when he wrote; **the DIN-ISO-IEC is subject matter, not affiliation**, and
+  he says so himself. Asked directly about institutional backing: *"no, and I don't want to imply
+  otherwise."* Has decided to treat this format as a **compatibility target rather than fork it**,
+  will specify the measurement layer BRONCO adds, and is sending a compatibility crosswalk first.
+- **Hawthorn — Future AGI**, ex-xAI, building a JCS + Merkle module inside their product. Advised to
+  build RFC 6962 rather than mirror v1.2 and inherit a migration.
+- **Seekers2001**, proposing an Eval Run Manifest contract. Genuine, least engaged.
+
+⭐ **Three of them independently named the same three gaps in one week, with no contact with each
+other** — judge-model configuration, prompt/rubric versions, thresholds and aggregation. That is the
+evidence they are real gaps rather than one reviewer's taste, and it seeded the format backlog.
+
+⚠️ **Two caveats to hold.** These are users of the **format**, not the protocol — nobody has touched
+the Holochain side, and `valichord_attestation` is still not wired to it. Encouraging; not traction.
+And the conversations happened on **other people's issue trackers** (`EleutherAI/lm-evaluation-harness#3749`,
+`future-agi/future-agi#1368`), both drifting into ValiChord schema design, with **no maintainer
+commenting in either in 3½ months**. Agreed plan: wait for a natural pause, then move format design
+to a ValiChord Discussion, leaving implementation talk where it belongs. #3749 stays open — it has a
+legitimate unanswered request and a stale PR (#3752) implementing it.
+
+**Nondominium integration proposal written and sent** (Discord, to Tiberius and Sacha; Sacha is the
+technical reviewer and author of the gap tables it argues about). `nondominium_integration/valichord-integration.md`
+— a Post-MVP Design Document in Sensorica's own house format, alongside `flowsta-integration.md` and
+`unyt-integration.md`. Framed as an **offer, not a delivery**: he did not commission it.
+
+The argument rests on two things their own documents already say. `ndo_prima_materia.md` §5.3
+authorises `Prototype → Stable` by *"multi-agent peer validation (configurable N-of-M)"* — the only
+transition in the maturity chain not custodian-authorised, with **no mechanism specified anywhere**,
+while the MVP lets the initiator advance the stage alone. And §3.4 states *"COP requires new
+verification paradigms"* because debuggers and unit tests assume reducibility. Same gap from two
+directions. §2.3 is explicit that verification is **not a registered gap** in their foundational
+tables — a row is missing because nothing has forced it yet, not because the need is absent.
+
+**Getting there required correcting seven of our own claims**, six of which were errors in our notes
+rather than misreadings of theirs. The worst: a `{agreement_level, validator_count}` capability-slot
+tag **invented in March and repeated across five files** until it looked established — Sensorica's
+real `CapabilitySlotTag` carries no verdict field at all, which is *better*, since it makes
+"never gate on the tag" structural. Also corrected: a `GovernanceRuleType` enum we said needed a PR
+(the implemented type is an open `String`, as their own `flowsta-integration.md` §8 records);
+`IsSamePerson` → `IsSamePersonEntry`; and a requirement-numbering convention we got backwards by
+inferring rather than reading the two existing integration docs. Lesson recorded in
+`feedback_verify_ai_facts`: claims about external systems carry their source and date **inline**.
+
+**Two one-line fixes to pass to Sacha** when natural, both easier to hear from someone who evidently
+read closely: `flowsta-integration.md` cites the three foundational files as `documentation/archives/*.md`
+when they live at `documentation/requirements/*.md`; and it renders RAVE as *"Recorded Agreement
+Verifiably Executed"* where Unyt's own `smart_agreement_library` says *"Record of Agreement Verifiably
+Executed."*
+
+
 ### `valichord_attestation` format v2 + first CI for the package — 2026-08-18 ✓ (merged to main)
 
 **Format v2 shipped.** RFC 6962 §2.1 Merkle construction, adopted whole. `build_bundle` writes
@@ -845,10 +903,35 @@ collision vector, after reporting the Pattern 13 Merkle mismatch on
 independently before merge. Those vectors are what made v2 safe to build: before them, changing the
 construction meant losing the ability to show the old one still worked.
 
-⚠️ **Not yet independently verified.** v2 has been checked against the RFC by hand-computed digests
-and against itself by property tests, but no outside implementation has confirmed the roots. Cüneyt's
-Pattern 13 demo is an independent RFC 6962 implementation; agreement between the two is the first
-real check and has been requested.
+✅ **Independently verified 2026-08-19 — superseding the caveat this entry originally carried.**
+Cüneyt Öztürk ran the full `merkle_v2.json` against his Pattern 13 implementation: **8/8**, odd-node
+inversion included. He then declined to treat that as confirmation, on the grounds that two
+implementations agreeing could be two copies of the same misreading — so he wrote a **second MTH in a
+deliberately different shape** (iterative, level-by-level, odd tail promoted) and cross-checked it
+against the recursive split over n = 0..64 before replying. The same was then done here.
+**Four constructions, two per side, all agreeing.** The cross-check is now a permanent test
+(`test_recursive_and_bottom_up_agree_across_a_range`).
+
+**He also found the region neither vector file reached.** Both stopped at n = 4 — and `n // 2`, the
+plausible wrong split rule, agrees with RFC 6962 up to exactly n = 4. So a broken tree passed every
+vector either project had. His three uneven-split cases (5 ≤ n ≤ 7) now fail it four times.
+
+**Merged from him since:** [#29](https://github.com/ValiChord/ValiChord/pull/29) v1.2 conformance
+vectors + the odd-node collision vector; [#30](https://github.com/ValiChord/ValiChord/pull/30) the
+empty-list error as an eighth v1.2 case, filed under a separate `error_cases` key so it would not
+disturb the case-list comparison — an interaction he anticipated rather than hit;
+[#31](https://github.com/ValiChord/ValiChord/pull/31) the uneven-split trio, which also corrected a
+test written here (asserting the two vector files carry *identical* case lists — right when v2
+mirrored v1.2, wrong the moment v2 had to grow). 584 tests, CI green on 3.10 and 3.13.
+**He is now credited in `CITATION.cff`** — he has not been told, and should be, including that he may
+decline.
+
+**Open format backlog created:** `valichord_attestation/spec/format-backlog/`. Seven candidate
+additions, each naming who raised it and when. Deliberately *not* version-named: `spec/v2-backlog/`
+closed on 2026-08-18 and nine days later there was nowhere to record what outside implementers had
+found — the same failure that directory existed to fix. Recorded trap: `Bundle.meta` is the obvious
+home for judge configuration and rubric versions and the wrong one, because `meta` is excluded from
+`content_hash`, so two runs scored by *different judges* would compare as equivalent.
 
 ### v0.6.1 release — coordinator auto-updater + live-ops hardening — 2026-07-23 ✓
 
