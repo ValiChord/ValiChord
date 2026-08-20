@@ -95,3 +95,21 @@ def test_odd_node_collision_is_gone_under_v2() -> None:
     a = merkle_root(ODD_NODE["input_a"]["samples"], format_version="v2")
     b = merkle_root(ODD_NODE["input_b"]["samples"], format_version="v2")
     assert a != b, "v2 must distinguish [A,B,C] from [A,B,C,C]"
+
+
+@pytest.mark.parametrize("case", V12.get("error_cases", []), ids=lambda c: c["name"])
+def test_v1_2_error_case(case: dict) -> None:
+    """v1.2 rejects these inputs outright; the error is the pinned behaviour.
+
+    The empty list is the motivating example, and v2 is why pinning it matters:
+    RFC 6962 gives the empty tree a defined root, so v2 now returns one where
+    v1.2 raises. Two versions disagreeing about whether an input is an error is
+    exactly the kind of difference a conformance file exists to record.
+
+    `format_version` is passed explicitly for the same reason as everywhere else
+    in this file: without it this test would follow the library default, and the
+    day the default moved it would quietly assert that v2 raises — which it does
+    not — while still reading as a v1.2 test.
+    """
+    with pytest.raises(ValueError):
+        merkle_root(case["samples"], format_version=VERSION)
