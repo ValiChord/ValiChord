@@ -43,15 +43,23 @@ def test_v2_vector(case: dict) -> None:
     ), case["description"]
 
 
-def test_the_two_vector_files_cover_the_same_cases() -> None:
-    """v2 mirrors the v1.2 case list, plus the empty case v1.2 cannot express.
+def test_v2_covers_every_v1_2_case_in_the_same_order() -> None:
+    """Every v1.2 case appears in v2, in the same order, before any v2-only case.
 
-    Keeping the names aligned is what makes the two files comparable case by
-    case, which is how someone porting an implementation checks their work.
+    Alignment is what makes the two files comparable case by case, which is how
+    someone porting an implementation checks their work — so the shared prefix is
+    asserted exactly, and a case added to v1.2 and forgotten in v2 still fails.
+
+    Equality would be the wrong assertion now: merkle_v1_2.json is frozen by its
+    own note ("a v2 vector should replace this one, not extend it"), while v2 has
+    to be able to grow into regions v1.2 was never meant to describe — the empty
+    tree it cannot express, and the uneven-split region above n=4.
     """
     v12_names = [c["name"] for c in V12["cases"]]
     v2_names = [c["name"] for c in V2["cases"]]
-    assert v2_names == v12_names + ["empty"]
+    assert v2_names[:len(v12_names)] == v12_names
+    v2_only = v2_names[len(v12_names):]
+    assert "empty" in v2_only
 
 
 @pytest.mark.parametrize("name", [c["name"] for c in V12["cases"]])
