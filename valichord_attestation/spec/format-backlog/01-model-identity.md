@@ -21,19 +21,48 @@ what the provider actually reported.
 
 ## Proposed direction
 
-An optional observed-identity field alongside `model_id`, carrying whatever the provider returned
-— response model string, system fingerprint, deployment id — without prescribing which, since it
-varies by provider and prescribing one would date badly.
+Shape proposed by KeilerHirsch, `lm-evaluation-harness#3749`, 2026-08-20, and adopted here as the
+working design:
 
-`model_id` keeps its meaning: what was requested. That preserves every existing bundle.
+- `requested_model_id`
+- `observed_model_id`
+- routing / fallback evidence
+- `identity_observation_method`
+- provider / runtime identity where available
+- **`unknown` / `not_exposed` as a legitimate state**, rather than silently copying requested into
+  observed
+
+His constraint is the load-bearing part, and is stronger than "record what came back":
+
+> "observed" must mean evidence actually exposed by the serving system or an auditable runtime
+> field, not what the client assumes it received.
+
+That is the same doctrine as the ValiChord gate rule — do not decide from the summary the
+interested party wrote, fetch what the system actually asserted — and as ADR-012 on the Nondominium
+side, where a reader re-derives a clone address rather than trusting the anchor that names it.
+Four independent arrivals at the same principle now. It is worth stating once in the spec rather
+than rediscovering per field.
+
+`model_id` keeps its current meaning for every existing bundle. Whether it becomes an alias for
+`requested_model_id` or is retained unchanged alongside the new pair is an open question below.
 
 ## Open questions
 
-1. Does the observed identity belong in `content_hash`? It should — two runs against different
-   actual models are not scientifically equivalent, whatever was requested. But that makes a
-   provider's silent upgrade produce a different `content_hash` for a rerun, which is arguably
-   correct and definitely surprising.
-2. Should the format say anything when observed is absent? Absent means "not captured", not
-   "same as requested", and conflating those is how the current single field misleads.
-3. Is one field enough, or does this want a small struct? A struct is more honest and harder to
-   agree on.
+1. **Which of these does `content_hash` cover?** The unresolved one, and the reason the field set
+   either works or does not. If `observed_model_id` is inside, a provider's silent upgrade changes
+   the hash of an otherwise identical rerun — correct, and surprising. If it is outside, two runs
+   against genuinely different models compare as scientifically equivalent, which is the exact
+   failure the field exists to prevent. The second is clearly worse; the first still needs saying
+   out loud in the spec.
+2. What shape is "routing / fallback evidence"? The one item that could balloon. A provider-opaque
+   blob is honest and unverifiable; a schema will not survive contact with the next provider.
+3. Does `model_id` survive as an alias, or is it retained unchanged and the new fields sit
+   alongside? Aliasing is tidier and changes the meaning of a shipped field, which §7 would treat
+   as breaking rather than additive.
+
+## Resolved by that proposal
+
+- *Is one field enough, or does this want a small struct?* — A struct. Answered.
+- *Should the format say anything when observed is absent?* — Yes: `unknown` / `not_exposed` as an
+  explicit state. Absent must not be read as "same as requested", which is precisely how the
+  current single field misleads.

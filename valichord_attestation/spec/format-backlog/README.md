@@ -21,7 +21,7 @@ canonical encoding or Merkle construction, forces a version bump.
 
 | | Item | Raised by | Additive? |
 |---|---|---|---|
-| 01 | Requested vs observed model identity | KeilerHirsch | yes |
+| 01 | Requested vs observed model identity | KeilerHirsch | yes — **field shape proposed, 2026-08-20** |
 | 02 | Judge-model configuration | three, independently | yes |
 | 03 | Prompt, evaluator and rubric versions | three, independently | yes |
 | 04 | Thresholds and aggregation | three, independently | yes |
@@ -48,6 +48,18 @@ still compare as scientifically equivalent. Put the judge model in `meta` and tw
 Anything that could change the result belongs in a field `content_hash` covers. `meta` is for
 things that cannot. That line is the actual design question behind items 02–05, and it is worth
 settling once rather than per-field.
+
+## The principle behind 01, which generalises
+
+KeilerHirsch's constraint on "observed" — *evidence actually exposed by the serving system, not
+what the client assumes it received* — is not specific to model identity. It is the same rule as
+the ValiChord gate correction (do not decide from the summary the interested party wrote) and as
+Nondominium's ADR-012 (re-derive the address rather than trust the anchor naming it). Three
+projects, four arrivals, same principle.
+
+Any field added here should say which side of that line it sits on: asserted by the party with an
+interest, or observed from something they do not control. Where the format cannot tell, it should
+say so explicitly rather than let absence read as agreement.
 
 ## Also raised, not yet numbered
 
