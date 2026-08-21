@@ -68,17 +68,18 @@ rather than by default. Detail in memory `project_attestation_adopters`.
 | Who | What | Clock |
 |---|---|---|
 | **KeilerHirsch** (BRONCO) | A compatibility crosswalk | ⏰ The only one with a clock — *"before BRONCO freezes a schema"* |
-| **Sacha / Tiberius** (Sensorica) | Reading the Nondominium proposal. Sacha wrote the gap tables it argues about and will read it closely | None |
+| **Sacha / Tiberius** (Sensorica) | Reading the Nondominium proposal. Sacha wrote the gap tables it argues about and will read it closely. Ceri expects to catch up with both shortly (as of 2026-08-21) | None |
 | **Hawthorn** (Future AGI) | Building his JCS + Merkle module. May or may not resurface | None |
 
 ## 📮 Owed to other people
 
-1. **Tell Cüneyt Öztürk he is in `CITATION.cff`.** He does not know. Email and affiliation were
-   deliberately omitted, because he never gave either. He should be able to decline, to have it
-   worded differently, or to add an affiliation. Doing it in public — on the PR thread where the
-   exchange already lives — makes both the credit and the refusal visible.
-2. **Two one-line errors in Sensorica's own docs**, to pass to Sacha when it is natural. Both are
-   easier to hear from someone who evidently read closely:
+1. ~~**Tell Cüneyt Öztürk he is in `CITATION.cff`.**~~ ✅ **Sent 2026-08-21.** He was told in public,
+   on the PR thread where the exchange already lives, so that the credit *and* any refusal are
+   equally visible. Email and affiliation stay omitted — he never gave either. **If he replies
+   asking to be removed, reworded, or given an affiliation, do it without argument.**
+2. **Two one-line errors in Sensorica's own docs** — **low priority, and possibly moot.** Ceri's
+   read (2026-08-21): if Sacha reads the integration doc properly he will find them himself. Offer
+   them only if it comes up naturally; do not push them. They were always a courtesy, not a debt:
    - `flowsta-integration.md` cites the three foundational files as `documentation/archives/*.md`;
      they live at `documentation/requirements/*.md`.
    - It expands RAVE as *"Recorded Agreement Verifiably Executed"*, where Unyt's own
