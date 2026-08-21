@@ -1,23 +1,124 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-08-03
-**Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ⚠️ **Oracle still runs 0.6.2**, so the live public demo and `main` describe different stacks until Oracle is rebuilt — a full rebuild with state loss, not an upgrade. Every previously published HarmonyRecord URL is dead (accepted). Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. **v0.6.1** (GitHub release, 2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` at v1.2 (Metric.filter, Bundle.meta, dual content_hash) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun) and a `ValiChordLogger` PR in flight for lm-evaluation-harness. 487 valichord_attestation tests, 97% line coverage.
+**Last updated:** 2026-08-21
+**Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ⚠️ **Oracle still runs 0.6.2**, so the live public demo and `main` describe different stacks until Oracle is rebuilt — a full rebuild with state loss, not an upgrade. Every previously published HarmonyRecord URL is dead (accepted). Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest tag **v0.6.5** (2026-08-04) covers README/toolchain corrections only; `main` is 26 commits past it. Last GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` is at **format v2** (RFC 6962 §2.1 Merkle; package 2.0.0, shipped 2026-08-18) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun); **584 tests**, CI green on 3.10 and 3.13. `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
 
 ---
 
-# 🚦 START HERE — next session (updated 2026-08-03)
+# 🚦 START HERE — next session (updated 2026-08-21)
 
-# ✅✅ THE 0.7 MIGRATION IS MERGED. `main` IS ON HOLOCHAIN 0.7.
+## Where things stand, on one screen
 
-Merged 2026-08-03: `03fc16f4..38ea2123`. Everything below this heading that talks about
-branches, merge prep or "main stays on 0.6.2" is **historical** — kept because the
-reasoning is worth more than the status, not because it is current.
+| | State | Checked |
+|---|---|---|
+| `main` | `2cf3ab5` — clean, pushed, CI green, zero open PRs | 2026-08-21 |
+| Holochain | `main` on **0.7**; ⚠️ **Oracle still on 0.6.2** | 2026-08-21 |
+| `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 584 tests | 2026-08-20 |
+| Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
+| Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-21 |
+| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️ | 2026-08-21 |
+
+⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
+Ceri, 2026-08-21: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
+Multi-Agent World" — Schmidt Sciences / Cooperative AI Foundation / UK ARIA / Google.org, submitted
+8 Aug 2026, **notification expected autumn 2026**; dates from memory `project_schmidt_application`,
+recorded 2026-07-29). It **stays until that window closes** — i.e. do not reconsider it before the
+notification lands. It was undocumented before today: mentioned nowhere in this file, `CLAUDE.md`
+or memory.
+
+What is on it (verified 2026-08-21): 7 commits, all dated 2026-07-27, **~3,600 lines, entirely
+additive** — `docs/FEATURE_SELECTION_STABILITY_PLAN.md` plus
+`valichord_attestation/examples/feature_selection_stability/` (independent stability attestation
+for L1 feature selection; sweep and arbitration studies; wave-based recruitment V0/V3/V5 vs fixed
+cohorts; balanced resampling across validators; a 571-line `REPORT.md`; a "Related work" section
+naming the prior art). Nothing on `main` is modified beyond `.gitignore` and `pyproject.toml`, so
+it carries **no merge pressure and no rebase risk** — leaving it parked costs nothing.
+
+Nothing is half-finished. The 0.7 migration is merged; its record is below.
+
+## The two things that are out of step
+
+### 🔴 1. Oracle still runs Holochain 0.6.2
+
+`main` and the live public demo describe **different stacks**. That is deliberate — it was never
+part of the merge.
+
+- It is a **full rebuild with state loss**, not an upgrade. 0.7 agents form a separate network
+  from 0.6.
+- ⚠️ **Every published HarmonyRecord URL is already dead** — accepted by the user 2026-08-01 and
+  reaffirmed at the merge. Do not treat this as a bug to fix.
+- ⚠️ **Until Oracle is rebuilt, be careful about public claims**: the README describes what `main`
+  is, which is no longer what the demo runs.
+- Oracle carries a live **HarmonyRecord undercount** bug. It is fixed on `main`, but `main` is not
+  deployable there.
+  ⚠️ **`fix/harmony-record-undercount` (`78d184f`, PR #27, closed unmerged) is the only
+  0.6.2-deployable form of that fix. Do not delete the branch until the rebuild.**
+- **Blocked on:** Codespaces credits, next month.
+
+### 🟠 2. The format is not wired to the DHT
+
+`valichord_attestation` is an on-ramp that does not connect to the protocol. Four outside
+developers are now building against it, and **nobody has asked for the bridge**.
+
+This is an open **decision**, not a queued task — recorded here so it gets chosen deliberately
+rather than by default. Detail in memory `project_attestation_adopters`.
+
+## ⏳ Waiting on other people — nothing to do until they move
+
+| Who | What | Clock |
+|---|---|---|
+| **KeilerHirsch** (BRONCO) | A compatibility crosswalk | ⏰ The only one with a clock — *"before BRONCO freezes a schema"* |
+| **Sacha / Tiberius** (Sensorica) | Reading the Nondominium proposal. Sacha wrote the gap tables it argues about and will read it closely | None |
+| **Hawthorn** (Future AGI) | Building his JCS + Merkle module. May or may not resurface | None |
+
+## 📮 Owed to other people
+
+1. **Tell Cüneyt Öztürk he is in `CITATION.cff`.** He does not know. Email and affiliation were
+   deliberately omitted, because he never gave either. He should be able to decline, to have it
+   worded differently, or to add an affiliation. Doing it in public — on the PR thread where the
+   exchange already lives — makes both the credit and the refusal visible.
+2. **Two one-line errors in Sensorica's own docs**, to pass to Sacha when it is natural. Both are
+   easier to hear from someone who evidently read closely:
+   - `flowsta-integration.md` cites the three foundational files as `documentation/archives/*.md`;
+     they live at `documentation/requirements/*.md`.
+   - It expands RAVE as *"Recorded Agreement Verifiably Executed"*, where Unyt's own
+     `smart_agreement_library` says *"Record of Agreement Verifiably Executed."*
+3. **Move format design off other people's repos.** It has been happening on
+   `EleutherAI/lm-evaluation-harness#3749` and `future-agi/future-agi#1368` — both our own issues on
+   their trackers, both drifted into ValiChord schema design, with **no maintainer commenting in
+   either in 3½ months**. Agreed plan: wait for a natural pause, then move format design to a
+   ValiChord Discussion, leaving implementation talk where it belongs. #3749 stays open — it has a
+   legitimate unanswered request and a stale PR (#3752) implementing it.
+   ⚠️ Drafts for this existed and were lost; regenerate when the moment comes.
+
+## 👉 THE NEXT STEP
+
+1. **Oracle rebuild**, when the credits arrive. Full rebuild, state loss, published URLs already
+   gone.
+2. **Tag a release.** `v0.6.5` (2026-08-04) marks the README/toolchain corrections only. `main` is
+   **26 commits past it**, and nothing marks the format-v2 work or the week of outside
+   contributions.
+3. **Phase C** (`valichord/wind-tunnel/`) whenever upstream publishes the wind-tunnel runner.
+4. ~~Re-enable the wind-tunnel CI job~~ — ✅ done 2026-08-03. ~~Delete the merged 0.7 branches~~ —
+   ✅ done; both are gone from the remote.
+
+---
+
+## 📜 The 0.7 migration — merged 2026-08-03 (completed record, not current work)
+
+Everything in this section is **historical**, kept because the reasoning is worth more than the
+status. The only part of it still live is Oracle, which is above.
+
+### ✅✅ THE MIGRATION IS MERGED. `main` IS ON HOLOCHAIN 0.7.
+
+Merged 2026-08-03: `03fc16f4..38ea2123`. Everything below that talks about branches, merge prep or
+"main stays on 0.6.2" is historical.
 
 | Branch | State |
 |---|---|
-| `main` | **Holochain 0.7**, at `38ea2123` |
-| `v0.7.0` | same commit; merged, can be deleted |
-| `investigate/harmony-record-undercount` | same commit; merged, can be deleted |
+| `main` | **Holochain 0.7**, merged at `38ea2123` |
+| `v0.7.0` | same commit; merged, **since deleted** |
+| `investigate/harmony-record-undercount` | same commit; merged, **since deleted** |
 
 **How it merged:** `investigate/…` → `v0.7.0` (fast-forward, 18 commits, which also
 repaired `v0.7.0`'s red badge-flake run) → `main` → `v0.7.0` (reconciling 2 commits that
@@ -29,21 +130,7 @@ turned out to be **already applied under different SHAs**, so no net content) �
 but markdown changed between that commit and the merge. Plus a full demo-stack round on the
 merged DNA (below).
 
-## 🔴 THE ONE THING THAT IS NOW OUT OF STEP: ORACLE
-
-**Oracle still runs Holochain 0.6.2.** `main` and the live public demo now describe
-**different stacks**. That is the outstanding job and it is deliberate — it was never part
-of the merge.
-
-- It is a **full rebuild with state loss**, not an upgrade. 0.7 agents form a separate
-  network from 0.6.
-- ⚠️ **Every published HarmonyRecord URL is already dead** — accepted by the user
-  2026-08-01 and reaffirmed at the merge. Do not treat this as a bug to fix.
-- ⚠️ **Until Oracle is rebuilt, be careful about public claims**: the README describes
-  what `main` is, which is no longer what the demo runs. See `user_ceri_working_style` —
-  public claims must match deployed reality.
-
-## Where the phases landed
+### Where the phases landed
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -52,7 +139,7 @@ of the merge.
 | **B** | Tryorama suite | ✅ **retired 2026-08-03**, not migrated — upstream is unmaintained |
 | **C** | `valichord/wind-tunnel/` | 🟠 blocked on an upstream **release**, not on work — see `CLAUDE.md` |
 
-## What shipped on top of the migration
+### What shipped on top of the migration
 
 Protocol work that rode the hash break rather than buying a second one:
 
@@ -72,25 +159,20 @@ Protocol work that rode the hash break rather than buying a second one:
   signature checks, and the three governance delete guards — each now with a test that has
   been *seen to fail*.
 
-## 👉 THE NEXT STEP
+### The wind-tunnel CI lesson — worth keeping
 
-0. ~~Re-enable the wind-tunnel CI job~~ — ✅ **DONE 2026-08-03, same day.** The 0.7 merge
-   broke `valichord/wind-tunnel/`: its scenarios depend on `valichord_shared_types` **by
-   path** (`hdi 0.8.0` → `holo_hash 0.8`) while the crates.io runner pinned holochain 0.6 →
-   `holo_hash 0.6`. **Fixed properly, not muted:** the runner is now pinned to a git **rev**
-   of `holochain/wind-tunnel` (`e4861457` = their "Update to Holochain 0.7.0" commit).
-   ⚠️ **Lesson worth keeping: "untouched" is not "unaffected".** Phase C was recorded as not
-   a merge blocker because the load tests were untouched — but untouched code that depends
-   on migrated code breaks. **Check path-dependent workspaces before any version bump.**
-   Four further layers surfaced behind the first, all now fixed: direct `holo_hash` /
-   `holochain_types` pins still on 0.6; stale `ed25519`/`pkcs8` release-candidate pins whose
-   own comment named the expiry condition that had since been met; `YamlProperties::new`
-   moving from `serde_yaml` to `yaml_serde`; and `ValidationAttestation` needing
-   `reproduction_bundle_hash` from the validator→bundle binding.
-1. **Oracle rebuild**, when chosen. Full rebuild, state loss, published URLs already gone.
-2. **Delete the merged branches** (`v0.7.0`, `investigate/harmony-record-undercount`).
-3. **Tag a release.** `main` has moved a long way past `v0.6.1` and nothing marks it.
-4. **Phase C** whenever upstream publishes the wind-tunnel runner.
+The 0.7 merge broke `valichord/wind-tunnel/`: its scenarios depend on `valichord_shared_types`
+**by path** (`hdi 0.8.0` → `holo_hash 0.8`) while the crates.io runner pinned holochain 0.6 →
+`holo_hash 0.6`. **Fixed properly, not muted** (2026-08-03): the runner is now pinned to a git
+**rev** of `holochain/wind-tunnel` (`e4861457` = their "Update to Holochain 0.7.0" commit).
+
+⚠️ **"Untouched" is not "unaffected."** Phase C was recorded as not a merge blocker because the
+load tests were untouched — but untouched code that depends on migrated code breaks.
+**Check path-dependent workspaces before any version bump.** Four further layers surfaced behind
+the first, all now fixed: direct `holo_hash` / `holochain_types` pins still on 0.6; stale
+`ed25519`/`pkcs8` release-candidate pins whose own comment named the expiry condition that had
+since been met; `YamlProperties::new` moving from `serde_yaml` to `yaml_serde`; and
+`ValidationAttestation` needing `reproduction_bundle_hash` from the validator→bundle binding.
 
 ---
 
