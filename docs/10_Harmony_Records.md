@@ -143,6 +143,28 @@ Three layers of protection make Harmony Records immutable:
 
 **1. Holochain validation rules** — the integrity zome's `validate()` callback rejects all updates and deletes of `HarmonyRecord` entries.
 
+### 📌 "Harmony Record" means two different things — read this before the rest
+
+Most of the confusion in this project's own documents comes from one word doing two jobs.
+
+| | What it is | Can it change? |
+|---|---|---|
+| **The entry** | One thing written to the network by `write_harmony_record` | **Never.** `validate()` rejects every update and delete. |
+| **The record** | What a reader is shown, which may be a **chain** of entries | **Yes — by appending.** Nothing is edited; new entries are added and linked. |
+
+*"Harmony Records are living documents"* is **false of the entry** and **true of the record**.
+Both claims appear in these docs and neither says which sense it means.
+
+**Immutability is not a limitation to be worked around — it is the guarantee.** A record whose
+entries could be edited is a record whose failures could be removed, which hands back at the
+governance layer exactly the power commit-reveal removes at the validation layer. A researcher
+whose first attempt failed has the weakest possible incentive to keep that visible.
+
+⚠️ **The chain does not exist yet.** Supersession is the intended design and is **not
+implemented**: the governance DNA has three link types and none of them connects one HarmonyRecord
+to another. Until it is built, each entry stands alone. See
+[`protocol-backlog/01-harmony-record-supersession.md`](protocol-backlog/01-harmony-record-supersession.md).
+
 > ⚠️ **This sentence is correct and two other documents contradict it.** `1_ValiChord_Vision&Architecture.md` and `2_ValiChord_Governance_Framework.md` describe Harmony Records as *"living documents"* that are *"updated"*, and one makes displaying a `last_updated` field a licence condition — a field that does not exist. The entry is immutable; the *record* grows by supersession, and the supersession mechanism is **not yet built**. Full account and fix in [`protocol-backlog/03-docs-contradict-code-on-mutability.md`](protocol-backlog/03-docs-contradict-code-on-mutability.md). Every peer on the network independently validates every operation — there is no central server to compromise.
 
 **2. Author key enforcement** — only the system's `harmony_record_creator_key` (baked into the DNA at deployment, cryptographically immutable) may write a Harmony Record. No other agent can create, modify, or delete one.

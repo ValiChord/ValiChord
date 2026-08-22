@@ -124,6 +124,11 @@ A study moves through ValiChord in a clear sequence:
 
 **Appeal and correction.** If new information emerges — a previously undocumented dependency, a systematic error in the validation process, evidence of validator misconduct — the Harmony Record can be annotated and, if necessary, superseded. The original record remains visible; corrections are appended.
 
+> ⚠️ **Designed, not built (status 2026-08-22).** This paragraph describes the intended
+> behaviour correctly — append, never edit — but **no supersession mechanism exists**. The
+> governance DNA has no link connecting one HarmonyRecord to another. Tracked at
+> [`protocol-backlog/01`](../docs/protocol-backlog/01-harmony-record-supersession.md).
+
 This lifecycle is the thread that connects every layer of the architecture described below.
 
 ### The Name
@@ -366,7 +371,14 @@ A financial staking mechanism — planned for Phase 1 — will convert this repu
 
 ### What the Protocol Cannot Prevent
 
-Where collusion is subsequently proven — through the longitudinal audit, a whistleblower, or external investigation — the affected Harmony Record is updated to reflect that finding. Harmony Records are living documents, versioned and timestamped, so new evidence always surfaces rather than being buried. A corrupted validation round does not produce a permanent false positive in the scientific record; it produces a corrected record that documents exactly what happened and when it was discovered. No equivalent correction mechanism exists in traditional peer review.
+Where collusion is subsequently proven — through the longitudinal audit, a whistleblower, or external investigation — a **further record is published and linked to the affected one**. The original is not edited and does not disappear: it remains exactly as written, now accompanied by the finding that it was corrupted. A corrupted validation round therefore does not produce a permanent unqualified false positive in the scientific record; it produces a chain that documents what was found, what was later discovered, and when. No equivalent correction mechanism exists in traditional peer review.
+
+> ⚠️ **Corrected 2026-08-22, and the mechanism is not built.** This paragraph previously said
+> the record *"is updated"* and called Harmony Records *"living documents, versioned and
+> timestamped"*. **A HarmonyRecord entry cannot be updated** — `validate()` rejects it, deliberately,
+> because an editable record is one whose failures can be removed. Correction happens by appending a
+> linked record, and **that linking does not exist yet**:
+> [`protocol-backlog/01`](../docs/protocol-backlog/01-harmony-record-supersession.md).
 
 Honesty requires acknowledging one genuine hard limit: **pre-commitment collusion**. If a group of validators agree on their findings before any of them seals — coordinating informally beforehand, sharing draft results privately — the blind protocol cannot detect this. The coordination happened before the sealed records were created, so there is nothing in those records to reveal it.
 

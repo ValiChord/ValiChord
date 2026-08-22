@@ -68,6 +68,37 @@ That is append-only supersession, and it is compatible with immutability — it 
 So this is not a new idea needing justification. It is a designed feature that was documented and
 never implemented.
 
+## ⭐ Ceri's position, 2026-08-22 — and the one place it needs a guard
+
+> *"Logically, a researcher whose research failed to replicate would likely name his updated attempt
+> as a new experiment with a new Harmony record, which is absolutely fine. It would be his/her
+> responsibility to point people to the more up to date Harmony record."*
+
+**The first half is right and simplifies this considerably.** A revised methodology genuinely *is*
+a new experiment. Forcing every re-attempt into a formal chain would assert a continuity that often
+is not there, and the protocol should not invent structure the science does not have.
+
+**The second half is the assumption ValiChord exists to remove.** *"It would be his/her
+responsibility to point people to the more up to date record"* relies on the interested party
+volunteering information. A researcher whose first attempt failed has the **weakest possible
+incentive** to point anyone at that failure.
+
+And note which direction actually matters. The problem is **not** someone failing to advertise
+their success — they have every reason to. The problem is someone arriving at the successful
+record with **no way to learn there was an earlier failure**. So:
+
+| Direction | Who wants it recorded | Survives bad incentives? |
+|---|---|---|
+| old → new (*"a better version exists"*) | The person who wants the old one forgotten | ❌ No |
+| **new → old** (*"this supersedes that"*) | Nobody, voluntarily | ✅ Only if a third party can assert it |
+
+**This narrows the design question to one thing: who may assert supersession?** If only the
+researcher may, the link exists precisely when it does not matter. If validators or governance may
+also assert it, it survives the incentive that would otherwise suppress it. Note this cannot be
+*enforced* either way — like everything else crossing this boundary it is **asserted, not
+observed** (`spec/conformance.md` §3.17–18). What the protocol can offer is that once asserted,
+it is permanent and cannot be quietly withdrawn.
+
 ## Open
 
 - **Link direction and shape.** A `SupersededBy` link from old to new, a `Supersedes` link from

@@ -22,6 +22,22 @@ This is the same shape as the problem `validators_requested` was added to fix: *
 read the same whether 5 of 5 or 5 of 7 reported, and the fix was to record the missing number
 rather than to reason about it later.
 
+## 🆕 The docs already promised this — found 2026-08-22 while fixing item 03
+
+`docs/1_ValiChord_Vision&Architecture.md`, describing what the final record preserves:
+
+> *"The final record preserves everything: each validator's independent findings, statistical
+> analysis of agreement, any disagreement details, **hardware and software metadata**, the author's
+> response, and an overall reproducibility status."*
+
+So this is not a new idea needing justification. It is **an unimplemented promise**, in the same
+document set as the supersession promise (01) and the temporal-integrity API (03). Three of the
+four items in this backlog are things the docs describe and the code does not have, which is worth
+noticing as a pattern rather than three separate coincidences.
+
+⚠️ Note also *"the author's response"* in that sentence — also absent from the struct. Not
+numbered here because nobody has asked for it, but it is the same class of gap.
+
 ## Why it is 🔴 as well as 🟠
 
 Every HarmonyRecord written before this field exists will never have it. The environment of those

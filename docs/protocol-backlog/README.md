@@ -57,10 +57,26 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 |---|---|---|---|---|
 | 01 | HarmonyRecord supersession — no mechanism exists | Ceri, 2026-08-22 | 🟠 | **Yes** |
 | 02 | Hardware provenance for researcher and validator | Ceri, 2026-08-22 | 🟠 / 🔴 | **Yes** |
-| 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No |
+| 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No — **fixed 2026-08-22** |
+| 04 | Governance promises erasure the architecture cannot perform | Found 2026-08-22 | 🔴 | Unclear — **check before scheduling the rebuild** |
 
 **01 and 02 both need an integrity-zome change**, so they should be scoped together and land in
 the same break rather than separately. 03 is free and can be fixed today.
+
+## ⚠️ The pattern behind these items
+
+**Three of the four are things the documents describe and the code does not have** — supersession
+(01), hardware and software metadata (02), and the temporal-integrity API with its four fields (03).
+Item 04 is the same shape and worse: a capability promised that cannot be built by ordinary means.
+
+That is not a criticism of the documents. They were written as design and they are mostly good
+design. **But nothing was tracking the distance between them and the code**, so the distance grew
+quietly and was only measured when someone asked a direct question. Closing individual gaps matters
+less than the fact that this directory now exists to measure them.
+
+🔴 **The practical consequence: do not quote these documents as descriptions of what
+ValiChord does.** Several passages describe what it is meant to do. Where it matters — anything
+said publicly, to a funder, or to an outside implementer — check the code.
 
 ## Also raised, not yet numbered
 

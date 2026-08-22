@@ -459,6 +459,16 @@ Regardless of who asks — funders, partner institutions, journal editors, gover
    - **Process corruption by fraud:** validators fabricated attestations. The HarmonyRecord correctly reflects those attestations, but the attestations themselves were fraudulent. Requires a governance investigation with an evidence standard before any retraction is authorised.
    - **Legal obligation:** a court order or GDPR right-to-erasure claim. Notably, this is not about the scientific content — the finding may be entirely valid. This is a data minimisation action, not a retraction of the record.
 
+   > 🔴 **Unresolved, flagged 2026-08-22 — the architecture cannot currently do this.**
+   > `validate()` rejects every delete of a `HarmonyRecord`, and even without that guard, deletion on
+   > a DHT is a tombstone rather than an erasure: peers already holding the data are not compelled to
+   > forget it. **So this document commits to a legal capability the system cannot presently perform.**
+   > That is a genuine and contested problem for immutable distributed records generally, not a
+   > ValiChord oversight, and it is not something to solve in a footnote — but the commitment should
+   > not stand unqualified while it is unmet. Tracked at
+   > [`protocol-backlog/04`](../docs/protocol-backlog/04-erasure-obligations.md).
+   > *(Not legal advice — this notes a mismatch between two of our own documents and our own code.)*
+
    What is not a legitimate ground: the researcher disagrees with the outcome; the study was later shown to be flawed; the original paper was retracted; an institution applied pressure; the result is inconvenient for a career, a grant application, or a funder relationship. These are precisely the situations the permanent record was designed to survive.
 
    The right of reply (Question 4 in the Open Design Questions) exists for a reason: a researcher who believes validators made an error can say so, permanently, in the record itself. That is the avenue for dispute. It preserves the honest texture of the disagreement. Retraction erases it.
@@ -582,16 +592,31 @@ If a journal or institution creates their own binary badge based on ValiChord da
 
 #### Mechanic 7: Temporal Integrity
 
-Harmony Records are living documents. ValiChord's API always returns the current state of a record, including any post-publication validations, updates, or new disagreements.
+> 🔴 **STATUS 2026-08-22: THIS MECHANIC IS A DESIGN, NOT A DESCRIPTION. NONE OF IT IS BUILT.**
+>
+> Of the four fields below, **`created_at` is derivable** from the Holochain Action's own timestamp;
+> **`last_updated`, `version` and `post_publication_validations` do not exist** on the
+> `HarmonyRecord` struct or anywhere in the governance DNA. The record-chaining the mechanic depends
+> on is [`protocol-backlog/01`](../docs/protocol-backlog/01-harmony-record-supersession.md), also unbuilt.
+>
+> ⚠️ **The licence sentence below therefore requires displaying a field that has never
+> existed.** An integrator implementing it literally could not comply; one who reported compliance
+> was displaying something invented. **Do not enforce that clause until the field exists.** Left in
+> place rather than deleted because the *intent* is sound and should be built — see the rationale.
+>
+> Note also the wording: a HarmonyRecord **entry** is immutable and always will be. What can change
+> is the **record**, by appending linked entries. See `10_Harmony_Records.md`.
 
-The API includes:
+Harmony Records are intended to be living documents in that second sense. ValiChord's API should always return the current state of a record, including any post-publication validations, supersessions, or new disagreements.
 
-- `created_at` — when the record was first issued
-- `last_updated` — when any component last changed
-- `version` — incremented on every material change
-- `post_publication_validations` — count and summary of validations added after initial publication
+The API is intended to include:
 
-A journal can cache a snapshot, but ValiChord's API will always show when a cached version is stale. Any display of a Harmony Record that omits the `last_updated` field violates the API licence.
+- `created_at` — when the record was first issued *(derivable today from the Action timestamp)*
+- `last_updated` — when the newest entry in the chain was written *(not built)*
+- `version` — position in the chain *(not built)*
+- `post_publication_validations` — count and summary of validations added after initial publication *(not built)*
+
+A journal can cache a snapshot, but ValiChord's API should always show when a cached version is stale. Once `last_updated` exists, any display of a Harmony Record that omits it violates the API licence.
 
 **Rationale:** Temporal freezing — treating a pre-submission Harmony Record as definitive and ignoring post-acceptance validations — is how journals would shift ValiChord from corrective to confirmatory. Making records living documents, with visible timestamps, ensures that new evidence cannot be quietly ignored.
 
