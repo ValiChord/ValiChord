@@ -71,6 +71,23 @@ say so explicitly rather than let absence read as agreement.
   rebuilt at verification time, the Merkle root stops being checkable and nobody notices for a
   year. Arguably an implementation-guidance item rather than a format one.
 
+  🆕 **Outside convergence, and a proposed answer worth reading before we design ours.**
+  The Kantara ANCR working group (`github.com/KantaraInitiative/ancr-wg`, read 2026-08-22) hit the
+  same problem in a completely unrelated domain — legally significant privacy notices rather than
+  eval runs. Their answer has two parts: the record carries a `notice_event_log_url` naming where
+  the supporting log is published, and a companion IETF Internet-Draft, *"Well-Known Location for
+  Transparency Records"*, standardises the location so a verifier does not need to be told it
+  per-record. Two projects, no contact, same gap: **a commitment whose supporting evidence has no
+  stated address stops being checkable, and nothing signals when that happens.**
+
+  That is design input, **not a decision, and not a proposal to adopt their field.** Two things to
+  weigh if this is taken up: a URL is *asserted by the party with an interest* (§3.17 of
+  `conformance.md`) and points at something they control, so it locates evidence without
+  authenticating it; and ANCR's own log requirement is procedural — their spec never says how a
+  third party checks the log has not been rewritten, which is the half we would be bringing.
+  ⚠️ Their materials are under the Kantara IPR policy, not an open-content licence: read for
+  ideas, do not copy text or adopt their field names wholesale.
+
 ## Standing offer
 
 KeilerHirsch (BRONCO) has offered to specify the measurement layer and to treat this format as a

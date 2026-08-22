@@ -1,7 +1,12 @@
 # Valichord Attestation Format v1 / v1.2
 
-**Status:** Draft  
-**Format version string:** `"v1.2"` (new bundles); `"v1"` and `"v1.1"` bundles remain valid  
+**Status:** Normative for `v1`, `v1.1` and `v1.2` bundles, and the base document for all later
+versions — `attestation_format_v2.md` changes the Merkle construction and defers to this document
+for everything else.
+**⚠️ New bundles are NOT v1.2.** `build_bundle` writes `"v2"`. This document remains in force
+because bundles already issued under v1.x declare those versions and must keep verifying.
+**Terms, normative keywords and numbered conformance requirements:** `conformance.md`, which
+applies across all versions.
 **Reference implementation:** `valichord_attestation/` (this repository)
 
 ---

@@ -8,6 +8,10 @@ v2 exists because §12 of `attestation_format_v1.md` requires it:
 > **Breaking changes** (removing required fields, changing canonical encoding
 > rules, changing Merkle construction) MUST increment to `"v2"`.
 
+Terms, normative keywords and the numbered conformance requirements are in
+`conformance.md`, which applies across all format versions. §3 below is the
+construction-specific part of it, not a substitute for it.
+
 Read `attestation_format_v1.md` for everything this document does not mention.
 Every field, the JCS canonicalisation, `bundle_hash` and `content_hash`, the
 challenge-response protocol and the threat model are unchanged and are not
