@@ -241,6 +241,41 @@ checks happen elsewhere?**
   credentialing time that their participation is permanently public, that is a materially different
   proposition from discovering it later.
 
+### 🧭 Ceri's leaning, 2026-08-22 — a direction to plan for, NOT a decision
+
+> **"I think we *probably* do need the anonymous validator option if the user wants it, so maybe
+> that is something to plan for."**
+
+**Recorded with the hedges intact, on purpose.** "Probably", "if the user wants it" and "maybe"
+are load-bearing. This is a direction to plan against, not an answer to the question above, and a
+future session must not quote it back as a settled decision. The open questions stay open. He can
+change his mind and should be able to without arguing with a document.
+
+**What the leaning is, precisely:** not *"validators should be anonymous"* but **"anonymity should
+be available as an option, chosen by the deployment."** That is the per-deployment shape rather
+than a universal rule — the same answer that lets a transparent-accounting commons and a
+medical-research network both be right.
+
+⚠️ **The honest cost, so the choice is made with it in view: "support both" is the most
+expensive path, not a compromise between the two.**
+
+- Named mode: the current guards work as written.
+- Anonymous mode: §2 above still applies in full — the author-presence guard and the duplicate
+  guard both need **replacing, not porting**, because neither can run against values `validate()`
+  cannot compute.
+- Both modes: all of the above, **plus** a switch, plus tests proving each mode enforces its own
+  guarantees, plus the certainty that any future change touches two paths.
+
+Choosing "option" therefore buys flexibility by taking on the full anonymous-mode redesign
+regardless. That may well be right — it is the only path that forecloses nothing, and foreclosure
+is the thing that cannot be undone here. But it should be chosen knowing it is the maximum, not
+because it sounds like the middle.
+
+**The cheapest thing that would sharpen this** is the unasked question above: establish whether
+anonymity is even achievable, or only pseudonymity. If agreement patterns and timing re-identify a
+persistent pseudonym anyway, the redesign buys less than it appears to — and that is worth knowing
+before anyone commits to building two modes.
+
 ### What to do meanwhile
 
 Nothing, deliberately. The two 🟢 items stand on their own and need no answer here: fix the
