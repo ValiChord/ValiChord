@@ -58,14 +58,26 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 | 01 | HarmonyRecord supersession — no mechanism exists | Ceri, 2026-08-22 | 🟠 | **Yes** |
 | 02 | Hardware provenance for researcher and validator | Ceri, 2026-08-22 | 🟠 / 🔴 | **Yes** |
 | 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No — **fixed 2026-08-22** |
-| 04 | Governance promises erasure the architecture cannot perform | Found 2026-08-22 | 🔴 | Unclear — **check before scheduling the rebuild** |
+| 04 | Erasure obligations — for **validators**, not research subjects | Found 2026-08-22 | 🔴 | Unclear — **one hour's check, before scheduling the rebuild** |
+| 05 | Three public fields where typed content can expose a research subject | Found 2026-08-22 | 🟢 fix / 🔴 consequence | No |
 
 **01 and 02 both need an integrity-zome change**, so they should be scoped together and land in
-the same break rather than separately. 03 is free and can be fixed today.
+the same break rather than separately. **04 may join them — that is the check.** 03 is done. 05 is
+mostly coordinator-side and needs no break, though two of its stronger options (a numeric metric
+type, a declared subject count) would ride the same one if wanted.
+
+> ✅ **Where the erasure question actually landed — read this before worrying about it.**
+> Research-subject data **never reaches the shared network**: it lives in a private, single-agent
+> DNA, the institution holds and deletes it, and deleting it also settles the status of the hash on
+> the network. That was established by listing every public entry type, prompted by Ceri asking
+> directly about people named in medical research. **04 was over-scoped when first filed and is now
+> narrowed to validators**, whose identity and performance history *are* on a public permanent
+> store. 05 covers the residue that architecture cannot reach: what a person types into a free-text
+> field.
 
 ## ⚠️ The pattern behind these items
 
-**Three of the four are things the documents describe and the code does not have** — supersession
+**Three of the first four are things the documents describe and the code does not have** — supersession
 (01), hardware and software metadata (02), and the temporal-integrity API with its four fields (03).
 Item 04 is the same shape and worse: a capability promised that cannot be built by ordinary means.
 
