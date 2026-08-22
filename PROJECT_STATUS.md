@@ -55,6 +55,14 @@ part of the merge.
   0.6.2-deployable form of that fix. Do not delete the branch until the rebuild.**
 - **Blocked on:** Codespaces credits, next month.
 
+⏳ 🆕 **THE REBUILD IS ALSO A WINDOW, AND IT CLOSES.** A full rebuild means a DNA-hash
+change, which is the expensive kind of protocol change — separate network, published record URLs
+dead. That cost is already accepted here. **Any integrity-zome change that lands before the rebuild
+therefore costs nothing extra; the same change afterwards costs a second network break.**
+Known candidates are in **`docs/protocol-backlog/`** (2026-08-22): HarmonyRecord supersession and
+hardware provenance, both flagged 🟠 *needs the window*. **Decide what rides along before
+scheduling the rebuild, not after.**
+
 ### 🟠 2. The format is not wired to the DHT
 
 `valichord_attestation` is an on-ramp that does not connect to the protocol. Four outside

@@ -239,6 +239,15 @@ attacker-shaped input is a network-wide validation bomb), no payload content on 
 **asserted** or **observed** with the enforcing layer named — otherwise both layers defer to each
 other for the same guarantee and neither provides it.
 
+**Known protocol gaps: `docs/protocol-backlog/`** — the protocol-side counterpart of
+`valichord_attestation/spec/format-backlog/`, created 2026-08-22 because the protocol had no place
+to record known-missing things and two gaps surfaced in conversation that would otherwise have been
+lost. **It is deliberately only for changes that get more expensive with time:** 🟠 anything
+needing an entry/link type (free if it rides the Oracle rebuild's DNA-hash change, a second network
+break if it lands after) and 🔴 anything determining what an immutable record *says*
+(records written before the fix stay wrong forever). 🟢 Cheap-forever items do not belong
+there.
+
 ### Four-DNA architecture (valichord/)
 
 | DNA | Membrane | Purpose |

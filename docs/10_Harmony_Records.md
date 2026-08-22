@@ -141,7 +141,9 @@ This is by design. ValiChord's public layer is not gated behind institutional me
 
 Three layers of protection make Harmony Records immutable:
 
-**1. Holochain validation rules** — the integrity zome's `validate()` callback rejects all updates and deletes of `HarmonyRecord` entries. Every peer on the network independently validates every operation — there is no central server to compromise.
+**1. Holochain validation rules** — the integrity zome's `validate()` callback rejects all updates and deletes of `HarmonyRecord` entries.
+
+> ⚠️ **This sentence is correct and two other documents contradict it.** `1_ValiChord_Vision&Architecture.md` and `2_ValiChord_Governance_Framework.md` describe Harmony Records as *"living documents"* that are *"updated"*, and one makes displaying a `last_updated` field a licence condition — a field that does not exist. The entry is immutable; the *record* grows by supersession, and the supersession mechanism is **not yet built**. Full account and fix in [`protocol-backlog/03-docs-contradict-code-on-mutability.md`](protocol-backlog/03-docs-contradict-code-on-mutability.md). Every peer on the network independently validates every operation — there is no central server to compromise.
 
 **2. Author key enforcement** — only the system's `harmony_record_creator_key` (baked into the DNA at deployment, cryptographically immutable) may write a Harmony Record. No other agent can create, modify, or delete one.
 
