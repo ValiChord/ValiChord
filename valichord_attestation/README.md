@@ -218,7 +218,11 @@ pip install -e ".[dev]"
 pytest tests/ --cov=valichord_attestation
 ```
 
-183 tests, 100% line coverage.
+584 tests (measured 2026-08-22 via the `Attestation Format` CI workflow).
+
+Line coverage is not reported here on purpose: no automated run measures it, and an
+unmeasured number only drifts. `[tool.coverage.run]` is configured, so `pytest --cov`
+gives a current figure locally.
 
 ---
 

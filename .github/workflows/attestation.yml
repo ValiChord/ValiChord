@@ -71,8 +71,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # --cov added 2026-08-22. Until then CI ran the suite but never measured
+      # coverage, so every coverage figure in the repo had been typed in by hand
+      # from someone's local run. They drifted, predictably and in both
+      # directions: 100% in one README, 97% in another, against test counts of
+      # 183, 487 and 576 when the real number was 584. A number nothing measures
+      # is folklore. This prints a TOTAL line on every run so it can be quoted
+      # from a run rather than from memory.
       - name: Tests
-        run: pytest -q
+        run: pytest -q --cov --cov-report=term
 
       # The load-bearing step. Recomputes bundle_hash and outputs_merkle_root
       # from each example's embedded samples and checks the stored values,

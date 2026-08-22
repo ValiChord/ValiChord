@@ -1,32 +1,32 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-08-21
+**Last updated:** 2026-08-22
 **Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ⚠️ **Oracle still runs 0.6.2**, so the live public demo and `main` describe different stacks until Oracle is rebuilt — a full rebuild with state loss, not an upgrade. Every previously published HarmonyRecord URL is dead (accepted). Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest tag **v0.6.5** (2026-08-04) covers README/toolchain corrections only; `main` is 26 commits past it. Last GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` is at **format v2** (RFC 6962 §2.1 Merkle; package 2.0.0, shipped 2026-08-18) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun); **584 tests**, CI green on 3.10 and 3.13. `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
 
 ---
 
-# 🚦 START HERE — next session (updated 2026-08-21)
+# 🚦 START HERE — next session (updated 2026-08-22)
 
 ## Where things stand, on one screen
 
 | | State | Checked |
 |---|---|---|
-| `main` | `2cf3ab5` — clean, pushed, CI green, zero open PRs | 2026-08-21 |
-| Holochain | `main` on **0.7**; ⚠️ **Oracle still on 0.6.2** | 2026-08-21 |
+| `main` | `2cf3ab5` — clean, pushed, CI green, zero open PRs | 2026-08-22 |
+| Holochain | `main` on **0.7**; ⚠️ **Oracle still on 0.6.2** | 2026-08-22 |
 | `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 584 tests | 2026-08-20 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-21 |
-| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️ | 2026-08-21 |
+| Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-22 |
+| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️ | 2026-08-22 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
-Ceri, 2026-08-21: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
+Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
 Multi-Agent World" — Schmidt Sciences / Cooperative AI Foundation / UK ARIA / Google.org, submitted
 8 Aug 2026, **notification expected autumn 2026**; dates from memory `project_schmidt_application`,
 recorded 2026-07-29). It **stays until that window closes** — i.e. do not reconsider it before the
 notification lands. It was undocumented before today: mentioned nowhere in this file, `CLAUDE.md`
 or memory.
 
-What is on it (verified 2026-08-21): 7 commits, all dated 2026-07-27, **~3,600 lines, entirely
+What is on it (verified 2026-08-22): 7 commits, all dated 2026-07-27, **~3,600 lines, entirely
 additive** — `docs/FEATURE_SELECTION_STABILITY_PLAN.md` plus
 `valichord_attestation/examples/feature_selection_stability/` (independent stability attestation
 for L1 feature selection; sweep and arbitration studies; wave-based recruitment V0/V3/V5 vs fixed
@@ -68,12 +68,12 @@ rather than by default. Detail in memory `project_attestation_adopters`.
 | Who | What | Clock |
 |---|---|---|
 | **KeilerHirsch** (BRONCO) | A compatibility crosswalk | ⏰ The only one with a clock — *"before BRONCO freezes a schema"* |
-| **Sacha / Tiberius** (Sensorica) | Reading the Nondominium proposal. Sacha wrote the gap tables it argues about and will read it closely. Ceri expects to catch up with both shortly (as of 2026-08-21) | None |
+| **Sacha / Tiberius** (Sensorica) | Reading the Nondominium proposal. Sacha wrote the gap tables it argues about and will read it closely. Ceri expects to catch up with both shortly (as of 2026-08-22) | None |
 | **Hawthorn** (Future AGI) | Building his JCS + Merkle module. May or may not resurface | None |
 
 ## 📮 Owed to other people
 
-1. ~~**Tell Cüneyt Öztürk he is in `CITATION.cff`.**~~ ✅ **Closed 2026-08-21 — he declined, and the
+1. ~~**Tell Cüneyt Öztürk he is in `CITATION.cff`.**~~ ✅ **Closed 2026-08-22 — he declined, and the
    record now says what he asked it to say.** Told in public on PR #31; he replied the same day
    asking to come off the author list. His reason was better than the one the entry was built on:
    **GitHub renders the citation from the parsed file and drops the explanatory comment**, so the
@@ -83,7 +83,7 @@ rather than by default. Detail in memory `project_attestation_adopters`.
    `valichord_attestation/README.md`, with the affiliation he supplied (**Falsify OÜ**).
    ⚠️ **Generalises: check what a machine-readable file RENDERS as, not just what it says.**
 2. **Two one-line errors in Sensorica's own docs** — **low priority, and possibly moot.** Ceri's
-   read (2026-08-21): if Sacha reads the integration doc properly he will find them himself. Offer
+   read (2026-08-22): if Sacha reads the integration doc properly he will find them himself. Offer
    them only if it comes up naturally; do not push them. They were always a courtesy, not a debt:
    - `flowsta-integration.md` cites the three foundational files as `documentation/archives/*.md`;
      they live at `documentation/requirements/*.md`.

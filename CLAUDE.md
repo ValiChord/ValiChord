@@ -150,7 +150,8 @@ cd valichord_attestation
 # Install (first time)
 pip install -e ".[dev]"
 
-# Run all 576 tests with coverage (97%)
+# Run all 584 tests (count measured 2026-08-22 via CI; coverage is NOT
+# measured by any automated run, so do not quote a % from memory)
 pytest --cov
 
 # Single test file

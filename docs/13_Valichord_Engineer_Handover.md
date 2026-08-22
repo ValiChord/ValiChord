@@ -198,7 +198,7 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 ---
 
 ### `valichord_attestation` — Canonical AI Evaluation Attestation Format
-**Status: format v2 (package 2.0.0) — standalone Python library, 576 tests**
+**Status: format v2 (package 2.0.0) — standalone Python library, 584 tests (measured 2026-08-22 via CI)**
 
 `valichord_attestation/` is a harness-agnostic Python library that produces cryptographically verifiable attestation bundles for AI evaluation runs. It applies the same commit-hash-reveal principle that ValiChord uses for scientific reproducibility to AI capability benchmarks: a published accuracy score becomes traceable to the specific run that produced it, and any individual sample can be proven to a third party without disclosing the full log.
 

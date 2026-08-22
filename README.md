@@ -328,7 +328,7 @@ response = build_response(challenge, samples)          # holder's side
 ok = verify_response(challenge, response, bundle)      # verifier's side
 ```
 
-**Status:** 576 tests, 97% line coverage, format v2 (RFC 6962 Merkle construction; dual `bundle_hash`/`content_hash`; free-form `meta` provenance block). Bundles written under v1.x remain valid and are verified under the earlier construction. Integration with ValiChord's Holochain DHT — bundles as on-chain attestations — is still ahead and is **not** what the format version refers to; the library is standalone at every format version.
+**Status:** 584 tests (measured 2026-08-22 via CI), format v2 (RFC 6962 Merkle construction; dual `bundle_hash`/`content_hash`; free-form `meta` provenance block). Bundles written under v1.x remain valid and are verified under the earlier construction. Integration with ValiChord's Holochain DHT — bundles as on-chain attestations — is still ahead and is **not** what the format version refers to; the library is standalone at every format version.
 
 ```bash
 pip install -e "valichord_attestation[dev]"
