@@ -79,7 +79,12 @@ jobs:
       # is folklore. This prints a TOTAL line on every run so it can be quoted
       # from a run rather than from memory.
       - name: Tests
-        run: pytest -q --cov --cov-report=term
+        # term-missing, not term: a percentage says how much ran, never which
+        # lines did not. "97%" is not an answer to "what is untested?" — it is a
+        # summary that hides the only part worth looking at. This prints the
+        # uncovered line numbers per file so the gap can be triaged instead of
+        # rounded off.
+        run: pytest -q --cov --cov-report=term-missing
 
       # The load-bearing step. Recomputes bundle_hash and outputs_merkle_root
       # from each example's embedded samples and checks the stored values,
