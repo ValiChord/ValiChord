@@ -79,6 +79,31 @@ def hash_bundle(bundle: Bundle) -> str:
     return hashlib.sha256(canonicalise(bundle)).hexdigest()
 
 
+def content_preimage(bundle: Bundle) -> bytes:
+    """Return the exact bytes that :func:`content_hash` digests.
+
+    The RFC 8785 canonical encoding of the bundle with ``meta`` removed.
+
+    Extracted so the preimage has one definition. ``content_hash`` hashes it,
+    and ``protocol.submission_bytes`` hands the same bytes to the DNA's
+    ``compute_data_hash`` \u2014 which makes
+    ``sha256(content_preimage(b)) == content_hash(b)`` structural rather than a
+    coincidence two call sites happen to preserve.
+
+    .. note::
+       This exists because the format has been bitten by exactly that. Shipping
+       v2 turned up a *second inlined copy* of the Merkle pair hashing inside
+       ``verify_response``; had it not been found by reading, v2 would have
+       shipped with challenge-response still computing v1 paths. A third inlined
+       copy of the canonical encoding is the same mistake with a different
+       victim.
+    """
+    d = bundle_to_dict(bundle)
+    d.pop("meta", None)
+    raw = jcs.canonicalize(d)
+    return raw if isinstance(raw, bytes) else raw.encode("utf-8")
+
+
 def content_hash(bundle: Bundle) -> str:
     """Return the SHA-256 hex digest of the canonical encoding with meta excluded.
 
@@ -90,8 +115,4 @@ def content_hash(bundle: Bundle) -> str:
     v1.1 bundles (no meta block) have content_hash == bundle_hash, because meta
     is absent from both encodings.
     """
-    d = bundle_to_dict(bundle)
-    d.pop("meta", None)
-    raw = jcs.canonicalize(d)
-    encoded = raw if isinstance(raw, bytes) else raw.encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return hashlib.sha256(content_preimage(bundle)).hexdigest()
