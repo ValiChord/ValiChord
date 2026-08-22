@@ -63,6 +63,20 @@ developers are now building against it, and **nobody has asked for the bridge**.
 This is an open **decision**, not a queued task — recorded here so it gets chosen deliberately
 rather than by default. Detail in memory `project_attestation_adopters`.
 
+🆕 **The decision now has stated constraints: `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`**
+(2026-08-22). Four preconditions any integration must meet — no new entry types or integrity-zome
+changes, no payload parsing inside an integrity zome, no payload content on a public DHT, and every
+crossing value declared asserted or observed with the enforcing layer named. **An integration that
+cannot meet all four must not be built**; failing one is a signal to stop, not to negotiate.
+
+⭐ **Framing, Ceri 2026-08-22 — this is the point of the exercise.** The attestation bridge is
+being treated as the **first instance of a general problem: how any outside organisation plugs
+something into the protocol.** attestation is worthwhile in itself, but the interesting question is
+how easily *things* can be plugged in at all. The boundary doc is therefore written to be read by
+someone with no connection to this project, and it says plainly that attestation is a *flattering*
+first test case — same author, same repo, no adversarial relationship — so the rules are
+untested against an integrator whose incentives differ from ours.
+
 ## ⏳ Waiting on other people — nothing to do until they move
 
 | Who | What | Clock |

@@ -229,6 +229,16 @@ Rules:
 
 `backend/app_protocol.py` is an integration layer — not a definition of either project.
 
+⚠️ **Before designing ANY connection between `valichord_attestation` (or any outside system) and
+the protocol, read `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`.** Four normative preconditions; an
+integration that cannot meet all four must not be built. Short version: no new entry/link types or
+integrity-zome changes (DNA hash break = separate network = every published record URL dies), no
+payload parsing inside an integrity zome (`validate()` runs on every node holding the op, so
+attacker-shaped input is a network-wide validation bomb), no payload content on a public DHT
+(permanent, unredactable, and `Bundle.meta` is free-form), and every crossing value declared
+**asserted** or **observed** with the enforcing layer named — otherwise both layers defer to each
+other for the same guarantee and neither provides it.
+
 ### Four-DNA architecture (valichord/)
 
 | DNA | Membrane | Purpose |

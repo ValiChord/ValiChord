@@ -7,6 +7,11 @@ permanent entry on a Holochain distributed network.
 
 Any tool that can make HTTP requests can integrate with ValiChord.
 
+> **Looking for the protocol, not the API?** This guide covers the REST service — submitting a
+> deposit and reading a verdict. It does not touch the protocol's trust boundary. If you are
+> proposing to write into, or be read by, the Holochain protocol itself, the preconditions are in
+> [`PROTOCOL_INTEGRATION_BOUNDARY.md`](PROTOCOL_INTEGRATION_BOUNDARY.md).
+
 ---
 
 ## Quick start (3 steps)
