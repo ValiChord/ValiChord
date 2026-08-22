@@ -218,7 +218,7 @@ pip install -e ".[dev]"
 pytest tests/ --cov=valichord_attestation
 ```
 
-**584 tests, 97% line coverage** (1067 statements, 33 missed) — measured 2026-08-22, CI run 32563670296, identical on Python 3.10 and 3.13.
+**608 tests, 97% line coverage** (1114 statements, 33 missed) — measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13.
 
 Both numbers come from a CI run, not from anyone's local machine. The workflow measures
 coverage on every push touching this package, so the figure above can be re-derived

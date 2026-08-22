@@ -3,7 +3,10 @@
 **Branch:** `integration/attestation-protocol-bridge`
 **Governed by:** `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`. Every decision below cites the
 precondition it satisfies.
-**Status:** step 1 of 4 landed. **No Rust, no DNA, no entry types touched, and nothing deployed.**
+**Status:** step 1 of 4 landed and **CI-green**. **No Rust, no DNA, no entry types touched, and nothing deployed.**
+✅ **Verified by a real run — CI `32598696410`, 2026-08-22: 608 passed, 97% coverage, identical on
+Python 3.10 and 3.13.** The `content_preimage` extraction moved no existing hash, and the new
+module added 47 statements with **zero** uncovered.
 
 ## Why this is being built the way it is
 
