@@ -58,11 +58,14 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 | 01 | HarmonyRecord supersession — no mechanism exists | Ceri, 2026-08-22 | 🟠 | **Yes** |
 | 02 | Hardware provenance for researcher and validator | Ceri, 2026-08-22 | 🟠 / 🔴 | **Yes** |
 | 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No — **fixed 2026-08-22** |
-| 04 | Erasure obligations — for **validators**, not research subjects | Found 2026-08-22 | 🔴 | Unclear — **one hour's check, before scheduling the rebuild** |
+| 04 | Erasure obligations — for **validators**, not research subjects | Found 2026-08-22 | 🔴 | ✅ **Checked 2026-08-22: yes IF validators are to be anonymised — and it is a security redesign, not just a field change** |
 | 05 | Three public fields where typed content can expose a research subject | Found 2026-08-22 | 🟢 fix / 🔴 consequence | No |
 
 **01 and 02 both need an integrity-zome change**, so they should be scoped together and land in
-the same break rather than separately. **04 may join them — that is the check.** 03 is done. 05 is
+the same break rather than separately. **04's check is done: it joins them only if validator
+identity is to come off the public record — a product decision that must be taken before the
+rebuild is scheduled, because the alternative is a second break plus a security redesign under
+time pressure.** 03 is done. 05 is
 mostly coordinator-side and needs no break, though two of its stronger options (a numeric metric
 type, a declared subject count) would ride the same one if wanted.
 

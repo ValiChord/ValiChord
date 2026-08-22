@@ -85,14 +85,94 @@ So this is partly a product decision, not an architecture problem: **how much re
 worth how much permanence of an individual's record.** No cleverer design removes it. That question
 is Ceri's.
 
-## The cheap check that decides the window
+## ✅ THE CHECK — DONE 2026-08-22. Answer: **yes, conditionally, and the condition is a product decision.**
 
-**Does the answer change what a HarmonyRecord or ValidatorReputation *contains*?** If validator
-identity becomes a commitment rather than a raw `AgentPubKey`, that is an integrity-zome change —
-🟠, and it belongs in the same break as 01 and 02. If the answer is guidance and read-path changes
-only, it is 🟢 and can happen any time.
+The question was whether any answer here changes what a `HarmonyRecord` or `ValidatorReputation`
+*contains*. Traced through the code. Three separate answers, and they differ.
 
-**Nobody has checked. It is an hour's work and it should happen before the rebuild is scheduled.**
+### 1. `person_key` — the sharpest exposure is already inert. 🟢 No action.
+
+`ValidatorReputation.person_key` is constructed **`None` in both places it is written**
+(`governance_coordinator/src/lib.rs:1057` and `:1126`) and **read nowhere in any DNA**. The
+explicit agent→person link that looked like the worst of this is dead weight: written empty,
+never consumed.
+
+Nothing to do, and nothing to pay for. Removing the field would itself be an integrity change, so
+**leave it as an always-`None` `Option` and document why.**
+
+⚠️ **But there is a live footgun next door.** `ValidatorProfile.person_key` in DNA 1 *is*
+settable, through `UpdateValidatorProfileInput`, and `ValidatorProfile` carries no
+`visibility = "private"` attribute — so it is **public**. A validator can therefore publish a
+permanent public link from their validator agent to a person key. Self-inflicted, but nothing warns
+them. That is guidance and UI (🟢), not a schema problem.
+
+### 2. `participating_validators` — 🔴 cannot be anonymised without redesigning two security guards
+
+This is the finding. It is **not merely** an entry-shape change.
+
+`governance_integrity/src/lib.rs:253` — the anti-forgery guard:
+
+```rust
+if !record.participating_validators.contains(action.author()) {
+    return Invalid("HarmonyRecord author must be listed in participating_validators —
+                    only validators who participated in the round may write the record");
+}
+```
+
+**`validate()` compares the list against `action.author()`, the signed and unforgeable author of
+the entry.** If the list held salted commitments, validate() could not perform this check *at all*
+— it would need the salt, and the salt being private is the entire point. The guard does not get
+harder; it becomes impossible.
+
+Directly beneath it, the duplicate guard:
+
+```rust
+let unique_count = record.participating_validators.iter()
+    .collect::<HashSet<_>>().len();
+if unique_count < record.participating_validators.len() { return Invalid(...) }
+```
+
+Its stated purpose: *"a fabricated list cannot pad the validator count past a badge threshold by
+repeating a single real key."* **Per-record salted commitments break this too** — one validator
+could appear twice under two salts and the set would see two distinct values. A deterministic
+commitment would preserve dedup, but a commitment everyone can recompute is not erasable, which
+defeats the purpose.
+
+**So anonymising validators in HarmonyRecords is 🟠 *and* a security redesign.** The two guards
+would need replacing, not porting. That is a substantially bigger job than "change a field type",
+and it is exactly the kind of thing that must not be discovered halfway through a rebuild.
+
+*(The other two checks on this field — the parallel-length check on `validator_types` and the
+quorum count — only use `.len()` and are indifferent to what the elements are.)*
+
+### 3. `ValidatorReputation` — the real ongoing exposure, and it is a product decision. 🟠 or 🟢
+
+`update_validator_reputation` is a live production coordinator function, so the profile
+— `total_validations`, `successful_validations`, `agreement_rate`, `avg_time_secs`, `tier`,
+keyed by `validator: AgentPubKey` — is being written for real.
+
+- **Stop writing it:** coordinator-only, 🟢, no break needed. Costs you the reputation system.
+- **Change its shape:** integrity change, 🟠, same break as 01 and 02.
+- **Keep it as is:** free, and the exposure stands.
+
+## ⭐ What this actually reduces to — one question, and it is not technical
+
+> **Do you want validator identity on the permanent public record, yes or no?**
+
+**If yes** — nothing here needs the window. Document the position honestly, fix the governance
+document's erasure claim (04's original point), add the `ValidatorProfile.person_key` warning, and
+move on. All 🟢.
+
+**If no, or if unsure** — it needs the window, and it needs more than the window: two anti-forgery
+guards must be redesigned before anything is written. **That work cannot start during a rebuild;
+it has to be settled first.**
+
+⚠️ **This is why the check mattered.** "We'll anonymise validators later" is not available as an
+option. Later means a second network break *plus* a security redesign under time pressure. The
+decision is cheap now and expensive at every later point.
+
+**Recommendation: answer the yes/no question before scheduling the Oracle rebuild.** Not the design
+— just the direction. Everything else follows from it.
 
 ## What was done on 2026-08-22
 
