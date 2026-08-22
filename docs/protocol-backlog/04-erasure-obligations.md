@@ -167,12 +167,88 @@ move on. All 🟢.
 guards must be redesigned before anything is written. **That work cannot start during a rebuild;
 it has to be settled first.**
 
-⚠️ **This is why the check mattered.** "We'll anonymise validators later" is not available as an
-option. Later means a second network break *plus* a security redesign under time pressure. The
-decision is cheap now and expensive at every later point.
+⚠️ The cost of deciding *late* is real: a second network break plus a security redesign under
+time pressure.
 
-**Recommendation: answer the yes/no question before scheduling the Oracle rebuild.** Not the design
-— just the direction. Everything else follows from it.
+> ### 🛑 But do not decide early to avoid that. Ceri, 2026-08-22.
+>
+> **"There is no rush to solve this."** And the reason is better than the urgency argument above,
+> which was mine and which I withdraw as a recommendation.
+>
+> **This is not ValiChord's decision to take alone.** Nondominium will likely run **human**
+> validators, and when they do, the answer is substantially theirs. Taking it now, in their absence,
+> would be deciding for a stakeholder who is not in the room — and **deciding early and wrong is
+> worse than deciding late.** The whole cost of getting it wrong is that it cannot be changed.
+>
+> His honest position, in his own words, and it is the correct one to hold: **"I don't know."**
+
+## 📍 OPEN QUESTIONS — recorded, not answered
+
+The question underneath everything above, as Ceri put it on 2026-08-22:
+
+> **"Does being a Validator mean that you, by definition, lose the right of anonymity?"**
+
+Nobody here has answered it and nothing below is an answer. This section exists so the shape of
+the question survives the conversation that produced it.
+
+### The reframe that makes it tractable
+
+**The check and the publication are already separate layers**, and conflating them is what makes
+the question feel forced.
+
+- **Independence is verified at claim time**, in the attestation DNA — the conflict-of-interest
+  guard, the credential, the institution comparison. That machinery *needs* to know who someone is.
+- **The HarmonyRecord is a publication**, in the governance DNA, written afterwards.
+
+So *"identity is needed to check independence"* does **not** imply *"identity must appear in the
+published record."* The real question is narrower: **must the publication name them, given the
+checks happen elsewhere?**
+
+### Arguments that it must
+
+- **Auditability.** *"Trust us, N independent people agreed"* is precisely the kind of
+  unverifiable claim ValiChord exists to eliminate. A third party who cannot see who validated is
+  taking the protocol's word for it.
+- **Accountability.** Warrants and reputation have to attach to someone. Fabricated attestations
+  need a bearer.
+- **Collusion detection.** The longitudinal audit works by looking at patterns across rounds, which
+  needs continuity of identity.
+
+### Arguments that it must not
+
+- **Traditional peer review is anonymous.** Reviewers are overwhelmingly not named. **ValiChord is
+  currently more exposing than the system it sets out to improve on**, which is worth sitting with.
+- **Retaliation and chilling effects.** A junior researcher validating a senior figure's work and
+  finding it does not reproduce is *exactly* the case where naming them suppresses the finding —
+  and exactly the case the protocol most needs to work.
+- **What the record needs to establish** is that N independent parties agreed, not who they were.
+  Independence can be attested by a credential issuer without publishing identity.
+
+### Questions nobody has asked yet
+
+- **Is anonymity even achievable here, or only pseudonymity?** Agreement patterns and timing are
+  distinctive. A persistent pseudonym across enough rounds may re-identify regardless of what the
+  field contains — which would make the whole question partly moot, and that is worth establishing
+  *before* paying for a redesign.
+- **Is this one answer or many?** 🆕 Different deployments may answer differently and reasonably.
+  A Nondominium commons, whose whole model is transparent contribution accounting, may **want**
+  named validators. A medical-research network may need the opposite. ValiChord already runs
+  separate networks per deployment, so this could be a **DNA property** like
+  `min_attestations_for_finalization` rather than a global answer.
+  ⚠️ This does not dodge the cost — supporting both modes still means the security redesign in
+  §2 above. But it removes the need for one universal answer, which is the part currently blocked.
+- **Who decides for a given network — and can validators consent?** If a validator knows at
+  credentialing time that their participation is permanently public, that is a materially different
+  proposition from discovering it later.
+
+### What to do meanwhile
+
+Nothing, deliberately. The two 🟢 items stand on their own and need no answer here: fix the
+governance document's unmet erasure claim (the original point of this item), and warn about
+`ValidatorProfile.person_key`.
+
+**Raise it with Nondominium when the time comes**, since human validators make it concrete for
+them, and it is more their decision than ours.
 
 ## What was done on 2026-08-22
 
