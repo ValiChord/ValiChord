@@ -8,12 +8,6 @@ authors:
     given-names: Ceri
     orcid: ""
     email: topeuph@gmail.com
-  # Contributed the conformance vector suite for the valichord_attestation
-  # Merkle construction, and the first independent verification of it — two
-  # implementations of RFC 6962 §2.1 checked against ours across n = 0..64.
-  # CFF 1.2.0 has no contributor role, so this is recorded as authorship.
-  - family-names: "Öztürk"
-    given-names: "Cüneyt"
 abstract: >
   ValiChord is an open-source, distributed infrastructure for computational
   reproducibility validation built on Holochain. It provides cryptographic

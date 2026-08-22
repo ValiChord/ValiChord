@@ -73,10 +73,15 @@ rather than by default. Detail in memory `project_attestation_adopters`.
 
 ## 📮 Owed to other people
 
-1. ~~**Tell Cüneyt Öztürk he is in `CITATION.cff`.**~~ ✅ **Sent 2026-08-21.** He was told in public,
-   on the PR thread where the exchange already lives, so that the credit *and* any refusal are
-   equally visible. Email and affiliation stay omitted — he never gave either. **If he replies
-   asking to be removed, reworded, or given an affiliation, do it without argument.**
+1. ~~**Tell Cüneyt Öztürk he is in `CITATION.cff`.**~~ ✅ **Closed 2026-08-21 — he declined, and the
+   record now says what he asked it to say.** Told in public on PR #31; he replied the same day
+   asking to come off the author list. His reason was better than the one the entry was built on:
+   **GitHub renders the citation from the parsed file and drops the explanatory comment**, so the
+   rendered artefact read "John, C. & Öztürk, C." as co-authors of ValiChord — three commits of
+   vectors against fourteen hundred. A comment that survives only in the source is not a record.
+   Removed from `CITATION.cff`; his own wording added verbatim to the root `README.md` and to
+   `valichord_attestation/README.md`, with the affiliation he supplied (**Falsify OÜ**).
+   ⚠️ **Generalises: check what a machine-readable file RENDERS as, not just what it says.**
 2. **Two one-line errors in Sensorica's own docs** — **low priority, and possibly moot.** Ceri's
    read (2026-08-21): if Sacha reads the integration doc properly he will find them himself. Offer
    them only if it comes up naturally; do not push them. They were always a courtesy, not a debt:

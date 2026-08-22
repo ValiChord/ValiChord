@@ -222,6 +222,13 @@ pytest tests/ --cov=valichord_attestation
 
 ---
 
+## Acknowledgements
+
+Merkle conformance vectors and independent verification of the
+RFC 6962 §2.1 construction: Cüneyt Öztürk (Falsify OÜ)
+
+---
+
 ## License
 
 Apache 2.0 — see [`LICENSE`](../LICENSE) at the repository root.
