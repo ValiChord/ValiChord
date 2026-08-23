@@ -107,7 +107,8 @@ If any of these fail, the grader sends the agent back to revise the verdict file
 
 `seal_attestation` is a custom tool that the agent calls but the Python code actually executes. The flow:
 
-1. Agent decides it's ready, calls `seal_attestation(verdict, confidence, notes)`
+1. Agent decides it's ready, calls `seal_attestation(verdict, confidence, notes)` —
+   the session emits `agent.custom_tool_use` and goes idle with `requires_action`
 2. Python code intercepts this in the event stream
 3. Python calls the validator-node.mjs HTTP endpoint (same as current code)
 4. Python sends the result back to the agent session
@@ -137,7 +138,7 @@ BETAS = ["managed-agents-2026-04-01"]
 # Create environment
 env = client.beta.environments.create(
     name="valichord-run",
-    config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
+    config={"type": "cloud", "networking": {"type": "unrestricted"}},
 )
 
 # Create a validator agent
@@ -146,13 +147,20 @@ validator = client.beta.agents.create(
     model="claude-haiku-4-5-20251001",
     system=VALIDATOR_SYSTEM_PROMPT,
     tools=[
+        # `configs` are per-tool OVERRIDES. Without default_config enabled=False,
+        # all eight toolset tools stay on; and with it, an entry that omits
+        # `enabled` inherits False. Both halves are required for an allowlist.
         {
             "type": "agent_toolset_20260401",
-            "configs": [{"name": "web_search"}, {"name": "web_fetch"},
-                        {"name": "read"}, {"name": "write"}],
+            "default_config": {"enabled": False},
+            "configs": [{"name": "web_search", "enabled": True},
+                        {"name": "web_fetch",  "enabled": True},
+                        {"name": "read",       "enabled": True},
+                        {"name": "write",      "enabled": True}],
         },
-        # Custom tool — executed client-side
+        # Custom tool — executed client-side. The "type" is required.
         {
+            "type": "custom",
             "name": "seal_attestation",
             "description": "Submit your reproducibility verdict. Call this only after your verdict file has been approved.",
             "input_schema": {
@@ -188,17 +196,25 @@ client.beta.sessions.events.send(
     }],
 )
 
-# Stream events — handle custom tool calls client-side
+# Stream events — handle custom tool calls client-side.
+# Custom tools emit `agent.custom_tool_use`; you answer with `user.custom_tool_result`.
+# (`agent.tool_use` / `agent.tool_result` are the SERVER-executed toolset's events —
+# replying with those types leaves the session idle forever waiting on you.)
 with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
     for ev in stream:
-        if ev.type == "agent.tool_use" and ev.name == "seal_attestation":
+        if ev.type == "agent.custom_tool_use" and ev.name == "seal_attestation":
             result = call_validator_node(validator_url, task_hash, ev.input)
             client.beta.sessions.events.send(
                 session.id, betas=BETAS,
-                events=[{"type": "agent.tool_result", "tool_use_id": ev.id, "content": result}],
+                events=[{"type": "user.custom_tool_result",
+                         "tool_use_id": ev.id, "content": result}],
             )
         elif ev.type == "session.status_idle":
-            break
+            # Idle != finished. While the session waits for the custom tool result
+            # above it idles with stop_reason `requires_action` — keep listening.
+            if ev.stop_reason.type == "requires_action":
+                continue
+            break   # end_turn / retries_exhausted / budget_reached
 ```
 
 ---
