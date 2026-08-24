@@ -235,6 +235,7 @@ def parse_metrics(output: str) -> list:
 #   4. create — first run for a given key only
 _AGENT_ENV_CACHE: dict = {}
 _AGENT_ENV_LOCK  = threading.Lock()
+_AGENT_ENV_CACHE_MAX = 32   # visitor keys are one-shot; bound the cache
 
 _LIST_SCAN_LIMIT = 200   # bound the name scan; these workspace lists are small
 
@@ -251,8 +252,11 @@ def _find_named(pager, name: str):
 
 def _get_or_create_agent_env(api_key: str) -> tuple:
     """Return (agent_id, agent_version, env_id) for the standard validator config."""
+    # Key on a digest, never the key itself: raw visitor (bring-your-own) API keys
+    # must not sit in process memory as dict keys.
+    cache_key = hashlib.sha256(api_key.encode()).hexdigest()
     with _AGENT_ENV_LOCK:
-        cached = _AGENT_ENV_CACHE.get(api_key)
+        cached = _AGENT_ENV_CACHE.get(cache_key)
         if cached is not None:
             return cached
 
@@ -311,7 +315,9 @@ def _get_or_create_agent_env(api_key: str) -> tuple:
                 )
 
         result = (agent.id, agent.version, env_id)
-        _AGENT_ENV_CACHE[api_key] = result
+        while len(_AGENT_ENV_CACHE) >= _AGENT_ENV_CACHE_MAX:
+            _AGENT_ENV_CACHE.pop(next(iter(_AGENT_ENV_CACHE)))
+        _AGENT_ENV_CACHE[cache_key] = result
         return result
 
 

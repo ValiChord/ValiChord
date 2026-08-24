@@ -18,6 +18,7 @@ import anthropic
 
 from ai_validator_cma import (
     _node_post, _node_get, BETAS, MODEL_CMA, MAX_TOOL_CALLS, SESSION_DEADLINE_S,
+    _find_named, _idle_stop_reason,
 )
 from agreement import derive_agreement_level, derive_majority_outcome
 
@@ -98,14 +99,29 @@ _CLAIM_AGENT_ENV_CACHE: dict = {}
 _CLAIM_AGENT_ENV_LOCK  = threading.Lock()
 _CLAIM_AGENT_ENV_CACHE_MAX = 32  # visitor keys are one-shot; bound the cache
 
+# Stable names for the persistent control-plane objects. Distinct from the
+# reproducibility validator's — this agent carries a different system prompt.
+CMA_CLAIM_AGENT_NAME = "valichord-claim-validator"
+CMA_CLAIM_ENV_NAME   = "valichord-claim-validator-env"
+
 
 def _get_or_create_agent_env(api_key: str) -> tuple:
     """Return (agent_id, agent_version, env_id) for the claim-evaluation validator
-    config — shared by all 3 validators, cached per API key (the server key reuses
-    them across runs). Each session still provisions its own isolated container.
+    config — shared by all 3 validators. Each session still provisions its own
+    isolated container.
 
-    Keyed by SHA-256 of the key — raw visitor keys must not persist in process
-    memory — and size-capped so one-shot visitor keys don't accumulate."""
+    Agents and environments are persistent, VERSIONED control-plane objects, not
+    per-run resources: minting a pair per run accumulates orphans, pays the create
+    latency in the request path, and discards the version pinning that makes a run
+    reproducible. Resolution order, cheapest first:
+      1. process cache — keyed by SHA-256 of the API key, since raw visitor keys
+         must not persist in process memory, and size-capped so one-shot visitor
+         keys don't accumulate
+      2. VALICHORD_CMA_CLAIM_AGENT_ID / VALICHORD_CMA_CLAIM_ENV_ID — provision once
+         out of band and the request path never touches the control plane at all
+      3. lookup by stable name
+      4. create — first run for a given key only
+    """
     cache_key = hashlib.sha256(api_key.encode()).hexdigest()
     with _CLAIM_AGENT_ENV_LOCK:
         cached = _CLAIM_AGENT_ENV_CACHE.get(cache_key)
@@ -113,21 +129,59 @@ def _get_or_create_agent_env(api_key: str) -> tuple:
             return cached
 
         client = anthropic.Anthropic(api_key=api_key)
-        env = client.beta.environments.create(
-            name=f"valichord-claim-{int(time.time())}",
-            config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
-        )
-        agent = client.beta.agents.create(
-            name="valichord-claim-validator",
-            model=MODEL_CMA,
-            system=VALIDATOR_CLAIM_SYSTEM,
-            tools=[{
-                "type": "agent_toolset_20260401",
-                "configs": [{"name": "web_search"}, {"name": "web_fetch"}, {"name": "write"}],
-            }],
-            betas=BETAS,
-        )
-        result = (agent.id, agent.version, env.id)
+
+        # -- Environment ------------------------------------------------------
+        env_id = os.environ.get("VALICHORD_CMA_CLAIM_ENV_ID", "").strip()
+        if not env_id:
+            env = _find_named(client.beta.environments.list(), CMA_CLAIM_ENV_NAME)
+            if env is None:
+                try:
+                    env = client.beta.environments.create(
+                        name=CMA_CLAIM_ENV_NAME,
+                        config={"type": "cloud", "networking": {"type": "unrestricted"}},
+                    )
+                except Exception:
+                    # Environment names are unique (409 on collision) — another
+                    # process won the race. Re-scan rather than fail the run.
+                    env = _find_named(client.beta.environments.list(), CMA_CLAIM_ENV_NAME)
+                    if env is None:
+                        raise
+            env_id = env.id
+
+        # -- Agent ------------------------------------------------------------
+        agent_id = os.environ.get("VALICHORD_CMA_CLAIM_AGENT_ID", "").strip()
+        if agent_id:
+            agent = client.beta.agents.retrieve(agent_id)
+        else:
+            found = _find_named(client.beta.agents.list(), CMA_CLAIM_AGENT_NAME)
+            if found is not None:
+                # Retrieve the canonical object — don't assume the list item carries
+                # `version`, which sessions.create needs in order to pin.
+                agent = client.beta.agents.retrieve(found.id)
+            else:
+                agent = client.beta.agents.create(
+                    name=CMA_CLAIM_AGENT_NAME,
+                    model=MODEL_CMA,
+                    system=VALIDATOR_CLAIM_SYSTEM,
+                    tools=[{
+                        "type": "agent_toolset_20260401",
+                        # Allowlist. `configs` are per-tool OVERRIDES, not a whitelist:
+                        # without default_config enabled=False all eight toolset tools
+                        # stay on (bash, read, edit, glob, grep included). Flip the
+                        # default off, then opt in explicitly — an entry carrying no
+                        # `enabled` key inherits the default, so each needs enabled=True
+                        # or the validator ends up with no tools at all.
+                        "default_config": {"enabled": False},
+                        "configs": [
+                            {"name": "web_search", "enabled": True},
+                            {"name": "web_fetch",  "enabled": True},
+                            {"name": "write",      "enabled": True},
+                        ],
+                    }],
+                    betas=BETAS,
+                )
+
+        result = (agent.id, agent.version, env_id)
         while len(_CLAIM_AGENT_ENV_CACHE) >= _CLAIM_AGENT_ENV_CACHE_MAX:
             _CLAIM_AGENT_ENV_CACHE.pop(next(iter(_CLAIM_AGENT_ENV_CACHE)))
         _CLAIM_AGENT_ENV_CACHE[cache_key] = result
@@ -181,6 +235,12 @@ def _run_cma_claim_session(
         stream_start = time.monotonic()
         with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
             for ev in stream:
+                # Runs FIRST so it still fires on iterations that `continue` below.
+                # Per-chunk read timeout isn't a total deadline; enforce one here.
+                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
+                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    break
+
                 if ev.type == "agent.tool_use":
                     n_tool_calls += 1
                     if n_tool_calls >= MAX_TOOL_CALLS:
@@ -190,10 +250,15 @@ def _run_cma_claim_session(
                     stop_reason = f"session ended early ({ev.type})"
                     break
                 elif ev.type == "session.status_idle":
-                    break
-                # Per-chunk read timeout isn't a total deadline; enforce one here.
-                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
-                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    # Idle is not the same as finished: a session also idles while it
+                    # waits on US (`requires_action`). Breaking there walks away
+                    # mid-analysis and reads a verdict that was never written.
+                    # Terminal: end_turn (clean), retries_exhausted, budget_reached.
+                    reason = _idle_stop_reason(ev)
+                    if reason == "requires_action":
+                        continue
+                    if reason and reason != "end_turn":
+                        stop_reason = f"session idled: {reason}"
                     break
 
         # Cut short → interrupt so the agent stops running/billing server-side.
