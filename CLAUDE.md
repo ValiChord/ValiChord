@@ -401,10 +401,28 @@ Run `holochain --version`. Current stable in use: 0.6.2. (0.6.3 shipped 2026-07-
 
 (Trail for the record: `develop` head `d1ec5a72` *"chore: Prepare the 0.7.0 release"* at 14:16:58Z flipped all 35 crate CHANGELOGs from `default_semver_increment_mode: !pre_minor rc` to `semver_increment_mode: minor` — the switch that makes the release automation cut the minor bump instead of rc.6. That commit is the reliable "stable is imminent" tell for future cycles.)
 
-### ⚠️ WE ARE STILL ON 0.6.2 — TWO STANDING RULES
+### ✅ `main` IS ON 0.7.0 — THE STANDING RULES BELOW ARE SPENT (corrected 2026-08-24)
+
+> 🟢 **`main` merged Holochain 0.7.0 on 2026-08-03 (`38ea2123`, verified an ancestor of
+> `main`).** This heading read **"WE ARE STILL ON 0.6.2 — TWO STANDING RULES"** for three weeks
+> after that merge, in the file every session reads first. Any session trusting it would have
+> concluded the upgrade had not happened and that `main` must be protected from it. `PROJECT_STATUS.md`
+> had it right the whole time; this file did not.
+>
+> **What is still true:** the **Oracle demo host** runs 0.6.2. So `main` and the live public demo
+> describe different stacks until Oracle is rebuilt — a full rebuild with state loss, not an
+> upgrade. See `docs/ORACLE_0.7.0_UPGRADE.md`, which also records that the host currently has **no
+> reachable shell** (SSH key lost at creation; Compute Instance Run Command accepts commands and
+> never executes them).
+
+**The original rules, kept because their reasoning still applies to the next major version:**
 
 1. **Do NOT auto-upgrade.** Migration is deliberate and planned.
-2. **MIGRATION IS BRANCH-ONLY — `main` STAYS ON 0.6.2.** User decision, 2026-07-30: this is a major change and must happen on a dedicated **`v0.7.0` branch**, never directly on `main`. `main` keeps the working, publicly-demoed 0.6.2 stack until the branch is fully green (all sweettest suites + UI e2e + a live demo round — Tryorama was retired 2026-08-03 and is no longer a gate) **and** the user explicitly approves the merge. 0.7.0 being superior does not make a broken intermediate state acceptable. See `user_ceri_working_style` — core is paranoid.
+2. **MIGRATION IS BRANCH-ONLY.** User decision, 2026-07-30: a major change happens on a dedicated branch, never directly on `main`, and `main` keeps the working publicly-demoed stack until that branch is fully green (all sweettest suites + UI e2e + a live demo round — Tryorama was retired 2026-08-03 and is no longer a gate) **and** the user explicitly approves the merge. Superiority does not make a broken intermediate state acceptable. See `user_ceri_working_style` — core is paranoid.
+
+⚠️ **Sections below this line predate the 0.7.0 merge.** Several are written in the future
+tense about work that is now done. Read `docs/Holochain_complete.md` §44 — the observed record of
+the port — before acting on any of it; §44 supersedes anything here that disagrees.
 
 ### 🔴 BLOCKER: the JS/tooling ecosystem has NOT shipped — the migration is TWO-PHASE
 
