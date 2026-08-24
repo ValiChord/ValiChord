@@ -36,9 +36,33 @@ def _server_api_key() -> str:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+# Process start time — with the commit below, this is how you tell a frozen
+# deploy from a live one without opening the Render dashboard.
+_STARTED_AT = time.time()
+
+
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok'})
+    """Liveness, plus what is actually running.
+
+    Render injects RENDER_GIT_COMMIT / RENDER_GIT_BRANCH into every service. Until
+    2026-08-24 this endpoint returned `{"status": "ok"}` and nothing else, so when
+    auto-deploy silently broke on 2026-07-07 the site went on reporting itself
+    healthy for seven weeks while serving a stale build. Healthy and current are
+    different questions; this answers both.
+
+    Every field is optional and defaulted — a health check that can raise is a
+    health check that can fail a deploy.
+    """
+    return jsonify({
+        'status':      'ok',
+        'commit':      os.environ.get('RENDER_GIT_COMMIT', 'unknown')[:12],
+        'branch':      os.environ.get('RENDER_GIT_BRANCH', 'unknown'),
+        'uptime_s':    int(time.time() - _STARTED_AT),
+        'nodes': {
+            'researcher': os.environ.get('VALICHORD_RESEARCHER_URL', 'unset'),
+        },
+    })
 
 
 @app.route('/demo')
