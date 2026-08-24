@@ -344,6 +344,20 @@ Used by: `ValidationTier`, `AttestationConfidence`, `ValidationPhase`, `Agreemen
 
 ## Hard constraints
 
+### CI triggers — two ways to silently run nothing (both cost time on 2026-08-22)
+
+- ⚠️ **Never write the skip token in a commit message, not even to say you are NOT using it.**
+  GitHub matches the literal string **anywhere** in the message, not just the first line. A merge
+  commit whose body read *"pushed deliberately without [skip ci]"* skipped both workflows. The
+  explanation performed the thing it denied. Refer to it obliquely — "the skip token" — or not
+  at all.
+- ⚠️ **An empty commit cannot trigger a path-filtered workflow.** `attestation.yml` runs only on
+  changes under `valichord_attestation/**`, so `git commit --allow-empty` fires the unfiltered
+  90-minute matrix and **not** the 25-second job you wanted. To run that one without a code change,
+  use **Actions → Attestation Format → Run workflow** in a browser. ⚠️ `gh workflow run` returns
+  **HTTP 403** from a Codespace — the injected `GITHUB_TOKEN` can read runs but not dispatch them.
+
+
 - Never use `pack_dna.py` — broken (embeds same DNA bytes for all four roles)
 - Always use `hc dna pack` + `hc app pack`
 - Before any test run: `pkill -x holochain; pkill -x lair-keystore; sleep 2` (never `-f` — it matches the invoking shell itself)
