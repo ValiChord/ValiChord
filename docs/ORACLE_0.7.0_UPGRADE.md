@@ -18,7 +18,7 @@ marked as verified or assumed, and the assumptions are called out.
 | Route | State |
 |---|---|
 | SSH | ❌ The private key from instance creation (2026-07-07) is lost. Oracle shows a private key once and never stores it. |
-| Compute Instance Run Command | ❌ Plugin reports Enabled/Running, commands are Accepted and their content stored, **the agent never collects them**. Unchanged by a reboot (2026-08-24). |
+| Compute Instance Run Command | ❌ Plugin reports Enabled/Running, commands are Accepted and their content stored, **the agent never collects them** ("No response received yet"). Unchanged by a reboot (2026-08-24). Cause not found. **Ruled out:** VCN egress — the security list allows all protocols on all ports to 0.0.0.0/0, so the agent is not being firewalled off from Oracle's endpoints. |
 | Instance console (serial) connection | ⚪ Untried. Needs a freshly generated key pair and still lands at a login prompt. |
 | Boot-volume detach → edit `authorized_keys` → reattach | ⚪ Untried. Works, but it is surgery. |
 
