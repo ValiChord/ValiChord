@@ -1,6 +1,38 @@
 # Oracle upgrade to Holochain 0.7.0 — runbook
 
-**Written 2026-08-24, blocked on access — see [Access](#access) first.**
+**Written 2026-08-24. ✅ EXECUTED THE SAME DAY — on a NEW host, not the one it was written for.**
+
+> ## Outcome, 2026-08-24
+>
+> The original host () was never reached — see [Access](#access). Instead a new
+> instance was created with an SSH key held by the owner, and the stack deployed there from
+>  at .
+>
+> **New host: ** — Oracle Linux 9.8, ARM64, 1 OCPU, 6 GB. Docker 29.7.2,
+> Compose v5.5.0. Repo at .  needed ports 3001-3004 opened
+> explicitly — the VCN security list alone is not enough on Oracle Linux.
+>
+> **A full commit-reveal round ran end to end on 0.7.0:** Reproduced 3/3, ExactMatch,
+> ComputationalBiology, , and the record reads back from a third machine.
+>
+> **The hash gate did its job.** Three of four DNAs matched §44.5; **governance did not**. Cause:
+>  (2026-08-03) changed only the governance zomes and rebuilt the bundles, one commit
+> after that table was written. The deployment was right and the documentation was stale. Both
+> §44.5 and this file now carry the corrected value.
+>
+> **⚠️ The 1-OCPU contention risk is CONFIRMED, and did not matter.** 76 
+> errors across the conductors during the round. Zero restarts, zero crashes, every assertion
+> held, record readable. §44.12 asked for exactly this datapoint before the demo was relied on
+> at 1 OCPU: it occurs, and it is survivable. It is no longer a hypothesis in either direction.
+>
+> **⚠️  printed  twice
+> and continued to success.**  runs inside a worker thread, so it kills the thread, not
+> the run. A FATAL that is not fatal will mislead whoever reads it next — and the timeouts are
+> plausibly the same contention surfacing under three concurrent validator calls.
+>
+> **Not yet done:** the public demo at valichord-demo.onrender.com still points at the OLD
+> 0.6.2 nodes. Repointing it is a Render environment-variable change, not a code change. The old
+> instance is untouched and still serving.
 
 The Oracle demo host still runs Holochain **0.6.2** while `main` has been on **0.7.0** since
 2026-08-03. This document is the sequence to close that gap. It exists because the person who
@@ -145,7 +177,7 @@ Before trusting anything, compare the hashes inside the running happ against the
 | attestation | `uhC0kHA0WhADQPl5QCjt46s0FF4n3Ow31GB8mboTVZ6ATLm1-h7ha` |
 | researcher_repository | `uhC0k0yKAcW_9d23GcZ_NqKkQ8S8qYzAUFEUR6INXTUiQL-jXQTw7` |
 | validator_workspace | `uhC0kf_nk5PLP_sCHC6IeLEML1xiIQTM6n---e5tPhChKB0Mmy5l4` |
-| governance | `uhC0kRrX19H1PP-lfWYhBc6vRUIDAG1CkI7zMWVOD9AZ15xoGwZSC` |
+| governance | `uhC0k-KuuIMxxHdI6s7mNtecZkspMbkpt2jonT2zLsp2_ls_e4oPy` |
 
 Source: `docs/Holochain_complete.md` §44.5. Those are the hashes **after** the validator→bundle
 binding and the `DataLocalityMode` field, which is the state actually committed.

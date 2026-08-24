@@ -1462,7 +1462,15 @@ Rebuilt on `hdi 0.8.0` / `hdk 0.7.0` and repacked with `hc 0.7.0` (2026-08-01):
 | attestation | `uhC0kHA0WhADQPl5QCjt46s0FF4n3Ow31GB8mboTVZ6ATLm1-h7ha` |
 | researcher_repository | `uhC0k0yKAcW_9d23GcZ_NqKkQ8S8qYzAUFEUR6INXTUiQL-jXQTw7` |
 | validator_workspace | `uhC0kf_nk5PLP_sCHC6IeLEML1xiIQTM6n---e5tPhChKB0Mmy5l4` |
-| governance | `uhC0kRrX19H1PP-lfWYhBc6vRUIDAG1CkI7zMWVOD9AZ15xoGwZSC` |
+| governance | `uhC0k-KuuIMxxHdI6s7mNtecZkspMbkpt2jonT2zLsp2_ls_e4oPy` |
+
+⚠️ **The governance row was corrected 2026-08-24.** It read `uhC0kRrX19H1PP-lfWYhBc6vRUIDAG1CkI7zMWVOD9AZ15xoGwZSC`
+until then — the value from this table’s original writing on 08-01/02, one commit before
+`bc3ed82` (2026-08-03, *"HarmonyRecord records how many validators were ASKED for"*) changed
+the governance zomes and rebuilt the bundles. Only governance moved, which is why the other
+three rows were still right. Verified by hashing the committed `valichord.happ` with
+`hc 0.7.0` during the Oracle deployment. **Third rewrite of this table — treat any hash here as
+a claim to re-derive, not a fact.**
 
 ⚠️ These are the hashes **after** the validator→bundle binding and the `DataLocalityMode`
 field landed on top of the port, which is the state actually committed. They have been rewritten
