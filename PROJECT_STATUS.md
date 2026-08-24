@@ -16,7 +16,7 @@
 | `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 608 tests, 97% coverage | 2026-08-22 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-22 |
-| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️ | 2026-08-22 |
+| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️, plus in-flight `fix/cma-*` | 2026-08-22 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -914,6 +914,96 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Conformance, an integration boundary, and a day of measuring docs against code — 2026-08-22 ✓
+
+**The day's real output was not the code. It was finding out how far several documents had drifted
+from the thing they describe** — and building the two places that will notice next time.
+
+**`valichord_attestation/spec/conformance.md`** — terms, BCP 14 keywords, and **23 numbered
+requirements** where there had been prose. KeilerHirsch had said he would treat this format as a
+compatibility target rather than fork it; until now there was nothing definite to conform *to*
+(the v2 spec said an implementation *"should"* reproduce the vectors, there was no definitions
+section, and five RFC-2119-style words across 35KB). Nothing in it is a new rule — §6 says that a
+requirement the format specs do not support is a defect *in the conformance document*. It also
+settles two things that were homeless: **repeatability vs reproducibility** (ISO 5725, the
+vocabulary backlog item 05 has been carrying) and **asserted vs observed**, promoted from a note in
+a backlog README to a definition, because it is the line every future field must declare a side of.
+Deliberately **not** in a version-named file — v2's own scope is "the Merkle construction and
+nothing else", and `spec/v2-backlog/` already demonstrated that version-named containers close.
+
+**`docs/PROTOCOL_INTEGRATION_BOUNDARY.md`** — four normative preconditions for **any** outside
+system plugging into the protocol. Written because Ceri reframed the attestation bridge: it is not
+primarily a feature, it is **the first test of how any outside organisation connects**. No new
+entry/link types or integrity-zome changes; no payload parsed inside an integrity zome; no payload
+content on a public DHT; every crossing value declared asserted or observed with its enforcing
+layer named. An integration failing one is a signal to stop, not to negotiate. ⚠️ The document says
+plainly that `valichord_attestation` is a **flattering** first test case — same author, same repo,
+no adversarial relationship — so the rules are untested against an integrator whose incentives
+differ from ours.
+
+**The bridge, step 1 of 4** (`valichord_attestation/protocol.py`), merged and CI-green. **Zero Rust
+changed.** It uses `ValidationRequest.data_hash` and `ValidationAttestation.reproduction_bundle_hash`,
+which already exist and which the protocol already treats as opaque. `data_hash` derives from
+`content_hash`, not `bundle_hash` — the same claim from two machines is one claim — and ⚠️ **that
+promotes the `meta` trap to an on-chain property**, so backlog items 02–05 stop being tidy-ups the
+moment this ships. Verification: the `ExternalHash` construction reproduces a hash a **real
+ValiChord conductor** produced (recorded in `demo/bundles_worked_example/`), and a **negative
+control** pins the plausible wrong algorithm a web summary described, which gives `e14a8dbd` where
+the truth is `3e6d8353` — every `data_hash` built that way would have been silently rejected.
+`content_preimage` extracted so `content_hash` and `submission_bytes` share one definition rather
+than inlining a third copy of the canonical encoding; v2 already shipped with a second inlined copy
+of the pair hashing hiding in `verify_response`.
+
+**🆕 `docs/protocol-backlog/`** — the protocol had no place to record known gaps, which is why two
+of them surfaced in conversation and would have been lost again. Deliberately narrow: only 🟠
+(needs an entry/link type — free if it rides a DNA-hash change that is happening anyway) and 🔴
+(determines what an immutable record *says*). 🟢 cheap-forever items are excluded. **Five items,
+all from one exchange**, and ⚠️ **three of the first four are things the documents describe and the
+code does not have.**
+
+**The finding that nearly went the other way.** Ceri said he was *"pretty sure that harmony records
+can be updated"*. **He was right about the docs and the docs are wrong.** Four passages call them
+*"living documents"* that get *"updated"*; one says `validate()` rejects all updates; the code
+agrees with the one. The conversation was heading toward making them mutable — which would hand
+back at the governance layer the exact power commit-reveal removes at the validation layer. Fixed
+by naming the two senses of "record": **the entry never changes; the record is what a reader sees
+and grows by appending.** Also found: a licence clause requiring a **`last_updated` field that has
+never existed**, and Mechanic 7 specifying four API fields of which three do not exist anywhere.
+
+**GDPR, checked properly rather than assumed.** Every public entry type was listed. **Research-subject
+data never reaches the shared network** — it lives in a private single-agent DNA, the institution
+holds and deletes it, and deleting at source also settles the status of the hash. That claim holds.
+**The exposure is validators**, who carry a permanent public performance profile. ⚠️ And the check
+on whether that can be changed returned something sharper than expected: **anonymising validators
+is not a field change but a security redesign** — the anti-forgery guard compares
+`participating_validators` against `action.author()`, which `validate()` cannot do against a
+commitment it has no salt for. **Deliberately parked**: the underlying question — *does being a
+validator mean losing anonymity by definition?* — is partly Nondominium's, who will run human
+validators. Ceri's leaning is toward anonymity as a **per-deployment option**, recorded as a leaning
+with its hedges intact, not a decision.
+
+**Cüneyt Öztürk declined the citation, and was right to.** GitHub renders the citation from the
+parsed file and drops the explanatory comment, so the rendered artefact read *"John, C. & Öztürk,
+C."* as co-authors — three commits of vectors against fourteen hundred. Removed from
+`CITATION.cff`; his own wording added verbatim to both READMEs with the affiliation he supplied
+(**Falsify OÜ**). ⭐ Same failure as `Bundle.meta` being excluded from `content_hash`: **the artefact
+people consume drops the thing that made the claim honest.**
+
+**Numbers, now measured rather than remembered.** CI ran `pytest -q` with **no `--cov`**, so no
+automated run had ever measured coverage — every percentage in the repo was typed in by hand from
+someone's local run, which is why they disagreed. `--cov --cov-report=term-missing` added. Current:
+**608 tests, 1114 statements, 33 missed, 97%**, run `32598696410`, identical on 3.10 and 3.13. The
+new module added 47 statements and **zero** uncovered. Of the 33 missed, **30 are in adapters** —
+the layer the format spec already names as a trust boundary it cannot secure — and 3 in the Merkle
+constructions.
+
+**Also:** Kantara ANCR read from source (memory `project_ancr_kantara`) — ⚠️ **their IPR policy
+takes trademarks exclusively and speaking on a minuted call counts as a Contribution**, so read
+freely but do not join the working group without a lawyer. Format design moved off
+`lm-evaluation-harness#3749` and `future-agi#1368` onto a ValiChord Discussion.
+`integration/attestation-protocol-bridge` deleted (merged).
+
 
 ### Outside implementers arrived, and the Nondominium proposal went out — 2026-08-14→20 ✓
 
