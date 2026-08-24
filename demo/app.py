@@ -312,7 +312,7 @@ details[open]>summary::after{transform:rotate(90deg)}
     <span class="holo-built">Built on</span>
     <img src="/static/holochain-logo.png" alt="Holochain" class="holo-logo">
   </a>
-  <a class="gh" href="https://github.com/topeuph-ai/ValiChord" target="_blank">Source →</a>
+  <a class="gh" href="https://github.com/ValiChord/ValiChord" target="_blank">Source →</a>
 </header>
 <main>
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 </div>
 
 # ValiChord at Home
@@ -10,7 +10,7 @@
 **ValiChord at Home** is a standalone, self-service tool designed to help researchers assess and improve their computational materials privately before engaging with formal validation. It serves as the "friendly, accessible face" of the ValiChord ecosystem, acting as a mentor rather than a gatekeeper.
 
 <div align="center">
-<img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20at%20Home.png" alt="ValiChord at Home Architecture Overview" width="800">
+<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Valichord%20at%20Home.png" alt="ValiChord at Home Architecture Overview" width="800">
 </div>
 
 ### 🔬 Bridging the "Cognitive Gap"
@@ -70,4 +70,4 @@ Consistent with the broader ValiChord architecture, the "at Home" tool is design
 
 ---
 
-For more information on the full validation pipeline, see the [ValiChord Vision & Architecture](https://github.com/topeuph-ai/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md) and the [Researcher Support Document](https://github.com/topeuph-ai/ValiChord/blob/main/ValiChord_Researcher_Support.md)
+For more information on the full validation pipeline, see the [ValiChord Vision & Architecture](https://github.com/ValiChord/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md) and the [Researcher Support Document](https://github.com/ValiChord/ValiChord/blob/main/ValiChord_Researcher_Support.md)

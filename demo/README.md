@@ -1,4 +1,39 @@
-# ValiChord — Decentralised Demo
+# ValiChord — Demos
+
+There are several demos in this folder and only **one** of them is public. This index exists
+because it is easy — including for the people who wrote them — to reach for the wrong one.
+
+## Which demo is which
+
+| # | Demo | How you run it | Public? | What it proves |
+|---|---|---|---|---|
+| 1 | **"Your Hypothesis"** | [valichord-demo.onrender.com/demo](https://valichord-demo.onrender.com/demo) — in a browser | ✅ **the only public one** | You state a claim and seal your own answer; three Claude validators research it blind and commit before anyone reveals. Requires **your own** Anthropic key (`sk-ant-…`); the page estimates $0.50–1.50 per run. Code: `app.py` → `custom_runner.py`. |
+| 2 | **Synthetic study, 7 steps** | `python3 demo/ai_validator.py --mode decentralised` | ❌ CLI | The original end-to-end protocol run over a fixed synthetic study. Validators are single-shot Claude calls. Runs against the Oracle nodes or a local Docker stack — **this document covers that setup.** |
+| 3 | **Synthetic study, CMA validators** | `python3 demo/ai_validator_cma.py --mode decentralised` | ❌ CLI | Same protocol as #2, but each validator is a Managed Agents session doing multi-step analysis with live web search. |
+| 4 | **CORE-Bench** | `demo/core_bench_runner.py` | ❌ CLI | Reproduction of a real published result from CORE-Bench. See [CORE_BENCH_DEMO.md](CORE_BENCH_DEMO.md). |
+| 5 | **PEP Master** | `demo/pep_master_round.py` | ❌ CLI | That the protocol verifies **open-hardware measurement** reproducibility, not only computational results. See [PEP_MASTER_DEMO.md](PEP_MASTER_DEMO.md). |
+| 6 | **EEE worked example** | `demo/eee_worked_example.py` | ❌ CLI | Produces EveryEvalEver-compatible attestation bundles from a real commit–reveal round. See [EEE_WORKED_EXAMPLE.md](EEE_WORKED_EXAMPLE.md). |
+
+`demo_runner.py` is not a demo — it backs the `/demo/record/<hash>` record viewer on the public site.
+
+### The documents, and what each is for
+
+| Document | Purpose |
+|---|---|
+| **README.md** (this file) | The index, plus how to run demo #2 |
+| [DEMO_EXPLAINER.md](DEMO_EXPLAINER.md) | Plain-English explanation of what ValiChord does. Not runnable — start here if you want the idea, not the code |
+| [DEMO_WEBSITE.md](DEMO_WEBSITE.md) | Technical detail of the public web interface (demo #1) |
+| [DECENTRALISED_DEMO.md](DECENTRALISED_DEMO.md) | Technical guide to the 4-conductor Docker setup |
+| [CORE_BENCH_DEMO.md](CORE_BENCH_DEMO.md) · [PEP_MASTER_DEMO.md](PEP_MASTER_DEMO.md) · [EEE_WORKED_EXAMPLE.md](EEE_WORKED_EXAMPLE.md) | The three specialised demos above |
+| [CMA_UPGRADE_PLAN.md](CMA_UPGRADE_PLAN.md) | Design record for the Managed Agents validator upgrade. Parts of it are marked **superseded** — read those markers before following it |
+
+> **Status, 2026-08-24.** The Oracle nodes are pending the Holochain **0.7.0** upgrade, so demos
+> that talk to them may not complete until that lands. The free server-key tier that once
+> funded the public demo has been **withdrawn** — a user-supplied key is now required.
+
+---
+
+## The decentralised demo (demo #2)
 
 Runs the full ValiChord commit-reveal protocol across **5 isolated Docker containers** — one researcher conductor, three validator conductors, and one kitsune2 bootstrap/DHT server — with no shared state between them.
 
@@ -31,7 +66,7 @@ The shareable HarmonyRecord URL in the output will point to `http://152.67.153.1
 ## Option B — Run locally with Docker
 
 ```bash
-git clone https://github.com/topeuph-ai/ValiChord.git
+git clone https://github.com/ValiChord/ValiChord.git
 cd ValiChord
 
 export ANTHROPIC_API_KEY=sk-ant-...

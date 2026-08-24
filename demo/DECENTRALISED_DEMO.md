@@ -180,7 +180,7 @@ sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker
 sudo chmod +x /usr/local/bin/docker-compose
 
 # Clone and start (first run takes ~5 min for Holochain binary download)
-git clone https://github.com/topeuph-ai/ValiChord.git
+git clone https://github.com/ValiChord/ValiChord.git
 cd ValiChord
 export ANTHROPIC_API_KEY=sk-ant-...
 sudo docker-compose -f demo/docker-compose.yml up --build -d
@@ -196,7 +196,7 @@ Persist the API key for unattended restarts: `echo 'export ANTHROPIC_API_KEY=sk-
 ## Run it locally
 
 ```bash
-git clone https://github.com/topeuph-ai/ValiChord.git
+git clone https://github.com/ValiChord/ValiChord.git
 cd ValiChord
 
 export ANTHROPIC_API_KEY=sk-ant-...

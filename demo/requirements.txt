@@ -1,5 +1,8 @@
 flask==3.1.0
 flask-cors==5.0.0
-anthropic>=0.105.0
+# 1.x verified against this code 2026-08-24: it uses none of the surface 1.0 removed
+# (no temperature/top_p/top_k, with_raw_response, Text Completions, or output_format).
+# Upper bound is deliberate — an unbounded pin is how 1.0.0 arrived here unnoticed.
+anthropic>=1,<2
 gunicorn==22.0.0
 litellm>=1.40.0

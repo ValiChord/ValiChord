@@ -101,7 +101,7 @@ Full workflow prompt for pi as an AI validator:
 
 | Repo | Purpose |
 |---|---|
-| `topeuph-ai/ValiChord` | ValiChord itself — `POST /attest` in `backend/app_protocol.py` |
+| `ValiChord/ValiChord` | ValiChord itself — `POST /attest` in `backend/app_protocol.py` |
 | `topeuph-ai/pi-mono` | Fork of badlogic/pi-mono — extension + skill live here |
 | `badlogic/pi-mono` | Upstream PI — PR target once `lgtm` received |
 

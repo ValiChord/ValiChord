@@ -186,7 +186,7 @@ This runs against the live Oracle nodes — no local Docker setup needed. The Yo
 
 ## Deploying to Render
 
-1. Connect `topeuph-ai/ValiChord` to Render
+1. Connect `ValiChord/ValiChord` to Render
 2. Render picks up `render.yaml` and builds from `demo/Dockerfile` (context: repo root)
 3. Every push to `main` triggers an automatic redeploy
 
