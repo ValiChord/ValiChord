@@ -49,6 +49,10 @@ STUDY_DIR = DEMO_DIR / "synthetic_study"
 BETAS     = ["managed-agents-2026-04-01"]
 MODEL_CMA = "claude-sonnet-4-6"
 
+# Stable names for the persistent control-plane objects (see _get_or_create_agent_env).
+CMA_AGENT_NAME = "valichord-validator"
+CMA_ENV_NAME   = "valichord-validator-env"
+
 # Per-session safety caps — CMA has no native turn/cost/timeout ceiling.
 MAX_TOOL_CALLS     = 40   # hard tool-call ceiling per validator session
 SESSION_DEADLINE_S = 300  # wall-clock cap per validator session attempt
@@ -216,17 +220,37 @@ def parse_metrics(output: str) -> list:
 # ── CMA validator session ──────────────────────────────────────────────────────
 
 # One agent + one environment are shared by all 3 validators in a run — their config
-# is identical (only the per-validator user message differs). Cached by API key so the
-# server key reuses them across runs instead of minting a fresh pair every time; user
-# (bring-your-own) keys get one pair per process. Each session still provisions its own
-# isolated container, so the validators' /mnt/session/verdict.json files never collide.
+# is identical (only the per-validator user message differs). Each session still
+# provisions its own isolated container, so the validators' /mnt/session/verdict.json
+# files never collide.
+#
+# Agents and environments are persistent, VERSIONED control-plane objects, not per-run
+# resources: minting a pair on every run accumulates orphans, pays the create latency
+# for nothing, and discards the version pinning that makes a run reproducible.
+# Resolution order, cheapest first:
+#   1. process cache, keyed by API key
+#   2. VALICHORD_CMA_AGENT_ID / VALICHORD_CMA_ENV_ID — provision once out of band and
+#      the request path never touches the control plane at all
+#   3. lookup by stable name
+#   4. create — first run for a given key only
 _AGENT_ENV_CACHE: dict = {}
 _AGENT_ENV_LOCK  = threading.Lock()
 
+_LIST_SCAN_LIMIT = 200   # bound the name scan; these workspace lists are small
+
+
+def _find_named(pager, name: str):
+    """First non-archived object called `name`, or None. Bounded scan."""
+    for n, obj in enumerate(pager):
+        if n >= _LIST_SCAN_LIMIT:
+            break
+        if getattr(obj, "name", None) == name and getattr(obj, "archived_at", None) is None:
+            return obj
+    return None
+
 
 def _get_or_create_agent_env(api_key: str) -> tuple:
-    """Return (agent_id, agent_version, env_id) for the standard validator config,
-    creating + caching them on first use for a given key."""
+    """Return (agent_id, agent_version, env_id) for the standard validator config."""
     with _AGENT_ENV_LOCK:
         cached = _AGENT_ENV_CACHE.get(api_key)
         if cached is not None:
@@ -234,27 +258,77 @@ def _get_or_create_agent_env(api_key: str) -> tuple:
 
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
-        env = client.beta.environments.create(
-            name=f"valichord-{int(time.time())}",
-            config={"type": "anthropic_cloud", "networking": {"type": "unrestricted"}},
-        )
-        agent = client.beta.agents.create(
-            name="valichord-validator",
-            model=MODEL_CMA,
-            system=VALIDATOR_SYSTEM,
-            tools=[{
-                "type": "agent_toolset_20260401",
-                "configs": [
-                    {"name": "web_search"},
-                    {"name": "web_fetch"},
-                    {"name": "write"},
-                ],
-            }],
-            betas=BETAS,
-        )
-        result = (agent.id, agent.version, env.id)
+
+        # -- Environment ------------------------------------------------------
+        env_id = os.environ.get("VALICHORD_CMA_ENV_ID", "").strip()
+        if not env_id:
+            env = _find_named(client.beta.environments.list(), CMA_ENV_NAME)
+            if env is None:
+                try:
+                    env = client.beta.environments.create(
+                        name=CMA_ENV_NAME,
+                        config={"type": "cloud", "networking": {"type": "unrestricted"}},
+                    )
+                except Exception:
+                    # Environment names are unique (409 on collision) — another
+                    # process won the race. Re-scan rather than fail the run.
+                    env = _find_named(client.beta.environments.list(), CMA_ENV_NAME)
+                    if env is None:
+                        raise
+            env_id = env.id
+
+        # -- Agent ------------------------------------------------------------
+        agent_id = os.environ.get("VALICHORD_CMA_AGENT_ID", "").strip()
+        if agent_id:
+            agent = client.beta.agents.retrieve(agent_id)
+        else:
+            found = _find_named(client.beta.agents.list(), CMA_AGENT_NAME)
+            if found is not None:
+                # Retrieve the canonical object — don't assume the list item carries
+                # `version`, which sessions.create needs in order to pin.
+                agent = client.beta.agents.retrieve(found.id)
+            else:
+                agent = client.beta.agents.create(
+                    name=CMA_AGENT_NAME,
+                    model=MODEL_CMA,
+                    system=VALIDATOR_SYSTEM,
+                    tools=[{
+                        "type": "agent_toolset_20260401",
+                        # Allowlist. `configs` are per-tool OVERRIDES, not a whitelist:
+                        # without default_config enabled=False all eight toolset tools
+                        # stay on (bash, read, edit, glob, grep included). Flip the
+                        # default off, then opt in explicitly — an entry carrying no
+                        # `enabled` key inherits the default, so each needs enabled=True
+                        # or the validator ends up with no tools at all.
+                        "default_config": {"enabled": False},
+                        "configs": [
+                            {"name": "web_search", "enabled": True},
+                            {"name": "web_fetch",  "enabled": True},
+                            {"name": "write",      "enabled": True},
+                        ],
+                    }],
+                    betas=BETAS,
+                )
+
+        result = (agent.id, agent.version, env_id)
         _AGENT_ENV_CACHE[api_key] = result
         return result
+
+
+def _idle_stop_reason(ev) -> str:
+    """`stop_reason.type` off a session.status_idle event, tolerant of shape.
+
+    One of: end_turn | requires_action | retries_exhausted | budget_reached.
+    Returns "" when the field is absent.
+    """
+    sr = getattr(ev, "stop_reason", None)
+    if sr is None:
+        return ""
+    if isinstance(sr, str):
+        return sr
+    if isinstance(sr, dict):
+        return sr.get("type", "") or ""
+    return getattr(sr, "type", "") or ""
 
 
 def _run_cma_session(
@@ -317,6 +391,14 @@ def _run_cma_session(
 
         with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
             for ev in stream:
+                # Wall-clock guard runs FIRST so it still fires on iterations that
+                # `continue` below. The SDK stream read timeout is per-chunk, not a
+                # total deadline; heartbeat events keep this loop ticking so the check
+                # fires. A fully silent hang is still bounded by the SDK read timeout.
+                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
+                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    break
+
                 if ev.type == "agent.tool_use":
                     n_tool_calls += 1
                     if n_tool_calls >= MAX_TOOL_CALLS:
@@ -326,12 +408,15 @@ def _run_cma_session(
                     stop_reason = f"session ended early ({ev.type})"
                     break
                 elif ev.type == "session.status_idle":
-                    break
-                # Wall-clock guard: the SDK stream read timeout is per-chunk, not a
-                # total deadline. Heartbeat events keep this loop ticking so the check
-                # fires; a fully silent hang is still bounded by the SDK read timeout.
-                if time.monotonic() - stream_start > SESSION_DEADLINE_S:
-                    stop_reason = f"wall-clock deadline ({SESSION_DEADLINE_S}s) exceeded"
+                    # Idle is not the same as finished: a session also idles while it
+                    # waits on US (`requires_action`). Breaking there walks away
+                    # mid-analysis and reads a verdict that was never written.
+                    # Terminal: end_turn (clean), retries_exhausted, budget_reached.
+                    reason = _idle_stop_reason(ev)
+                    if reason == "requires_action":
+                        continue
+                    if reason and reason != "end_turn":
+                        stop_reason = f"session idled: {reason}"
                     break
 
         # If we cut the stream short, interrupt the session so the agent stops
