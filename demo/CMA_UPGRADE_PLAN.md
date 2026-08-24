@@ -18,7 +18,14 @@ The three validators still work independently — they still can't see each othe
 
 ## User-provided API keys
 
-To protect the demo budget, users can bring their own API key. The key is sent over HTTPS, used only for that run, and never logged or stored.
+Users bring their own API key. The key is sent over HTTPS, used only for that run, and never logged or stored.
+
+> **Superseded, 2026-08-24.** This section was written when the demo also offered a free
+> tier funded by a server-side key. **That tier no longer exists** — it was withdrawn because
+> it was too expensive to run. A user key is now *required*: `demo/app.py` rejects any request
+> without one (`user_api_key` must be present and start with `sk-ant-`). The rate-limiting
+> design further down was never implemented in `app.py` at all. Both are kept below as a
+> record of the original plan, not as a description of the running system.
 
 **Behaviour by key type:**
 
@@ -29,11 +36,13 @@ To protect the demo budget, users can bring their own API key. The key is sent o
 | `AIzaSy...` | Google Gemini | Simple one-shot mode via litellm |
 | `gsk_...` | Groq | Simple one-shot mode via litellm |
 | anything else | Unknown | Attempted as OpenAI-compatible via litellm |
-| nothing provided | — | Server's key, Anthropic CMA, with per-IP rate limiting |
+| nothing provided | — | ~~Server's key, Anthropic CMA, with per-IP rate limiting~~ — **withdrawn; the request is rejected** |
 
 **Simple one-shot mode** means the validator still gets the full 5-step analysis prompt and gives a reasoned verdict — it just doesn't do live web searches or the iterative quality check. The Holochain commit-reveal protocol is identical either way.
 
-**UI change:** The demo page gets an optional "Your API key" text field and a "Provider / model" hint line (e.g. `openai/gpt-4o`, `gemini/gemini-1.5-pro`). Both are optional — leaving them blank uses the server's key.
+**UI change:** The demo page gets a "Your API key" text field and a "Provider / model" hint line (e.g. `openai/gpt-4o`, `gemini/gemini-1.5-pro`).
+
+*As shipped:* the key field is **required**, not optional — there is no server key to fall back to. The live page states the estimated cost ($0.50–1.50) next to the field.
 
 ---
 
@@ -219,9 +228,14 @@ with client.beta.sessions.events.stream(session.id, betas=BETAS) as stream:
 
 ---
 
-## Rate limiting (server key only)
+## Rate limiting (server key only) — NEVER IMPLEMENTED, NOW MOOT
 
-When no user key is provided, the server's key is used with these guards:
+> `cma_allowed()` does not exist in `demo/app.py`; neither do `CMA_RUN_COST_ESTIMATE` or
+> `CMA_MONTHLY_BUDGET`. The free tier these guards were meant to protect has since been
+> withdrawn, so there is nothing left for them to guard. Kept for the record only —
+> **do not implement this as written.**
+
+The original design was:
 
 ```python
 import time
@@ -241,7 +255,7 @@ def cma_allowed(ip: str) -> tuple[bool, str]:
     return True, ""
 ```
 
-Rate limiting is skipped when the user provides their own key.
+Rate limiting was to be skipped when the user provides their own key — which is now every request.
 
 ---
 
