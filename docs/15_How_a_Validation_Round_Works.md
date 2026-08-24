@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="500px" alt="Valichord Logo">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="500px" alt="Valichord Logo">
 </div>
 
 # A Validation Round: From Submission to Harmony Record
@@ -29,7 +29,7 @@ She submits a Validation Request to the shared network, attaching the fingerprin
 There is one more step that happens at submission, invisible to the validators: Sarah **locks her result**. ValiChord generates a random nonce and computes a cryptographic hash of her structured result metrics — the exact numbers from her paper. Only that hash travels to the shared network, recorded as a `ResearcherResultCommitment`. The metrics and nonce stay sealed in Sarah's private workspace. The validators cannot see what Sarah found. Sarah cannot change what she claimed to have found. The envelope is sealed.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20round%201.jpeg" width="800px" alt="Validator Round 1">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20round%201.jpeg" width="800px" alt="Validator Round 1">
 </div>
 ---
 
@@ -47,7 +47,7 @@ None of them know what the others will find. That is the point.
 Each validator receives a ValidationTask in their own private workspace. They download Sarah's code and data from the public archive, set up the computational environment as documented, and begin work.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20round%202.jpeg" width="800px" alt="Validator Round 2">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20round%202.jpeg" width="800px" alt="Validator Round 2">
 </div>
 
 ---
@@ -69,7 +69,7 @@ Marcus finishes on day six. A third CommitmentAnchor is written.
 All three validators have committed. None of them knows what the others found.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20Round%203.jpeg" width="800px" alt="Validator Round 3">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20Round%203.jpeg" width="800px" alt="Validator Round 3">
 </div>
 
 ---
@@ -81,7 +81,7 @@ The moment the third CommitmentAnchor appears, ValiChord writes a `PhaseMarker` 
 James, Fatima, and Marcus each discover this by checking the network — not by receiving a message. This matters: if reveal timing were signal-driven, a fast internet connection could give one validator a head start on seeing others' results before submitting their own. The poll-driven design means the reveal window opens simultaneously for everyone, regardless of network speed or time zone.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20Round%204.jpeg" width="800px" alt="Validator Round 4">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20Round%204.jpeg" width="800px" alt="Validator Round 4">
 </div>
 
 ---
@@ -97,7 +97,7 @@ At the same time, Sarah receives a notification that all validators have committ
 The three validator attestations and Sarah's verified result are now all public, permanent, and independently verifiable by anyone on the network. Neither Sarah nor the validators could have adjusted their numbers after seeing anyone else's. The comparison is genuine.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20Round%205.jpeg" width="800px" alt="Validator Round 5">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20Round%205.jpeg" width="800px" alt="Validator Round 5">
 </div>
 
 
@@ -136,7 +136,7 @@ Sarah's Harmony Record is now publicly readable by anyone — a journal editor, 
 The record does not say Sarah's science is correct. It says three independent credentialed validators, working without knowledge of each other's findings, each reproduced her computational results. That is a different and more specific claim — and it is one that can now be made with cryptographic certainty.
 
 <div align="center">
-  <img src="https://github.com/topeuph-ai/ValiChord/blob/main/Images/Validator%20Round%206.jpeg" width="800px" alt="Validator Round 6">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20Round%206.jpeg" width="800px" alt="Validator Round 6">
 </div>
 
 ---
