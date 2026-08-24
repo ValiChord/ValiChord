@@ -4,29 +4,30 @@
 
 > ## Outcome, 2026-08-24
 >
-> The original host () was never reached — see [Access](#access). Instead a new
+> The original host (`152.67.153.149`) was never reached — see [Access](#access). Instead a new
 > instance was created with an SSH key held by the owner, and the stack deployed there from
->  at .
+> `main` at `18c7989`.
 >
-> **New host: ** — Oracle Linux 9.8, ARM64, 1 OCPU, 6 GB. Docker 29.7.2,
-> Compose v5.5.0. Repo at .  needed ports 3001-3004 opened
-> explicitly — the VCN security list alone is not enough on Oracle Linux.
+> **New host: `132.145.23.78`** — Oracle Linux 9.8, ARM64, 1 OCPU, 6 GB. Docker 29.7.2,
+> Compose v5.5.0. Repo at `/home/opc/ValiChord`. ⚠️ `firewalld` needed ports 3001–3004 opened
+> explicitly — **the VCN security list alone is not enough on Oracle Linux**, and the failure
+> mode is a stack that looks healthy from inside and answers nothing from outside.
 >
 > **A full commit-reveal round ran end to end on 0.7.0:** Reproduced 3/3, ExactMatch,
-> ComputationalBiology, , and the record reads back from a third machine.
+> ComputationalBiology, `validator_count: 3`, and the record reads back from a third machine.
 >
 > **The hash gate did its job.** Three of four DNAs matched §44.5; **governance did not**. Cause:
->  (2026-08-03) changed only the governance zomes and rebuilt the bundles, one commit
+> `bc3ed82` (2026-08-03) changed only the governance zomes and rebuilt the bundles, one commit
 > after that table was written. The deployment was right and the documentation was stale. Both
 > §44.5 and this file now carry the corrected value.
 >
-> **⚠️ The 1-OCPU contention risk is CONFIRMED, and did not matter.** 76 
+> **⚠️ The 1-OCPU contention risk is CONFIRMED, and did not matter.** 76 `database is locked`
 > errors across the conductors during the round. Zero restarts, zero crashes, every assertion
 > held, record readable. §44.12 asked for exactly this datapoint before the demo was relied on
-> at 1 OCPU: it occurs, and it is survivable. It is no longer a hypothesis in either direction.
+> at 1 OCPU: **it occurs, and it is survivable.** No longer a hypothesis in either direction.
 >
-> **⚠️  printed  twice
-> and continued to success.**  runs inside a worker thread, so it kills the thread, not
+> **⚠️ `ai_validator.py` printed `FATAL: Cannot reach …/health: urlopen error timed out` twice
+> and continued to success.** `die()` runs inside a worker thread, so it kills the thread, not
 > the run. A FATAL that is not fatal will mislead whoever reads it next — and the timeouts are
 > plausibly the same contention surfacing under three concurrent validator calls.
 >
