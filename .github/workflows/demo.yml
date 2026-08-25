@@ -55,17 +55,22 @@ jobs:
           python-version: '3.12'
 
       # Deliberately NOT demo/requirements.txt. That file carries the runtime
-      # deps — flask, gunicorn, anthropic, litellm — and the tests need none of
-      # them: the provider call is faked, and nothing here starts a server.
-      # Installing them would add minutes per run to exercise code paths this
-      # suite never reaches.
+      # deps — gunicorn, anthropic, litellm — and the tests need none of them:
+      # the provider call is faked, and nothing here serves traffic. Installing
+      # litellm in particular would add minutes per run to exercise code paths
+      # this suite never reaches.
       #
-      # scipy is the exception: report_to_verdict.py imports it at module
-      # scope, so its test file cannot even be collected without it.
+      # Two exceptions, both because a module imports them at load time:
+      #   scipy — report_to_verdict.py imports scipy.stats at module scope, so
+      #     its test file cannot even be collected without it.
+      #   flask — test_local_mode.py renders /demo in both modes through the
+      #     Flask test client. That check is the one that would catch the
+      #     custom demo's submit button being dead, which is otherwise a
+      #     completely silent failure.
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov scipy
+          pip install pytest pytest-cov scipy flask flask-cors
 
       # Six core_bench test files skip unless inspect_ai/inspect_evals are
       # present. That is intended — they are heavy optional deps — but it means

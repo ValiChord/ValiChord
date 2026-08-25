@@ -19,6 +19,31 @@ _custom_running      = False
 _CUSTOM_TIMEOUT_SECS = 1800  # release lock if user never clicks Reveal after 30 min
 _CUSTOM_JOB_TTL_SECS = 3600  # evict finished jobs (results included) after 1 h
 
+# ── Local mode ─────────────────────────────────────────────────────────────────
+# Off unless VALICHORD_LOCAL is set, so the hosted deployment is unaffected by
+# anything below and cannot be switched into local mode by accident.
+LOCAL_ENABLED = os.environ.get("VALICHORD_LOCAL", "").strip().lower() in {"1", "true", "yes", "on"}
+
+_local_cfg      = None
+_local_cfg_lock = threading.Lock()
+
+
+def _local_config():
+    """Resolve the local model config once, on first use.
+
+    Deliberately not at import time: discovery asks the model server what it
+    serves, and a server that is not up yet must not stop the site starting.
+    Failing here instead surfaces as a normal job error with a usable message.
+    """
+    global _local_cfg
+    if not LOCAL_ENABLED:
+        return None
+    with _local_cfg_lock:
+        if _local_cfg is None:
+            import local_mode
+            _local_cfg = local_mode.LocalConfig.from_env()
+        return _local_cfg
+
 
 def _scrub_job_secrets(job: dict) -> None:
     """Drop the user's API key and raw inputs once a run reaches a terminal state.
@@ -26,7 +51,7 @@ def _scrub_job_secrets(job: dict) -> None:
     The public /demo page promises the key is "used only for this run, never
     stored" — that must include process memory after the run finishes.
     """
-    for field in ("_api_key", "_claim", "_user_answer"):
+    for field in ("_api_key", "_claim", "_user_answer", "_sources"):
         job.pop(field, None)
 
 
@@ -67,7 +92,11 @@ def health():
 
 @app.route('/demo')
 def demo_page():
-    return Response(_DEMO_HTML, mimetype='text/html')
+    # The page is one static string; the only thing that varies is which mode
+    # it is running in, so it is substituted at serve time rather than kept as
+    # two copies that could drift.
+    html = _DEMO_HTML.replace('__VALICHORD_LOCAL__', 'true' if LOCAL_ENABLED else 'false')
+    return Response(html, mimetype='text/html')
 
 
 # Shared — Oracle record proxy ───────────────────────────────────────────────────
@@ -94,15 +123,25 @@ def custom_run():
     claim       = (body.get("claim")        or "").strip()
     user_answer = (body.get("user_answer")  or "").strip()
     api_key     = (body.get("user_api_key") or "").strip()
+    sources     = (body.get("sources")      or "").strip()
 
     if not claim:
         return jsonify({"error": "claim is required"}), 400
     if not user_answer:
         return jsonify({"error": "user_answer is required"}), 400
-    if not api_key:
-        return jsonify({"error": "An Anthropic API key is required for the custom demo"}), 400
-    if not api_key.startswith("sk-ant-"):
-        return jsonify({"error": "Custom demo requires an Anthropic API key (starts with sk-ant-)"}), 400
+
+    if LOCAL_ENABLED:
+        # No key to ask for. Sources take its place as the required third input:
+        # without them the validators have nothing to judge against, and the
+        # whole point of the local path is that they judge supplied evidence
+        # rather than reaching for what they half-remember.
+        if not sources:
+            return jsonify({"error": "source material is required in local mode"}), 400
+    else:
+        if not api_key:
+            return jsonify({"error": "An Anthropic API key is required for the custom demo"}), 400
+        if not api_key.startswith("sk-ant-"):
+            return jsonify({"error": "Custom demo requires an Anthropic API key (starts with sk-ant-)"}), 400
 
     with _custom_lock:
         if _custom_running:
@@ -126,6 +165,7 @@ def custom_run():
         "_claim":              claim,
         "_user_answer":        user_answer,
         "_api_key":            api_key,
+        "_sources":            sources,
         "_started_at":         time.time(),
     }
 
@@ -171,6 +211,7 @@ def _run_custom_commit_phase(job_id: str):
         import custom_runner
         custom_runner.start_commit_phase(
             job["_claim"], job["_user_answer"], job["_api_key"], job,
+            sources_raw=job.get("_sources", ""), local=_local_config(),
         )
         # Lock is intentionally NOT released here — held until reveal completes.
         # If the user never reveals, _CUSTOM_TIMEOUT_SECS background check releases it.
@@ -190,6 +231,7 @@ def _run_custom_reveal_phase(job_id: str):
         import custom_runner
         custom_runner.finish_reveal_phase(
             job["_claim"], job["_user_answer"], job, job["_api_key"],
+            local=_local_config(),
         )
     except Exception as e:
         job["status"] = "error"
@@ -342,7 +384,7 @@ details[open]>summary::after{transform:rotate(90deg)}
 
 <div class="hero">
   <h1>Prove it. Independently.</h1>
-  <p class="hero-lead">ValiChord asks one question: <em>can an independent party arrive at the same result as the researcher — without anyone being able to change their answer after seeing others'?</em> State a hypothesis, seal your answer, and watch three AI validators research it blind. The reveal is yours to trigger.</p>
+  <p class="hero-lead" id="heroLead">ValiChord asks one question: <em>can an independent party arrive at the same result as the researcher — without anyone being able to change their answer after seeing others'?</em> State a hypothesis, seal your answer, and watch three AI validators research it blind. The reveal is yours to trigger.</p>
 </div>
 
 <!-- ── Your Hypothesis — PRIMARY ─────────────────────────────────────────── -->
@@ -350,7 +392,7 @@ details[open]>summary::after{transform:rotate(90deg)}
 
 <div class="card card-primary" id="customInputCard">
   <h2>State a hypothesis. Seal your answer. Let the validators run.</h2>
-  <p>Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
+  <p id="cardIntro">Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
 
   <label class="field-label">Hypothesis or claim</label>
   <textarea id="customClaim" rows="3" placeholder="e.g. Regular aerobic exercise reduces resting heart rate in healthy adults" oninput="checkCustomReady()"></textarea>
@@ -358,9 +400,17 @@ details[open]>summary::after{transform:rotate(90deg)}
   <label class="field-label">Your answer <span style="font-weight:400;color:var(--dim)">(sealed before validators start — they cannot see this)</span></label>
   <textarea id="customAnswer" rows="4" placeholder="State your position and reasoning. This is hashed and committed to the DHT before the validators begin." oninput="checkCustomReady()"></textarea>
 
-  <label class="field-label">Your Anthropic API key</label>
-  <input id="customKey" type="password" placeholder="sk-ant-…" oninput="checkCustomReady()">
-  <p class="key-note">Runs 3 Claude validators with live web search and multi-step reasoning. Estimated cost: $0.50–1.50. Sent over HTTPS, used only for this run, never stored.</p>
+  <div id="sourcesWrap" style="display:none">
+    <label class="field-label">Source material <span style="font-weight:400;color:var(--dim)">(the validators judge your claim against this, and nothing else)</span></label>
+    <textarea id="customSources" rows="8" placeholder="Paste the evidence the validators should weigh. Separate multiple sources with a line containing only ---" oninput="checkCustomReady()"></textarea>
+    <p class="key-note">Each source is hashed (SHA-256) and sealed together with your answer before the validators start, so the evidence cannot be swapped afterwards. The validators have no internet access, and every quote they give back is checked against the text you pasted.</p>
+  </div>
+
+  <div id="keyWrap">
+    <label class="field-label">Your Anthropic API key</label>
+    <input id="customKey" type="password" placeholder="sk-ant-…" oninput="checkCustomReady()">
+    <p class="key-note">Runs 3 Claude validators with live web search and multi-step reasoning. Estimated cost: $0.50–1.50. Sent over HTTPS, used only for this run, never stored.</p>
+  </div>
 
   <button class="btn" id="customSubmitBtn" onclick="startCustomDemo()" disabled>Seal my answer and start validation</button>
   <div id="customBusyMsg" class="busy" style="display:none"></div>
@@ -432,20 +482,37 @@ details[open]>summary::after{transform:rotate(90deg)}
 
 </main>
 <script>
+const VALICHORD_LOCAL=__VALICHORD_LOCAL__;
 const MAX_POLL_MS=8*60*1000;
+
+// Local mode swaps the third input and the copy that describes it. The key
+// field is hidden rather than removed: checkCustomReady() reads it, and a
+// missing node would throw there and leave the submit button dead for good.
+document.addEventListener('DOMContentLoaded',function(){
+  if(!VALICHORD_LOCAL)return;
+  document.getElementById('keyWrap').style.display='none';
+  document.getElementById('sourcesWrap').style.display='block';
+  const hero=document.getElementById('heroLead');
+  if(hero)hero.innerHTML="ValiChord asks one question: <em>can independent parties reach the same reading of the same evidence — without anyone being able to change their answer after seeing others'?</em> State a claim, paste your sources, seal your answer, and three models on this machine weigh it blind. No account, no API key, nothing leaves the room.";
+  const intro=document.getElementById('cardIntro');
+  if(intro)intro.textContent="Enter a claim and the source material it should be judged against. Your answer is hashed and committed to the distributed network before the three validators begin — and so are your sources, so the evidence cannot be changed afterwards. Each validator is a different model running on this machine. They cannot see your answer, and they cannot see each other's.";
+});
 
 // ── Custom demo ───────────────────────────────────────────────────────────────
 let customPoll=null,customJobId=null,customPollStart=null;
 function checkCustomReady(){
-  const ok=document.getElementById('customClaim').value.trim()
-         &&document.getElementById('customAnswer').value.trim()
-         &&document.getElementById('customKey').value.trim().startsWith('sk-ant-');
+  const claim=document.getElementById('customClaim').value.trim();
+  const answer=document.getElementById('customAnswer').value.trim();
+  const ok=VALICHORD_LOCAL
+    ? (claim&&answer&&document.getElementById('customSources').value.trim())
+    : (claim&&answer&&document.getElementById('customKey').value.trim().startsWith('sk-ant-'));
   document.getElementById('customSubmitBtn').disabled=!ok;
 }
 function startCustomDemo(){
   const claim=document.getElementById('customClaim').value.trim();
   const answer=document.getElementById('customAnswer').value.trim();
   const key=document.getElementById('customKey').value.trim();
+  const sources=VALICHORD_LOCAL?document.getElementById('customSources').value:'';
   document.getElementById('customSubmitBtn').disabled=true;
   document.getElementById('customBusyMsg').style.display='none';
   document.getElementById('customInputCard').style.opacity='.5';
@@ -456,7 +523,7 @@ function startCustomDemo(){
   document.getElementById('revealPrompt').style.display='none';
   const rb=document.getElementById('revealBtn');
   rb.disabled=true;rb.classList.remove('btn-ready');rb.textContent='Reveal my answer';
-  fetch('/demo/custom/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claim,user_answer:answer,user_api_key:key})})
+  fetch('/demo/custom/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claim,user_answer:answer,user_api_key:key,sources})})
     .then(r=>r.json()).then(d=>{
       if(d.status==='busy'){
         document.getElementById('customBusyMsg').textContent=d.message;
@@ -531,7 +598,21 @@ function triggerReveal(){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 const OUTCOME_LABEL={'Reproduced':'Aligned with validators','PartiallyReproduced':'Partially aligned','NotReproduced':'Diverged from validators','FailedToReproduce':'Failed to reproduce','UnableToAssess':'Unable to assess'};
 function showCustomResult(r){
-  const rows=(r.validator_verdicts||[]).map(v=>`<div class="vrow">Validator ${esc(v.validator)}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}</div>`).join('');
+  const rows=(r.validator_verdicts||[]).map(v=>{
+    // A quote that is not in the cited source is the failure this demo exists
+    // to expose, so it is shown and marked rather than quietly dropped.
+    const ev=(v.evidence||[]).map(e=>{
+      const ok=!!e.verified;
+      const tag=ok?'\u2713 found in source '+esc(e.source):'\u26a0 NOT found in source '+esc(e.source);
+      const col=ok?'var(--dim)':'#b3261e';
+      return `<div style="margin:.4rem 0 .4rem 1rem;border-left:3px solid ${col};padding-left:.6rem">`
+        +`<div style="font-size:.8rem;color:${col}">${tag}`
+        +(e.sha256?` · sha256 ${esc(String(e.sha256).slice(0,12))}`:'')+`</div>`
+        +`<div style="font-style:italic">${esc(e.quote)}</div></div>`;
+    }).join('');
+    const who=v.model?` <span style="color:var(--dim);font-size:.8rem">[${esc(v.model)}]</span>`:'';
+    return `<div class="vrow">Validator ${esc(v.validator)}${who}: ${esc(v.outcome)} (${esc(v.confidence)}) — ${esc(v.reasoning)}${ev}</div>`;
+  }).join('');
   const shareUrl=esc(r.record_url||''),curlCmd=r.record_url?'curl '+JSON.stringify(r.record_url):'',hashB64=encodeURIComponent(r.external_hash_b64||'');
   const outcomeLabel=OUTCOME_LABEL[r.outcome]||esc(r.outcome);
   document.getElementById('customResultArea').innerHTML=`<div class="result-box">
