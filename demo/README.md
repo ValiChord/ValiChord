@@ -27,9 +27,11 @@ because it is easy — including for the people who wrote them — to reach for 
 | [CORE_BENCH_DEMO.md](CORE_BENCH_DEMO.md) · [PEP_MASTER_DEMO.md](PEP_MASTER_DEMO.md) · [EEE_WORKED_EXAMPLE.md](EEE_WORKED_EXAMPLE.md) | The three specialised demos above |
 | [CMA_UPGRADE_PLAN.md](CMA_UPGRADE_PLAN.md) | Design record for the Managed Agents validator upgrade. Parts of it are marked **superseded** — read those markers before following it |
 
-> **Status, 2026-08-24.** The Oracle nodes are pending the Holochain **0.7.0** upgrade, so demos
-> that talk to them may not complete until that lands. The free server-key tier that once
-> funded the public demo has been **withdrawn** — a user-supplied key is now required.
+> **Status, 2026-08-25.** The Oracle nodes run Holochain **0.7.0** — the upgrade landed on
+> 2026-08-24, the same day the note above said it was pending. Demos that talk to them
+> complete normally. ⚠️ They also **moved host** in that rebuild; see the warning under
+> Option A. The free server-key tier that once funded the public demo has been **withdrawn**
+> — a user-supplied key is now required.
 
 ---
 
@@ -50,18 +52,24 @@ Three independent Claude instances act as validators. **The validators are compl
 
 ## Option A — Run against the live Oracle server (no Docker setup)
 
-A permanent instance of the 5-container stack runs on Oracle Cloud (152.67.153.149). The containers restart automatically after any reboot. You only need an Anthropic API key:
+A permanent instance of the 5-container stack runs on Oracle Cloud (132.145.23.78). The containers restart automatically after any reboot. You only need an Anthropic API key:
+
+> ⚠️ **Use `132.145.23.78`, not `152.67.153.149`.** Oracle moved host on 2026-08-24. The old
+> instance is still running and still returns a healthy `200` — but on Holochain 0.6.2, which is a
+> different DNA hash and therefore a **different network**. Pointing at it gives you a run that
+> looks entirely successful and writes a record onto a network nothing reads.
+
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-The shareable HarmonyRecord URL in the output will point to `http://152.67.153.149:3001/record?hash=...` — publicly readable, no authentication required.
+The shareable HarmonyRecord URL in the output will point to `http://132.145.23.78:3001/record?hash=...` — publicly readable, no authentication required.
 
 ## Option B — Run locally with Docker
 

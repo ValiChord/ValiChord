@@ -1,22 +1,22 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-08-22
-**Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ✅ **Oracle now runs 0.7.0 too (2026-08-24)** — the gap is closed. Deployed to a **new host, `132.145.23.78`**, because the old one (`152.67.153.149`) became unadministrable: the SSH key from its creation was lost and Compute Instance Run Command accepts commands without ever executing them. The new instance was created with a key that is held. Every HarmonyRecord URL published before this date is dead (accepted, and inherent to the DNA-hash change). Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`. **Verified end to end on 0.7.0:** a CLI round (Reproduced 3/3, ExactMatch, `validator_count: 3`) and a claim run through the public site, which exercises `custom_runner.py`. Live record, readable by anyone: `http://132.145.23.78:3001/record?hash=uhC8k9kxHSnuTfuPSa01eRDxS9f9oHx0hR5dcPuZiyUemIQ-RxGQ5`. ⚠️ **Render had not deployed since 2026-07-07** — seven weeks in which every commit to `main` silently failed to reach the live site, most likely the GitHub App installation not following the repo's transfer to the ValiChord org. Fixed by hand for now; **auto-deploy reconnected the same evening** by installing the Render GitHub App on the ValiChord org (github.com/apps/render). The App installation does not follow a repository transfer between accounts, and nothing surfaces that: pushes simply stop producing deploys. Note an install is not retroactive - commits pushed before it fire no webhook, so the first push AFTER installing is the only real test. ⚠️ The 1-OCPU SQLite contention §44.12 flagged is **confirmed and survivable**: 76 `database is locked` errors during a round, zero crashes, every assertion held. The old instance is still running and nothing points at it. Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest tag **v0.6.5** (2026-08-04) covers README/toolchain corrections only; `main` is 26 commits past it. Last GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` is at **format v2** (RFC 6962 §2.1 Merkle; package 2.0.0, shipped 2026-08-18) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun); **608 tests, 97% line coverage** (1114 statements, 33 missed; measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13). `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
+**Last updated:** 2026-08-25
+**Phase:** **`main` is on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ✅ **Oracle now runs 0.7.0 too (2026-08-24)** — the gap is closed. Deployed to a **new host, `132.145.23.78`**, because the old one (`152.67.153.149`) became unadministrable: the SSH key from its creation was lost and Compute Instance Run Command accepts commands without ever executing them. The new instance was created with a key that is held. Every HarmonyRecord URL published before this date is dead (accepted, and inherent to the DNA-hash change). Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`. **Verified end to end on 0.7.0:** a CLI round (Reproduced 3/3, ExactMatch, `validator_count: 3`) and a claim run through the public site, which exercises `custom_runner.py`. Live record, readable by anyone: `http://132.145.23.78:3001/record?hash=uhC8k9kxHSnuTfuPSa01eRDxS9f9oHx0hR5dcPuZiyUemIQ-RxGQ5`. ⚠️ **Render had not deployed since 2026-07-07** — seven weeks in which every commit to `main` silently failed to reach the live site, most likely the GitHub App installation not following the repo's transfer to the ValiChord org. Fixed by hand for now; **auto-deploy reconnected the same evening** by installing the Render GitHub App on the ValiChord org (github.com/apps/render). The App installation does not follow a repository transfer between accounts, and nothing surfaces that: pushes simply stop producing deploys. Note an install is not retroactive - commits pushed before it fire no webhook, so the first push AFTER installing is the only real test. ⚠️ The 1-OCPU SQLite contention §44.12 flagged is **confirmed and survivable**: 76 `database is locked` errors during a round, zero crashes, every assertion held. The old instance is still running and still returns healthy 200s on 0.6.2 — a different network; doc references to it were purged 2026-08-25, see START HERE. Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest tag **v0.6.5** (2026-08-04) covers README/toolchain corrections only; `main` is 26 commits past it. Last GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced on-chain for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` is at **format v2** (RFC 6962 §2.1 Merkle; package 2.0.0, shipped 2026-08-18) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun); **608 tests, 97% line coverage** (1114 statements, 33 missed; measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13). `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
 
 ---
 
-# 🚦 START HERE — next session (updated 2026-08-22)
+# 🚦 START HERE — next session (updated 2026-08-25)
 
 ## Where things stand, on one screen
 
 | | State | Checked |
 |---|---|---|
-| `main` | `2cf3ab5` — clean, pushed, CI green, zero open PRs | 2026-08-22 |
-| Holochain | `main` on **0.7**; ⚠️ **Oracle still on 0.6.2** | 2026-08-22 |
+| `main` | `646daad` — clean, pushed. Open PRs: **#35** (local-model demo) and this docs branch | 2026-08-25 |
+| Holochain | `main` **and** Oracle both on **0.7.0** — gap closed 2026-08-24. Oracle is now `132.145.23.78` | 2026-08-25 |
 | `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 608 tests, 97% coverage | 2026-08-22 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-22 |
-| Live branches | `main`, `fix/harmony-record-undercount` (keep — see Oracle below), `research/feature-selection-stability` ⚠️, plus in-flight `fix/cma-*` | 2026-08-22 |
+| Live branches | `main`, `research/feature-selection-stability` ⚠️ (keep — Schmidt), `feat/local-model-validators`, `docs/oracle-status-current`. ⚠️ `fix/harmony-record-undercount` was held **only until the rebuild** — that has happened, so it is now free to delete | 2026-08-25 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -36,32 +36,41 @@ it carries **no merge pressure and no rebase risk** — leaving it parked costs 
 
 Nothing is half-finished. The 0.7 migration is merged; its record is below.
 
-## The two things that are out of step
+## The two big items — one resolved, one still open
 
-### 🔴 1. Oracle still runs Holochain 0.6.2
+### ✅ 1. Oracle — resolved 2026-08-24
 
-`main` and the live public demo describe **different stacks**. That is deliberate — it was never
-part of the merge.
+Oracle runs **0.7.0**, on a **new host: `132.145.23.78`**. `main` and the live public demo now
+describe the **same** stack. Full record and runbook: `docs/ORACLE_0.7.0_UPGRADE.md`.
 
-- It is a **full rebuild with state loss**, not an upgrade. 0.7 agents form a separate network
-  from 0.6.
-- ⚠️ **Every published HarmonyRecord URL is already dead** — accepted by the user 2026-08-01 and
-  reaffirmed at the merge. Do not treat this as a bug to fix.
-- ⚠️ **Until Oracle is rebuilt, be careful about public claims**: the README describes what `main`
-  is, which is no longer what the demo runs.
-- Oracle carries a live **HarmonyRecord undercount** bug. It is fixed on `main`, but `main` is not
-  deployable there.
-  ⚠️ **`fix/harmony-record-undercount` (`78d184f`, PR #27, closed unmerged) is the only
-  0.6.2-deployable form of that fix. Do not delete the branch until the rebuild.**
-- **Blocked on:** Codespaces credits, next month.
+What that closes:
 
-⏳ 🆕 **THE REBUILD IS ALSO A WINDOW, AND IT CLOSES.** A full rebuild means a DNA-hash
-change, which is the expensive kind of protocol change — separate network, published record URLs
-dead. That cost is already accepted here. **Any integrity-zome change that lands before the rebuild
-therefore costs nothing extra; the same change afterwards costs a second network break.**
-Known candidates are in **`docs/protocol-backlog/`** (2026-08-22): HarmonyRecord supersession and
-hardware provenance, both flagged 🟠 *needs the window*. **Decide what rides along before
-scheduling the rebuild, not after.**
+- ✅ **The "be careful about public claims" caution is retired.** It existed only because the demo
+  ran something older than the README described. It no longer does — do not carry it forward.
+- ✅ The **HarmonyRecord undercount** fix is live, because `main` is deployable there now.
+  ⚠️ **`fix/harmony-record-undercount` (`78d184f`, PR #27, closed unmerged) was kept only as the
+  0.6.2-deployable form of that fix. The rebuild has happened, so it is now free to delete.**
+- **Every HarmonyRecord URL published before 2026-08-24 is dead** — accepted 2026-08-01 and
+  reaffirmed at the merge. Still not a bug to fix.
+- ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite
+  contention: 76 in a verified round, zero crashes, every assertion held.
+
+What it opened, which is the part that bites:
+
+- 🔴 **The old host is still running, and it still answers.** `152.67.153.149:3001/health`
+  returned `{"status":"ok","role":"researcher"}` on 2026-08-25 — on **0.6.2**, a different DNA
+  hash, therefore a different network. Anything still pointed at it gets a run that looks entirely
+  successful and writes a record onto a network nothing reads. **An HTTP 200 from the wrong network
+  is worse than a connection error**, because only one of the two is legible. The address was still
+  in `demo/README.md`, `demo/ai_validator_cma.py` and `demo/CORE_BENCH_DEMO.md` until 2026-08-25.
+  Switching the old instance off would be a real safety improvement.
+
+⌛ **THE WINDOW HAS CLOSED.** The rebuild's DNA-hash change was the one moment when an
+integrity-zome change cost nothing extra, because the break was already being paid for. It happened
+on 2026-08-24 and **neither 🟠 candidate rode along**, so HarmonyRecord supersession and hardware
+provenance now each cost a network break **of their own**. They are still listed in
+**`docs/protocol-backlog/`**; they are no longer cheap. Anything deferred on the reasoning that the
+window was still open needs re-deciding on its own merits.
 
 ### 🟠 2. The format is not wired to the DHT
 
@@ -852,10 +861,10 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Decentralised demo | **Live on Oracle (rebuilt 2026-07-07)** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server **152.67.153.149** (Ampere A1 ARM, PAYG account, Always Free shape); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. **Previous server 132.145.34.27 was reclaimed by Oracle when the free trial ended 2026-06-11 — its DHT state and every HarmonyRecord URL on that IP are gone.** |
+| Decentralised demo | **Live on Oracle (rebuilt 2026-08-24 onto a new host)** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server **132.145.23.78** (Ampere A1 ARM, PAYG account, Always Free shape); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. **Previous server 132.145.34.27 was reclaimed by Oracle when the free trial ended 2026-06-11 — its DHT state and every HarmonyRecord URL on that IP are gone.** |
 | Public web demo | **Live on Render** | Flask app at `valichord-demo.onrender.com/demo`. **One demo: *Your Hypothesis*** — user enters any claim + their own sealed answer + their own Anthropic key; 3 CMA validators research it blind in parallel; user clicks a pulsing green Reveal button once all 3 commit; adjudicator Claude call compares answers; HarmonyRecord written to DHT. (The server-funded *Free Demo* was **removed June 2026** — every visitor run drew on the server's own Anthropic key, causing rate-limit/cost problems; the site now runs **exclusively on the visitor's `sk-ant-` key**, no server key. The `/demo/run` + `/demo/result` routes are gone from `app.py`. Full detail in `demo/DEMO_WEBSITE.md`.) Linear scroll layout with five expandable accordion explainers (how it works, why remarkable, why Holochain not blockchain, why not central server, why disagreement is fine). Holochain logo in header. |
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
-| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://152.67.153.149:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
+| HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://132.145.23.78:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
 | Feynman skill (was PR #13) | **Historical** | Feynman is no longer operational (April 2026). Superseded by `demo/ai_validator.py` (direct Claude API). |
 | valichord-ui (Svelte/TS frontend) | **Working end-to-end** | Full UI for all three roles (researcher, validator, governance). Wired to a live local conductor: `bash dev.sh` starts conductor + installs app + writes auth token; `npm run dev` serves at `:5173`. `submit_validation_request` → DHT → `get_validation_request_for_data_hash` verified. See `valichord-ui/README.md` and `FRONTEND.md`. |
 
@@ -876,10 +885,10 @@ python3 demo/ai_validator.py --mode decentralised
 **Run against Oracle (already running — no Docker setup needed):**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
@@ -898,7 +907,7 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://152.67.153.149:3001/record?hash=uhC8k…
+  http://132.145.23.78:3001/record?hash=uhC8k…
 
   Verifying record is readable…
   Record confirmed. Outcome: Reproduced  Agreement: ExactMatch  Validators: 3
