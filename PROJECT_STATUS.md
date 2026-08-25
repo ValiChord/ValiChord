@@ -16,7 +16,7 @@
 | `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 608 tests, 97% coverage | 2026-08-22 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest tag | `v0.6.5` (2026-08-04) — `main` is **26 commits** past it | 2026-08-22 |
-| Live branches | `main`, `research/feature-selection-stability` ⚠️ (keep — Schmidt), `feat/local-model-validators`, `docs/oracle-status-current`. ⚠️ `fix/harmony-record-undercount` was held **only until the rebuild** — that has happened, so it is now free to delete | 2026-08-25 |
+| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt); open PRs `feat/local-model-validators` (#35), `docs/oracle-status-current` (#36); in-flight `fix/cma-custom-runner-conformance`, `fix/cma-validator-api-conformance`; unreviewed `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-08-25 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -47,9 +47,12 @@ What that closes:
 
 - ✅ **The "be careful about public claims" caution is retired.** It existed only because the demo
   ran something older than the README described. It no longer does — do not carry it forward.
-- ✅ The **HarmonyRecord undercount** fix is live, because `main` is deployable there now.
-  ⚠️ **`fix/harmony-record-undercount` (`78d184f`, PR #27, closed unmerged) was kept only as the
-  0.6.2-deployable form of that fix. The rebuild has happened, so it is now free to delete.**
+- ✅ The **HarmonyRecord undercount** fix is live, because `main` is deployable there now. The
+  fix on `main` is `validator_attestation_pairs` in the governance coordinator, with unit tests;
+  the `filter_map` that silently dropped records is gone.
+  ✅ **`fix/harmony-record-undercount` (`78d184f`, PR #27, closed unmerged) was kept only as the
+  0.6.2-deployable backport. Deleted 2026-08-25.** Not lost: GitHub keeps a closed PR's head, so
+  `git fetch origin refs/pull/27/head` brings `78d184f` back if the 0.6.2 form is ever wanted.
 - **Every HarmonyRecord URL published before 2026-08-24 is dead** — accepted 2026-08-01 and
   reaffirmed at the merge. Still not a bug to fix.
 - ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite
