@@ -54,23 +54,29 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Deliberately NOT demo/requirements.txt. That file carries the runtime
-      # deps — gunicorn, anthropic, litellm — and the tests need none of them:
-      # the provider call is faked, and nothing here serves traffic. Installing
-      # litellm in particular would add minutes per run to exercise code paths
-      # this suite never reaches.
+      # Install the declared runtime deps, not a hand-picked subset.
       #
-      # Two exceptions, both because a module imports them at load time:
-      #   scipy — report_to_verdict.py imports scipy.stats at module scope, so
-      #     its test file cannot even be collected without it.
-      #   flask — test_local_mode.py renders /demo in both modes through the
-      #     Flask test client. That check is the one that would catch the
-      #     custom demo's submit button being dead, which is otherwise a
-      #     completely silent failure.
+      # The first version of this job curated the list — pytest, scipy, flask —
+      # on the reasoning that the tests fake the provider call and never serve
+      # traffic, so the heavier deps were wasted minutes. It went red on its
+      # first run: demo/tests/test_demo_runner.py patches `anthropic.Anthropic`,
+      # which needs the real module importable, and the author's machine had it
+      # installed so it passed there.
+      #
+      # That is curation drift, and it has no natural stopping point: the list
+      # only stays correct while someone remembers to update it whenever a test
+      # grows a new import. Installing what the project actually declares makes
+      # CI wrong only if requirements.txt is wrong, which is a problem worth
+      # having.
+      #
+      # scipy is in requirements.txt as of this branch — report_to_verdict.py
+      # imports scipy.stats at module scope, so its test file could not be
+      # collected without it.
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov scipy flask flask-cors
+          pip install -r demo/requirements.txt
+          pip install pytest pytest-cov
 
       # Six core_bench test files skip unless inspect_ai/inspect_evals are
       # present. That is intended — they are heavy optional deps — but it means
