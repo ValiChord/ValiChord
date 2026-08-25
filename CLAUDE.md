@@ -243,10 +243,15 @@ other for the same guarantee and neither provides it.
 `valichord_attestation/spec/format-backlog/`, created 2026-08-22 because the protocol had no place
 to record known-missing things and two gaps surfaced in conversation that would otherwise have been
 lost. **It is deliberately only for changes that get more expensive with time:** 🟠 anything
-needing an entry/link type (free if it rides the Oracle rebuild's DNA-hash change, a second network
-break if it lands after) and 🔴 anything determining what an immutable record *says*
+needing an entry/link type and 🔴 anything determining what an immutable record *says*
 (records written before the fix stay wrong forever). 🟢 Cheap-forever items do not belong
 there.
+
+⚠️ **The 🟠 discount has expired.** Those items were cheap only while they could ride the Oracle
+rebuild's DNA-hash change, which was already being paid for. **That rebuild happened on
+2026-08-24**, so each one now costs a network break of its own — a second one. Anything in the
+backlog that was deferred on the reasoning that the window was still open needs re-deciding on its
+own merits, not on a discount that no longer exists.
 
 ### Four-DNA architecture (valichord/)
 
@@ -389,13 +394,26 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ### Where things actually are
 
 - ✅ **`main` is on Holochain 0.7.0** (merged 2026-08-03, `38ea2123`).
-- 🔴 **The Oracle demo host still runs 0.6.2.** `main` and the live public demo therefore
-  describe **different stacks** until Oracle is rebuilt — a full rebuild with state loss, not an
-  upgrade. Every previously published HarmonyRecord URL is already dead (accepted). See
-  `docs/ORACLE_0.7.0_UPGRADE.md`, which also records that the host has **no reachable shell**
-  (SSH key lost at creation).
-- ⚠️ **Be careful about public claims until Oracle is rebuilt** — the README describes what
-  `main` is, which is not what the demo runs.
+- ✅ **Oracle runs 0.7.0 too, since 2026-08-24 — the gap is closed.** `main` and the live public
+  demo now describe the **same** stack. The caution that stood here until then, about being careful
+  with public claims because the demo ran something older, **no longer applies** — do not carry it
+  forward.
+- ⚠️ **Oracle changed address.** It is **`132.145.23.78`**, not `152.67.153.149`. The old instance
+  was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
+  accepts commands without ever executing them. A new instance was built with a key that is held.
+  Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`.
+- 🔴 **The old host is still running, and it still answers.** `152.67.153.149:3001/health` returned
+  `{"status":"ok","role":"researcher"}` on 2026-08-25 — but on **0.6.2**, which is a different DNA
+  hash and therefore a different network. Anything still pointed at it gets a run that looks
+  completely successful and writes a record onto a network nothing reads. **A host that was simply
+  switched off would be safer than this one**, because a connection error is legible and an HTTP 200
+  is not. Check the address before believing any demo result. Stale references were still in
+  `demo/README.md` and `demo/ai_validator_cma.py` after the cutover.
+- **Every HarmonyRecord URL published before 2026-08-24 is dead.** Accepted at the merge, and
+  inherent to the DNA-hash change — not a bug to fix.
+- ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite contention:
+  76 of them during a verified round, zero crashes, every assertion held. Do not treat them as the
+  cause of an unrelated problem.
 - **Wind-tunnel builds on 0.7** by pinning the runner to a git **rev** of `holochain/wind-tunnel`
   (`e4861457`), not the crates.io release. CI job is enabled.
 
