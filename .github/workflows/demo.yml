@@ -85,3 +85,17 @@ jobs:
       # as coverage.
       - name: Tests
         run: pytest demo/ -q -rs --cov=demo --cov-report=term-missing
+
+      # demo/node-lib.mjs is the JavaScript half of the record helpers, and
+      # demo/test_record_helpers.mjs has covered it since it was written -
+      # without ever running. Same shape as test_agreement.py: a check that
+      # exists, is believed, and is not executed.
+      #
+      # It needs no npm install. node-lib.mjs imports only Node built-ins, so
+      # `node --test` runs it straight from a checkout.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Record-helper tests (JavaScript)
+        run: node --test demo/test_record_helpers.mjs
