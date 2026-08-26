@@ -165,10 +165,10 @@ until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node
 # (or: bash run_local_demo.sh — starts the stack AND runs the demo in one command)
 
 # To record on the public Oracle DHT instead (no local stack needed), set:
-# export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-# export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-# export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-# export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+# export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+# export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+# export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+# export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
 
 # full protocol run (mixed-model default: claude-opus-4-8 / gpt-4o / gemini-2.5-pro):
 python3 core_bench_runner.py --capsule capsule-0851068
