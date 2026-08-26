@@ -21,6 +21,7 @@ from ai_validator_cma import (
     _find_named, _idle_stop_reason,
 )
 from agreement import derive_agreement_level, derive_majority_outcome
+import local_mode
 
 RESEARCHER_URL = os.environ.get("VALICHORD_RESEARCHER_URL",  "http://localhost:3001")
 VALIDATOR_URLS = [
@@ -32,6 +33,11 @@ VALIDATOR_URLS = [
 log = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 2
+
+# The three validators run in a thread pool and all bump the same counter.
+# Read-modify-write from three threads can lose an update, which would strand
+# the run at 2/3 forever, since the phase transition is driven separately.
+_COMMIT_COUNT_LOCK = threading.Lock()
 
 
 def _reveal_with_retry(url: str, payload: dict, max_attempts: int = 3) -> dict:
@@ -103,6 +109,89 @@ _CLAIM_AGENT_ENV_CACHE_MAX = 32  # visitor keys are one-shot; bound the cache
 # reproducibility validator's — this agent carries a different system prompt.
 CMA_CLAIM_AGENT_NAME = "valichord-claim-validator"
 CMA_CLAIM_ENV_NAME   = "valichord-claim-validator-env"
+
+
+def _commit_verdict(idx, validator_url, external_hash_b64, verdict, discipline, job):
+    """Post one validator's verdict to its node, then count it.
+
+    Shared by the hosted CMA path and the local-model path so the two cannot
+    drift in what they actually write to the DHT.
+    """
+    commit_payload = {
+        "external_hash_b64": external_hash_b64,
+        "verdict": {
+            "outcome":    verdict["outcome"],
+            "confidence": verdict["confidence"],
+            "reasoning":  verdict["reasoning"][:300],
+        },
+        "metrics": [{
+            "metric_name":      "claim_assessment",
+            "produced_value":   verdict["outcome"],
+            "expected_value":   "see_researcher_reveal",
+            "within_tolerance": True,
+        }],
+        "discipline": discipline,
+    }
+    for attempt in range(6):
+        try:
+            _node_post(f"{validator_url}/commit", commit_payload)
+            break
+        except RuntimeError as exc:
+            if "No ValidationRequest found" in str(exc) and attempt < 5:
+                log.info(f"Validator {idx} commit attempt {attempt + 1} waiting for DHT propagation (15s)")
+                time.sleep(15)
+            else:
+                raise
+
+    with _COMMIT_COUNT_LOCK:
+        job["validators_committed"] = job.get("validators_committed", 0) + 1
+
+
+def _run_validators(fn, args_for):
+    """Run the three validators in parallel and collect results and failures.
+
+    All-or-nothing is preserved: the caller raises if any validator failed.
+    """
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(fn, *args_for(idx, url)): idx
+            for idx, url in enumerate(VALIDATOR_URLS)
+        }
+        results: dict = {}
+        errors:  dict = {}
+        for fut in as_completed(futures):
+            idx = futures[fut]
+            try:
+                results[idx] = fut.result()
+            except Exception as exc:
+                log.error(f"Validator {idx + 1} failed: {exc}")
+                errors[idx] = str(exc)
+    return results, errors
+
+
+def _run_local_claim_session(idx, validator_url, external_hash_b64, discipline,
+                             claim, sources, job, cfg):
+    """The local-model equivalent of _run_cma_claim_session.
+
+    No sandbox, no agent, no event stream: the verdict comes back from a plain
+    completion. Everything the protocol sees afterwards is identical.
+    """
+    t0 = time.time()
+    verdict = local_mode.run_local_claim_validator(idx, claim, sources, cfg)
+
+    _commit_verdict(idx, validator_url, external_hash_b64, verdict, discipline, job)
+
+    log.info(json.dumps({
+        "event":      "local_claim_session_done",
+        "validator":  idx,
+        "model":      verdict.get("model", ""),
+        "duration_s": round(time.time() - t0, 1),
+        "verdict":    verdict["outcome"],
+        "quotes":     len(verdict.get("evidence", [])),
+        "unverified": sum(1 for e in verdict.get("evidence", []) if not e.get("verified")),
+    }))
+
+    return verdict
 
 
 def _get_or_create_agent_env(api_key: str) -> tuple:
@@ -328,33 +417,7 @@ def _run_cma_claim_session(
         "reasoning":  v.get("reasoning", ""),
     }
 
-    commit_payload = {
-        "external_hash_b64": external_hash_b64,
-        "verdict": {
-            "outcome":    verdict["outcome"],
-            "confidence": verdict["confidence"],
-            "reasoning":  verdict["reasoning"][:300],
-        },
-        "metrics": [{
-            "metric_name":      "claim_assessment",
-            "produced_value":   verdict["outcome"],
-            "expected_value":   "see_researcher_reveal",
-            "within_tolerance": True,
-        }],
-        "discipline": discipline,
-    }
-    for attempt in range(6):
-        try:
-            _node_post(f"{validator_url}/commit", commit_payload)
-            break
-        except RuntimeError as exc:
-            if "No ValidationRequest found" in str(exc) and attempt < 5:
-                log.info(f"Validator {idx} commit attempt {attempt + 1} waiting for DHT propagation (15s)")
-                time.sleep(15)
-            else:
-                raise
-
-    job["validators_committed"] = job.get("validators_committed", 0) + 1
+    _commit_verdict(idx, validator_url, external_hash_b64, verdict, discipline, job)
 
     log.info(json.dumps({
         "event":      "cma_claim_session_done",
@@ -379,8 +442,22 @@ Reply with ONLY valid JSON — no markdown fences, no explanation:
 }}"""
 
 
-def classify_discipline(claim: str, api_key: str) -> dict:
+def classify_discipline(claim: str, api_key: str, local=None) -> dict:
     """Return a Discipline struct for the DHT — {"type": "Other", "content": "<name>"}."""
+    if local is not None:
+        try:
+            raw = local_mode.complete_json(
+                local, local.model_for(1),
+                _DISCIPLINE_PROMPT.format(claim=claim), max_tokens=64,
+            )
+            name = str(raw.get("discipline", "") or "").strip() or "General Science"
+        except Exception as exc:
+            # Same posture as the hosted path: a discipline label is not worth
+            # failing a run over.
+            log.warning(f"classify_discipline (local) fell back to General Science: {exc}")
+            name = "General Science"
+        return {"type": "Other", "content": name}
+
     client = anthropic.Anthropic(api_key=api_key)
     resp = client.messages.create(
         model=MODEL_CMA,
@@ -405,9 +482,10 @@ def compare_answers(
     user_answer: str,
     validator_verdicts: list,
     api_key: str,
+    local=None,
 ) -> dict:
-    """Compare researcher's sealed answer against validator findings. One short Claude call."""
-    client = anthropic.Anthropic(api_key=api_key)
+    """Compare researcher's sealed answer against validator findings. One short call."""
+    client = None if local is not None else anthropic.Anthropic(api_key=api_key)
 
     def _v(i):
         vd = validator_verdicts[i]
@@ -424,6 +502,25 @@ def compare_answers(
         v2_outcome=v2o, v2_confidence=v2c, v2_reasoning=v2r,
         v3_outcome=v3o, v3_confidence=v3c, v3_reasoning=v3r,
     )
+
+    if local is not None:
+        # Only the prose summary comes from here — outcome and agreement_level
+        # are derived from the verdicts by shared logic downstream — so a weak
+        # local model degrades one sentence of copy, not the verdict.
+        try:
+            result = local_mode.complete_json(local, local.model_for(1), prompt, max_tokens=512)
+        except Exception as exc:
+            log.warning(f"compare_answers (local) failed, using fallback: {exc}")
+            return {
+                "outcome":         "PartiallyReproduced",
+                "agreement_level": "DirectionalMatch",
+                "summary":         "Automated comparison unavailable. Review individual validator verdicts above.",
+            }
+        return {
+            "outcome":         local_mode.normalise_outcome(result.get("outcome")) or "NotReproduced",
+            "agreement_level": result.get("agreement_level", "DirectionalMatch"),
+            "summary":         result.get("summary", ""),
+        }
 
     resp = client.messages.create(
         model=MODEL_CMA,
@@ -490,7 +587,8 @@ def _claim_headline(outcomes: list, comparison_outcome: str) -> str:
     return f"{headline} ({align})" if align else headline
 
 
-def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) -> None:
+def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict,
+                       sources_raw: str = "", local=None) -> None:
     """
     Phase 1 — called in a background thread.
 
@@ -511,7 +609,19 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
     }]
     job["metrics"] = metrics
 
-    data_hash = hashlib.sha256((claim + user_answer).encode() + run_salt).hexdigest()
+    # Sources are sealed alongside the claim and the answer. Without that, the
+    # evidence the validators were shown could be swapped after the verdicts
+    # land and the commitment would still verify.
+    sources = local_mode.split_sources(sources_raw)
+    job["sources"] = [
+        {"index": s["index"], "sha256": s["sha256"], "chars": len(s["text"])}
+        for s in sources
+    ]
+    preimage = claim + user_answer
+    if sources:
+        preimage += local_mode.sources_digest(sources)
+
+    data_hash = hashlib.sha256(preimage.encode() + run_salt).hexdigest()
 
     lock_resp = _node_post(f"{RESEARCHER_URL}/lock-result", {
         "data_hash_hex": data_hash,
@@ -520,7 +630,7 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
     external_hash_b64 = lock_resp["external_hash_b64"]
     job["external_hash_b64"] = external_hash_b64
 
-    disc = classify_discipline(claim, api_key)
+    disc = classify_discipline(claim, api_key, local=local)
     _node_post(f"{RESEARCHER_URL}/submit-request", {
         "external_hash_b64":       external_hash_b64,
         "discipline":              disc,
@@ -532,40 +642,34 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict) ->
     job["phase"]               = "committing"
     job["validators_committed"] = 0
 
-    # One shared agent + environment for all three validators (created once / cached).
-    agent_id, agent_version, env_id = _get_or_create_agent_env(api_key)
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {
-            pool.submit(
-                _run_cma_claim_session,
-                idx + 1, url, external_hash_b64, disc, claim, api_key, job,
-                agent_id, agent_version, env_id,
-            ): idx
-            for idx, url in enumerate(VALIDATOR_URLS)
-        }
-        results: dict = {}
-        errors:  dict = {}
-        for fut in as_completed(futures):
-            idx = futures[fut]
-            try:
-                results[idx] = fut.result()
-            except Exception as exc:
-                log.error(f"Validator {idx + 1} failed: {exc}")
-                errors[idx] = str(exc)
+    if local is not None:
+        results, errors = _run_validators(
+            _run_local_claim_session,
+            lambda idx, url: (idx + 1, url, external_hash_b64, disc, claim, sources, job, local),
+        )
+    else:
+        # One shared agent + environment for all three validators (created once / cached).
+        agent_id, agent_version, env_id = _get_or_create_agent_env(api_key)
+        results, errors = _run_validators(
+            _run_cma_claim_session,
+            lambda idx, url: (idx + 1, url, external_hash_b64, disc, claim, api_key, job,
+                              agent_id, agent_version, env_id),
+        )
 
-        if errors:
-            failed_msgs = [f"Validator {i + 1}: {e}" for i, e in sorted(errors.items())]
-            raise RuntimeError(
-                f"{len(errors)}/{len(VALIDATOR_URLS)} validator(s) failed:\n"
-                + "\n".join(failed_msgs)
-            )
+    if errors:
+        failed_msgs = [f"Validator {i + 1}: {e}" for i, e in sorted(errors.items())]
+        raise RuntimeError(
+            f"{len(errors)}/{len(VALIDATOR_URLS)} validator(s) failed:\n"
+            + "\n".join(failed_msgs)
+        )
 
     verdicts = [results[i] for i in range(len(VALIDATOR_URLS))]
     job["verdicts"] = verdicts
     job["phase"]    = "awaiting_reveal"
 
 
-def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -> None:
+def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str,
+                        local=None) -> None:
     """
     Phase 2 — triggered by the user clicking Reveal.
 
@@ -597,7 +701,7 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -
         if i < len(VALIDATOR_URLS) - 1:
             time.sleep(15)
 
-    comparison = compare_answers(claim, user_answer, verdicts, api_key)
+    comparison = compare_answers(claim, user_answer, verdicts, api_key, local=local)
 
     harmony_resp = _node_post(f"{VALIDATOR_URLS[0]}/create-harmony-record", {
         "external_hash_b64": external_hash_b64,
@@ -624,12 +728,18 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str) -
         "validator_count":        3,
         "researcher_reveal_hash": researcher_reveal_hash,
         "record_url":             f"{RESEARCHER_URL}/record?hash={urllib.parse.quote(external_hash_b64)}",
+        "sources":                job.get("sources", []),
         "validator_verdicts": [
             {
                 "validator":  i + 1,
                 "outcome":    v["outcome"],
                 "confidence": v["confidence"],
                 "reasoning":  v["reasoning"],
+                # Present only on the local path; the hosted validators search
+                # the web rather than a supplied corpus, so they have no quote
+                # to check against a document hash.
+                "evidence":   v.get("evidence", []),
+                "model":      v.get("model", ""),
             }
             for i, v in enumerate(verdicts)
         ],

@@ -1,0 +1,87 @@
+name: Demo
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CI for the `demo/` Python code.
+#
+# Added 2026-08-25. Until then demo/ had NO CI at all. Ten test files and
+# roughly 70 KB of assertions sat in the tree and nothing ever ran them: the
+# only pytest invocation in the repo lives in attestation.yml, path-filtered to
+# `valichord_attestation/**`.
+#
+# The sharpest consequence was in test_agreement.py. That file is the Python
+# half of a deliberate cross-language guard — demo/agreement.py mirrors
+# shared_types::derive_agreement_level / derive_majority_outcome, and the two
+# are pinned to the same golden fixture so the verdict shown on the page can
+# never drift from the verdict written into the HarmonyRecord. The Rust half
+# ran in CI. The Python half did not. So exactly half of a guard against
+# silent divergence was load-bearing, and it was the half that cannot see the
+# page.
+#
+# That is the same failure shape attestation.yml was written for: a check that
+# exists, is believed, and is not executed.
+#
+# The suite is offline by construction — litellm and the node HTTP calls are
+# faked in the tests — so this needs no conductor, no model, no API key.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - '.github/workflows/demo.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - '.github/workflows/demo.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: demo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    name: demo tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Install the declared runtime deps, not a hand-picked subset.
+      #
+      # The first version of this job curated the list — pytest, scipy, flask —
+      # on the reasoning that the tests fake the provider call and never serve
+      # traffic, so the heavier deps were wasted minutes. It went red on its
+      # first run: demo/tests/test_demo_runner.py patches `anthropic.Anthropic`,
+      # which needs the real module importable, and the author's machine had it
+      # installed so it passed there.
+      #
+      # That is curation drift, and it has no natural stopping point: the list
+      # only stays correct while someone remembers to update it whenever a test
+      # grows a new import. Installing what the project actually declares makes
+      # CI wrong only if requirements.txt is wrong, which is a problem worth
+      # having.
+      #
+      # scipy is in requirements.txt as of this branch — report_to_verdict.py
+      # imports scipy.stats at module scope, so its test file could not be
+      # collected without it.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r demo/requirements.txt
+          pip install pytest pytest-cov
+
+      # Six core_bench test files skip unless inspect_ai/inspect_evals are
+      # present. That is intended — they are heavy optional deps — but it means
+      # a green run here is not a claim about the CORE-Bench path. -rs prints
+      # the skips so the gap stays visible in the log rather than being read
+      # as coverage.
+      - name: Tests
+        run: pytest demo/ -q -rs --cov=demo --cov-report=term-missing

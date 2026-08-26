@@ -9,14 +9,24 @@ Usage
 -----
     # Against Oracle (already running):
     export ANTHROPICAPIKEY=sk-ant-...
-    export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-    export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-    export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-    export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+    export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+    export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+    export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+    export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
     python3 demo/ai_validator_cma.py --mode decentralised
 
     # With another provider's key:
     python3 demo/ai_validator_cma.py --mode decentralised --key sk-proj-... --model openai/gpt-4o-mini
+
+    # With local models - no key, no cost. Needs an OpenAI-compatible server
+    # on this machine (Your Own AI serves one at 127.0.0.1:11435).
+    # Model names are the AI names it lists at /v1/models; omit --local-models
+    # and the first three it serves are used.
+    python3 demo/ai_validator_cma.py --mode decentralised --local
+    python3 demo/ai_validator_cma.py --mode decentralised --local --local-models alice,bob,carol
+
+    Three *different* models are three genuinely different readers. One model
+    three times is one reader sampled three times, and the run says so.
 """
 
 import hashlib
@@ -125,6 +135,89 @@ def default_model_for(key_type: str) -> str:
 def _server_api_key() -> str:
     """Read the server's Anthropic key from either env var name."""
     return os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPICAPIKEY", "")
+
+# ── Local models (Your Own AI, or any OpenAI-compatible server) ────────────
+
+DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:11435/v1"
+
+
+def _normalise_local_model(name: str) -> str:
+    """litellm needs a provider prefix to route to an OpenAI-compatible base."""
+    name = name.strip()
+    if not name or "/" in name:
+        return name
+    return f"openai/{name}"
+
+
+def discover_local_models(api_base: str, want: int = 3) -> list:
+    """Ask the local server what it serves.
+
+    Your Own AI lists one id per AI you have created, so three AIs bound to
+    three different model files come back as three ids. Fewer than `want`
+    ids are cycled to fill the slots - the caller warns when that happens.
+    """
+    url = api_base.rstrip("/") + "/models"
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"Could not reach a local model server at {url}: {exc}\n"
+            "Start Your Own AI (or any OpenAI-compatible server), "
+            "or point --api-base somewhere else."
+        ) from exc
+    ids = [m.get("id", "") for m in payload.get("data", []) if m.get("id")]
+    if not ids:
+        raise RuntimeError(f"{url} returned no models.")
+    return [_normalise_local_model(i) for i in (ids * want)[:want]]
+
+
+def resolve_local_models(spec: str, api_base: str, want: int = 3) -> list:
+    """Turn a comma-separated --local-models value into one model per validator."""
+    names = [n for n in (spec or "").split(",") if n.strip()]
+    if not names:
+        return discover_local_models(api_base, want)
+    models = [_normalise_local_model(n) for n in names]
+    return (models * want)[:want]
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def extract_verdict_json(text: str) -> dict:
+    """Pull a verdict object out of a model reply.
+
+    Local models are looser than the hosted ones: they emit reasoning blocks,
+    prose preambles and stray fences. Strip what we recognise, then fall back
+    to the first balanced {...} span in whatever is left.
+    """
+    text = _THINK_RE.sub("", text).strip()
+    for fence in ("```json", "```"):
+        if text.startswith(fence):
+            text = text[len(fence):]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+        start = text.find("{", start + 1)
+    raise ValueError("no JSON object found in reply")
+
 
 # ── Node HTTP helpers ──────────────────────────────────────────────────────────
 
@@ -587,9 +680,17 @@ def form_verdicts_simple(
     readme: str,
     study_output: str,
     api_key: str,
-    model: str,
+    models: list,
+    api_base: str = "",
 ) -> list:
-    """One-shot verdicts via litellm — works with any AI provider key."""
+    """One-shot verdicts via litellm - one model per validator.
+
+    `models` carries one entry per validator. Three *different* models are
+    three genuinely different readers, with different weights and different
+    failure modes. The same model three times is one reader sampled three
+    times; the caller says so out loud rather than letting the count imply
+    an independence it does not have.
+    """
     try:
         import litellm
     except ImportError:
@@ -602,10 +703,10 @@ def form_verdicts_simple(
         "2. Identify what would need to be true for that result to hold.\n"
         "3. Check whether the methodology described is capable of producing that result.\n"
         "4. Note any gaps, ambiguities, or steps that could not be replicated.\n"
-        "5. Based on steps 1–4, give your verdict.\n\n"
+        "5. Based on steps 1-4, give your verdict.\n\n"
         f"STUDY BRIEF:\n{readme}\n\n"
         f"ACTUAL EXECUTION OUTPUT:\n{study_output}\n\n"
-        "Reply with ONLY a JSON object — no markdown, no explanation:\n"
+        "Reply with ONLY a JSON object - no markdown, no explanation:\n"
         '{\n'
         '  "outcome": "Reproduced" | "FailedToReproduce",\n'
         '  "confidence": "High" | "Medium" | "Low",\n'
@@ -614,24 +715,25 @@ def form_verdicts_simple(
     )
 
     verdicts = []
-    for i in range(3):
+    for i, model in enumerate(models):
         last_err = ""
         for attempt in range(5):
-            resp = litellm.completion(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=api_key,
-                max_tokens=512,
-            )
+            kwargs = {
+                "model":      model,
+                "messages":   [{"role": "user", "content": prompt}],
+                "max_tokens": 512,
+            }
+            if api_base:
+                # A local server authenticates nobody, but litellm's OpenAI
+                # path still wants the header present.
+                kwargs["api_base"] = api_base
+                kwargs["api_key"]  = api_key or "local-no-key"
+            else:
+                kwargs["api_key"] = api_key
+            resp = litellm.completion(**kwargs)
             text = resp.choices[0].message.content.strip()
-            for fence in ("```json", "```"):
-                if text.startswith(fence):
-                    text = text[len(fence):]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
             try:
-                v = json.loads(text)
+                v = extract_verdict_json(text)
                 if v.get("outcome") not in {"Reproduced", "FailedToReproduce"}:
                     raise ValueError(f"Invalid outcome: {v.get('outcome')!r}")
                 if v.get("confidence") not in {"High", "Medium", "Low"}:
@@ -641,7 +743,9 @@ def form_verdicts_simple(
             except (json.JSONDecodeError, ValueError) as exc:
                 last_err = str(exc)
                 if attempt == 4:
-                    raise RuntimeError(f"Validator {i + 1} failed after 5 attempts: {last_err}")
+                    raise RuntimeError(
+                        f"Validator {i + 1} ({model}) failed after 5 attempts: {last_err}"
+                    )
     return verdicts
 
 # ── Full protocol runners ──────────────────────────────────────────────────────
@@ -748,13 +852,14 @@ def run_protocol_simple(
     study_output: str,
     job: dict,
     api_key: str,
-    model: str,
+    models: list,
+    api_base: str = "",
 ) -> dict:
     """Full commit-reveal with simple one-shot litellm verdicts."""
     disc = {"type": "ComputationalBiology"}
 
     job["step"] = 3
-    verdicts = form_verdicts_simple(readme, study_output, api_key, model)
+    verdicts = form_verdicts_simple(readme, study_output, api_key, models, api_base)
 
     lock_resp = _node_post(f"{RESEARCHER_URL}/lock-result", {
         "data_hash_hex": data_hash, "metrics": metrics,
@@ -806,18 +911,50 @@ def main():
         idx        = args.index("--model")
         user_model = args[idx + 1] if idx + 1 < len(args) else ""
 
-    api_key  = user_key or _server_api_key()
-    key_type = detect_key_type(api_key)
-    model    = user_model or default_model_for(key_type)
+    use_local = "--local" in args
 
-    if not api_key:
-        print("FATAL: No API key. Set ANTHROPIC_API_KEY or pass --key.", file=sys.stderr)
-        sys.exit(1)
+    local_models = os.environ.get("VALICHORD_LOCAL_MODELS", "")
+    if "--local-models" in args:
+        idx          = args.index("--local-models")
+        local_models = args[idx + 1] if idx + 1 < len(args) else ""
+
+    api_base = os.environ.get("VALICHORD_LOCAL_API_BASE", "")
+    if "--api-base" in args:
+        idx      = args.index("--api-base")
+        api_base = args[idx + 1] if idx + 1 < len(args) else ""
+
+    if use_local:
+        api_key  = ""
+        key_type = "local"
+        api_base = api_base or DEFAULT_LOCAL_API_BASE
+        try:
+            models = resolve_local_models(local_models, api_base)
+        except RuntimeError as exc:
+            print(f"FATAL: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        api_key  = user_key or _server_api_key()
+        key_type = detect_key_type(api_key)
+        api_base = ""
+        models   = [user_model or default_model_for(key_type)] * 3
+
+        if not api_key:
+            print(
+                "FATAL: No API key. Set ANTHROPIC_API_KEY, pass --key, "
+                "or run local models with --local.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     print("╔══════════════════════════════════════════════════════════╗")
     print("║    ValiChord CMA Validator Demo — 3 AI Validators        ║")
     print("╚══════════════════════════════════════════════════════════╝")
-    mode_label = "CMA (multi-step, web search)" if key_type == "anthropic" else f"Simple one-shot ({model})"
+    if key_type == "anthropic":
+        mode_label = "CMA (multi-step, web search)"
+    elif use_local:
+        mode_label = f"Local one-shot ({', '.join(models)}) via {api_base}"
+    else:
+        mode_label = f"Simple one-shot ({models[0]})"
     print(f"  Validator mode : {mode_label}")
     print(f"  Protocol mode  : {mode.upper()}")
     print()
@@ -834,12 +971,20 @@ def main():
     job = {"step": 2}
 
     _banner(3, 7, "Forming 3 independent verdicts…")
+    if key_type != "anthropic" and len(set(models)) < len(models):
+        print(
+            "  ⚠ Only "
+            f"{len(set(models))} distinct model(s) for {len(models)} validators - "
+            "this is one reader sampled repeatedly, not independent validators."
+        )
     if key_type == "anthropic":
         _banner(4, 7, "Running commit-reveal protocol (CMA mode)…")
         result = run_protocol_cma(data_hash, metrics, readme, study_output, job, api_key)
     else:
         _banner(4, 7, "Running commit-reveal protocol (simple mode)…")
-        result = run_protocol_simple(data_hash, metrics, readme, study_output, job, api_key, model)
+        result = run_protocol_simple(
+            data_hash, metrics, readme, study_output, job, api_key, models, api_base
+        )
 
     _banner(7, 7, "Permanent record.")
     print(f"  Outcome:         {result['outcome']} ({result['validator_count']}/3 validators)")

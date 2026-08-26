@@ -5,4 +5,13 @@ flask-cors==5.0.0
 # Upper bound is deliberate — an unbounded pin is how 1.0.0 arrived here unnoticed.
 anthropic>=1,<2
 gunicorn==22.0.0
-litellm>=1.40.0
+# Bounded for the same reason as anthropic above, and now more sharply: with
+# --local, litellm is the load-bearing path to the validator models rather than
+# a fallback for non-Anthropic keys.
+litellm>=1.40.0,<2
+
+# report_to_verdict.py imports scipy.stats at module scope, so importing that
+# module - including from its own test file - fails outright without it. It has
+# been missing since the module landed; nothing noticed because demo/ had no CI
+# until demo.yml was added alongside this line.
+scipy>=1.11
