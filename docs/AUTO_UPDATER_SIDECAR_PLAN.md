@@ -18,7 +18,7 @@ versions.
 ## Problem
 
 Pushing a coordinator-zome fix to the live Oracle demo nodes (researcher + 3 validators on
-`152.67.153.149`) is manual today:
+`132.145.23.78`, since the 2026-08-24 rebuild) is manual today:
 
 ```
 scp   attestation_coordinator.wasm + hotswap-coordinators.mjs  → host

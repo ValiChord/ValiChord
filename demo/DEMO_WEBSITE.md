@@ -94,7 +94,7 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
   "researcher_answer": "…",
   "validator_count": 3,
   "researcher_reveal_hash": "…",
-  "record_url": "http://152.67.153.149:3001/record?hash=…",
+  "record_url": "http://132.145.23.78:3001/record?hash=…",
   "validator_verdicts": [
     { "validator": 1, "outcome": "…", "confidence": "…", "reasoning": "…" },
     …
@@ -171,10 +171,10 @@ cd demo
 pip install flask flask-cors anthropic gunicorn
 
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
 
 python app.py
 # opens at http://localhost:8080/demo
@@ -206,7 +206,7 @@ The Oracle node URLs are set in `render.yaml` and are not secrets. **Do not set 
 At the end of any run, the page shows a `curl` command:
 
 ```bash
-curl "http://152.67.153.149:3001/record?hash=uhC8k…"
+curl "http://132.145.23.78:3001/record?hash=uhC8k…"
 ```
 
 Run that from any machine. The response is raw HarmonyRecord JSON from the Oracle DHT — not served by this website. The hash is unique to the run (derived from a per-run UUID salt on the data hash) so it cannot be pre-computed or reused.
