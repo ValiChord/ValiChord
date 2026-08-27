@@ -14,9 +14,14 @@ Usage (generate a minimal disclosure from scratch):
     from oetp_bridge import minimal_disclosure
     disclosure = minimal_disclosure("https://example.com/mymodel", round_result)
 
-`round_result` is the dict returned by demo_runner.run_round() or
-ai_validator.run_decentralised_protocol(). Both are accepted; the bridge
-handles the key difference ('outcome' vs 'outcome_type').
+`round_result` is a completed round's result dict. Both shapes in the repo are
+accepted, and the bridge handles the key difference:
+
+  * `ai_validator.run_decentralised_protocol()`  -> 'outcome_type'
+  * `ai_validator_cma` and `custom_runner`       -> 'outcome'
+
+(This previously named `demo_runner.run_round()`, which does not exist and has
+no trace in the history — the shape it described is the 'outcome' one above.)
 """
 
 import copy
