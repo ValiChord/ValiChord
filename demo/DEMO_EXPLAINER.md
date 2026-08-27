@@ -51,7 +51,7 @@ There is no central server that could be bribed or hacked to change a verdict. T
 At the end of the demo you'll see a shareable URL like:
 
 ```
-http://152.67.153.149:3001/record?hash=uhC8k…
+http://132.145.23.78:3001/record?hash=uhC8k…
 ```
 
 That URL returns a permanent record — a **HarmonyRecord** — containing:

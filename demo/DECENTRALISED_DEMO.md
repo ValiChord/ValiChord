@@ -11,7 +11,13 @@ A fully automated, end-to-end run of the ValiChord commit-reveal protocol across
 
 **This is the closest a single-machine setup can get to a real multi-party deployment.** Each container generates its own keypair at startup, writes to its own SQLite conductor database, and communicates with the others exclusively through the DHT — exactly as researcher and validators would on separate machines in production.
 
-**A permanent instance of this stack runs on Oracle Cloud (152.67.153.149)** with `restart: unless-stopped`, surviving reboots automatically. See [Running on Oracle](#running-on-oracle) below.
+**A permanent instance of this stack runs on Oracle Cloud (132.145.23.78)**
+
+> ⚠️ **Not `132.145.23.78` — that is the previous host.** Oracle moved on
+> 2026-08-24 and the old instance is still running on Holochain 0.6.2, which is a different
+> DNA hash and therefore a **different network**. It answers a healthy `200`, so pointing at
+> it gives you a run that looks entirely successful and writes a record onto a network
+> nothing reads. with `restart: unless-stopped`, surviving reboots automatically. See [Running on Oracle](#running-on-oracle) below.
 
 What happens when you run it:
 
@@ -22,7 +28,7 @@ What happens when you run it:
 - A **phase gate** on the Holochain network opens automatically when all three commitment anchors are confirmed — no manual trigger, no trusted coordinator.
 - **Both sides reveal, both cryptographically verified.** The researcher's `reveal_researcher_result` recomputes `SHA-256(msgpack(metrics) || nonce)` and checks it against the hash committed at submission. Each validator's `submit_attestation` recomputes `SHA-256(msgpack(attestation) || nonce)` and verifies it against the `CommitmentAnchor.commitment_hash` written at seal time.
 - A **HarmonyRecord** is written to the public Governance DHT by one of the validators. It is immediately readable via the researcher node's HTTP API.
-- At the end of the run, the demo prints a **shareable URL** — e.g. `http://152.67.153.149:3001/record?hash=uhC8k…`. Anyone can open that link in a browser and read the permanent outcome: who validated it, what they concluded, and at what agreement level. No login, no account, no auth required. The record cannot be altered or deleted.
+- At the end of the run, the demo prints a **shareable URL** — e.g. `http://132.145.23.78:3001/record?hash=uhC8k…`. Anyone can open that link in a browser and read the permanent outcome: who validated it, what they concluded, and at what agreement level. No login, no account, no auth required. The record cannot be altered or deleted.
 
 ---
 
@@ -136,7 +142,7 @@ This is the simplest approach — the API key and node URLs are already configur
 
 **From Windows PowerShell (or any SSH client):**
 ```powershell
-ssh -i "path\to\ssh-key-2026-04-13.key" ubuntu@152.67.153.149
+ssh -i "path\to\your-oracle-key.key" opc@132.145.23.78
 ```
 
 > **Note:** The Oracle username is `ubuntu`, not `opc`.
@@ -156,14 +162,14 @@ Set the node URLs to point at Oracle and provide your API key:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export VALICHORD_RESEARCHER_URL=http://152.67.153.149:3001
-export VALICHORD_VALIDATOR_1_URL=http://152.67.153.149:3002
-export VALICHORD_VALIDATOR_2_URL=http://152.67.153.149:3003
-export VALICHORD_VALIDATOR_3_URL=http://152.67.153.149:3004
+export VALICHORD_RESEARCHER_URL=http://132.145.23.78:3001
+export VALICHORD_VALIDATOR_1_URL=http://132.145.23.78:3002
+export VALICHORD_VALIDATOR_2_URL=http://132.145.23.78:3003
+export VALICHORD_VALIDATOR_3_URL=http://132.145.23.78:3004
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-The shareable HarmonyRecord URL in the output will automatically use the public IP (`http://152.67.153.149:3001/record?hash=...`). Port 3001 must be open in the Oracle Security List for external access to that URL.
+The shareable HarmonyRecord URL in the output will automatically use the public IP (`http://132.145.23.78:3001/record?hash=...`). Port 3001 must be open in the Oracle Security List for external access to that URL.
 
 **To set up Oracle from scratch** (already done; documented for reference):
 
@@ -295,7 +301,7 @@ python3 demo/ai_validator.py --mode decentralised
   Validator 3: Reproduced (High) — …
 
   Shareable URL:
-  http://152.67.153.149:3001/record?hash=uhC8k…   ← open in any browser, no auth required
+  http://132.145.23.78:3001/record?hash=uhC8k…   ← open in any browser, no auth required
   http://localhost:3001/record?hash=uhC8k…        ← when run locally (not publicly accessible)
 
   Verifying record is readable…
