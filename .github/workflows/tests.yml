@@ -22,11 +22,47 @@ name: Integration Tests
 # immutability signal, so it runs everywhere. It costs ~50 min.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Why paths-ignore, and why a deny-list ─────────────────────────────────────
+# This matrix costs ~90 minutes. Until 2026-08-25 it ran on every push and every
+# PR regardless of content, so a pull request that changed nothing but prose
+# spent an hour and a half rebuilding WASM and booting conductors. Three
+# documentation PRs in one afternoon made the point.
+#
+# It is a DENY-list, not an allow-list, and that is deliberate. `paths:` means
+# "run only for these", so anything nobody thought of silently stops being
+# tested — the failure is invisible and arrives later. `paths-ignore:` means
+# "skip only for these", so a path nobody thought of still runs the full matrix.
+# Wrong guesses cost 90 wasted minutes instead of an untested merge.
+#
+# Only entries verified not to reach any job are listed. The five jobs build
+# Rust/WASM, run sweettest conductors, and drive the Svelte UI with Playwright;
+# none reads markdown, docs/, Images/ or the root marketing HTML. Checked with
+# `grep -rn 'include_str!|include_bytes!' --include=*.rs valichord/` for a .md
+# used as test input — there is none.
+#
+# ⚠️ Re-check before adding an entry. Markdown IS an input elsewhere in the
+# repo: demo/synthetic_study/ has a README the CLI demo loads as the study
+# brief. That path is covered by demo.yml, not this file, and demo.yml has its
+# own `demo/**` filter — so nothing here changes it.
+#
+# Safe on merge queues too: `main` has no branch protection, so none of these is
+# a required status check and a skipped run cannot leave a PR unmergeable.
+
 on:
   push:
     branches: [main, v0.7.0]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Images/**'
+      - '*.html'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Images/**'
+      - '*.html'
   workflow_dispatch:
 
 env:
