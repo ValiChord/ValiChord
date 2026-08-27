@@ -316,10 +316,8 @@ const server = createServer(async (req, res) => {
         const revealEntry = reveal ? decodeEntry(reveal) : null;
         const attEntries  = Array.isArray(attRecords) ? attRecords.map(decodeEntry).filter(Boolean) : [];
 
-        enrichment.execution_agreement = {
-          level: hr.agreement_level ?? null,
-          means: executionAgreementNote(hr.agreement_level ?? 'unknown'),
-        };
+        // Order matters: the note describes numeric_convergence, so that has to
+        // exist before the note is written.
         if (revealEntry && attEntries.length > 0) {
           const researcherMetrics = revealEntry.metrics ?? [];
           enrichment.numeric_convergence = buildNumericConvergence(researcherMetrics, attEntries);
@@ -329,6 +327,12 @@ const server = createServer(async (req, res) => {
         } else {
           enrichment.numeric_convergence = 'pending';
         }
+        enrichment.execution_agreement = {
+          level: hr.agreement_level ?? null,
+          means: executionAgreementNote(
+            hr.agreement_level ?? 'unknown', enrichment.numeric_convergence,
+          ),
+        };
       } catch (e) {
         console.error('[/record] enrichment skipped:', e.message);
         // base fields only

@@ -193,10 +193,38 @@ export function parseCommittedInterval(expectedValueStr) {
   return { lower, upper };
 }
 
-export function executionAgreementNote(level) {
-  return `agreement_level='${level}' is independent EXECUTION agreement: all participating `
-       + `validators independently produced a result. It is NOT a claim that their numbers `
-       + `agree — see numeric_convergence.`;
+// `convergence` is whatever landed in the record's numeric_convergence field:
+// an array of rows, an empty array, or the string 'pending'. It is passed in so
+// the note can describe what is actually there.
+//
+// It used to say "see numeric_convergence" unconditionally. That field is empty
+// on every path except CORE-Bench, and correctly so - it pairs each validator's
+// OWN produced value against the researcher's committed interval, and only
+// CORE-Bench has validators that independently produce numbers. The claim demo
+// judges free text; the synthetic-study demo posts one shared metrics list to
+// all three validators (ai_validator_cma.py -> /commit -> key_metrics), so
+// filling the field there would manufacture exactly the numeric agreement this
+// sentence disclaims.
+//
+// So the field was right and the sentence was wrong: it pointed readers at an
+// empty array with no way to tell "nothing to compare" from "something broke".
+export function executionAgreementNote(level, convergence) {
+  const base = `agreement_level='${level}' is independent EXECUTION agreement: all participating `
+             + `validators independently produced a result. It is NOT a claim that their numbers `
+             + `agree`;
+  if (convergence === 'pending') {
+    return `${base} — numeric_convergence is pending until the reveal completes.`;
+  }
+  if (Array.isArray(convergence) && convergence.length > 0) {
+    return `${base} — see numeric_convergence.`;
+  }
+  if (Array.isArray(convergence)) {
+    return `${base}. numeric_convergence is empty because this round committed no numeric `
+         + `interval for validators to be measured against — empty by construction, not by `
+         + `failure. Rounds where validators independently produce numbers (the CORE-Bench `
+         + `reproduction) populate it.`;
+  }
+  return `${base}.`;
 }
 
 export function buildNumericConvergence(researcherMetrics, attestationEntries) {

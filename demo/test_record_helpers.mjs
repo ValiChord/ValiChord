@@ -41,3 +41,31 @@ test('executionAgreementNote names the level and disclaims numeric agreement', (
   assert.match(note, /ExactMatch/);
   assert.match(note, /NOT a claim that/i);
 });
+
+// The note used to end "see numeric_convergence" on every record, including the
+// ones where that field is an empty array. It is empty on every path except
+// CORE-Bench, and correctly so, which made a correct record look like a broken
+// one. These four pin the note to what the field actually holds.
+test('executionAgreementNote points at numeric_convergence only when it has rows', () => {
+  const rows = [{ validator: 1, metric: 'AUC', value: '0.9158', lower: 0.9148, upper: 0.9167, match: true }];
+  assert.match(executionAgreementNote('ExactMatch', rows), /see numeric_convergence/);
+});
+
+test('executionAgreementNote explains an empty numeric_convergence', () => {
+  const note = executionAgreementNote('ExactMatch', []);
+  assert.doesNotMatch(note, /see numeric_convergence/);
+  assert.match(note, /empty by construction, not by failure/);
+});
+
+test('executionAgreementNote reports the pending sentinel as pending', () => {
+  const note = executionAgreementNote('ExactMatch', 'pending');
+  assert.match(note, /pending/);
+  assert.doesNotMatch(note, /empty by construction/);
+});
+
+test('executionAgreementNote still disclaims numeric agreement in every case', () => {
+  for (const c of [undefined, [], 'pending', [{ match: true }]]) {
+    assert.match(executionAgreementNote('Divergent', c), /NOT a claim that their numbers/i);
+    assert.match(executionAgreementNote('Divergent', c), /Divergent/);
+  }
+});
