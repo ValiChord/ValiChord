@@ -201,6 +201,75 @@ def resolve_local_models(spec: str, api_base: str, want: int = 3) -> list:
     return (models * want)[:want]
 
 
+def json_schema_enabled() -> bool:
+    """Off only if explicitly disabled, so a bad interaction can be switched off
+    in the field without a code change."""
+    return os.environ.get("VALICHORD_LOCAL_JSON_SCHEMA", "").strip().lower() not in {
+        "0", "off", "false", "no",
+    }
+
+
+def json_schema_format(name: str, schema: dict) -> dict:
+    """An OpenAI-style response_format naming a JSON schema.
+
+    Your Own AI forwards the request body to the bundled llama.cpp untouched
+    apart from `messages` and `model` (inference_server.rs: the body is taken as
+    an untyped value), and llama.cpp compiles a schema into a GBNF grammar that
+    the sampler then cannot leave. The model does not "try" to return valid
+    JSON - it becomes unable to return anything else.
+
+    That is the difference between hoping a 3B model follows an instruction and
+    making the shape unrepresentable. The app relies on the same mechanism
+    internally to force schema-valid JSON out of its own helper model.
+    """
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": name, "strict": True, "schema": schema},
+    }
+
+
+def complete_with_optional_schema(kwargs: dict, fmt):
+    """One litellm call, dropping `response_format` if it is refused.
+
+    Not every OpenAI-compatible server compiles schemas, and litellm itself can
+    refuse the field for a model it does not believe supports it. A refusal must
+    not fail the round: an unconstrained answer still usually parses, and
+    extract_verdict_json is built for exactly that. So a refusal downgrades
+    rather than raising.
+
+    Only the first failure is treated as a refusal. If the unconstrained call
+    fails too, that error propagates - it is a real one.
+    """
+    try:
+        import litellm
+    except ImportError:
+        raise RuntimeError("litellm not installed. Run: pip install litellm")
+    if fmt:
+        try:
+            return litellm.completion(**kwargs, response_format=fmt)
+        except Exception as exc:
+            log.warning(
+                "response_format refused (%s: %s) - retrying unconstrained",
+                type(exc).__name__, str(exc)[:200],
+            )
+    return litellm.completion(**kwargs)
+
+
+# The CLI demo's verdict. Kept in step with the prompt below and with the
+# validation that follows the call: a schema that allowed a value the validator
+# rejects would turn a constrained answer into a failed round.
+SIMPLE_VERDICT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "outcome":    {"type": "string", "enum": ["Reproduced", "FailedToReproduce"]},
+        "confidence": {"type": "string", "enum": ["High", "Medium", "Low"]},
+        "reasoning":  {"type": "string"},
+    },
+    "required": ["outcome", "confidence", "reasoning"],
+    "additionalProperties": False,
+}
+
+
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
@@ -711,11 +780,6 @@ def form_verdicts_simple(
     times; the caller says so out loud rather than letting the count imply
     an independence it does not have.
     """
-    try:
-        import litellm
-    except ImportError:
-        raise RuntimeError("litellm not installed. Run: pip install litellm")
-
     prompt = (
         "You are an independent scientific reproducibility evaluator.\n"
         "Work through these 5 steps, then give your verdict:\n\n"
@@ -757,7 +821,14 @@ def form_verdicts_simple(
                 kwargs["extra_headers"] = dict(LOCAL_HEADERS)
             else:
                 kwargs["api_key"] = api_key
-            resp = litellm.completion(**kwargs)
+            # Constrained only against a local server. A hosted provider is
+            # already reliable at this, and would be sent a field it may not
+            # take.
+            fmt = (
+                json_schema_format("valichord_verdict", SIMPLE_VERDICT_SCHEMA)
+                if api_base and json_schema_enabled() else None
+            )
+            resp = complete_with_optional_schema(kwargs, fmt)
             text = resp.choices[0].message.content.strip()
             try:
                 v = extract_verdict_json(text)
