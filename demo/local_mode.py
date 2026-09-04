@@ -26,7 +26,7 @@ import os
 import re
 from dataclasses import dataclass
 
-from ai_validator_cma import _normalise_local_model, extract_verdict_json
+from ai_validator_cma import LOCAL_HEADERS, _normalise_local_model, extract_verdict_json
 
 DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:11435/v1"
 
@@ -157,9 +157,11 @@ def complete_text(cfg: "LocalConfig", model: str, prompt: str, max_tokens: int =
     resp = litellm.completion(
         model=_normalise_local_model(model),
         messages=[{"role": "user", "content": prompt}],
+        # Not the bare string "local" - see the note beside LOCAL_HEADERS.
         api_key="local-no-key",
         api_base=cfg.api_base,
         max_tokens=max_tokens,
+        extra_headers=dict(LOCAL_HEADERS),
     )
     return resp.choices[0].message.content.strip()
 

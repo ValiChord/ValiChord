@@ -140,6 +140,26 @@ def _server_api_key() -> str:
 
 DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:11435/v1"
 
+# Sent on every local request. Defined here rather than in local_mode because
+# local_mode imports from this module, not the other way round.
+LOCAL_HEADERS = {
+    # ⚠️ Load-bearing. Your Own AI 0.7.0 (2026-09-04) flipped the routing default
+    # for "Auto Online-and-Offline" AIs from offline-first to FRONTIER-first, and
+    # changed the default difficulty from "easy" to "unknown" - which can never
+    # take the stay-local branch. Without this header, a validator call can go to
+    # a paid online model: the prompt leaves the machine and is billed, or the
+    # run dies with a 401 asking the user to sign in.
+    #
+    # That would quietly break the only claim this path exists to make. The
+    # header pins the round to the device. Their changelog documents the flip as
+    # an in-app routing change and says nothing about the API.
+    "X-Your-Own-AI-Online-Share": "local",
+    # Their transcript records the calling app, taken from X-Title, then
+    # User-Agent, then the literal "API". Naming ourselves makes the signed
+    # record on the validator's own machine say ValiChord rather than "API".
+    "X-Title": "ValiChord",
+}
+
 
 def _normalise_local_model(name: str) -> str:
     """litellm needs a provider prefix to route to an OpenAI-compatible base."""
@@ -726,8 +746,15 @@ def form_verdicts_simple(
             if api_base:
                 # A local server authenticates nobody, but litellm's OpenAI
                 # path still wants the header present.
+                #
+                # ⚠️ Do not "tidy" this placeholder to the bare string "local".
+                # Your Own AI treats `Authorization: Bearer local` in agent mode
+                # as its own internal harness and silently stops recording the
+                # exchange (inference_server.rs, own_harness). Any other value
+                # keeps the record.
                 kwargs["api_base"] = api_base
                 kwargs["api_key"]  = api_key or "local-no-key"
+                kwargs["extra_headers"] = dict(LOCAL_HEADERS)
             else:
                 kwargs["api_key"] = api_key
             resp = litellm.completion(**kwargs)
