@@ -391,5 +391,74 @@ def test_the_swapped_copy_lines_are_well_formed(monkeypatch):
         assert _open_string_lines(line) == [], f"{marker} line does not terminate"
 
 
+# ── 0.7.0 compatibility ───────────────────────────────────────────────────────
+
+def test_the_web_path_pins_the_round_to_the_device(monkeypatch):
+    fake = _FakeLiteLLM([_verdict_json()])
+    monkeypatch.setitem(sys.modules, "litellm", fake)
+    cfg = local_mode.LocalConfig(api_base="http://x/v1", models=["a"])
+
+    local_mode.run_local_claim_validator(1, "claim", [], cfg)
+
+    assert fake.calls[0]["extra_headers"]["X-Your-Own-AI-Online-Share"] == "local"
+    assert fake.calls[0]["extra_headers"]["X-Title"] == "ValiChord"
+
+
+def test_local_validators_run_one_at_a_time():
+    """Your Own AI holds exactly one chat model loaded.
+
+    `current_model: Mutex<Option<String>>` — naming a different AI kills the
+    llama-server and respawns it on the new file. Three concurrent calls naming
+    three different models fight over one loader, each swap killing the load the
+    previous one was waiting on. So the local path runs them in sequence.
+    """
+    import threading
+    import time
+
+    import custom_runner
+
+    lock = threading.Lock()
+    active: list = []
+    peak: list = []
+
+    def fn(idx, url):
+        with lock:
+            active.append(idx)
+            peak.append(len(active))
+        time.sleep(0.05)
+        with lock:
+            active.remove(idx)
+        return {"outcome": "Reproduced"}
+
+    results, errors = custom_runner._run_validators(fn, lambda i, u: (i + 1, u), workers=1)
+
+    assert not errors
+    assert len(results) == 3
+    assert max(peak) == 1, f"validators overlapped: peak concurrency {max(peak)}"
+
+
+def test_the_default_is_still_parallel():
+    """Negative control for the test above.
+
+    Without it, `workers=1` would keep passing against an implementation that
+    had quietly gone serial everywhere — including the hosted path, where the
+    concurrency is wanted. The barrier only clears if all three run at once.
+    """
+    import threading
+
+    import custom_runner
+
+    barrier = threading.Barrier(3, timeout=5)
+
+    def fn(idx, url):
+        barrier.wait()
+        return {"outcome": "Reproduced"}
+
+    results, errors = custom_runner._run_validators(fn, lambda i, u: (i + 1, u))
+
+    assert not errors, f"the default is no longer parallel: {errors}"
+    assert len(results) == 3
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

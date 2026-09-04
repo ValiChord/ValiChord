@@ -147,12 +147,15 @@ def _commit_verdict(idx, validator_url, external_hash_b64, verdict, discipline, 
         job["validators_committed"] = job.get("validators_committed", 0) + 1
 
 
-def _run_validators(fn, args_for):
-    """Run the three validators in parallel and collect results and failures.
+def _run_validators(fn, args_for, workers: int = 3):
+    """Run the three validators and collect results and failures.
 
     All-or-nothing is preserved: the caller raises if any validator failed.
+
+    `workers=1` runs them one after another. That is required for local models,
+    not a preference - see the call site.
     """
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(fn, *args_for(idx, url)): idx
             for idx, url in enumerate(VALIDATOR_URLS)
@@ -643,9 +646,22 @@ def start_commit_phase(claim: str, user_answer: str, api_key: str, job: dict,
     job["validators_committed"] = 0
 
     if local is not None:
+        # One at a time, deliberately. Your Own AI holds exactly ONE chat model
+        # loaded (`current_model: Mutex<Option<String>>`); naming a different AI
+        # kills the llama-server and respawns it on the new file. Three
+        # concurrent calls naming three different models would therefore fight
+        # over one loader, each swap killing the load the last one was waiting
+        # on. Sequential is slower and it finishes.
+        #
+        # Nothing about blindness depends on this: validators still cannot see
+        # each other, and every commit still lands before any reveal. It also
+        # makes the progress dots honest, since the UI renders the committed
+        # count as an ordered prefix and the parallel version could light them
+        # out of order.
         results, errors = _run_validators(
             _run_local_claim_session,
             lambda idx, url: (idx + 1, url, external_hash_b64, disc, claim, sources, job, local),
+            workers=1,
         )
     else:
         # One shared agent + environment for all three validators (created once / cached).

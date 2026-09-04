@@ -188,6 +188,46 @@ def test_local_calls_carry_the_api_base_and_a_placeholder_key(monkeypatch):
         assert call["api_key"] == "local-no-key"
 
 
+def test_local_calls_pin_the_round_to_the_device(monkeypatch):
+    # Your Own AI 0.7.0 flipped "Auto Online-and-Offline" AIs to frontier-first
+    # and made the default difficulty one that can never stay local. Without this
+    # header a validator can be answered by a paid online model — the prompt
+    # leaves the machine, or the run 401s. See LOCAL_HEADERS in ai_validator_cma.
+    fake = _FakeLiteLLM([GOOD] * 3)
+    monkeypatch.setitem(sys.modules, "litellm", fake)
+
+    av.form_verdicts_simple("brief", "output", "", ["openai/a"] * 3, api_base="http://x/v1")
+
+    for call in fake.calls:
+        assert call["extra_headers"]["X-Your-Own-AI-Online-Share"] == "local"
+        assert call["extra_headers"]["X-Title"] == "ValiChord"
+
+
+def test_hosted_calls_carry_none_of_the_local_headers(monkeypatch):
+    # Keeps local mode additive: the hosted Anthropic path must not grow vendor
+    # headers for a different product.
+    fake = _FakeLiteLLM([GOOD] * 3)
+    monkeypatch.setitem(sys.modules, "litellm", fake)
+
+    av.form_verdicts_simple("brief", "output", "sk-real", ["gpt-4o-mini"] * 3)
+
+    for call in fake.calls:
+        assert "extra_headers" not in call
+
+
+def test_the_placeholder_key_is_never_the_bare_word_local(monkeypatch):
+    # `Authorization: Bearer local` in agent mode is how Your Own AI recognises
+    # its own internal harness, and it stops recording the exchange. A tidy-up
+    # of this placeholder would silently cost us the signed record.
+    fake = _FakeLiteLLM([GOOD] * 3)
+    monkeypatch.setitem(sys.modules, "litellm", fake)
+
+    av.form_verdicts_simple("brief", "output", "", ["openai/a"] * 3, api_base="http://x/v1")
+
+    for call in fake.calls:
+        assert call["api_key"].strip().lower() != "local"
+
+
 def test_hosted_calls_send_the_real_key_and_no_api_base(monkeypatch):
     fake = _FakeLiteLLM([GOOD] * 3)
     monkeypatch.setitem(sys.modules, "litellm", fake)

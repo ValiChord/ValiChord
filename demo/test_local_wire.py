@@ -79,8 +79,10 @@ class _Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(n) or b"{}")
         RECEIVED.append({
-            "model": body.get("model"),
-            "auth":  self.headers.get("Authorization"),
+            "model":  body.get("model"),
+            "auth":   self.headers.get("Authorization"),
+            "share":  self.headers.get("X-Your-Own-AI-Online-Share"),
+            "title":  self.headers.get("X-Title"),
         })
         text = REPLIES.pop(0) if REPLIES else _verdict()
         self._send({
@@ -155,6 +157,48 @@ def test_an_authorization_header_is_sent(base_url):
 
 
 # ── the claim validator ────────────────────────────────────────────────────────
+
+def test_the_stay_local_header_actually_reaches_the_server(base_url):
+    """The header that keeps a round on the device, checked on the wire.
+
+    Your Own AI 0.7.0 flipped "Auto Online-and-Offline" AIs to frontier-first
+    and changed the default difficulty to one that can never stay local. Without
+    this header a validator call can be answered by a paid online model — the
+    prompt leaves the machine, or the run 401s. Asserting it on the client kwargs
+    would prove we asked; this proves it arrived.
+    """
+    REPLIES.append(_verdict("Reproduced"))
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+    local_mode.run_local_claim_validator(1, "claim", [], cfg)
+    assert RECEIVED[0]["share"] == "local"
+
+
+def test_the_record_badge_names_us_on_the_wire(base_url):
+    # Their transcript takes the calling app from X-Title, falling back to the
+    # literal "API". This is what makes the record on the validator's own
+    # machine say ValiChord.
+    REPLIES.append(_verdict("Reproduced"))
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+    local_mode.run_local_claim_validator(1, "claim", [], cfg)
+    assert RECEIVED[0]["title"] == "ValiChord"
+
+
+def test_the_cli_path_sends_the_same_headers(base_url):
+    REPLIES.extend([_verdict("Reproduced")] * 3)
+    av.form_verdicts_simple("brief", "output", "", ["openai/alpha"] * 3, api_base=base_url)
+    assert all(r["share"] == "local" for r in RECEIVED)
+    assert all(r["title"] == "ValiChord" for r in RECEIVED)
+
+
+def test_we_never_send_the_bare_local_key(base_url):
+    # `Authorization: Bearer local` in agent mode is how Your Own AI recognises
+    # its own internal harness, and it stops recording the exchange. Our
+    # placeholder must never collapse to that.
+    REPLIES.append(_verdict("Reproduced"))
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+    local_mode.run_local_claim_validator(1, "claim", [], cfg)
+    assert RECEIVED[0]["auth"].strip().lower() != "bearer local"
+
 
 def test_validator_index_selects_the_model(base_url):
     REPLIES.append(_verdict())
