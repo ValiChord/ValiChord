@@ -34,6 +34,27 @@ Both demos read the same three:
 | `--local` | `VALICHORD_LOCAL` | off |
 | `--local-models` | `VALICHORD_LOCAL_MODELS` | whatever `/v1/models` lists first |
 | `--api-base` | `VALICHORD_LOCAL_API_BASE` | `http://127.0.0.1:11435/v1` |
+| — | `VALICHORD_LOCAL_JSON_SCHEMA=off` | on |
+
+### Two things sent on every local request
+
+**`X-Your-Own-AI-Online-Share: local`.** Your Own AI 0.7.0 changed the default
+for "Auto Online-and-Offline" AIs to prefer a *frontier online* model, and made
+the default difficulty one that can never choose to stay local. Without this
+header a validator can be answered by a paid online model — your prompt leaves
+the machine, or the run stops with a 401 asking you to sign in. The header pins
+the round to the device.
+
+**A JSON schema.** The verdict request carries an OpenAI-style `response_format`
+naming a schema. Your Own AI forwards the body to the bundled llama.cpp
+untouched apart from the messages and the model, and llama.cpp compiles that
+schema into a grammar the sampler cannot leave. A small model is not being asked
+nicely to return valid JSON — the malformed answer stops being representable.
+This is the same mechanism the app uses on its own helper model.
+
+If a server refuses the field, the call is retried once without it rather than
+failing, and parsing falls back to the tolerant reader. `VALICHORD_LOCAL_JSON_SCHEMA=off`
+disables it outright.
 
 The protocol nodes are separate and unchanged. They default to
 `localhost:3001–3004`, so if you are running the Docker stack locally there is

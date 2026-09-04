@@ -26,7 +26,14 @@ import os
 import re
 from dataclasses import dataclass
 
-from ai_validator_cma import LOCAL_HEADERS, _normalise_local_model, extract_verdict_json
+from ai_validator_cma import (
+    LOCAL_HEADERS,
+    _normalise_local_model,
+    complete_with_optional_schema,
+    extract_verdict_json,
+    json_schema_enabled,
+    json_schema_format,
+)
 
 DEFAULT_LOCAL_API_BASE = "http://127.0.0.1:11435/v1"
 
@@ -149,29 +156,86 @@ def normalise_confidence(value) -> str:
 
 # ── completions ────────────────────────────────────────────────────────────────
 
-def complete_text(cfg: "LocalConfig", model: str, prompt: str, max_tokens: int = 700) -> str:
-    try:
-        import litellm
-    except ImportError:
-        raise RuntimeError("litellm not installed. Run: pip install litellm")
-    resp = litellm.completion(
-        model=_normalise_local_model(model),
-        messages=[{"role": "user", "content": prompt}],
+# What the claim validator must return. The enum is the Supported/... wording
+# the prompt asks for; normalise_outcome still runs afterwards, because the
+# schema can be refused and an unconstrained model answers how it likes.
+CLAIM_VERDICT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "outcome":    {"type": "string",
+                       "enum": ["Supported", "PartiallySupported", "NotSupported"]},
+        "confidence": {"type": "string", "enum": ["High", "Medium", "Low"]},
+        "reasoning":  {"type": "string"},
+        "evidence": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "integer"},
+                    "quote":  {"type": "string"},
+                },
+                "required": ["source", "quote"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["outcome", "confidence", "reasoning"],
+    "additionalProperties": False,
+}
+
+DISCIPLINE_SCHEMA = {
+    "type": "object",
+    "properties": {"discipline": {"type": "string"}},
+    "required": ["discipline"],
+    "additionalProperties": False,
+}
+
+COMPARISON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "outcome": {"type": "string",
+                    "enum": ["Reproduced", "PartiallyReproduced", "NotReproduced"]},
+        "agreement_level": {"type": "string",
+                            "enum": ["ExactMatch", "WithinTolerance",
+                                     "DirectionalMatch", "Divergent"]},
+        "summary": {"type": "string"},
+    },
+    "required": ["outcome", "agreement_level", "summary"],
+    "additionalProperties": False,
+}
+
+
+def complete_text(cfg: "LocalConfig", model: str, prompt: str, max_tokens: int = 700,
+                  schema: dict = None, schema_name: str = "valichord") -> str:
+    kwargs = {
+        "model": _normalise_local_model(model),
+        "messages": [{"role": "user", "content": prompt}],
         # Not the bare string "local" - see the note beside LOCAL_HEADERS.
-        api_key="local-no-key",
-        api_base=cfg.api_base,
-        max_tokens=max_tokens,
-        extra_headers=dict(LOCAL_HEADERS),
+        "api_key": "local-no-key",
+        "api_base": cfg.api_base,
+        "max_tokens": max_tokens,
+        "extra_headers": dict(LOCAL_HEADERS),
+    }
+    fmt = (
+        json_schema_format(schema_name, schema)
+        if schema and json_schema_enabled() else None
     )
+    resp = complete_with_optional_schema(kwargs, fmt)
     return resp.choices[0].message.content.strip()
 
 
 def complete_json(cfg: "LocalConfig", model: str, prompt: str, max_tokens: int = 700,
-                  attempts: int = 3) -> dict:
-    """A completion that has to come back as an object. Retries a bad shape."""
+                  attempts: int = 3, schema: dict = None,
+                  schema_name: str = "valichord") -> dict:
+    """A completion that has to come back as an object. Retries a bad shape.
+
+    With a schema the retries should rarely be needed - the grammar makes a
+    malformed reply unrepresentable - but they stay, because the server is free
+    to refuse the schema and say nothing about it.
+    """
     last = ""
     for _ in range(attempts):
-        text = complete_text(cfg, model, prompt, max_tokens)
+        text = complete_text(cfg, model, prompt, max_tokens, schema, schema_name)
         try:
             return extract_verdict_json(text)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -240,7 +304,8 @@ def run_local_claim_validator(idx: int, claim: str, sources: list, cfg: "LocalCo
         sources=render_sources(sources) if sources else "(no sources were supplied)",
     )
 
-    raw = complete_json(cfg, model, prompt)
+    raw = complete_json(cfg, model, prompt, schema=CLAIM_VERDICT_SCHEMA,
+                        schema_name="valichord_claim_verdict")
 
     outcome = normalise_outcome(raw.get("outcome"))
     if not outcome:

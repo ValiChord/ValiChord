@@ -44,6 +44,7 @@ import local_mode
 
 RECEIVED: list = []
 REPLIES: list = []
+REFUSE_SCHEMA: list = [False]   # when True the server 400s any body carrying one
 
 
 def _verdict(outcome="Supported", quote="lowered resting heart rate by 6 bpm"):
@@ -83,7 +84,12 @@ class _Handler(BaseHTTPRequestHandler):
             "auth":   self.headers.get("Authorization"),
             "share":  self.headers.get("X-Your-Own-AI-Online-Share"),
             "title":  self.headers.get("X-Title"),
+            "format": body.get("response_format"),
         })
+        if REFUSE_SCHEMA[0] and "response_format" in body:
+            self._send({"error": {"message": "response_format is not supported",
+                                  "type": "invalid_request_error"}}, 400)
+            return
         text = REPLIES.pop(0) if REPLIES else _verdict()
         self._send({
             "id": "chatcmpl-stub", "object": "chat.completion", "created": 0,
@@ -106,6 +112,7 @@ def base_url():
 def _reset():
     RECEIVED.clear()
     REPLIES.clear()
+    REFUSE_SCHEMA[0] = False
     yield
 
 
@@ -235,6 +242,73 @@ def test_a_fabricated_quote_is_reported_not_hidden(base_url):
     cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
     got = local_mode.run_local_claim_validator(1, "claim", local_mode.split_sources(SOURCE), cfg)
     assert got["evidence"][0]["verified"] is False
+
+
+# ── schema-constrained output ─────────────────────────────────────────────────
+
+def test_a_schema_reaches_the_server(base_url):
+    """The point of the exercise, checked on the wire.
+
+    Your Own AI forwards the body to llama.cpp untouched apart from `messages`
+    and `model`, and llama.cpp compiles a JSON schema into a GBNF grammar the
+    sampler cannot leave. So this is not the model trying to obey an
+    instruction — it is the malformed answer becoming unrepresentable. Worth
+    asserting on the wire, because litellm is free to drop a field it thinks the
+    model cannot use.
+    """
+    REPLIES.append(_verdict())
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+    local_mode.run_local_claim_validator(1, "claim", local_mode.split_sources(SOURCE), cfg)
+
+    fmt = RECEIVED[0]["format"]
+    assert fmt is not None, "response_format never reached the server"
+    assert fmt["type"] == "json_schema"
+    assert fmt["json_schema"]["schema"]["properties"]["outcome"]["enum"] == [
+        "Supported", "PartiallySupported", "NotSupported",
+    ]
+
+
+def test_the_cli_path_sends_its_own_schema(base_url):
+    # A different enum from the claim validator: this path speaks the wire
+    # vocabulary directly, and a schema allowing the other one would constrain
+    # the model to answers this caller then rejects.
+    REPLIES.extend([_verdict("Reproduced")] * 3)
+    av.form_verdicts_simple("brief", "output", "", ["openai/alpha"] * 3, api_base=base_url)
+
+    fmt = RECEIVED[0]["format"]
+    assert fmt["json_schema"]["schema"]["properties"]["outcome"]["enum"] == [
+        "Reproduced", "FailedToReproduce",
+    ]
+
+
+def test_a_refused_schema_falls_back_rather_than_failing(base_url):
+    """Not every OpenAI-compatible server compiles schemas.
+
+    A refusal must cost us the constraint, not the round — an unconstrained
+    reply usually still parses, and extract_verdict_json exists for exactly
+    that. Verified against a server that actually returns 400.
+    """
+    REFUSE_SCHEMA[0] = True
+    REPLIES.append(_verdict())
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+
+    got = local_mode.run_local_claim_validator(1, "claim", local_mode.split_sources(SOURCE), cfg)
+
+    assert got["outcome"] == "Reproduced"
+    assert len(RECEIVED) == 2, "expected one refused call then one unconstrained"
+    assert RECEIVED[0]["format"] is not None
+    assert RECEIVED[1]["format"] is None
+
+
+def test_the_schema_can_be_switched_off(base_url, monkeypatch):
+    # An escape hatch that needs no code change if a server interacts badly.
+    monkeypatch.setenv("VALICHORD_LOCAL_JSON_SCHEMA", "off")
+    REPLIES.append(_verdict())
+    cfg = local_mode.LocalConfig(api_base=base_url, models=["alpha"])
+
+    local_mode.run_local_claim_validator(1, "claim", local_mode.split_sources(SOURCE), cfg)
+
+    assert RECEIVED[0]["format"] is None
 
 
 if __name__ == "__main__":

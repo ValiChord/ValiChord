@@ -213,6 +213,7 @@ def test_hosted_calls_carry_none_of_the_local_headers(monkeypatch):
 
     for call in fake.calls:
         assert "extra_headers" not in call
+        assert "response_format" not in call
 
 
 def test_the_placeholder_key_is_never_the_bare_word_local(monkeypatch):

@@ -452,6 +452,7 @@ def classify_discipline(claim: str, api_key: str, local=None) -> dict:
             raw = local_mode.complete_json(
                 local, local.model_for(1),
                 _DISCIPLINE_PROMPT.format(claim=claim), max_tokens=64,
+                schema=local_mode.DISCIPLINE_SCHEMA, schema_name="valichord_discipline",
             )
             name = str(raw.get("discipline", "") or "").strip() or "General Science"
         except Exception as exc:
@@ -511,7 +512,10 @@ def compare_answers(
         # are derived from the verdicts by shared logic downstream — so a weak
         # local model degrades one sentence of copy, not the verdict.
         try:
-            result = local_mode.complete_json(local, local.model_for(1), prompt, max_tokens=512)
+            result = local_mode.complete_json(
+                local, local.model_for(1), prompt, max_tokens=512,
+                schema=local_mode.COMPARISON_SCHEMA, schema_name="valichord_comparison",
+            )
         except Exception as exc:
             log.warning(f"compare_answers (local) failed, using fallback: {exc}")
             return {
