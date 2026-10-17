@@ -10,12 +10,12 @@
 # Prerequisites
 # ─────────────
 # 1. demo/bin/holochain     — OPTIONAL. Dockerfile.node downloads the pinned
-#                             version (0.7.0) if this is absent or is the wrong
+#                             version (0.7.1) if this is absent or is the wrong
 #                             version. Only supply it to save the download.
 #
 # 2. demo/bin/kitsune2-bootstrap-srv — committed to the repo, but it is 0.4.1,
 #                             which is Holochain 0.6.2's kitsune2 line. On 0.7
-#                             it no longer matches the pin (0.5.0), so
+#                             it no longer matches the pin (0.5.1), so
 #                             Dockerfile.node ignores it and downloads the right
 #                             one. Left in place for the 0.6 stack; refresh or
 #                             delete it once nothing needs 0.6.
