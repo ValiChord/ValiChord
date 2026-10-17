@@ -168,6 +168,55 @@ pub struct ValidatorProfile {
     /// deserialise as `None` without error (backwards-compatible).
     #[serde(default)]
     pub person_key:           Option<AgentPubKey>,
+    /// The author's joining certificate (their membrane proof), carried so every
+    /// peer can check `certification_tier` against what the issuer granted (#8).
+    ///
+    /// WHY (2026-10-17). Until then `certification_tier` was whatever the caller
+    /// wrote — `publish_validator_profile` takes the whole profile — and no
+    /// validate() rule covered profiles at all, so any validator could call
+    /// themselves Certified. And the tier an issuer granted an AI validator in its
+    /// certificate was never read anywhere. The coordinator fills this field from
+    /// the author's own AgentValidationPkg; callers need not supply it. Not secret:
+    /// it is a signature over the agent's own key, already on their public chain.
+    ///
+    /// `None` only on a dev network (empty issuer key), where the credential
+    /// system is off and the tier is not checked — the same bypass as everywhere.
+    #[serde(default)]
+    pub joining_certificate:  Option<MembraneProof>,
+}
+
+/// Check a ValidatorProfile's tier against its author's joining certificate (#8).
+/// `Some(reason)` if invalid. Used for creates AND updates — an update arm that
+/// skipped it would let the tier be forged by editing instead.
+fn check_profile_certification(
+    author: &AgentPubKey,
+    profile: &ValidatorProfile,
+) -> ExternResult<Option<String>> {
+    let props = DnaProperties::try_from_dna_properties()?;
+    if props.authorized_joining_certificate_issuer.is_empty() {
+        return Ok(None); // dev bypass — credential system off
+    }
+    // Is it a genuine certificate, issued to THIS author? Same function every peer
+    // runs on the AgentValidationPkg (#37), so a certificate copied from another
+    // agent fails here exactly as it would at the membrane.
+    if let Err(reason) = check_joining_certificate(author, profile.joining_certificate.as_ref())? {
+        return Ok(Some(format!("ValidatorProfile joining_certificate: {reason}")));
+    }
+    let granted = match profile.joining_certificate.as_ref() {
+        Some(proof) => match JoiningCertificate::from_proof_bytes(proof.bytes()) {
+            Ok(c) => c.granted_tier(),
+            Err(e) => return Ok(Some(format!("ValidatorProfile joining_certificate: {e}"))),
+        },
+        None => return Ok(Some("ValidatorProfile requires a joining_certificate".into())),
+    };
+    if profile.certification_tier != granted {
+        return Ok(Some(format!(
+            "ValidatorProfile certification_tier must be the tier its joining certificate \
+             grants ({granted:?}), not {:?}",
+            profile.certification_tier,
+        )));
+    }
+    Ok(None)
 }
 
 // CertificationTier is defined in valichord_shared_types — imported above.
@@ -507,6 +556,24 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         )),
 
         // Generic update: only the original author may update other entry types.
+        // ValidatorProfile edits: the generic arm below checks authorship only, which
+        // would let an author edit a forged tier in. MUST stay above that arm (#8).
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::ValidatorProfile(ref profile),
+            action,
+        }) => {
+            let original = must_get_action(action.original_action_address.clone())?;
+            if action.author() != original.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the original author may update this entry".into(),
+                ));
+            }
+            match check_profile_certification(action.author(), profile)? {
+                Some(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+                None => Ok(ValidateCallbackResult::Valid),
+            }
+        }
+
         FlatOp::Update(OpUpdate::Entry { action, .. }) => {
             let original = must_get_action(action.original_action_address.clone())?;
             if action.author() != original.action().author() {
@@ -840,6 +907,15 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             Ok(ValidateCallbackResult::Valid)
         }
+
+        // --- ValidatorProfile create: tier must be the certificate's (#8) --------
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ValidatorProfile(ref profile),
+            action,
+        }) => match check_profile_certification(action.author(), profile)? {
+            Some(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+            None => Ok(ValidateCallbackResult::Valid),
+        },
 
         // --- AgentIdentityAttestation create: authorship, self-link, SIGNATURES ---
         //

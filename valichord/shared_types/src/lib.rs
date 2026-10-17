@@ -346,6 +346,41 @@ impl JoiningCertificate {
             .map_err(|e| format!("meta decode error: {e}"))?;
         Ok(Self { signature, validator_type: meta.validator_type, initial_tier: meta.initial_tier })
     }
+
+    /// The bytes an issuer appends after the signature, and signs after the agent
+    /// key: `rmp_serde::to_vec_named({ validator_type, initial_tier })`. The one
+    /// definition, so issuer tooling and tests build exactly what `from_proof_bytes`
+    /// reads.
+    pub fn meta_bytes(
+        validator_type: ValidatorType,
+        initial_tier: Option<CertificationTier>,
+    ) -> Result<Vec<u8>, String> {
+        rmp_serde::to_vec_named(&JoiningCertificateMeta { validator_type, initial_tier })
+            .map_err(|e| format!("meta encode error: {e}"))
+    }
+
+    /// The `CertificationTier` this certificate grants (#8, 2026-10-17).
+    ///
+    /// * AI    → the issuer's `initial_tier`, else Provisional. AI validators do not
+    ///           progress through rounds; this is their tier.
+    /// * Human → Provisional. Human progression happens through completed rounds and
+    ///           is recorded in governance's `ValidatorReputation`, not granted here;
+    ///           an `initial_tier` on a Human certificate is ignored, as the meta
+    ///           field's own doc says it is only set for AI.
+    pub fn granted_tier(&self) -> CertificationTier {
+        match self.validator_type {
+            ValidatorType::AI => self.initial_tier.clone().unwrap_or(CertificationTier::Provisional),
+            ValidatorType::Human => CertificationTier::Provisional,
+        }
+    }
+}
+
+/// A validator's certified type and tier, as granted by their joining certificate.
+/// Returned across DNAs (attestation → governance) by `get_validator_certification`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatorCertification {
+    pub validator_type: ValidatorType,
+    pub tier:           CertificationTier,
 }
 
 /// Structured per-metric outcome — included in OutcomeSummary.
@@ -728,6 +763,40 @@ mod tests {
             unstamped.commitment_msgpack_bytes().unwrap(),
             "the coordinator stamps these after sealing, so they must not enter the commitment"
         );
+    }
+
+    // --- JoiningCertificate: granted tier (#8) ---
+
+    fn cert(vt: ValidatorType, tier: Option<CertificationTier>) -> JoiningCertificate {
+        let mut bytes = vec![0u8; 64];
+        bytes.extend(JoiningCertificate::meta_bytes(vt, tier).unwrap());
+        JoiningCertificate::from_proof_bytes(&bytes).unwrap()
+    }
+
+    #[test]
+    fn ai_certificate_grants_the_issuers_tier() {
+        let c = cert(ValidatorType::AI, Some(CertificationTier::Advanced));
+        assert_eq!(c.validator_type, ValidatorType::AI, "meta must round-trip");
+        assert_eq!(c.granted_tier(), CertificationTier::Advanced);
+    }
+
+    #[test]
+    fn ai_certificate_without_a_tier_grants_provisional() {
+        assert_eq!(cert(ValidatorType::AI, None).granted_tier(), CertificationTier::Provisional);
+    }
+
+    #[test]
+    fn human_certificate_never_grants_above_provisional() {
+        // Humans progress through rounds; an issuer cannot short-cut that.
+        let c = cert(ValidatorType::Human, Some(CertificationTier::Certified));
+        assert_eq!(c.granted_tier(), CertificationTier::Provisional);
+    }
+
+    #[test]
+    fn legacy_64_byte_certificate_is_human_provisional() {
+        let c = JoiningCertificate::from_proof_bytes(&[0u8; 64]).unwrap();
+        assert_eq!(c.validator_type, ValidatorType::Human);
+        assert_eq!(c.granted_tier(), CertificationTier::Provisional);
     }
 
     // --- derive_majority_outcome ---

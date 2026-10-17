@@ -9,7 +9,8 @@ use attestation_integrity::{
     sorted_agent_pair_bytes,
 };
 use valichord_shared_types::{
-    Discipline, ValidationAttestation, ValidationPhase,
+    Discipline, JoiningCertificate, ValidationAttestation, ValidationPhase, ValidatorCertification,
+    ValidatorType,
     ValiChordError, ValiChordResult, discipline_tag, metric_results_msgpack_bytes,
 };
 use sha2::{Digest, Sha256};
@@ -91,23 +92,25 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
         return Ok(());
     }
 
-    // Find the AgentValidationPkg action on our own source chain (genesis action 2).
-    let records = query(ChainQueryFilter::new())?;
-    let mut avp_result: Option<Option<MembraneProof>> = None;
-    for record in &records {
-        if let ActionData::AgentValidationPkg(avp) = &record.action().data {
-            avp_result = Some(avp.membrane_proof.clone());
-            break;
-        }
-    }
-    let proof = avp_result
-        .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?;
+    let proof = own_joining_certificate()?;
 
     // The same function every peer runs in validate() — one definition of the
     // signed payload and the issuer routing, so the three callers cannot drift.
     let joining_agent = agent_info()?.agent_initial_pubkey;
     attestation_integrity::check_joining_certificate(&joining_agent, proof.as_ref())?
         .map_err(ValiChordError::Guest)
+}
+
+/// The membrane proof from our own AgentValidationPkg (genesis action 2).
+/// Own-chain read: complete by construction, so `query`, not a network get.
+fn own_joining_certificate() -> ValiChordResult<Option<MembraneProof>> {
+    let records = query(ChainQueryFilter::new())?;
+    for record in &records {
+        if let ActionData::AgentValidationPkg(avp) = &record.action().data {
+            return Ok(avp.membrane_proof.clone());
+        }
+    }
+    Err(ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))
 }
 
 // ---------------------------------------------------------------------------
@@ -354,10 +357,27 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
 
 #[hdk_extern]
 pub fn publish_validator_profile(
-    profile: ValidatorProfile,
+    mut profile: ValidatorProfile,
 ) -> ExternResult<ActionHash> {
     let agent = agent_info()?.agent_initial_pubkey;
     reject_if_warranted(&agent)?;
+
+    // The tier is the issuer's, not the caller's (#8). On a credentialed network,
+    // attach our own joining certificate and set the tier it grants — whatever the
+    // caller sent is overwritten, so existing callers (UI, demo) keep working and
+    // cannot over-claim. validate() checks both on every peer. On a dev network
+    // (empty issuer) the credential system is off and the caller's values stand.
+    let props = DnaProperties::try_from_dna_properties()?;
+    if !props.authorized_joining_certificate_issuer.is_empty() {
+        let proof = own_joining_certificate()?;
+        if let Some(cert) = proof
+            .as_ref()
+            .and_then(|p| JoiningCertificate::from_proof_bytes(p.bytes()).ok())
+        {
+            profile.certification_tier = cert.granted_tier();
+        }
+        profile.joining_certificate = proof;
+    }
     // Extract fields before profile is consumed by create_entry.
     let disciplines = profile.disciplines.clone();
     let institution = profile.institution.clone();
@@ -445,6 +465,7 @@ pub fn update_validator_profile(
         orcid:                None,
         agent_type:           None,
         person_key:           None,
+        joining_certificate:  None,
     });
 
     let merged = ValidatorProfile {
@@ -456,6 +477,7 @@ pub fn update_validator_profile(
         orcid:                input.orcid.unwrap_or(base.orcid),
         agent_type:           input.agent_type.unwrap_or(base.agent_type),
         person_key:           input.person_key.unwrap_or(base.person_key),
+        joining_certificate:  base.joining_certificate, // re-attached by publish_validator_profile
     };
 
     publish_validator_profile(merged)
@@ -471,6 +493,40 @@ pub fn get_validator_agent_type(
     agent: AgentPubKey,
 ) -> ExternResult<Option<ValidatorAgentType>> {
     Ok(get_latest_validator_profile(agent)?.and_then(|p| p.agent_type))
+}
+
+/// A validator's certified type (Human / AI) and tier, from their profile (#8).
+///
+/// On a credentialed network these come from the issuer-signed joining certificate
+/// the profile carries — which every peer checked against the author when the
+/// profile was written — so governance can rely on them. On a dev network (no
+/// certificate) it falls back to the self-declared `agent_type` (`AutomatedTool`
+/// = AI) and the profile's tier, which is all a dev network has.
+///
+/// `None` if the agent has no profile.
+#[hdk_extern]
+pub fn get_validator_certification(
+    agent: AgentPubKey,
+) -> ExternResult<Option<ValidatorCertification>> {
+    let profile = match get_latest_validator_profile(agent)? {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    if let Some(cert) = profile
+        .joining_certificate
+        .as_ref()
+        .and_then(|p| JoiningCertificate::from_proof_bytes(p.bytes()).ok())
+    {
+        return Ok(Some(ValidatorCertification {
+            validator_type: cert.validator_type.clone(),
+            tier:           cert.granted_tier(),
+        }));
+    }
+    let validator_type = match profile.agent_type {
+        Some(ValidatorAgentType::AutomatedTool) => ValidatorType::AI,
+        _ => ValidatorType::Human,
+    };
+    Ok(Some(ValidatorCertification { validator_type, tier: profile.certification_tier }))
 }
 
 /// Caller-provided input for a difficulty assessment.
@@ -2334,6 +2390,25 @@ pub fn test_force_update_validation_request(
     input: (ActionHash, ValidationRequest),
 ) -> ExternResult<ActionHash> {
     update_entry(input.0, EntryTypes::ValidationRequest(input.1))
+}
+
+// ValidatorProfile tier tripwires (#8). publish_validator_profile always overwrites
+// the tier with the certificate's, so a forged tier can only reach validate() by
+// writing the entry directly — which is what a modified coordinator would do. See
+// `sweettest_integration/tests/validator_tier_forgery.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_validator_profile(profile: ValidatorProfile) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::ValidatorProfile(profile))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_update_validator_profile(
+    input: (ActionHash, ValidatorProfile),
+) -> ExternResult<ActionHash> {
+    update_entry(input.0, EntryTypes::ValidatorProfile(input.1))
 }
 
 // --- Delete hooks -----------------------------------------------------------

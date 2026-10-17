@@ -521,6 +521,7 @@ pub fn make_validator_profile(institution: &str) -> ValidatorProfile {
         orcid: None,
         agent_type: Some(ValidatorAgentType::Individual),
         person_key: None,
+        joining_certificate: None, // filled by publish_validator_profile on a credentialed network
     }
 }
 

@@ -7,7 +7,7 @@ use governance_integrity::{
 };
 use valichord_shared_types::{
     AttestationOutcome, BadgeType, CertificationTier, Discipline,
-    ValidationAttestation, ValidatorAgentType, ValidatorType,
+    ValidationAttestation, ValidatorAgentType, ValidatorCertification, ValidatorType,
     derive_agreement_level, derive_majority_outcome, evaluate_badge, discipline_tag,
 };
 
@@ -642,9 +642,30 @@ fn write_harmony_record(
             .zip(attestations.iter())
             .zip(validator_types.iter())
         {
-            let vt = match vtype_opt {
-                Some(ValidatorAgentType::AutomatedTool) => ValidatorType::AI,
-                _ => ValidatorType::Human,
+            // Human vs AI, and an AI validator's tier, come from the issuer-signed
+            // joining certificate the validator's profile carries (#8, 2026-10-17).
+            // Until then this read the SELF-DECLARED agent_type and always passed
+            // `initial_tier: None` — on the stated assumption that AI validators
+            // "should already have an issuer-created record", which nothing ever
+            // created. So every AI validator sat at Provisional whatever the issuer
+            // granted, and one that never set agent_type was progressed as a human.
+            // Falls back to the self-declared type only if the lookup fails. Errors
+            // are swallowed, not propagated: this loop is a side effect whose result
+            // is already ignored, and `?` here would roll back the HarmonyRecord
+            // itself over a reputation detail.
+            let certification = call_attestation_zome_opt::<AgentPubKey, Option<ValidatorCertification>>(
+                "get_validator_certification",
+                validator.clone(),
+            )
+            .ok()
+            .flatten()
+            .flatten();
+            let (vt, initial_tier) = match certification {
+                Some(c) => (c.validator_type, Some(c.tier)),
+                None => match vtype_opt {
+                    Some(ValidatorAgentType::AutomatedTool) => (ValidatorType::AI, None),
+                    _ => (ValidatorType::Human, None),
+                },
             };
             let _ = _update_reputation_internal(
                 validator.clone(),
@@ -652,8 +673,7 @@ fn write_harmony_record(
                 attestation.outcome.clone(),
                 attestation.time_invested_secs,
                 vt,
-                None, // initial_tier not available from round context; AI validators should
-                      // already have an issuer-created record before participating in rounds
+                initial_tier, // used only to create an AI validator's first record
             );
         }
     }
