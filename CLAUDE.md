@@ -394,6 +394,13 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ### Where things actually are
 
 - ✅ **`main` is on Holochain 0.7.0** (merged 2026-08-03, `38ea2123`).
+- 🟠 **Branch `upgrade/holochain-0.7.1` (opened 2026-10-17)** moves to `hdk =0.7.1` / `hdi =0.8.1`
+  and Holochain 0.7.1 binaries. ⚠️ **This is a network break, not a patch bump.** `hdk 0.7.1` pins
+  `hdi =0.8.1`, which changes the serialised shape of capability grants, so the DNA hash changes:
+  a separate network, and every HarmonyRecord published on the 0.7.0 Oracle since 2026-08-24 dies.
+  ⚠️ **Existing installs cannot be upgraded in place either** — 0.7.1 cannot read capability grants
+  written by 0.7.0 (#5820), and `init` does not re-run, so the public-read grant would be missing.
+  **Fresh install only.**
 - ✅ **Oracle runs 0.7.0 too, since 2026-08-24 — the gap is closed.** `main` and the live public
   demo now describe the **same** stack. The caution that stood here until then, about being careful
   with public claims because the demo ran something older, **no longer applies** — do not carry it
@@ -428,22 +435,29 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 ### 🔴 Three live watch items
 
 **1. `#5288` — `get_agent_activity` returns an empty response when the only known peers are local.**
-Still *Awaiting clarification* upstream (re-checked from the roadmap board 2026-08-24). **This one
+**Still OPEN and NOT fixed in 0.7.1** (re-checked 2026-10-17; last comment 2026-02-24). **This one
 touches our code.** `reject_if_warranted` reads an empty response as *"no warrants"*, so the gate
 **fails OPEN** — the wrong direction. "Only local peers" describes every sweettest run, the Docker
 demo stack, and any freshly-bootstrapped network. Three call sites share the pattern:
-`attestation_coordinator:637`, `governance_coordinator:188`, `governance_coordinator:367`.
+`attestation_coordinator:637`, `governance_coordinator:188`, `governance_coordinator:394`
+(the last was recorded as `:367` until 2026-10-17; the line had moved).
 ⚠️ **Do not cite the warrant gate as a safety property without checking this first.**
 
-**2. Source-chain restore — in 0.7.1, and moving.** `#5800` (end-to-end workflow) and `#5802`
-(integration test suite) are both **In Progress**. ⚠️ **Restore does NOT recover private entries.**
+**2. Source-chain restore — SHIPPED in 0.7.1** (`#5800`/PR `#5920` closed 2026-08-10, `#5802`
+2026-09-02; install with `restore_from_dht: true`). ⚠️ **Restore does NOT recover private entries.**
 `ValidatorPrivateAttestation` (DNA 2) and `LockedResult` (DNA 1) are private, so a validator who
-loses their machine mid-round loses their sealed attestation **silently**. This stops being
-theoretical the release restore actually ships in. The `AppStatus::AwaitingRestore` /
-`RestoreComplete` UI work in the record file reactivates at that point.
+loses their machine mid-round loses their sealed attestation **silently**. This is **no longer
+theoretical** on 0.7.1. Upstream's own design doc says *"Restore covers public chain state only"*,
+and **capability-grant bodies are lost too** — so a restored node would also lose our `public-read`
+grant. ⚠️ Correction to an older note: `AppStatus::AwaitingRestore`/`Unrecoverable` already existed
+at the 0.7.0 tag; only the workflow is new. `valichord-ui/dev-setup.mjs:106` calls `enableApp` for
+any non-`enabled` status and would error on them — harmless until we adopt restore.
 
-**3. 0.7.1 itself is not close.** Both release tickets (`#5932` rc.0, `#5933`) were still only
-*Ready for refinement* on 2026-08-24.
+**3. 0.7.1 shipped 2026-10-14** (`holochain-0.7.1`). Also fixed in it: `#5781` (receipt signatures
+now verified on receive), `#5949`, `#5950`, `#5946`. Still open: `#3313` (we only use
+`try_from_raw_39`, so unaffected) and `#4345`. **Tooling:** use `@holochain/client` **0.21.x**
+(0.21.1 is the 0.7.1 line) — **not 0.22**, which is a separate breaking line. The wind-tunnel
+crates.io runner still targets Holochain 0.6, so keep the git-rev pin.
 
 ### 🟢 Do not investigate `holochain-0.8.0-dev.0` again
 

@@ -39,11 +39,16 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
-    create_cap_grant(ZomeCallCapGrant {
-        tag: "public-read".into(),
-        access: CapAccess::Unrestricted,
-        functions: GrantedFunctions::Listed(public_fns),
-    })?;
+    // Holochain 0.7.1 (#5820) restructured capability grants: `ZomeCallCapGrant`
+    // became `CapGrant { tag, constraint, capability }` and `CapAccess` became
+    // `GrantConstraint`. Grants written by 0.7.0 cannot be read by 0.7.1 and must
+    // be re-issued, so an existing chain needs a fresh install, not an in-place
+    // upgrade.
+    create_cap_grant(CapGrant::new_zome_call_grant(
+        "public-read".into(),
+        GrantConstraint::Unrestricted,
+        GrantedFunctions::Listed(public_fns),
+    ))?;
 
     // Register the hourly sweep that finalises timed-out rounds without requiring
     // a live client.  schedule() is idempotent — safe to call on every init.
