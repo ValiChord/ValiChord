@@ -6,9 +6,12 @@
 # `hc` on the machine doing the work (Windows; no Windows `hc` is used here).
 # This builds them in CI instead and uploads them as an artifact to commit.
 #
-# It also installs each bundle on a throwaway sandbox conductor and prints the
-# DNA hashes the conductor actually assigns — the values the Oracle runbook's
-# hash gate compares against. Measured, not predicted.
+# The sha256 lines it prints are the deployment gate: a server running the
+# right bundles has exactly these checksums in valichord/workdir/.
+# ⚠️ An earlier version also tried to print installed DNA hashes via
+# `hc sandbox call`, marked continue-on-error. That subcommand does not exist in
+# 0.7.1, so the step failed every time and still showed green — a check that
+# could not fail. Removed rather than kept as decoration.
 #
 # Run it: Actions → Repack bundles → Run workflow (or it runs when this file
 # changes). Then: gh run download <run-id> -n happ-bundles -D valichord/workdir
@@ -66,20 +69,6 @@ jobs:
           hc app pack researcher                  -o workdir/researcher.happ
           hc app pack validator                   -o workdir/validator.happ
           sha256sum workdir/*.happ
-
-      # Informational: never blocks the artifact.
-      - name: Installed DNA hashes (sandbox conductor)
-        continue-on-error: true
-        working-directory: valichord
-        run: |
-          for h in valichord researcher validator; do
-            echo "=== $h.happ ==="
-            d=$(mktemp -d)
-            echo pass | hc sandbox --piped generate --root "$d" --in-process-lair "workdir/$h.happ" >/dev/null 2>&1 || true
-            echo pass | timeout 120 hc sandbox --piped call --running=0 list-apps 2>/dev/null \
-              || echo pass | timeout 120 hc sandbox --piped call list-apps 2>&1 | tail -60
-            hc sandbox clean >/dev/null 2>&1 || true
-          done
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4

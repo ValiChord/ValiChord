@@ -393,18 +393,22 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 
 ### Where things actually are
 
-- ✅ **`main` is on Holochain 0.7.0** (merged 2026-08-03, `38ea2123`).
-- 🟠 **Branch `upgrade/holochain-0.7.1` (opened 2026-10-17)** moves to `hdk =0.7.1` / `hdi =0.8.1`
-  and Holochain 0.7.1 binaries. ⚠️ **This is a network break, not a patch bump.** `hdk 0.7.1` pins
+- ✅ **`main` is on Holochain 0.7.1** (PR #45 merged 2026-10-17, `1b5e7c8`; 0.7.0 was merged
+  2026-08-03, `38ea2123`). `hdk =0.7.1` / `hdi =0.8.1`, 0.7.1 binaries, and the demo stack's own
+  pins (`demo/Dockerfile.node`: 0.7.1 / kitsune2-bootstrap-srv **0.5.1**). ⚠️ **This is a network
+  break, not a patch bump.** `hdk 0.7.1` pins
   `hdi =0.8.1`, which changes the serialised shape of capability grants, so the DNA hash changes:
   a separate network, and every HarmonyRecord published on the 0.7.0 Oracle since 2026-08-24 dies.
   ⚠️ **Existing installs cannot be upgraded in place either** — 0.7.1 cannot read capability grants
   written by 0.7.0 (#5820), and `init` does not re-run, so the public-read grant would be missing.
   **Fresh install only.**
-- ✅ **Oracle runs 0.7.0 too, since 2026-08-24 — the gap is closed.** `main` and the live public
-  demo now describe the **same** stack. The caution that stood here until then, about being careful
-  with public claims because the demo ran something older, **no longer applies** — do not carry it
-  forward.
+- 🟠 **Oracle still runs 0.7.0** (since 2026-08-24) — `main` is ahead of the live demo again until
+  the 0.7.1 fresh install is done. Runbook: **`docs/ORACLE_0.7.1_UPGRADE.md`** (written, not yet
+  run). Until then, the live demo is the 0.7.0 network and its records still resolve.
+- ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
+  on the server. They go stale on every Holochain bump. Repack with the **Repack bundles** workflow
+  (`.github/workflows/repack-bundles.yml`), not by hand on Windows (no `hc` there). The UI e2e job
+  builds from source and so cannot detect a stale committed bundle — only this can.
 - ⚠️ **Oracle changed address.** It is **`132.145.23.78`**, not `152.67.153.149`. The old instance
   was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
   accepts commands without ever executing them. A new instance was built with a key that is held.
