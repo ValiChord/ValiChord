@@ -1289,6 +1289,8 @@ mod tests {
             discipline: Discipline::ComputationalBiology,
             commitment_anchor_hash: None,
             reproduction_bundle_hash: None,
+            request_num_validators: None, // stamped by submit_attestation
+            request_created_at: None,
         }
     }
 

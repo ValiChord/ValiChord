@@ -405,6 +405,33 @@ pub struct ValidationAttestation {
     /// `Bundle.meta` (provenance, timestamps), so two honest validators would never match.
     #[serde(default)]
     pub reproduction_bundle_hash: Option<Vec<u8>>,
+    /// The study's `num_validators_required`, copied from the ValidationRequest by
+    /// `submit_attestation` at reveal, and checked against that request by every peer
+    /// in attestation_integrity's validate() (via CommitmentAnchor → ValidationRequest).
+    ///
+    /// WHY (#11 follow-up, 2026-10-17). A HarmonyRecord carries its validators' signed
+    /// attestations. Without this, anyone could carry a favourable SUBSET of them —
+    /// four that reproduced out of seven — and state `validators_requested: 4`. With
+    /// it, every carried attestation states the real cohort size under its
+    /// validator's signature, so governance validate() can require
+    /// `validators_requested` to match and a subset is always visibly "4 of 7".
+    ///
+    /// The request is NOT carried into the HarmonyRecord instead because it holds
+    /// `deposit_token`, which the Attestation DNA membrane protects and the open
+    /// Governance DHT would publish.
+    ///
+    /// Coordinator-set, so excluded from the commitment hash exactly like
+    /// `commitment_anchor_hash` — and `skip_serializing_if` keeps the encoding of an
+    /// attestation without it byte-identical to before the field existed, so
+    /// validator clients (including the AI validators) need no change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_num_validators: Option<u8>,
+    /// The ValidationRequest's creation time (its action timestamp), set and checked
+    /// the same way as `request_num_validators`. Lets governance validate() apply
+    /// `round_timeout_secs` to a record that carries fewer attestations than
+    /// requested — the same rule `force_finalize_round` applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_created_at: Option<Timestamp>,
 }
 
 impl ValidationAttestation {
@@ -427,9 +454,16 @@ impl ValidationAttestation {
     /// failure except `s9_reveal_with_different_bundle_hash_is_rejected`, which exists
     /// precisely to catch this. `commitment_anchor_hash` is normalised only because the
     /// coordinator injects it *after* sealing, so it cannot be known at commit time.
-    /// That reasoning does not extend to any other field.
+    /// That reasoning extends to exactly two more fields, `request_num_validators`
+    /// and `request_created_at` (2026-10-17): both are copied from the
+    /// ValidationRequest by the coordinator at reveal, are never the validator's
+    /// choice, and are checked against the request by every peer — so leaving them
+    /// out of the commitment binds nothing less. It does not extend to any other
+    /// field.
     pub fn commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
         let mut canonical = self.clone();
+        canonical.request_num_validators = None;
+        canonical.request_created_at = None;
         canonical.commitment_anchor_hash = None;
         SerializedBytes::try_from(&canonical)
             .map(|sb| sb.bytes().to_vec())
@@ -659,7 +693,41 @@ mod tests {
             discipline: Discipline::ComputationalBiology,
             commitment_anchor_hash: None,
             reproduction_bundle_hash: None,
+            request_num_validators: None, // stamped by submit_attestation
+            request_created_at: None,
         }
+    }
+
+    // --- commitment encoding: the coordinator-stamped study terms (2026-10-17) ---
+    //
+    // Validator clients — the AI validators among them — compute their commitment
+    // hash over the attestation they built, which never contains these fields. If
+    // adding them changed the encoding of an attestation WITHOUT them, every client's
+    // reveal would stop matching its seal. These two tests pin that it does not.
+
+    #[test]
+    fn unstamped_attestation_encodes_without_the_new_keys() {
+        let bytes = att(AttestationOutcome::Reproduced).commitment_msgpack_bytes().unwrap();
+        for key in ["request_num_validators", "request_created_at"] {
+            assert!(
+                !bytes.windows(key.len()).any(|w| w == key.as_bytes()),
+                "{key} must be absent from the encoding when unset — otherwise every \
+                 existing client's commitment hash changes"
+            );
+        }
+    }
+
+    #[test]
+    fn stamped_terms_do_not_change_the_commitment_bytes() {
+        let unstamped = att(AttestationOutcome::Reproduced);
+        let mut stamped = unstamped.clone();
+        stamped.request_num_validators = Some(7);
+        stamped.request_created_at = Some(Timestamp(1_700_000_000_000_000));
+        assert_eq!(
+            stamped.commitment_msgpack_bytes().unwrap(),
+            unstamped.commitment_msgpack_bytes().unwrap(),
+            "the coordinator stamps these after sealing, so they must not enter the commitment"
+        );
     }
 
     // --- derive_majority_outcome ---

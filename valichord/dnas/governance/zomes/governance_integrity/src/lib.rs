@@ -285,8 +285,8 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //
         // Cross-DNA calls are not available in validate(), but they are not needed:
         // the record carries each validator's signed attestation, checked by
-        // `check_attestation_evidence` at the end of this arm (#11). Completeness —
-        // that no attestation was LEFT OUT — is still the coordinator's job.
+        // `check_attestation_evidence` at the end of this arm (#11), including that a
+        // record carrying fewer attestations than requested is past the round timeout.
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::HarmonyRecord(ref record),
             ref action,
@@ -356,7 +356,7 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     record.participating_validators.len(),
                 )));
             }
-            if let Some(reason) = check_attestation_evidence(record)? {
+            if let Some(reason) = check_attestation_evidence(record, action.timestamp())? {
                 return Ok(ValidateCallbackResult::Invalid(reason));
             }
             Ok(ValidateCallbackResult::Valid)
@@ -675,25 +675,37 @@ pub fn genesis_self_check(
 /// and for the record as a whole:
 ///   3. `outcome`, `agreement_level`, `validation_duration_secs` and
 ///      `discipline` are exactly what the carried attestations produce, using
-///      the same pure functions the coordinator uses.
+///      the same pure functions the coordinator uses;
+///   4. `validators_requested` is the study's real cohort size — every carried
+///      attestation states it, checked against the ValidationRequest by the
+///      Attestation DNA's peers — and a record carrying fewer than that is only
+///      valid after `round_timeout_secs`.
 ///
-/// So one agent can no longer list validators who never took part, or state a
-/// result their attestations do not support.
+/// So one agent can no longer list validators who never took part, state a
+/// result their attestations do not support, or pass off a favourable subset of
+/// a round as a smaller complete one.
 ///
 /// WHAT IT DOES NOT PROVE — stated so nobody later believes otherwise:
 ///   * that the attestations were published on the Attestation DNA, or that
 ///     they completed commit–reveal there. A signature proves the validator
 ///     authored the action, not where it was gossiped. A validator who signs
 ///     an attestation is accountable for it wherever it appears.
-///   * that the set is COMPLETE. Anyone can carry a genuine SUBSET of a round's
-///     attestations — e.g. the four that reproduced, out of seven. The honest
-///     coordinator includes all of them; the integrity zome cannot yet tell.
-///     Closing that needs the researcher's signed ValidationRequest carried too
-///     (it fixes num_validators_required). Tracked as the follow-up to #11.
+///   * that a SUBSET was not chosen after the timeout. Once a round has timed
+///     out, anyone may finalise it with fewer attestations, and could pick which.
+///     What they cannot do is hide it: the record says "k of n". And the timeout
+///     reads this record's action timestamp, which its author asserts — a forger
+///     can future-date it. Making a short record badge-ineligible would remove the
+///     incentive; that is a protocol policy choice, not made here.
 ///   * anything about colluding validators who each sign a genuine but false
 ///     attestation. That is the residual risk #11 always described, and the
 ///     reason badges need several independent validators.
-fn check_attestation_evidence(record: &HarmonyRecord) -> ExternResult<Option<String>> {
+///
+/// Why the ValidationRequest itself is not carried: it holds `deposit_token`,
+/// which the Attestation DNA membrane protects and this open DNA would publish.
+fn check_attestation_evidence(
+    record: &HarmonyRecord,
+    written_at: Timestamp,
+) -> ExternResult<Option<String>> {
     let evidence = &record.attestation_evidence;
     let validators = &record.participating_validators;
 
@@ -739,6 +751,55 @@ fn check_attestation_evidence(record: &HarmonyRecord) -> ExternResult<Option<Str
         if ev.attestation.request_ref != record.request_ref {
             return Ok(Some(format!(
                 "HarmonyRecord attestation evidence [{i}] is for a different request"
+            )));
+        }
+    }
+
+    // Completeness (#11 follow-up). Every carried attestation states, under its
+    // validator's signature, the study's cohort size and when it was requested —
+    // values attestation_integrity checked against the ValidationRequest itself. So:
+    //   * they must all agree (one study, one set of terms);
+    //   * `validators_requested` must be that cohort size — a subset can no longer
+    //     present itself as a smaller complete round; "4 of 7" stays "4 of 7";
+    //   * fewer than requested is allowed only after `round_timeout_secs`, the rule
+    //     force_finalize_round applies.
+    // ⚠️ The timeout uses this action's timestamp, which its author asserts. A forger
+    // can future-date it; what they cannot do is hide that the record is incomplete.
+    let terms: Vec<(Option<u8>, Option<Timestamp>)> = evidence
+        .iter()
+        .map(|ev| (ev.attestation.request_num_validators, ev.attestation.request_created_at))
+        .collect();
+    let (requested, requested_at) = match terms.first() {
+        Some((Some(n), Some(t))) => (*n as u32, *t),
+        _ => {
+            return Ok(Some(
+                "HarmonyRecord attestations must state the study's num_validators_required \
+                 and request time"
+                    .into(),
+            ))
+        }
+    };
+    if terms.iter().any(|(n, t)| *n != Some(requested as u8) || *t != Some(requested_at)) {
+        return Ok(Some(
+            "HarmonyRecord attestations disagree about the study's terms".into(),
+        ));
+    }
+    if record.validators_requested != requested {
+        return Ok(Some(format!(
+            "HarmonyRecord validators_requested is {} but its signed attestations say the \
+             study asked for {requested}",
+            record.validators_requested,
+        )));
+    }
+    if (evidence.len() as u32) < requested {
+        let props = DnaProperties::try_from_dna_properties()?;
+        let elapsed_secs = (written_at.as_micros() - requested_at.as_micros()) / 1_000_000;
+        if elapsed_secs < props.round_timeout_secs as i64 {
+            return Ok(Some(format!(
+                "HarmonyRecord carries {} of {requested} requested attestations before the \
+                 round timeout ({}s) — an incomplete round may only be finalised after it",
+                evidence.len(),
+                props.round_timeout_secs,
             )));
         }
     }

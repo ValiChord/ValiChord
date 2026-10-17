@@ -823,6 +823,21 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                      declared discipline in the ValidationRequest".into(),
                 ));
             }
+            // The study's terms, stamped by the coordinator at reveal. Governance
+            // trusts these (under the validator's signature) to tell a complete
+            // round from a subset of one — so they must be the request's own values.
+            if att.request_num_validators != Some(req.num_validators_required) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.request_num_validators must equal the \
+                     ValidationRequest's num_validators_required".into(),
+                ));
+            }
+            if att.request_created_at != Some(req_record.action().timestamp()) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.request_created_at must equal the \
+                     ValidationRequest's creation timestamp".into(),
+                ));
+            }
             Ok(ValidateCallbackResult::Valid)
         }
 

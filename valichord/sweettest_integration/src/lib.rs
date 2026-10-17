@@ -467,6 +467,8 @@ pub fn make_validation_attestation(request_ref: ExternalHash) -> ValidationAttes
         discipline: Discipline::ComputationalBiology,
         commitment_anchor_hash: None, // filled by coordinator on reveal
         reproduction_bundle_hash: None,
+        request_num_validators: None, // stamped by submit_attestation
+        request_created_at: None,
     }
 }
 

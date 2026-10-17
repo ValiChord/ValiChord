@@ -43,9 +43,14 @@
 //! the attestations are decoded from DNA 3 and re-hashed here, so if re-serialisation
 //! were not byte-identical, honest records would fail — and this step would catch it.
 //!
+//! Variants 8 and 9 (added the same day) cover cherry-picking: a genuine SUBSET of
+//! the round, either passed off as a smaller complete round or honestly labelled
+//! but published before the round timeout.
+//!
 //! ## What these tests do NOT cover — see `check_attestation_evidence`
 //!
-//! * Omitting genuine attestations (carrying a favourable subset). Not yet checked.
+//! * Choosing a subset AFTER the round has timed out. Permitted by design (that is
+//!   force-finalisation); the record still says "k of n".
 //! * Validators who collude by each signing a genuine but false attestation.
 
 use valichord_sweettest::*;
@@ -227,5 +232,43 @@ async fn forged_harmony_records_are_refused_by_validate() {
         &force(r).await.expect_err("evidence from another request must be refused"),
         "is for a different request",
         "attestations re-used for a different request",
+    );
+
+    // ── Cherry-picking: a genuine SUBSET of the round ────────────────────────────
+    // Keep only Alice (index 0 after the coordinator's key sort may be either agent;
+    // what matters is that one genuine, correctly signed attestation remains).
+    // `min_attestations_for_finalization` is 0 in the test properties, so the
+    // pre-existing minimum check passes and the refusal must come from the new
+    // completeness check. The request asked for 2 (make_validation_request).
+    let subset = |mut r: HarmonyRecord| {
+        let keep = r
+            .participating_validators
+            .iter()
+            .position(|v| v == setup.alice.attestation.agent_pubkey())
+            .expect("Alice took part");
+        r.participating_validators = vec![r.participating_validators[keep].clone()];
+        r.validator_types = vec![r.validator_types[keep].clone()];
+        r.attestation_evidence = vec![r.attestation_evidence[keep].clone()];
+        r
+    };
+
+    // ── 8. ...passed off as a smaller COMPLETE round ("1 of 1") ──────────────────
+    let mut r = subset(genuine.clone());
+    r.validators_requested = 1;
+    assert_refused(
+        &force(r).await.expect_err("a subset claiming to be complete must be refused"),
+        "validators_requested is 1 but its signed attestations say the study asked for 2",
+        "subset passed off as a complete round",
+    );
+
+    // ── 9. ...honestly labelled "1 of 2", but before the round has timed out ─────
+    // round_timeout_secs is 86400 in governance_yaml_props, and the request is
+    // seconds old, so this must be refused. A record like this is legitimate only
+    // after the timeout — the same rule force_finalize_round applies.
+    let r = subset(genuine.clone());
+    assert_refused(
+        &force(r).await.expect_err("an incomplete round before the timeout must be refused"),
+        "carries 1 of 2 requested attestations before the round timeout",
+        "incomplete round finalised early",
     );
 }

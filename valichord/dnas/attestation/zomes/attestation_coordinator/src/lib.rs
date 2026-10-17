@@ -230,14 +230,14 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
         GetStrategy::Local,
     )?;
-    let (anchor_action_hash, prior_commitment_hash) = commit_links
+    let (anchor_action_hash, prior_commitment_hash, validation_request_hash) = commit_links
         .into_iter()
         .find_map(|link| {
             let hash = link.target.clone().into_action_hash()?;
             let record = get(hash.clone(), GetOptions::local()).ok()??;
             let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
             if anchor.validator == agent {
-                Some((hash, anchor.commitment_hash))
+                Some((hash, anchor.commitment_hash, anchor.validation_request_hash))
             } else {
                 None
             }
@@ -277,6 +277,28 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
 
     // Inject CommitmentAnchor ActionHash for inductive validation chain.
     attestation.commitment_anchor_hash = Some(anchor_action_hash);
+
+    // Stamp the study's terms from the ValidationRequest the anchor points to: the
+    // cohort size and when the request was made. Both are checked against that same
+    // request by every peer (attestation_integrity validate), and governance relies
+    // on them to see a HarmonyRecord carrying only a subset of a round (#11).
+    // Network read: the request was authored by the researcher, not by us.
+    let request_record = get(validation_request_hash, GetOptions::network())?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "submit_attestation: the ValidationRequest behind this commitment is not \
+             retrievable — retry once it has propagated".into()
+        )))?;
+    let request: ValidationRequest = request_record
+        .entry()
+        .to_app_option()
+        .map_err(|e| wasm_error!(WasmErrorInner::Guest(format!(
+            "submit_attestation: ValidationRequest failed to decode ({e})"
+        ))))?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "submit_attestation: ValidationRequest record carried no entry".into()
+        )))?;
+    attestation.request_num_validators = Some(request.num_validators_required);
+    attestation.request_created_at = Some(request_record.action().timestamp());
 
     // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
     // iff this agent has already attested for this study.  The 39-byte
