@@ -8,9 +8,9 @@
 
 ## What kangaroo-electron does
 
-Template repo: https://github.com/holochain/kangaroo-electron (branch: `main-0.6`)
+Template repo: https://github.com/holochain/kangaroo-electron (branch: **`main-0.7`** — exists since 2026-07-31; `main-0.6` was current when this plan was written)
 
-Bundles `.webhapp` + Holochain 0.6.1 conductor + Lair keystore into a single redistributable binary (`.deb`, `.dmg`, `.exe`). End users download and run — no conductor setup required. Ships with system tray, auto-updates via GitHub releases, multi-profile support.
+Bundles `.webhapp` + Holochain conductor (0.7.x on `main-0.7`) + Lair keystore into a single redistributable binary (`.deb`, `.dmg`, `.exe`). End users download and run — no conductor setup required. Ships with system tray, auto-updates via GitHub releases, multi-profile support.
 
 ---
 
@@ -19,7 +19,7 @@ Bundles `.webhapp` + Holochain 0.6.1 conductor + Lair keystore into a single red
 | Prerequisite | Status |
 |---|---|
 | Browser UI (`valichord-ui/`) wired to conductor | ✓ Done |
-| Holochain 0.6.1 | ✓ Done |
+| Holochain 0.7.x | ✓ `main` is on 0.7.0; 0.7.1 in progress (PR #45) |
 | `.happ` build working | ✓ Done (`workdir/valichord.happ`) |
 | Bootstrap/relay servers | ✗ Needed for production; dev servers usable for pilot |
 | Kangaroo key-continuity patch | ✗ Required before any breaking upgrade ships to validators |
@@ -113,7 +113,7 @@ Check `hc web-app pack --help` for exact syntax — may need a `web-happ.yaml` m
 
 **Current behaviour:** reads `VITE_HC_TOKEN` (base64) and `VITE_HC_SIGNING_CREDENTIALS` (base64 JSON) from Vite env vars written by `dev-setup.mjs`.
 
-**Required behaviour in kangaroo:** read the app port and auth token from kangaroo's preload IPC bridge. The kangaroo preload script (`src/preload/happ.ts`) exposes these to the renderer — check exact API after cloning `main-0.6`.
+**Required behaviour in kangaroo:** read the app port and auth token from kangaroo's preload IPC bridge. The kangaroo preload script (`src/preload/happ.ts`) exposes these to the renderer — check exact API after cloning `main-0.7`.
 
 Likely change in `holochain.ts`:
 ```typescript
@@ -132,7 +132,7 @@ The dev setup path (`dev.sh` + `dev-setup.mjs`) must continue to work for local 
 ### Step 4 — Clone kangaroo-electron and configure
 
 ```bash
-git clone -b main-0.6 https://github.com/holochain/kangaroo-electron valichord-desktop
+git clone -b main-0.7 https://github.com/holochain/kangaroo-electron valichord-desktop
 cd valichord-desktop
 ```
 

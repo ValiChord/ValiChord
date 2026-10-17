@@ -35,7 +35,8 @@ The format is designed to be harness-agnostic. One bundle schema covers any eval
 
 ### What v1 does not provide (non-goals)
 
-- **Cryptographic signing.** A `signatures` field is reserved for v2. In v1, trust rests on the same social-attestation chain that git commits and PR reviews already provide.
+- **Cryptographic signing.** A `signatures` field was reserved for v2. In v1, trust rests on the same social-attestation chain that git commits and PR reviews already provide.
+  > ⚠️ **Corrected 2026-10-17: v2 did not add signatures.** v2 changed the Merkle construction and nothing else (`attestation_format_v2.md`). **No format version currently carries a signature.** This line said otherwise for two months and was quoted accurately by an outside project as a description of our roadmap. Signing remains unscheduled.
 - **Zero-disclosure verification.** v1 enables *selective disclosure* — the log holder proves individual samples on request. Full zero-disclosure (verify without any log access) requires ZK proofs; that is v2+ scope.
 - **Harness-specific adapters.** `AdapterBase` and a stub are included. Concrete adapters are shipped separately when upstream APIs stabilise.
 - **Integration with Valichord DNAs.** Bundles becoming on-chain attestations is separate work that follows format stabilisation.
