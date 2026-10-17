@@ -2,8 +2,8 @@ use hdk::prelude::*;
 use std::collections::HashSet;
 use valichord_coordinator_utils::{call_other_role_opt, records_for_links};
 use governance_integrity::{
-    DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
-    ReproducibilityBadge, ValidatorReputation,
+    AttestationEvidence, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord,
+    LinkTypes, ReproducibilityBadge, ValidatorReputation,
 };
 use valichord_shared_types::{
     AttestationOutcome, BadgeType, CertificationTier, Discipline,
@@ -535,13 +535,32 @@ fn write_harmony_record(
     // the record commits the undercount forever. This is the same principle the
     // validator_types comment below already states; the filter_map above had
     // quietly broken it.
-    let mut pairs = validator_attestation_pairs(&attestation_records)?;
-    pairs.sort_by(|(a, _), (b, _)| a.get_raw_39().cmp(b.get_raw_39()));
+    let pairs = validator_attestation_pairs(&attestation_records)?;
+
+    // Carry each validator's signed action alongside their attestation, so peers can
+    // verify participation in validate() (#11). validator_attestation_pairs emits one
+    // pair per input record, in input order, and errors otherwise — so zipping with
+    // the records BEFORE the sort keeps every action next to its own attestation.
+    let mut triples: Vec<(AgentPubKey, ValidationAttestation, AttestationEvidence)> = pairs
+        .into_iter()
+        .zip(attestation_records.iter())
+        .map(|((validator, attestation), record)| {
+            let evidence = AttestationEvidence {
+                action:      record.action().clone(),
+                signature:   record.signature().clone(),
+                attestation: attestation.clone(),
+            };
+            (validator, attestation, evidence)
+        })
+        .collect();
+    triples.sort_by(|(a, _, _), (b, _, _)| a.get_raw_39().cmp(b.get_raw_39()));
 
     let participating_validators: Vec<AgentPubKey> =
-        pairs.iter().map(|(v, _)| v.clone()).collect();
+        triples.iter().map(|(v, _, _)| v.clone()).collect();
+    let attestation_evidence: Vec<AttestationEvidence> =
+        triples.iter().map(|(_, _, e)| e.clone()).collect();
     let attestations: Vec<ValidationAttestation> =
-        pairs.into_iter().map(|(_, a)| a).collect();
+        triples.into_iter().map(|(_, a, _)| a).collect();
 
     let outcome         = derive_majority_outcome(&attestations);
     let agreement_level = derive_agreement_level(&attestations);
@@ -587,6 +606,7 @@ fn write_harmony_record(
         validation_duration_secs,
         discipline,                 // moved — no clone
         validators_requested,
+        attestation_evidence,
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
@@ -1375,4 +1395,20 @@ mod tests {
 #[hdk_extern]
 pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
     delete_entry(hash)
+}
+
+// ---------------------------------------------------------------------------
+// HarmonyRecord forgery tripwire — test builds only (issue #11)
+// ---------------------------------------------------------------------------
+//
+// write_harmony_record always attaches genuine evidence, so the integrity zome's
+// evidence check can never be reached by a forged record through the production
+// API. This hook writes a caller-supplied HarmonyRecord directly — standing in for
+// a node running a modified coordinator, which is exactly the attacker #11
+// describes. See `sweettest_integration/tests/harmony_record_forgery.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_harmony_record(record: HarmonyRecord) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::HarmonyRecord(record))
 }

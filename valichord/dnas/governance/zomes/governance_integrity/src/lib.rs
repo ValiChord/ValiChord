@@ -1,5 +1,8 @@
 use hdi::prelude::*;
-use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, CertificationTier, Discipline, ValidatorAgentType};
+use valichord_shared_types::{
+    derive_agreement_level, derive_majority_outcome, AgreementLevel, AttestationOutcome,
+    BadgeType, CertificationTier, Discipline, ValidationAttestation, ValidatorAgentType,
+};
 
 // ---------------------------------------------------------------------------
 // DNA Properties — one key, baked into the DNA hash.
@@ -16,10 +19,10 @@ use valichord_shared_types::{AgreementLevel, AttestationOutcome, BadgeType, Cert
 // consistent with Holochain's decentralised model —
 // no single node is a required coordinator for protocol completion.
 //
-// Remaining limitation (Phase 1): validate() cannot perform cross-DNA lookups
-// to cryptographically verify HarmonyRecord content against the Attestation
-// DHT. Content correctness is currently enforced in the coordinator layer
-// only, not at the network validation layer.
+// Since 2026-10-17 (issue #11) a HarmonyRecord carries each validator's signed
+// attestation, and validate() verifies them — no cross-DNA lookup needed. What
+// that does and does not prove is set out at `check_attestation_evidence`. Until
+// then, content correctness was enforced in the coordinator only.
 // ---------------------------------------------------------------------------
 
 fn default_round_timeout() -> u64 { 604_800 } // 7 days
@@ -100,6 +103,39 @@ pub struct HarmonyRecord {
     /// goes looking.
     #[serde(default)]
     pub validators_requested:     u32,
+    /// One entry per participating validator, in the same order as
+    /// `participating_validators`: the validator's own signed action creating
+    /// their `ValidationAttestation` in the Attestation DNA, plus that
+    /// attestation's content.
+    ///
+    /// WHY THIS EXISTS (issue #11, 2026-10-17). Before this field, `validate()`
+    /// could check only that the author listed themselves; nothing required the
+    /// OTHER listed keys to have taken part. One agent running a modified
+    /// coordinator could list six real, unrelated keys and publish a record
+    /// whose count passes the Gold ceiling. `validate()` cannot make cross-DNA
+    /// calls — but it does not need to: every attestation already carries its
+    /// validator's Ed25519 signature over the action that created it, and
+    /// `verify_signature` + `hash_entry` both run inside integrity zomes. So the
+    /// record carries the evidence and every peer checks it. See
+    /// `check_attestation_evidence` below for exactly what that proves — and
+    /// what it does not.
+    pub attestation_evidence:     Vec<AttestationEvidence>,
+}
+
+/// A validator's signed attestation, carried inside a HarmonyRecord so peers can
+/// verify participation without a cross-DNA call.
+///
+/// `action` is the `Create` action that wrote the `ValidationAttestation` in the
+/// Attestation DNA, exactly as the validator's conductor signed it; `signature`
+/// is that conductor's signature over it. Holochain signs an action as
+/// `author.sign(encode(&action))` (holochain_keystore `SignedActionHashedExt::sign`),
+/// and `hdi::ed25519::verify_signature(key, sig, &action)` encodes the same way,
+/// so the signature verifies here unchanged.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AttestationEvidence {
+    pub action:      Action,
+    pub signature:   Signature,
+    pub attestation: ValidationAttestation,
 }
 
 /// Per-validator reputation score.
@@ -247,10 +283,10 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         //      property — a single validator cannot unilaterally write a HarmonyRecord
         //      for a study that requires more participants.
         //
-        // Full content verification against the Attestation DHT is a Phase 2 goal —
-        // cross-DNA calls are not available in validate(), so the participating_validators
-        // list itself cannot be cryptographically checked here.  Content correctness
-        // is enforced by the coordinator's completeness check and idempotency guard.
+        // Cross-DNA calls are not available in validate(), but they are not needed:
+        // the record carries each validator's signed attestation, checked by
+        // `check_attestation_evidence` at the end of this arm (#11). Completeness —
+        // that no attestation was LEFT OUT — is still the coordinator's job.
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::HarmonyRecord(ref record),
             ref action,
@@ -319,6 +355,9 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     min_required,
                     record.participating_validators.len(),
                 )));
+            }
+            if let Some(reason) = check_attestation_evidence(record)? {
+                return Ok(ValidateCallbackResult::Invalid(reason));
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -619,4 +658,119 @@ pub fn genesis_self_check(
     _data: GenesisSelfCheckData,
 ) -> ExternResult<ValidateCallbackResult> {
     Ok(ValidateCallbackResult::Valid)
+}
+
+// ---------------------------------------------------------------------------
+// HarmonyRecord evidence check — issue #11
+// ---------------------------------------------------------------------------
+
+/// Verify that a HarmonyRecord's participants and result are backed by the
+/// validators' own signed attestations. Returns `Some(reason)` if not.
+///
+/// WHAT THIS PROVES, for every listed validator:
+///   1. they signed an action creating exactly this `ValidationAttestation`
+///      (Ed25519 signature by the listed key, over an action whose entry hash is
+///      the hash of the carried attestation);
+///   2. that attestation is about this record's `request_ref`;
+/// and for the record as a whole:
+///   3. `outcome`, `agreement_level`, `validation_duration_secs` and
+///      `discipline` are exactly what the carried attestations produce, using
+///      the same pure functions the coordinator uses.
+///
+/// So one agent can no longer list validators who never took part, or state a
+/// result their attestations do not support.
+///
+/// WHAT IT DOES NOT PROVE — stated so nobody later believes otherwise:
+///   * that the attestations were published on the Attestation DNA, or that
+///     they completed commit–reveal there. A signature proves the validator
+///     authored the action, not where it was gossiped. A validator who signs
+///     an attestation is accountable for it wherever it appears.
+///   * that the set is COMPLETE. Anyone can carry a genuine SUBSET of a round's
+///     attestations — e.g. the four that reproduced, out of seven. The honest
+///     coordinator includes all of them; the integrity zome cannot yet tell.
+///     Closing that needs the researcher's signed ValidationRequest carried too
+///     (it fixes num_validators_required). Tracked as the follow-up to #11.
+///   * anything about colluding validators who each sign a genuine but false
+///     attestation. That is the residual risk #11 always described, and the
+///     reason badges need several independent validators.
+fn check_attestation_evidence(record: &HarmonyRecord) -> ExternResult<Option<String>> {
+    let evidence = &record.attestation_evidence;
+    let validators = &record.participating_validators;
+
+    if evidence.len() != validators.len() {
+        return Ok(Some(format!(
+            "HarmonyRecord must carry one signed attestation per participating validator: \
+             {} validators listed, {} attestations carried",
+            validators.len(),
+            evidence.len(),
+        )));
+    }
+
+    for (i, (ev, validator)) in evidence.iter().zip(validators.iter()).enumerate() {
+        let author = ev.action.author();
+        if author != validator {
+            return Ok(Some(format!(
+                "HarmonyRecord attestation evidence [{i}] was authored by {author}, \
+                 but participating_validators[{i}] is {validator}"
+            )));
+        }
+        let entry_hash = match &ev.action.data {
+            ActionData::Create(create) => &create.entry_hash,
+            _ => {
+                return Ok(Some(format!(
+                    "HarmonyRecord attestation evidence [{i}] is not a Create action"
+                )))
+            }
+        };
+        // Signature first: until it verifies, nothing else in `ev` is attributable
+        // to the validator.
+        if !verify_signature(author.clone(), ev.signature.clone(), &ev.action)? {
+            return Ok(Some(format!(
+                "HarmonyRecord attestation evidence [{i}] signature is invalid — \
+                 not signed by participating validator {validator}"
+            )));
+        }
+        if &hash_entry(&ev.attestation)? != entry_hash {
+            return Ok(Some(format!(
+                "HarmonyRecord attestation evidence [{i}] content does not match the \
+                 attestation the validator signed"
+            )));
+        }
+        if ev.attestation.request_ref != record.request_ref {
+            return Ok(Some(format!(
+                "HarmonyRecord attestation evidence [{i}] is for a different request"
+            )));
+        }
+    }
+
+    // Recompute the summary exactly as write_harmony_record does. The functions are
+    // order-independent, but evidence is in the coordinator's sorted order anyway,
+    // which is what makes `discipline` (taken from the first attestation) match.
+    let attestations: Vec<ValidationAttestation> =
+        evidence.iter().map(|ev| ev.attestation.clone()).collect();
+
+    if derive_majority_outcome(&attestations) != record.outcome {
+        return Ok(Some(
+            "HarmonyRecord outcome does not match the majority of its signed attestations".into(),
+        ));
+    }
+    if derive_agreement_level(&attestations) != record.agreement_level {
+        return Ok(Some(
+            "HarmonyRecord agreement_level does not match its signed attestations".into(),
+        ));
+    }
+    let max_duration = attestations.iter().map(|a| a.time_invested_secs).max().unwrap_or(0);
+    if max_duration != record.validation_duration_secs {
+        return Ok(Some(
+            "HarmonyRecord validation_duration_secs does not match its signed attestations".into(),
+        ));
+    }
+    if let Some(first) = attestations.first() {
+        if first.discipline != record.discipline {
+            return Ok(Some(
+                "HarmonyRecord discipline does not match its signed attestations".into(),
+            ));
+        }
+    }
+    Ok(None)
 }

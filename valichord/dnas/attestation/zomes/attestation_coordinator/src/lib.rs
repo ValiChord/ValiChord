@@ -6,9 +6,10 @@ use attestation_integrity::{
     DifficultyTier, DnaProperties, EntryTypes, LinkTypes, PhaseMarker,
     ResearcherCommitmentInput, ResearcherResultCommitment, ResearcherReveal, ResearcherRevealInput,
     StudyClaim, StudyClaimRelease, ValidatorAgentType, ValidatorProfile, ValidationRequest,
+    sorted_agent_pair_bytes,
 };
 use valichord_shared_types::{
-    Discipline, JoiningCertificate, ValidatorType, ValidationAttestation, ValidationPhase,
+    Discipline, ValidationAttestation, ValidationPhase,
     ValiChordError, ValiChordResult, discipline_tag, metric_results_msgpack_bytes,
 };
 use sha2::{Digest, Sha256};
@@ -66,7 +67,9 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
     // Verify the membrane proof cryptographically (Ed25519 signature check).
     // This runs lazily on the first zome call, after the agent has joined the
     // DHT and the AgentValidationPkg action is on the source chain.
-    // verify_signature is an HDK host function not available in integrity zomes.
+    // Defence in depth only: since #37 (2026-10-17) every PEER runs the same
+    // check in validate(), which is what actually enforces the membrane. This
+    // copy is self-run and fails the cell early with a clear message.
     // Empty issuer = dev/test bypass (matches the governance DNA pattern).
     if let Err(e) = verify_membrane_proof() {
         return Ok(InitCallbackResult::Fail(e.to_string()));
@@ -76,7 +79,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Membrane proof — Ed25519 verification (coordinator-side, HDK only)
+// Membrane proof — self-run copy of the peer-enforced check (see #37)
 // ---------------------------------------------------------------------------
 
 fn verify_membrane_proof() -> ValiChordResult<()> {
@@ -98,47 +101,13 @@ fn verify_membrane_proof() -> ValiChordResult<()> {
         }
     }
     let proof = avp_result
-        .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?
-        .ok_or_else(|| ValiChordError::Guest("Attestation DNA requires a membrane proof".into()))?;
+        .ok_or_else(|| ValiChordError::Guest("AgentValidationPkg not found on source chain".into()))?;
 
-    // Decode the JoiningCertificate to determine validator_type before choosing
-    // which issuer key to verify against.
-    let cert = JoiningCertificate::from_proof_bytes(proof.bytes())
-        .map_err(|e| ValiChordError::Guest(format!("invalid joining certificate: {e}")))?;
-
-    // Route to the correct issuer key based on validator type:
-    //   Human → authorized_joining_certificate_issuer (institutional credential)
-    //   AI    → ai_validator_issuer if set, else fall back to the human issuer key
-    //           (single-key deployments can reuse one key for both paths).
-    let issuer_str = match cert.validator_type {
-        ValidatorType::AI if !props.ai_validator_issuer.is_empty() => {
-            props.ai_validator_issuer.clone()
-        }
-        _ => props.authorized_joining_certificate_issuer.clone(),
-    };
-    let issuer_key = AgentPubKey::from(
-        issuer_str
-            .parse::<HoloHashB64<hash_type::Agent>>()
-            .map_err(|_| ValiChordError::Guest(
-                "issuer key in DNA properties is not a valid AgentPubKey".into(),
-            ))?,
-    );
-
-    // Signed payload = agent raw pubkey bytes (39) || proof meta bytes (if present).
+    // The same function every peer runs in validate() — one definition of the
+    // signed payload and the issuer routing, so the three callers cannot drift.
     let joining_agent = agent_info()?.agent_initial_pubkey;
-    let mut signed_data: Vec<u8> = joining_agent.get_raw_39().to_vec();
-    if proof.bytes().len() > 64 {
-        signed_data.extend_from_slice(&proof.bytes()[64..]);
-    }
-
-    let signature = Signature::from(cert.signature);
-    if !verify_signature(issuer_key, signature, signed_data)? {
-        return Err(ValiChordError::Guest(
-            "Membrane proof signature is invalid — not signed by the authorized issuer".into(),
-        ));
-    }
-
-    Ok(())
+    attestation_integrity::check_joining_certificate(&joining_agent, proof.as_ref())?
+        .map_err(ValiChordError::Guest)
 }
 
 // ---------------------------------------------------------------------------
@@ -2104,17 +2073,8 @@ struct RevealOpenWire {
 // Signature encoding: sign() serialises its payload through SerializedBytes
 // (msgpack BIN format).  verify_signature() uses the same encoding.
 
-/// Return the canonical 78-byte payload both agents must sign:
-/// the two raw 39-byte pubkeys concatenated in lexicographic order.
-fn sorted_agent_pair_bytes(a: &AgentPubKey, b: &AgentPubKey) -> Vec<u8> {
-    let raw_a = a.get_raw_39();
-    let raw_b = b.get_raw_39();
-    if raw_a <= raw_b {
-        [raw_a, raw_b].concat()
-    } else {
-        [raw_b, raw_a].concat()
-    }
-}
+// `sorted_agent_pair_bytes` lives in attestation_integrity since 2026-10-17, so the
+// coordinator and every validating peer build the payload from one definition.
 
 /// Input for link_agent_identity.
 #[derive(Debug, Clone, Serialize, Deserialize)]

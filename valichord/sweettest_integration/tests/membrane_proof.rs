@@ -38,6 +38,14 @@
 //! that encoding changes.
 //!
 //! Two conductors are never needed here: joining is a single-agent property.
+//!
+//! WHERE THE CHECK RUNS (since 2026-10-17, issue #37)
+//! --------------------------------------------------
+//! One function, `attestation_integrity::check_joining_certificate`, called from
+//! `genesis_self_check`, from `validate()` on every peer, and from coordinator
+//! `init()`. Before that, genesis and validate() checked the proof's length only and
+//! the signature lived in init() alone — so a modified hApp could skip it. The
+//! rejection tests below now fail at INSTALL, because genesis is the earliest caller.
 
 use holochain::sweettest::*;
 use holochain_types::prelude::*;
@@ -210,14 +218,27 @@ async fn valid_ed25519_proof_is_accepted_by_coordinator_init() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Wrong signature → coordinator init() rejects
+// 2. Wrong signature → rejected at install (genesis_self_check)
 // ---------------------------------------------------------------------------
 //
 // Signed by the WRONG key. Format is perfect: 64 bytes, decodes as a legacy Human
-// certificate, passes genesis_self_check. Only the Ed25519 check can catch this, so
-// this test is what proves that check is load-bearing rather than decorative.
+// certificate. Only the Ed25519 check can catch this, so this test is what proves
+// that check is load-bearing rather than decorative.
+//
+// ⚠️ CHANGED 2026-10-17 (#37). This used to install successfully and fail at the
+// first zome call, because genesis_self_check and validate() checked LENGTH only and
+// the signature was verified solely in the coordinator's init(). All three now call
+// `attestation_integrity::check_joining_certificate`, so the earliest caller —
+// genesis — refuses it, at install.
+//
+// What this test does NOT prove: that a PEER refuses it. That is the property #37
+// was about (validate() on the AgentValidationPkg op), and sweettest cannot stage a
+// node that skips its own genesis check: `ignore_genesis_failure` leaves the cells
+// empty rather than letting them run. What links the two is that genesis and
+// validate() call the same function, so this test exercises the exact code a peer
+// runs. If genesis ever stops using it, this test no longer covers validate().
 #[tokio::test(flavor = "multi_thread")]
-async fn wrong_signature_proof_is_rejected_by_coordinator_init() {
+async fn wrong_signature_proof_is_rejected_at_genesis() {
     let conductor = SweetConductor::standard().await;
     let issuer = SweetAgents::one(conductor.keystore()).await;
     let impostor = SweetAgents::one(conductor.keystore()).await;
@@ -229,18 +250,42 @@ async fn wrong_signature_proof_is_rejected_by_coordinator_init() {
     let proof = valid_proof_for(&conductor.keystore(), &impostor, &agent).await;
     assert_eq!(proof.len(), 64, "impostor proof must still be well-formed");
 
-    install_with_proof(&conductor, &dnas, agent.clone(), Some(proof))
+    let err = install_with_proof(&conductor, &dnas, agent, Some(proof))
         .await
-        .expect("genesis accepts any >=64-byte proof; rejection happens later, at init");
-    conductor.enable_app(APP_ID.into()).await.unwrap();
-
-    let err = first_zome_call(&conductor, &dnas, &agent)
-        .await
-        .expect_err("a proof signed by the wrong key must be rejected by init()");
+        .expect_err("a proof signed by the wrong key must be refused at genesis");
     assert_rejected_with(
         &err,
         "Membrane proof signature is invalid",
         "wrong-signature membrane proof",
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 2b. A valid proof for a DIFFERENT agent → rejected at install
+// ---------------------------------------------------------------------------
+//
+// Signed by the real issuer, over the wrong agent's key — i.e. a genuine credential
+// copied from someone else. Proves the check binds the proof to the joining agent
+// (genesis passes `data.agent_key`; validate() passes the op's author), not merely
+// that some issuer signed something.
+#[tokio::test(flavor = "multi_thread")]
+async fn proof_issued_to_another_agent_is_rejected_at_genesis() {
+    let conductor = SweetConductor::standard().await;
+    let issuer = SweetAgents::one(conductor.keystore()).await;
+    let issuer_b64 = AgentPubKeyB64::from(issuer.clone()).to_string();
+
+    let dnas = dnas_with_issuer(&issuer_b64).await;
+    let credentialed = SweetAgents::one(conductor.keystore()).await;
+    let copier = SweetAgents::one(conductor.keystore()).await;
+    let borrowed = valid_proof_for(&conductor.keystore(), &issuer, &credentialed).await;
+
+    let err = install_with_proof(&conductor, &dnas, copier, Some(borrowed))
+        .await
+        .expect_err("a credential issued to another agent must be refused");
+    assert_rejected_with(
+        &err,
+        "Membrane proof signature is invalid",
+        "membrane proof issued to a different agent",
     );
 }
 
@@ -273,8 +318,8 @@ async fn missing_membrane_proof_is_rejected_at_genesis() {
 // 4. Too-short proof → genesis_self_check rejects on the length rule
 // ---------------------------------------------------------------------------
 //
-// 10 bytes cannot contain a 64-byte signature. This is the cheap structural check
-// that runs before the agent joins; the expensive cryptographic one runs at init.
+// 10 bytes cannot contain a 64-byte signature. The length rule is the first step of
+// `check_joining_certificate`, before any signature work.
 #[tokio::test(flavor = "multi_thread")]
 async fn too_short_membrane_proof_is_rejected_at_genesis() {
     let conductor = SweetConductor::standard().await;

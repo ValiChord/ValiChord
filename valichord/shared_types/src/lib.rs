@@ -311,8 +311,10 @@ struct JoiningCertificateMeta {
 /// Signed payload = agent_raw_39_bytes || bytes[64..].
 /// Legacy proofs (len == 64) are treated as a Human certificate with no initial tier.
 ///
-/// The integrity zome validates `len >= 64` only; full cryptographic verification
-/// runs in the coordinator `init()` callback where `verify_signature` is available.
+/// Verified in full by `attestation_integrity::check_joining_certificate`: in every
+/// peer's `validate()`, in `genesis_self_check`, and in coordinator `init()` (#37).
+/// Until 2026-10-17 the integrity zome checked `len >= 64` only, on the false belief
+/// that `verify_signature` was unavailable there.
 #[derive(Debug, Clone)]
 pub struct JoiningCertificate {
     /// Ed25519 signature (64 bytes) by the authorized issuer.

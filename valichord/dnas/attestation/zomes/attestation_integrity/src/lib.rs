@@ -1,5 +1,8 @@
 use hdi::prelude::*;
-use valichord_shared_types::{CertificationTier, Discipline, MetricResult, ValidationAttestation, ValidationPhase};
+use valichord_shared_types::{
+    CertificationTier, Discipline, JoiningCertificate, MetricResult, ValidationAttestation,
+    ValidationPhase, ValidatorType,
+};
 
 // ---------------------------------------------------------------------------
 // DNA Properties (baked into DNA hash — immutable per network instance)
@@ -290,7 +293,8 @@ pub struct PhaseMarker {
 // claim without trusting either agent individually.
 //
 // Naming convention: agent_a is the lexicographically smaller key; agent_b
-// is the larger.  The coordinator's `sorted_agent_pair_bytes()` enforces this.
+// is the larger.  `sorted_agent_pair_bytes()` (below) builds the payload; both
+// the coordinator and validate() use it.
 //
 // Either agent may revoke the link by deleting the entry.  The coordinator
 // validates authorship at the call level; the integrity zome allows deletion
@@ -307,6 +311,22 @@ pub struct AgentIdentityAttestation {
     pub agent_b:     AgentPubKey,
     /// agent_b's Ed25519 signature over the same sorted 78-byte payload.
     pub signature_b: Signature,
+}
+
+/// The canonical 78-byte payload both agents sign for an AgentIdentityAttestation:
+/// the two raw 39-byte pubkeys concatenated in lexicographic order, so it is the
+/// same whichever agent calls first.
+///
+/// Passed to `verify_signature` as a `Vec<u8>`, which msgpack-encodes it — the same
+/// encoding `sign()` used. Do not switch either side to the `_raw` variants alone.
+pub fn sorted_agent_pair_bytes(a: &AgentPubKey, b: &AgentPubKey) -> Vec<u8> {
+    let raw_a = a.get_raw_39();
+    let raw_b = b.get_raw_39();
+    if raw_a <= raw_b {
+        [raw_a, raw_b].concat()
+    } else {
+        [raw_b, raw_a].concat()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -400,10 +420,10 @@ pub enum LinkTypes {
 }
 
 // ---------------------------------------------------------------------------
-// Validate Callback — HDI 0.7
+// Validate Callback — HDI 0.8 (hdi 0.8.1 since Holochain 0.7.1)
 // ---------------------------------------------------------------------------
 //
-// CRITICAL HDI 0.7 API FACTS:
+// CRITICAL HDI API FACTS (originally written for HDI 0.7; still hold on 0.8.1):
 // - op.flattened() consumes `op` — never call op.action() after flattened().
 // - OpUpdate<ET> is an ENUM: OpUpdate::Entry { app_entry: ET, action: Update }
 //   app_entry is the NEW entry. The new type MUST match the original type
@@ -806,20 +826,19 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- AgentIdentityAttestation create: authorship + self-link checks -----
+        // --- AgentIdentityAttestation create: authorship, self-link, SIGNATURES ---
         //
-        // Two rules the integrity zome can enforce without verify_signature
-        // (which is HDK-only):
-        //
-        // 1. The action author must be one of the two named agents.
-        //    A modified coordinator could otherwise write attestations for
-        //    arbitrary agents while bypassing signature verification.
-        //    This is the same pattern as CommitmentAnchor.validator == action.author.
-        //
+        // 1. The action author must be one of the two named agents (same pattern
+        //    as CommitmentAnchor.validator == action.author).
         // 2. The two named agents must be distinct (no self-attestation).
+        // 3. Both Ed25519 signatures must verify over the sorted 78-byte payload.
         //
-        // Full Ed25519 signature verification runs in the coordinator's
-        // link_agent_identity before the entry is committed.
+        // Rule 3 was coordinator-only until 2026-10-17, under the same false
+        // belief as the membrane check (#37) — the comment here said
+        // verify_signature was "HDK-only". So a modified coordinator could link
+        // any agent to itself without that agent's consent. Now every peer
+        // checks. The coordinator's check in link_agent_identity stays, for an
+        // early, specific error.
         FlatOp::CreateEntry(OpEntry::CreateEntry {
             app_entry: EntryTypes::AgentIdentityAttestation(ref att),
             action,
@@ -833,6 +852,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                 return Ok(ValidateCallbackResult::Invalid(
                     "AgentIdentityAttestation requires two distinct agents".into(),
                 ));
+            }
+            let payload = sorted_agent_pair_bytes(&att.agent_a, &att.agent_b);
+            for (agent, signature) in [(&att.agent_a, &att.signature_a), (&att.agent_b, &att.signature_b)] {
+                if !verify_signature(agent.clone(), signature.clone(), payload.clone())? {
+                    return Ok(ValidateCallbackResult::Invalid(format!(
+                        "AgentIdentityAttestation signature by {agent} failed verification"
+                    )));
+                }
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -964,84 +991,124 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
-        // --- Membrane proof — format check (after network join) ---
+        // --- Membrane proof — full credential check, PEER-ENFORCED (#37) ---
         //
-        // The integrity zome can only run the format check here because
-        // `verify_signature` is an HDK host function not exposed by HDI.
-        // The full Ed25519 signature verification against the DNA-properties
-        // issuer key runs in the coordinator's `init()` callback, which fails
-        // the cell if the proof is invalid and prevents any subsequent writes.
+        // Every peer holding this op runs the full Ed25519 check, against the
+        // op's own author. Until 2026-10-17 this arm checked the proof's LENGTH
+        // only, on the belief that `verify_signature` was HDK-only. It never was:
+        // `hdi::ed25519::verify_signature` exists (hdk merely re-exports it) and
+        // validate() is granted `keystore_deterministic`. Under that belief the
+        // credential was enforced only by the joining agent's own init() — so a
+        // modified hApp could skip it, and no peer would ever notice.
         FlatOp::AgentActivity(OpActivity::AgentValidationPkg {
-            membrane_proof, ..
-        }) => validate_membrane_proof(membrane_proof),
+            membrane_proof, action,
+        }) => match check_joining_certificate(action.author(), membrane_proof.as_ref())? {
+            Ok(()) => Ok(ValidateCallbackResult::Valid),
+            Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+        },
 
         // All other ops: valid.
         _ => Ok(ValidateCallbackResult::Valid),
     }
 }
 
-fn validate_membrane_proof(
-    membrane_proof: Option<MembraneProof>,
-) -> ExternResult<ValidateCallbackResult> {
-    // Architecture note: this callback can only perform format validation.
-    // `verify_signature` is an HDK host function that is NOT available in
-    // HDI integrity zomes. The full Ed25519 credential check (issuer key from
-    // DNA properties, signature over the joining agent's pubkey) is implemented
-    // in `verify_membrane_proof()` in the coordinator's `init()` callback.
-    // If that check fails, `init()` returns `InitCallbackResult::Fail`, the
-    // cell cannot be used to write any protocol data, and the agent is
-    // effectively a read-only observer on the DHT.
+/// The full joining-credential check: the ONE definition, used in three places.
+///
+/// | Caller | Who runs it | What it buys |
+/// |---|---|---|
+/// | `validate()`, `AgentValidationPkg` arm | **every peer** holding the op | the security property — a modified hApp cannot skip it |
+/// | `genesis_self_check` | the joining agent, before joining | a clear, early install failure for an honest agent with a bad credential |
+/// | coordinator `init()` | the joining agent, on first call | defence in depth; costs nothing |
+///
+/// Only the first is peer-enforced. The other two are self-run, the same trust
+/// level as each other — kept because they fail fast and legibly, not because they
+/// protect anything.
+///
+/// Returns `Ok(Err(reason))` for an invalid credential and `Err(_)` only for a host
+/// failure, so callers can map the first to `Invalid` and propagate the second.
+///
+/// ⚠️ THE SIGNED PAYLOAD — do not hand-roll it. It is `agent_raw_39 || meta_bytes`,
+/// passed to `verify_signature` as a `Vec<u8>`, which msgpack-ENCODES it before
+/// verifying (`VerifySignature::new`). That is how every certificate already issued
+/// was signed. Reconstructing the bytes any other way invalidates all of them, and
+/// the failure looks exactly like the guard working. See #37 and
+/// `sweettest_integration/tests/membrane_proof.rs`.
+pub fn check_joining_certificate(
+    joining_agent: &AgentPubKey,
+    membrane_proof: Option<&MembraneProof>,
+) -> ExternResult<Result<(), String>> {
+    let props = DnaProperties::try_from_dna_properties()?;
 
-    // Dev/test bypass: when authorized_joining_certificate_issuer is empty the
-    // whole credential system is bypassed (same pattern as coordinator init()
-    // and submit_attestation()).  Skip the format check so Sweettest conductors
-    // can install the DNA without providing a dummy membrane proof.
-    if let Ok(props) = DnaProperties::try_from_dna_properties() {
-        if props.authorized_joining_certificate_issuer.is_empty() {
-            return Ok(ValidateCallbackResult::Valid);
-        }
+    // Dev/test bypass: an empty human issuer key switches the whole credential
+    // system off (ai_validator_issuer is then irrelevant too). Unchanged from
+    // before #37, in all three callers.
+    if props.authorized_joining_certificate_issuer.is_empty() {
+        return Ok(Ok(()));
     }
 
     let proof = match membrane_proof {
         None => {
-            return Ok(ValidateCallbackResult::Invalid(
+            return Ok(Err(
                 "Attestation DNA requires a membrane proof (institutional credential)".into(),
             ))
         }
         Some(p) => p,
     };
     if proof.bytes().len() < 64 {
-        return Ok(ValidateCallbackResult::Invalid(
+        return Ok(Err(
             "Membrane proof is too short to contain a 64-byte Ed25519 signature".into(),
         ));
     }
-    Ok(ValidateCallbackResult::Valid)
+
+    let cert = match JoiningCertificate::from_proof_bytes(proof.bytes()) {
+        Ok(c) => c,
+        Err(e) => return Ok(Err(format!("invalid joining certificate: {e}"))),
+    };
+
+    // Route to the issuer for this validator type:
+    //   Human → authorized_joining_certificate_issuer (institutional credential)
+    //   AI    → ai_validator_issuer if set, else the human issuer key
+    //           (single-key deployments reuse one key for both paths).
+    let issuer_str = match cert.validator_type {
+        ValidatorType::AI if !props.ai_validator_issuer.is_empty() => props.ai_validator_issuer,
+        _ => props.authorized_joining_certificate_issuer,
+    };
+    let issuer_key = match issuer_str.parse::<AgentPubKeyB64>() {
+        Ok(k) => AgentPubKey::from(k),
+        Err(_) => {
+            return Ok(Err(
+                "issuer key in DNA properties is not a valid AgentPubKey".into(),
+            ))
+        }
+    };
+
+    let mut signed_data: Vec<u8> = joining_agent.get_raw_39().to_vec();
+    if proof.bytes().len() > 64 {
+        signed_data.extend_from_slice(&proof.bytes()[64..]);
+    }
+    if !verify_signature(issuer_key, Signature::from(cert.signature), signed_data)? {
+        return Ok(Err(
+            "Membrane proof signature is invalid — not signed by the authorized issuer".into(),
+        ));
+    }
+    Ok(Ok(()))
 }
 
 // ---------------------------------------------------------------------------
-// genesis_self_check — format-only, runs BEFORE network join
+// genesis_self_check — runs BEFORE network join, on the joining agent only
 // ---------------------------------------------------------------------------
 
 #[hdk_extern]
 pub fn genesis_self_check(
     data: GenesisSelfCheckData,
 ) -> ExternResult<ValidateCallbackResult> {
-    // Dev/test bypass: dna_info() is available here (GenesisSelfCheckDataV2
-    // elides dna_info from the struct but the host function still works).
-    // When issuer key is empty the credential system is inactive — skip the
-    // membrane proof requirement so Sweettest can install without a dummy proof.
-    if let Ok(props) = DnaProperties::try_from_dna_properties() {
-        if props.authorized_joining_certificate_issuer.is_empty() {
-            return Ok(ValidateCallbackResult::Valid);
-        }
-    }
-    match data.membrane_proof {
-        None => Ok(ValidateCallbackResult::Invalid(
-            "Attestation DNA requires a membrane proof".into(),
-        )),
-        Some(ref proof) if proof.bytes().len() < 64 => Ok(ValidateCallbackResult::Invalid(
-            "Membrane proof is too short".into(),
-        )),
-        _ => Ok(ValidateCallbackResult::Valid),
+    // The full check, not just the format: `keystore_deterministic` is granted here
+    // too (holochain guest_callback/genesis_self_check/v2.rs), and `agent_key` is the
+    // key the AgentValidationPkg will be authored by. Self-run, so it protects
+    // nothing — validate() does that — but it turns a bad credential into an install
+    // error with a reason, instead of a cell that joins and then fails at init.
+    match check_joining_certificate(&data.agent_key, data.membrane_proof.as_ref())? {
+        Ok(()) => Ok(ValidateCallbackResult::Valid),
+        Err(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
     }
 }
