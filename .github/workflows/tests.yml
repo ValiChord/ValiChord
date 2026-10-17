@@ -140,13 +140,13 @@ jobs:
   ui-e2e:
     name: UI E2E (Playwright + real conductor)
     runs-on: ubuntu-latest
-    # ✅ UNSKIPPED 2026-08-02 — this job now runs on v0.7.0 too, and is the only
-    # thing that proves the UI half of Phase B. Both reasons it was skipped have
-    # gone: @holochain/client 0.21.0 went stable on npm `latest` 2026-08-01 (the
-    # UI is on it), and workdir/valichord.happ has been repacked on the 0.7
-    # toolchain since Phase A closed. Verified locally against a real 0.7.0
-    # conductor before unskipping — 6/6 passed.
-    timeout-minutes: 30
+    # ✅ UNSKIPPED 2026-08-02 — the only thing that proves the UI half of Phase B.
+    # ⚠️ CHANGED 2026-10-17: this job now BUILDS and PACKS the hApp from source
+    # instead of testing the committed workdir/valichord.happ. On the 0.7.1 bump
+    # the committed bundle (packed 2026-08-03 with 0.7.0) failed against the new
+    # conductor at grantZomeCallCapability — a stale artifact, not a code bug.
+    # Building here means the bundle under test always matches the source.
+    timeout-minutes: 45   # +15 for the clean WASM build
 
     steps:
       - uses: actions/checkout@v4
@@ -157,13 +157,13 @@ jobs:
         id: cache-hc-bin-e2e
         with:
           path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.7.0
+          key: ${{ runner.os }}-hc-bin-0.7.1
 
       - name: Download Holochain binaries
         if: steps.cache-hc-bin-e2e.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.0
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.1
           curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
           curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
           curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
@@ -172,6 +172,30 @@ jobs:
 
       - name: Add Holochain tools to PATH
         run: echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
+
+      # ── Build WASMs and pack the hApp from source (same steps as sweettest) ──
+      - name: Install Rust (stable + wasm32 target)
+        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
+
+      - name: Cache WASM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            valichord/target
+          key: ${{ runner.os }}-e2e-wasm-${{ hashFiles('valichord/Cargo.lock', 'valichord/**/*.rs', 'valichord/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-e2e-wasm-
+
+      - name: Build WASM zomes and pack hApp
+        working-directory: valichord
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          hc dna pack dnas/attestation            -o workdir/attestation.dna
+          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+          hc dna pack dnas/governance             -o workdir/governance.dna
+          hc app pack .                           -o workdir/valichord.happ
 
       # ── Node / Playwright ────────────────────────────────────────────────────
       - name: Setup Node.js 22
@@ -303,13 +327,13 @@ jobs:
         id: cache-hc-bin-sweettest
         with:
           path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.7.0
+          key: ${{ runner.os }}-hc-bin-0.7.1
 
       - name: Download Holochain binaries
         if: steps.cache-hc-bin-sweettest.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.0
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.1
           curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
           curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
           curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore
@@ -410,13 +434,13 @@ jobs:
         id: cache-hc-bin-tripwire
         with:
           path: ~/.local/bin/hc-tools
-          key: ${{ runner.os }}-hc-bin-0.7.0
+          key: ${{ runner.os }}-hc-bin-0.7.1
 
       - name: Download Holochain binaries
         if: steps.cache-hc-bin-tripwire.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin/hc-tools
-          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.0
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-0.7.1
           curl -sSL $BASE/holochain-x86_64-unknown-linux-gnu              -o ~/.local/bin/hc-tools/holochain
           curl -sSL $BASE/hc-x86_64-unknown-linux-gnu                     -o ~/.local/bin/hc-tools/hc
           curl -sSL $BASE/lair-keystore-x86_64-unknown-linux-gnu          -o ~/.local/bin/hc-tools/lair-keystore

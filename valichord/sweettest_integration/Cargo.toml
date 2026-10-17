@@ -36,11 +36,11 @@ debug = 0
 # ---------------------------------------------------------------------------
 
 [dependencies]
-holochain = { version = "=0.7.0", features = ["test_utils"] }
-holochain_types = "=0.7.0"
-holochain_keystore = "=0.7.0"
-hdk = "=0.7.0"
-holo_hash = "=0.7.0"
+holochain = { version = "=0.7.1", features = ["test_utils"] }
+holochain_types = "=0.7.1"
+holochain_keystore = "=0.7.1"
+hdk = "=0.7.1"
+holo_hash = "=0.7.1"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 # holochain 0.7 moved off the deprecated serde_yaml to yaml_serde (API-compatible
