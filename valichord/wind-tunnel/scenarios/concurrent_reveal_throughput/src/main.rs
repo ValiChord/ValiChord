@@ -107,6 +107,8 @@ fn make_attestation(request_ref: ExternalHash) -> ValidationAttestation {
         // nonces, this field is bound into commitment_msgpack_bytes() and the value
         // used at commit must be byte-identical at reveal, including None.
         reproduction_bundle_hash: None,
+        request_num_validators: None, // stamped by submit_attestation
+        request_created_at: None,
         deviation_flags: vec![],
         computational_resources: ComputationalResources {
             personal_hardware_sufficient: true,

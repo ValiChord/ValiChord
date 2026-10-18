@@ -311,8 +311,10 @@ struct JoiningCertificateMeta {
 /// Signed payload = agent_raw_39_bytes || bytes[64..].
 /// Legacy proofs (len == 64) are treated as a Human certificate with no initial tier.
 ///
-/// The integrity zome validates `len >= 64` only; full cryptographic verification
-/// runs in the coordinator `init()` callback where `verify_signature` is available.
+/// Verified in full by `attestation_integrity::check_joining_certificate`: in every
+/// peer's `validate()`, in `genesis_self_check`, and in coordinator `init()` (#37).
+/// Until 2026-10-17 the integrity zome checked `len >= 64` only, on the false belief
+/// that `verify_signature` was unavailable there.
 #[derive(Debug, Clone)]
 pub struct JoiningCertificate {
     /// Ed25519 signature (64 bytes) by the authorized issuer.
@@ -344,6 +346,41 @@ impl JoiningCertificate {
             .map_err(|e| format!("meta decode error: {e}"))?;
         Ok(Self { signature, validator_type: meta.validator_type, initial_tier: meta.initial_tier })
     }
+
+    /// The bytes an issuer appends after the signature, and signs after the agent
+    /// key: `rmp_serde::to_vec_named({ validator_type, initial_tier })`. The one
+    /// definition, so issuer tooling and tests build exactly what `from_proof_bytes`
+    /// reads.
+    pub fn meta_bytes(
+        validator_type: ValidatorType,
+        initial_tier: Option<CertificationTier>,
+    ) -> Result<Vec<u8>, String> {
+        rmp_serde::to_vec_named(&JoiningCertificateMeta { validator_type, initial_tier })
+            .map_err(|e| format!("meta encode error: {e}"))
+    }
+
+    /// The `CertificationTier` this certificate grants (#8, 2026-10-17).
+    ///
+    /// * AI    → the issuer's `initial_tier`, else Provisional. AI validators do not
+    ///           progress through rounds; this is their tier.
+    /// * Human → Provisional. Human progression happens through completed rounds and
+    ///           is recorded in governance's `ValidatorReputation`, not granted here;
+    ///           an `initial_tier` on a Human certificate is ignored, as the meta
+    ///           field's own doc says it is only set for AI.
+    pub fn granted_tier(&self) -> CertificationTier {
+        match self.validator_type {
+            ValidatorType::AI => self.initial_tier.clone().unwrap_or(CertificationTier::Provisional),
+            ValidatorType::Human => CertificationTier::Provisional,
+        }
+    }
+}
+
+/// A validator's certified type and tier, as granted by their joining certificate.
+/// Returned across DNAs (attestation → governance) by `get_validator_certification`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatorCertification {
+    pub validator_type: ValidatorType,
+    pub tier:           CertificationTier,
 }
 
 /// Structured per-metric outcome — included in OutcomeSummary.
@@ -403,6 +440,33 @@ pub struct ValidationAttestation {
     /// `Bundle.meta` (provenance, timestamps), so two honest validators would never match.
     #[serde(default)]
     pub reproduction_bundle_hash: Option<Vec<u8>>,
+    /// The study's `num_validators_required`, copied from the ValidationRequest by
+    /// `submit_attestation` at reveal, and checked against that request by every peer
+    /// in attestation_integrity's validate() (via CommitmentAnchor → ValidationRequest).
+    ///
+    /// WHY (#11 follow-up, 2026-10-17). A HarmonyRecord carries its validators' signed
+    /// attestations. Without this, anyone could carry a favourable SUBSET of them —
+    /// four that reproduced out of seven — and state `validators_requested: 4`. With
+    /// it, every carried attestation states the real cohort size under its
+    /// validator's signature, so governance validate() can require
+    /// `validators_requested` to match and a subset is always visibly "4 of 7".
+    ///
+    /// The request is NOT carried into the HarmonyRecord instead because it holds
+    /// `deposit_token`, which the Attestation DNA membrane protects and the open
+    /// Governance DHT would publish.
+    ///
+    /// Coordinator-set, so excluded from the commitment hash exactly like
+    /// `commitment_anchor_hash` — and `skip_serializing_if` keeps the encoding of an
+    /// attestation without it byte-identical to before the field existed, so
+    /// validator clients (including the AI validators) need no change.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_num_validators: Option<u8>,
+    /// The ValidationRequest's creation time (its action timestamp), set and checked
+    /// the same way as `request_num_validators`. Lets governance validate() apply
+    /// `round_timeout_secs` to a record that carries fewer attestations than
+    /// requested — the same rule `force_finalize_round` applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_created_at: Option<Timestamp>,
 }
 
 impl ValidationAttestation {
@@ -425,9 +489,16 @@ impl ValidationAttestation {
     /// failure except `s9_reveal_with_different_bundle_hash_is_rejected`, which exists
     /// precisely to catch this. `commitment_anchor_hash` is normalised only because the
     /// coordinator injects it *after* sealing, so it cannot be known at commit time.
-    /// That reasoning does not extend to any other field.
+    /// That reasoning extends to exactly two more fields, `request_num_validators`
+    /// and `request_created_at` (2026-10-17): both are copied from the
+    /// ValidationRequest by the coordinator at reveal, are never the validator's
+    /// choice, and are checked against the request by every peer — so leaving them
+    /// out of the commitment binds nothing less. It does not extend to any other
+    /// field.
     pub fn commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
         let mut canonical = self.clone();
+        canonical.request_num_validators = None;
+        canonical.request_created_at = None;
         canonical.commitment_anchor_hash = None;
         SerializedBytes::try_from(&canonical)
             .map(|sb| sb.bytes().to_vec())
@@ -657,7 +728,75 @@ mod tests {
             discipline: Discipline::ComputationalBiology,
             commitment_anchor_hash: None,
             reproduction_bundle_hash: None,
+            request_num_validators: None, // stamped by submit_attestation
+            request_created_at: None,
         }
+    }
+
+    // --- commitment encoding: the coordinator-stamped study terms (2026-10-17) ---
+    //
+    // Validator clients — the AI validators among them — compute their commitment
+    // hash over the attestation they built, which never contains these fields. If
+    // adding them changed the encoding of an attestation WITHOUT them, every client's
+    // reveal would stop matching its seal. These two tests pin that it does not.
+
+    #[test]
+    fn unstamped_attestation_encodes_without_the_new_keys() {
+        let bytes = att(AttestationOutcome::Reproduced).commitment_msgpack_bytes().unwrap();
+        for key in ["request_num_validators", "request_created_at"] {
+            assert!(
+                !bytes.windows(key.len()).any(|w| w == key.as_bytes()),
+                "{key} must be absent from the encoding when unset — otherwise every \
+                 existing client's commitment hash changes"
+            );
+        }
+    }
+
+    #[test]
+    fn stamped_terms_do_not_change_the_commitment_bytes() {
+        let unstamped = att(AttestationOutcome::Reproduced);
+        let mut stamped = unstamped.clone();
+        stamped.request_num_validators = Some(7);
+        stamped.request_created_at = Some(Timestamp(1_700_000_000_000_000));
+        assert_eq!(
+            stamped.commitment_msgpack_bytes().unwrap(),
+            unstamped.commitment_msgpack_bytes().unwrap(),
+            "the coordinator stamps these after sealing, so they must not enter the commitment"
+        );
+    }
+
+    // --- JoiningCertificate: granted tier (#8) ---
+
+    fn cert(vt: ValidatorType, tier: Option<CertificationTier>) -> JoiningCertificate {
+        let mut bytes = vec![0u8; 64];
+        bytes.extend(JoiningCertificate::meta_bytes(vt, tier).unwrap());
+        JoiningCertificate::from_proof_bytes(&bytes).unwrap()
+    }
+
+    #[test]
+    fn ai_certificate_grants_the_issuers_tier() {
+        let c = cert(ValidatorType::AI, Some(CertificationTier::Advanced));
+        assert_eq!(c.validator_type, ValidatorType::AI, "meta must round-trip");
+        assert_eq!(c.granted_tier(), CertificationTier::Advanced);
+    }
+
+    #[test]
+    fn ai_certificate_without_a_tier_grants_provisional() {
+        assert_eq!(cert(ValidatorType::AI, None).granted_tier(), CertificationTier::Provisional);
+    }
+
+    #[test]
+    fn human_certificate_never_grants_above_provisional() {
+        // Humans progress through rounds; an issuer cannot short-cut that.
+        let c = cert(ValidatorType::Human, Some(CertificationTier::Certified));
+        assert_eq!(c.granted_tier(), CertificationTier::Provisional);
+    }
+
+    #[test]
+    fn legacy_64_byte_certificate_is_human_provisional() {
+        let c = JoiningCertificate::from_proof_bytes(&[0u8; 64]).unwrap();
+        assert_eq!(c.validator_type, ValidatorType::Human);
+        assert_eq!(c.granted_tier(), CertificationTier::Provisional);
     }
 
     // --- derive_majority_outcome ---

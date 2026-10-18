@@ -2,12 +2,12 @@ use hdk::prelude::*;
 use std::collections::HashSet;
 use valichord_coordinator_utils::{call_other_role_opt, records_for_links};
 use governance_integrity::{
-    DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord, LinkTypes,
-    ReproducibilityBadge, ValidatorReputation,
+    AttestationEvidence, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord,
+    LinkTypes, ReproducibilityBadge, ValidatorReputation,
 };
 use valichord_shared_types::{
     AttestationOutcome, BadgeType, CertificationTier, Discipline,
-    ValidationAttestation, ValidatorAgentType, ValidatorType,
+    ValidationAttestation, ValidatorAgentType, ValidatorCertification, ValidatorType,
     derive_agreement_level, derive_majority_outcome, evaluate_badge, discipline_tag,
 };
 
@@ -535,13 +535,32 @@ fn write_harmony_record(
     // the record commits the undercount forever. This is the same principle the
     // validator_types comment below already states; the filter_map above had
     // quietly broken it.
-    let mut pairs = validator_attestation_pairs(&attestation_records)?;
-    pairs.sort_by(|(a, _), (b, _)| a.get_raw_39().cmp(b.get_raw_39()));
+    let pairs = validator_attestation_pairs(&attestation_records)?;
+
+    // Carry each validator's signed action alongside their attestation, so peers can
+    // verify participation in validate() (#11). validator_attestation_pairs emits one
+    // pair per input record, in input order, and errors otherwise — so zipping with
+    // the records BEFORE the sort keeps every action next to its own attestation.
+    let mut triples: Vec<(AgentPubKey, ValidationAttestation, AttestationEvidence)> = pairs
+        .into_iter()
+        .zip(attestation_records.iter())
+        .map(|((validator, attestation), record)| {
+            let evidence = AttestationEvidence {
+                action:      record.action().clone(),
+                signature:   record.signature().clone(),
+                attestation: attestation.clone(),
+            };
+            (validator, attestation, evidence)
+        })
+        .collect();
+    triples.sort_by(|(a, _, _), (b, _, _)| a.get_raw_39().cmp(b.get_raw_39()));
 
     let participating_validators: Vec<AgentPubKey> =
-        pairs.iter().map(|(v, _)| v.clone()).collect();
+        triples.iter().map(|(v, _, _)| v.clone()).collect();
+    let attestation_evidence: Vec<AttestationEvidence> =
+        triples.iter().map(|(_, _, e)| e.clone()).collect();
     let attestations: Vec<ValidationAttestation> =
-        pairs.into_iter().map(|(_, a)| a).collect();
+        triples.into_iter().map(|(_, a, _)| a).collect();
 
     let outcome         = derive_majority_outcome(&attestations);
     let agreement_level = derive_agreement_level(&attestations);
@@ -587,6 +606,7 @@ fn write_harmony_record(
         validation_duration_secs,
         discipline,                 // moved — no clone
         validators_requested,
+        attestation_evidence,
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
@@ -622,9 +642,30 @@ fn write_harmony_record(
             .zip(attestations.iter())
             .zip(validator_types.iter())
         {
-            let vt = match vtype_opt {
-                Some(ValidatorAgentType::AutomatedTool) => ValidatorType::AI,
-                _ => ValidatorType::Human,
+            // Human vs AI, and an AI validator's tier, come from the issuer-signed
+            // joining certificate the validator's profile carries (#8, 2026-10-17).
+            // Until then this read the SELF-DECLARED agent_type and always passed
+            // `initial_tier: None` — on the stated assumption that AI validators
+            // "should already have an issuer-created record", which nothing ever
+            // created. So every AI validator sat at Provisional whatever the issuer
+            // granted, and one that never set agent_type was progressed as a human.
+            // Falls back to the self-declared type only if the lookup fails. Errors
+            // are swallowed, not propagated: this loop is a side effect whose result
+            // is already ignored, and `?` here would roll back the HarmonyRecord
+            // itself over a reputation detail.
+            let certification = call_attestation_zome_opt::<AgentPubKey, Option<ValidatorCertification>>(
+                "get_validator_certification",
+                validator.clone(),
+            )
+            .ok()
+            .flatten()
+            .flatten();
+            let (vt, initial_tier) = match certification {
+                Some(c) => (c.validator_type, Some(c.tier)),
+                None => match vtype_opt {
+                    Some(ValidatorAgentType::AutomatedTool) => (ValidatorType::AI, None),
+                    _ => (ValidatorType::Human, None),
+                },
             };
             let _ = _update_reputation_internal(
                 validator.clone(),
@@ -632,8 +673,7 @@ fn write_harmony_record(
                 attestation.outcome.clone(),
                 attestation.time_invested_secs,
                 vt,
-                None, // initial_tier not available from round context; AI validators should
-                      // already have an issuer-created record before participating in rounds
+                initial_tier, // used only to create an AI validator's first record
             );
         }
     }
@@ -1269,6 +1309,8 @@ mod tests {
             discipline: Discipline::ComputationalBiology,
             commitment_anchor_hash: None,
             reproduction_bundle_hash: None,
+            request_num_validators: None, // stamped by submit_attestation
+            request_created_at: None,
         }
     }
 
@@ -1375,4 +1417,20 @@ mod tests {
 #[hdk_extern]
 pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
     delete_entry(hash)
+}
+
+// ---------------------------------------------------------------------------
+// HarmonyRecord forgery tripwire — test builds only (issue #11)
+// ---------------------------------------------------------------------------
+//
+// write_harmony_record always attaches genuine evidence, so the integrity zome's
+// evidence check can never be reached by a forged record through the production
+// API. This hook writes a caller-supplied HarmonyRecord directly — standing in for
+// a node running a modified coordinator, which is exactly the attacker #11
+// describes. See `sweettest_integration/tests/harmony_record_forgery.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_harmony_record(record: HarmonyRecord) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::HarmonyRecord(record))
 }

@@ -467,6 +467,8 @@ pub fn make_validation_attestation(request_ref: ExternalHash) -> ValidationAttes
         discipline: Discipline::ComputationalBiology,
         commitment_anchor_hash: None, // filled by coordinator on reveal
         reproduction_bundle_hash: None,
+        request_num_validators: None, // stamped by submit_attestation
+        request_created_at: None,
     }
 }
 
@@ -519,6 +521,7 @@ pub fn make_validator_profile(institution: &str) -> ValidatorProfile {
         orcid: None,
         agent_type: Some(ValidatorAgentType::Individual),
         person_key: None,
+        joining_certificate: None, // filled by publish_validator_profile on a credentialed network
     }
 }
 
