@@ -416,7 +416,7 @@ Read functions only are `Unrestricted` — accessible via HTTP Gateway without a
 
 **Membrane:** Public DHT. Open read. No membrane proof required for joining. Writes are checked in `validate()`: `ValidatorReputation` and `GovernanceDecision` by a DNA-property key; `HarmonyRecord` and `ReproducibilityBadge` by the evidence they carry (see below).
 
-**Purpose:** The public face of ValiChord. Permanent, tamper-evident validation outcomes. HTTP Gateway target — queryable by journals, funders, and the public without running a Holochain node.
+**Purpose:** The public face of ValiChord. Permanent, tamper-evident validation outcomes. HTTP Gateway target — designed to be queryable by journals, funders, and the public without running a Holochain node. (`hc-http-gw` is not deployed today; the public demo serves records through its Node bridges — see `PROJECT_STATUS.md`.)
 
 ### DNA Properties
 
