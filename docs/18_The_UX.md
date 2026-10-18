@@ -156,7 +156,7 @@ A notification appears when complete: *"Your assessment for study [hash] has bee
 
 **Screen 4 — Result**
 
-The same Harmony Record view as the researcher sees, with one addition: a personal summary showing how the validator's own outcome compared to the consensus. Not to expose others' identities — just to show whether they agreed with the majority. This feeds into their reputation record over time.
+The same Harmony Record view as the researcher sees, with one addition: a personal summary showing how the validator's own outcome compared to the majority outcome. Not to expose others' identities — just to show whether they agreed with the majority. This feeds into their reputation record over time.
 
 They can also see their compensation confirmation here.
 

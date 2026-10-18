@@ -150,7 +150,7 @@ The record does not say Sarah's science is correct. It says three independent cr
 
 ## What If the Validators Disagreed?
 
-Not every round ends in consensus. Suppose Marcus had found something different — his environment produced results that diverged from Sarah's published figures. He seals that finding honestly during the commit phase. He cannot change it after the reveal opens.
+Not every round ends in agreement. Suppose Marcus had found something different — his environment produced results that diverged from Sarah's published figures. He seals that finding honestly during the commit phase. He cannot change it after the reveal opens.
 
 The Harmony Record would then reflect:
 - James: *Reproduced*
