@@ -261,6 +261,24 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     // the demo's seal→nonce→reveal flow is enforced on-chain, not just by policy.
     // On production networks (issuer set) verification always runs.
     let reveal_props = DnaProperties::try_from_dna_properties()?;
+
+    // #52: a validator may reveal only once the reveal phase is open, i.e. once
+    // every validator has committed. Until 2026-10-19 this was left to the calling
+    // app, so even the unmodified app would reveal early if asked to. Same dev
+    // bypass as the commit-ordering guards in notify_commitment_sealed (empty
+    // issuer): enforced on every credentialed network.
+    if !reveal_props.authorized_joining_certificate_issuer.is_empty() {
+        match get_current_phase(request_ref.clone())? {
+            Some(ValidationPhase::RevealOpen) => {}
+            other => {
+                return Err(wasm_error!(WasmErrorInner::Guest(format!(
+                    "Cannot reveal yet — the reveal phase is not open (phase {other:?}). \
+                     Every validator must commit first; retry once RevealOpen is set."
+                ))));
+            }
+        }
+    }
+
     if !reveal_props.authorized_joining_certificate_issuer.is_empty()
         || !input.nonce.is_empty()
     {
@@ -1525,10 +1543,19 @@ pub fn notify_commitment_sealed(
         // remains correct with two links.  Any future code that assumes exactly
         // one PhaseMarker link per study must account for this.
         if existing_phase.is_empty() {
+            // #51: carry every committed validator's anchor, so peers can check the
+            // whole cohort committed. Include our own even if the network read has
+            // not caught up with the anchor we wrote a moment ago.
+            let mut anchors = commitment_anchor_hashes(&request_ref)?;
+            if !anchors.contains(&anchor_hash) {
+                anchors.push(anchor_hash.clone());
+                anchors.sort_by(|a, b| a.get_raw_39().cmp(b.get_raw_39()));
+            }
             let marker = PhaseMarker {
-                request_ref:            request_ref.clone(),
-                phase:                  ValidationPhase::RevealOpen,
-                commitment_anchor_hash: anchor_hash.clone(),
+                request_ref:              request_ref.clone(),
+                phase:                    ValidationPhase::RevealOpen,
+                commitment_anchor_hash:   anchor_hash.clone(),
+                commitment_anchor_hashes: anchors,
             };
             let marker_hash = create_entry(EntryTypes::PhaseMarker(marker))?;
             create_link(
@@ -1868,10 +1895,17 @@ pub fn reveal_researcher_result(
         }
     }
 
-    // Write the verified reveal to the shared DHT.
+    // Write the verified reveal to the shared DHT, naming the request and the
+    // commitment it answers so every peer can check both (#53).
+    let request_record = get_validation_request_for_data_hash(input.request_ref.clone())?
+        .ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+            "No ValidationRequest found for this study".into()
+        )))?;
     let reveal = ResearcherReveal {
-        request_ref: input.request_ref.clone(),
-        metrics:     input.metrics,
+        request_ref:                input.request_ref.clone(),
+        metrics:                    input.metrics,
+        validation_request_hash:    request_record.action_address().clone(),
+        researcher_commitment_hash: commitment_record.action_address().clone(),
     };
     let reveal_hash = create_entry(EntryTypes::ResearcherReveal(reveal))?;
 
@@ -1919,6 +1953,36 @@ pub fn check_all_commitments_sealed(
     request_ref: ExternalHash,
 ) -> ExternResult<bool> {
     check_all_commitments_sealed_inner(request_ref)
+}
+
+/// The ActionHashes of a study's CommitmentAnchors, one per distinct committing
+/// validator (a validator's first link wins), sorted by hash so the list is
+/// deterministic. Network read: these are other agents' writes.
+fn commitment_anchor_hashes(request_ref: &ExternalHash) -> ExternResult<Vec<ActionHash>> {
+    let commit_path = Path::from(format!("commitments.{}", request_ref))
+        .typed(LinkTypes::RequestToCommitment)?;
+    let mut links = get_links(
+        LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
+        GetStrategy::Network,
+    )?;
+    links.sort_by_key(|l| l.timestamp);
+    let mut seen: HashSet<AgentPubKey> = HashSet::new();
+    let mut out: Vec<ActionHash> = Vec::new();
+    for l in links {
+        if seen.insert(l.author.clone()) {
+            if let Some(h) = l.target.into_action_hash() {
+                out.push(h);
+            }
+        }
+    }
+    out.sort_by(|a, b| a.get_raw_39().cmp(b.get_raw_39()));
+    Ok(out)
+}
+
+/// Read-only: the study's CommitmentAnchor hashes (see `commitment_anchor_hashes`).
+#[hdk_extern]
+pub fn get_commitment_anchor_hashes(request_ref: ExternalHash) -> ExternResult<Vec<ActionHash>> {
+    commitment_anchor_hashes(&request_ref)
 }
 
 fn check_all_commitments_sealed_inner(
@@ -2396,6 +2460,23 @@ pub fn test_force_update_validation_request(
 // the tier with the certificate's, so a forged tier can only reach validate() by
 // writing the entry directly — which is what a modified coordinator would do. See
 // `sweettest_integration/tests/validator_tier_forgery.rs`.
+
+// Reveal-phase tripwires (#51, #53): the honest coordinator only writes a RevealOpen
+// marker once the cohort is complete and only writes a ResearcherReveal that names
+// the real request and commitment, so forged ones can only reach validate() this
+// way. See `sweettest_integration/tests/reveal_phase_forgery.rs`.
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_phase_marker(marker: PhaseMarker) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::PhaseMarker(marker))
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_researcher_reveal(reveal: ResearcherReveal) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::ResearcherReveal(reveal))
+}
 
 #[cfg(feature = "test_utils")]
 #[hdk_extern]

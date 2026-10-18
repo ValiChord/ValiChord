@@ -316,6 +316,13 @@ pub struct ResearcherReveal {
     /// The structured per-metric results the researcher produced originally.
     /// Validators can compare their own `produced_value` fields against these.
     pub metrics:     Vec<MetricResult>,
+    /// The study's ValidationRequest, and the researcher's own earlier
+    /// ResearcherResultCommitment. Set by `reveal_researcher_result`; every peer
+    /// checks both in validate() (issue #53, 2026-10-19) — until then a reveal had
+    /// no creation rule at all. The hash check itself still runs only in the
+    /// researcher's app: the nonce is never published.
+    pub validation_request_hash:    ActionHash,
+    pub researcher_commitment_hash: ActionHash,
 }
 
 /// DHT-persisted record of the current validation phase.
@@ -329,6 +336,11 @@ pub struct PhaseMarker {
     /// Inductive validation chain: PhaseMarker → CommitmentAnchor → ValidationRequest.
     /// Prevents any agent from forging a RevealOpen signal without having committed.
     pub commitment_anchor_hash: ActionHash,
+    /// EVERY committed validator's CommitmentAnchor (distinct validators, sorted).
+    /// Peers require at least `num_validators_required` distinct validators here
+    /// before accepting RevealOpen (issue #51, 2026-10-19). Until then a single
+    /// committed validator running a modified app could open the reveal early.
+    pub commitment_anchor_hashes: Vec<ActionHash>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1035,6 +1047,112 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "PhaseMarker author must be the validator named in the referenced \
                      CommitmentAnchor — only a committed validator may open the reveal phase".into()
                 ));
+            }
+            if anchor.request_ref != marker.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker.commitment_anchor_hash is for a different study".into()
+                ));
+            }
+            // #51: the marker must show that the whole cohort committed, not just
+            // its author. Each listed anchor is checked individually; validate()
+            // cannot count links, so the evidence travels in the entry.
+            if !marker.commitment_anchor_hashes.contains(&marker.commitment_anchor_hash) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "PhaseMarker.commitment_anchor_hashes must include the author's own anchor".into()
+                ));
+            }
+            let req_record = must_get_valid_record(anchor.validation_request_hash.clone())?;
+            let maybe_req: Option<ValidationRequest> = handle_error!(req_record.entry().to_app_option());
+            let req = match maybe_req {
+                Some(r) => r,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "CommitmentAnchor.validation_request_hash does not point to a ValidationRequest".into()
+                )),
+            };
+            let mut committed: std::collections::HashSet<AgentPubKey> = std::collections::HashSet::new();
+            for h in &marker.commitment_anchor_hashes {
+                let rec = must_get_valid_record(h.clone())?;
+                let maybe_a: Option<CommitmentAnchor> = rec.entry().to_app_option().ok().flatten();
+                let a = match maybe_a {
+                    Some(a) => a,
+                    None => return Ok(ValidateCallbackResult::Invalid(
+                        "PhaseMarker.commitment_anchor_hashes lists an entry that is not a CommitmentAnchor".into()
+                    )),
+                };
+                if a.request_ref != marker.request_ref
+                    || a.validation_request_hash != anchor.validation_request_hash
+                {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "PhaseMarker.commitment_anchor_hashes lists a commitment for a different study".into()
+                    ));
+                }
+                if &a.validator != rec.action().author() {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "PhaseMarker.commitment_anchor_hashes lists an anchor not authored by its validator".into()
+                    ));
+                }
+                committed.insert(a.validator);
+            }
+            if (committed.len() as u32) < (req.num_validators_required as u32) {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "PhaseMarker RevealOpen needs commitments from {} distinct validators; it lists {}",
+                    req.num_validators_required,
+                    committed.len(),
+                )));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- ResearcherReveal create: tied to the request and the researcher's own commitment (#53) ---
+        //
+        // The hash check (metrics + nonce against the commitment) can only run in the
+        // researcher's app: the nonce is never published. What peers CAN check is that
+        // the reveal names the real ValidationRequest and an earlier
+        // ResearcherResultCommitment for the same study, and — on a credentialed
+        // network — that the revealer made both. Dev bypass (empty issuer) skips only
+        // the author checks, mirroring reveal_researcher_result.
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::ResearcherReveal(ref reveal),
+            action,
+        }) => {
+            let c_rec = must_get_valid_record(reveal.researcher_commitment_hash.clone())?;
+            let maybe_c: Option<ResearcherResultCommitment> = c_rec.entry().to_app_option().ok().flatten();
+            let c = match maybe_c {
+                Some(c) => c,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "ResearcherReveal.researcher_commitment_hash does not point to a ResearcherResultCommitment".into()
+                )),
+            };
+            if c.request_ref != reveal.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ResearcherReveal.researcher_commitment_hash is a commitment for a different study".into()
+                ));
+            }
+            let r_rec = must_get_valid_record(reveal.validation_request_hash.clone())?;
+            let maybe_r: Option<ValidationRequest> = r_rec.entry().to_app_option().ok().flatten();
+            let r = match maybe_r {
+                Some(r) => r,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "ResearcherReveal.validation_request_hash does not point to a ValidationRequest".into()
+                )),
+            };
+            if r.data_hash != reveal.request_ref {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ResearcherReveal.validation_request_hash is for a different study".into()
+                ));
+            }
+            let props = DnaProperties::try_from_dna_properties()?;
+            if !props.authorized_joining_certificate_issuer.is_empty() {
+                if r_rec.action().author() != action.author() {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "Only the researcher who made the ValidationRequest may reveal its result".into()
+                    ));
+                }
+                if c_rec.action().author() != action.author() {
+                    return Ok(ValidateCallbackResult::Invalid(
+                        "ResearcherReveal must point to the revealer's own ResearcherResultCommitment".into()
+                    ));
+                }
             }
             Ok(ValidateCallbackResult::Valid)
         }
