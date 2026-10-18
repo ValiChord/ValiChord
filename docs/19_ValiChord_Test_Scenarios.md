@@ -1,7 +1,9 @@
 
 <div align="center">
-  <img src="../Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+  <img src="../Images/Valichord logo-standard v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
+
+> **Historical (specification from February 2026).** The Tryorama suite and `valichord/tests/` this describes were retired on 2026-08-03; integration tests are now sweettest (`valichord/sweettest_integration/`, see [doc 14](14_ValiChord_Integration_Tests.md)). The scenarios remain a valid statement of the trust guarantees; the TypeScript is no longer run.
 
 # Test Scenario Specification
 
