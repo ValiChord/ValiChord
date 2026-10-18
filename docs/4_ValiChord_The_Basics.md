@@ -38,7 +38,7 @@ The core of ValiChord can be understood without any technical background.
 
 Imagine three independent reviewers, each given the same study to examine. The traditional approach: they compare notes, discuss, and produce a joint verdict. The problem is obvious — whoever speaks first anchors the conversation. The last person to commit has seen everyone else's position and can adjust accordingly.
 
-ValiChord's approach: each reviewer writes their verdict on a piece of paper, seals it in an envelope, and hands it to a trusted neutral party. Once all envelopes are sealed, they are opened simultaneously. Nobody could see anyone else's verdict before committing to their own.
+ValiChord's approach: each reviewer writes their verdict on a piece of paper, seals it in an envelope, and hands it to a trusted neutral party. Only once every envelope is sealed can any of them be opened. Nobody could see anyone else's verdict before committing to their own.
 
 ValiChord implements this electronically with a cryptographic guarantee: it is mathematically impossible to alter a sealed verdict after the reveal begins, and mathematically impossible for one validator to see another's sealed verdict before committing their own. The envelope cannot be opened, replaced, or backdated. This guarantee holds even if a validator, the researcher, or ValiChord's own operators wanted to cheat.
 
@@ -54,12 +54,14 @@ Once all validators have revealed their findings — and the researcher has reve
 
 A Harmony Record is a permanent, publicly readable summary of what happened:
 
-- What was the outcome? (*Reproduced, Partially Reproduced, Failed to Reproduce*)
+- What was the outcome? (*Reproduced, Partially Reproduced, Failed to Reproduce, or Unable to Assess*)
 - How closely did the validators agree with each other?
-- How many validators participated, and what were their credentials?
-- Did the researcher's revealed values match what they committed to at submission?
+- How many validators were asked for, how many took part, and what kind of validator each one was (a person, an institution, or an automated tool)?
+- Each validator's own signed findings, so anyone can check the summary against them.
 
-The record is stored on a distributed network — not on a single server controlled by ValiChord or anyone else. Nobody can alter or delete it after it is written, including ValiChord's own operators. It is readable by anyone with a web browser, without an account or any technical infrastructure.
+The record is stored on a distributed network — not on a single server controlled by ValiChord or anyone else. Nobody can alter or delete it after it is written, including ValiChord's own operators. It is designed to be readable by anyone with a web browser, without an account or any technical infrastructure.
+
+The researcher's revealed values are published next to it. The network only accepts them if they match what the researcher sealed at submission.
 
 Critically, the Harmony Record preserves disagreement. If two validators reproduced the results and one did not, the record says exactly that. It does not average the findings away or produce a single binary verdict that discards the minority view. The full picture is preserved.
 
@@ -79,11 +81,13 @@ This precision matters. A claim that says "three credentialed independent valida
 
 ## Who the Validators Are
 
-Validators can be human researchers or AI agents — the protocol makes no distinction. A human computational scientist and an AI research agent participate in exactly the same way: they receive the study materials, form an independent assessment, seal it cryptographically, and reveal it when the phase opens. ValiChord has already demonstrated this with three Claude AI agents acting as validators in a live multi-node run, each committing and revealing independently with full hash verification.
+Validators can be human researchers or AI agents. A human computational scientist and an AI research agent go through exactly the same steps: they receive the study materials, form an independent assessment, seal it cryptographically, and reveal it when the phase opens. ValiChord has already demonstrated this with three Claude AI agents acting as validators in a live multi-node run, each committing and revealing independently with full hash verification.
 
 This matters for how ValiChord is likely to grow. AI validators can work faster, at lower cost, and at greater scale than human-only panels. Human validators bring domain judgement and accountability that AI cannot fully replicate. The most credible validation panels will often combine both — AI validators for speed and coverage, human validators for findings that require scientific interpretation.
 
-Every validator — human or AI — must hold a cryptographic credential issued by an authorised body (a journal, a funder, a professional body, or ValiChord itself). The credential is not a username and password — it is a mathematically signed proof that this participant is authorised to join the validation network. Without it, no node can participate at all, which eliminates anonymous or unaccountable validation and makes it structurally impossible to multiply influence by spinning up extra identities.
+Every validator — human or AI — must hold a cryptographic credential issued by an authorised body (a journal, a funder, a professional body, or ValiChord itself). The credential is not a username and password — it is a mathematically signed proof that this participant is authorised to join the validation network. Without it, no node can participate at all, which eliminates anonymous or unaccountable validation and makes it structurally impossible to multiply influence by spinning up extra identities. Every member of the network checks each newcomer's credential for themselves.
+
+There is one difference between the two kinds of validator. A human validator starts at the lowest experience tier and is meant to move up by completing rounds. An AI validator's tier is set by whoever issued its credential. Either way, nobody can award themselves a higher tier.
 
 ---
 
@@ -120,7 +124,7 @@ ValiChord's current focus is computational science. The architecture is designed
 
 ## What ValiChord Is Not
 
-**It is not a blockchain.** ValiChord is built on Holochain — an agent-centric distributed network where each participant maintains their own data locally, and only cryptographic proofs are shared across the network. There are no tokens, no miners, no global consensus mechanism, and no cryptocurrency of any kind. Researcher data never leaves the researcher's own environment. Validator findings never leave the validator's own environment. Only sealed commitments and revealed records travel to the shared network.
+**It is not a blockchain.** ValiChord is built on Holochain — an agent-centric distributed network where each participant maintains their own data locally, and only cryptographic proofs are shared across the network. There are no tokens, no miners, no global consensus mechanism, and no cryptocurrency of any kind. Researcher data never leaves the researcher's own environment. A validator's working files stay in the validator's own environment. Only sealed commitments, and later the revealed findings, travel to the shared network.
 
 **It is not a peer review replacement.** Peer review assesses whether science is worth publishing. ValiChord assesses whether a computational result can be independently reproduced. These are complementary functions. ValiChord sits alongside peer review, not in place of it.
 
@@ -136,5 +140,5 @@ ValiChord's current focus is computational science. The architecture is designed
 | [Vision & Architecture](1_ValiChord_Vision&Architecture.md) | The full case for why ValiChord matters and how it is designed |
 | [Governance Framework](2_ValiChord_Governance_Framework.md) | How ValiChord resists institutional capture and validator gaming |
 | [Harmony Records](10_Harmony_Records.md) | What the permanent record contains and why it matters |
-| [Why Holochain?](11_Why_Holochain?.md) | Plain English explanation of the network architecture and why it was chosen |
-| [Open Design Questions](6_ValiChord_Open_Design_Questions.md) | Sixteen unresolved questions ValiChord acknowledges openly |
+| [Why Holochain?](11_Why_Holochain.md) | Plain English explanation of the network architecture and why it was chosen |
+| [Open Design Questions](6_ValiChord_Open_Design_Questions.md) | Seventeen unresolved questions ValiChord acknowledges openly |
