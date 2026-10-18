@@ -13,7 +13,7 @@ def test_claim_to_metrics_encodes_committed_interval():
     metrics = cbr.claim_to_metrics(claim)
     assert metrics[0]["metric_name"] == "Q"
     assert metrics[0]["produced_value"] == repr(96.125)
-    # the committed interval is sealed in expected_value, on-chain & inspectable
+    # the committed interval is sealed in expected_value, published & inspectable
     assert "96.0" in metrics[0]["expected_value"] and "96.25" in metrics[0]["expected_value"]
     assert metrics[0]["within_tolerance"] is True
 

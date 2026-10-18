@@ -883,7 +883,7 @@ def _finish_protocol(
     if not harmony_record_hash:
         raise RuntimeError("HarmonyRecord was not written to the DHT")
 
-    # Outcome + agreement derived with the same logic as the on-chain
+    # Outcome + agreement derived with the same logic as the published
     # HarmonyRecord (shared_types::derive_*) via the shared helper, so the
     # display can never diverge from the record the skeptic fetches.
     outcomes  = [v["outcome"] for v in verdicts]

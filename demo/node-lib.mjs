@@ -173,7 +173,7 @@ export function externalHashFromB64(b64) {
 
 // ── /record numeric-convergence helpers (Unit 2) ────────────────────────────
 // numericMatch is a direct port of Python report_to_verdict.match_value:
-// produced_value/expected_value are String on-chain, so coerce before comparing.
+// produced_value/expected_value are String in the protocol entries, so coerce before comparing.
 // Inclusive bounds, NaN => false. A raw-string compare would render every row
 // OUTSIDE on the trustworthy surface.
 export function numericMatch(value, lower, upper) {

@@ -23,7 +23,7 @@ def derive_committed_claim(runs: list[dict], rel_tolerance: float = 0.001) -> di
     """runs: list of {question: numeric}. Returns {question: spec} where spec is
     {value, lower, upper, basis}. For >=2 runs with non-zero spread the bounds
     are the 95% prediction interval; otherwise an explicit +/- rel_tolerance
-    band (so the researcher always commits a concrete, on-chain interval)."""
+    band (so the researcher always commits a concrete, published interval)."""
     if not runs:
         raise ValueError("derive_committed_claim requires at least one run")
     questions = list(runs[0].keys())

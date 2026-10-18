@@ -442,6 +442,8 @@ Beyond science entirely, the same infrastructure could extend to any field where
 
 Each phase generates the evidence that shapes the next. The staged approach means ~£150K FEC (Phase 0) ensures that £1.9M of infrastructure investment is designed around empirical evidence rather than untested assumptions.
 
+> **Note (2026-10-19):** the £150K Phase 0 / £1.9M Phase 1 figures in this document are no longer the current plan. They are kept as the original reasoning; do not quote them as current figures.
+
 ### Economic Model
 
 ValiChord cannot specify precise costs or revenue at this stage because the foundational data doesn't exist — Phase 0 generates it. But the structural logic of who pays for what and when can be described honestly.
@@ -525,7 +527,7 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **Public demo host, not a service.** A public demo network (the "Oracle" host) runs around the clock, so Feynman or any other external system can call it. It is a demonstration deployment run by one person, not a supported service, and it is reinstalled from scratch whenever the Holochain version changes (the 0.7.1 upgrade is the next one; see `PROJECT_STATUS.md`).
 
-**No confirmed team.** The lead engineer role is unfilled. Shin Sakamoto, an independent Holochain application developer, has been identified as a target candidate but has not been formally recruited. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
+**No confirmed team.** The lead engineer role is unfilled. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
 
 **No confirmed partnerships.** University discussions (Cardiff and Swansea) are at an early stage. No letters of support have been secured. No institutional commitments exist beyond the Holochain Foundation's confirmation of technical feasibility.
 
@@ -577,7 +579,7 @@ The next step is to test it.
 - *ValiChord Technical Reference* — Architecture sketches for engineering discussion
 - *ValiChord Governance Framework* — Tiered governance from pilot to mature system
 - *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months) *(figures no longer current — see the note under Phases)*
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
 - *ValiChord × Feynman Integration* (`feynman_integration/INTEGRATION_VISION.md`) — How the Feynman AI research agent uses ValiChord, what's live, and what's next
 - *ValiChord × Nondominium Integration* (`nondominium_integration/INTEGRATION_VISION.md`) — Design for connecting ValiChord with Sensorica's open-value accounting framework

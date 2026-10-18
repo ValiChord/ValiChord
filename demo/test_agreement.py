@@ -3,7 +3,7 @@ outcome + agreement-level display.
 
 These mirror the Rust unit tests for shared_types::derive_agreement_level /
 derive_majority_outcome so the demo display can never drift from the authoritative
-on-chain HarmonyRecord. Pure functions — run instantly, no conductor:
+published HarmonyRecord. Pure functions — run instantly, no conductor:
 
     python3 demo/test_agreement.py
 """

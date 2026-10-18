@@ -10,7 +10,7 @@
  * Endpoints:
  *   GET  /health                   — liveness probe (no auth)
  *   POST /commit                   — profile + claim + receive_task + seal + extract nonce
- *   POST /reveal                   — submit_attestation (SHA-256 verified on-chain)
+ *   POST /reveal                   — submit_attestation (SHA-256 checked at reveal)
  *   POST /create-harmony-record    — check_and_create_harmony_record (governance DNA)
  *
  * State is held in memory keyed by external_hash_b64 (unique per demo run).
@@ -206,7 +206,7 @@ const server = createServer(async (req, res) => {
 
   // ── POST /reveal ────────────────────────────────────────────────────────────
   // Calls submit_attestation which recomputes SHA-256(msgpack(attestation) || nonce)
-  // on-chain and verifies it against CommitmentAnchor.commitment_hash.
+  // in the app's coordinator and verifies it against CommitmentAnchor.commitment_hash.
   //
   // Body:   { external_hash_b64 }
   // Returns { ok: true }

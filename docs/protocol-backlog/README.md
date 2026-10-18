@@ -70,6 +70,7 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 | 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No — **fixed 2026-08-22** |
 | 04 | Erasure obligations — for **validators**, not research subjects | Found 2026-08-22 | 🔴 | ⏸️ **Parked, with a direction to plan for** — anonymity as a per-deployment *option*. A leaning, not a decision |
 | 05 | Three public fields where typed content can expose a research subject | Found 2026-08-22 | 🟢 fix / 🔴 consequence | No |
+| 06 | `AgreementLevel` measures the reproduction rate, not agreement | Docs audit, 2026-10-18 | 🔴 | To rename/extend, yes — **decided 2026-10-19: document now, don't rename yet** |
 
 **01 and 02 both need an integrity-zome change**, so they should be scoped together and land in
 the same break rather than separately. **04's check is done and the item is parked on purpose** —

@@ -731,7 +731,7 @@ def finish_reveal_phase(claim: str, user_answer: str, job: dict, api_key: str,
         raise RuntimeError("HarmonyRecord was not written to the DHT")
 
     # Outcome + agreement_level are derived from the validator verdicts with the
-    # same logic as the on-chain HarmonyRecord (shared_types::derive_*), NOT from
+    # same logic as the published HarmonyRecord (shared_types::derive_*), NOT from
     # the free-form compare_answers adjudication — otherwise the label could
     # contradict the per-validator verdicts shown beside it (e.g. 3/3 Reproduced
     # displayed as "WithinTolerance"). compare_answers is kept only for its

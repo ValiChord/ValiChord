@@ -13,7 +13,7 @@ VERSION A is a PROTOCOL DEMONSTRATION with illustrative stand-in numbers — NOT
 three real physical builds. To produce Version B, edit `readings` in
 demo/pep_master_bundle.json (a single-file edit, no code change).
 
-What survives on-chain (confirmed against demo/validator-node.mjs + researcher-node.mjs):
+What is published (confirmed against demo/validator-node.mjs + researcher-node.mjs):
   - The researcher's shared reference metric vector  -> ResearcherReveal.metrics
   - Each validator's outcome + confidence            -> ValidationAttestation
   - For an all-`Reproduced` round, `Reproduced` is a UNIT variant with no content,
@@ -238,7 +238,7 @@ def _display(result: dict, bundle: dict):
         print(f"  {reading['name']} ({reading['location']}): "
               f"max deviation {float(reading['max_deviation_pct']):g}%  -> {v['outcome']}")
     print()
-    print("  What survives on-chain (Version A): each builder's OUTCOME + confidence.")
+    print("  What is published (Version A): each builder's OUTCOME + confidence.")
     print("  The per-builder deviation numbers above are display-only — for an")
     print("  all-Reproduced round the attestation outcome is a unit variant with no")
     print("  content, and key_metrics carries the shared researcher reference vector.")
