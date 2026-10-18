@@ -1,6 +1,23 @@
-<div align="center">
-<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/4%20DNA%20technical.png" alt="ValiChord 4-DNA Technical Architecture Diagram" width="900">
-</div>
+```mermaid
+flowchart LR
+    subgraph ME["One person's conductor (same agent key in every cell)"]
+        RR["researcher_repository<br/>private, one per researcher"]
+        VW["validator_workspace<br/>private, one per validator"]
+        ATT["attestation<br/>shared, credentialed membrane"]
+        GOV["governance<br/>shared, open join"]
+    end
+
+    RR -->|"publish_researcher_commitment<br/>(called by lock_researcher_result)"| ATT
+    VW -->|"notify_commitment_sealed<br/>(called by post_commit after seal)"| ATT
+    ATT -->|"check_and_create_harmony_record<br/>(after every submit_attestation)"| GOV
+    GOV -->|"reads back: attestations, cohort size,<br/>request, claims, validator certification"| ATT
+
+    ATT <-->|"gossip with other credentialed agents"| ATTNET(("attestation DHT"))
+    GOV <-->|"gossip with everyone"| GOVNET(("governance DHT"))
+    READERS["Public readers<br/>(HTTP Gateway, read-only functions)"] --> GOVNET
+```
+
+*The four DNAs and the calls between them, drawn from the code (2026-10-18). Source and notes: [DIAGRAMS.md §1](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom).*
 
 # ValiChord: Technical Architecture — Four-DNA Membrane Design
 
@@ -13,7 +30,7 @@
 
 ## Overview
 
-> 📐 **Diagrams drawn from the code (2026-10-18):** [the four DNAs and their cross-DNA calls](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom), [one round end to end](DIAGRAMS.md#2-one-validation-round-end-to-end), [what enforces what](DIAGRAMS.md#3-what-enforces-what), [the membranes](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna). The older `4 DNA technical.png` image is partly out of date: prefer these where they differ.
+> 📐 **Diagrams drawn from the code (2026-10-18):** [the four DNAs and their cross-DNA calls](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom), [one round end to end](DIAGRAMS.md#2-one-validation-round-end-to-end), [what enforces what](DIAGRAMS.md#3-what-enforces-what), [the membranes](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna).
 
 ValiChord is implemented as four Holochain DNAs. Each DNA defines a distinct peer-to-peer network with its own entry types, link types, validation rules, and membrane boundary. The four DNAs run simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls rather than cross-network messaging.
 

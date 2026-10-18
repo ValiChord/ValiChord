@@ -1,8 +1,23 @@
-<div align="center">
-<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
-</div>
+```mermaid
+flowchart TB
+    JOIN["An agent installs the ValiChord hApp"] --> ATTQ
+    JOIN --> GOVQ
+    JOIN --> PRIVQ
 
-> ⚠️ **The pictures in this document are illustrations, not accurate maps** (the DNAs are separate networks, not nested, and governance is the open one). For an accurate picture see [the membranes diagram](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna) and [the four DNAs](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom).
+    ATTQ{"attestation:<br/>is the issuer key empty?"}
+    ATTQ -->|"yes: dev or test network"| ATTOPEN["Anyone joins.<br/>No credential checked"]
+    ATTQ -->|"no"| CERT["check_joining_certificate"]
+    CERT --> C1["Membrane proof present and at least 64 bytes"]
+    C1 --> C2["Pick the issuer: AI uses ai_validator_issuer if set,<br/>otherwise the main issuer key"]
+    C2 --> C3["Issuer's signature over the joining agent's key<br/>plus certificate details is valid"]
+    C3 --> WHERE["Run three times: genesis_self_check (self, before joining),<br/>validate() by EVERY peer (the real guard),<br/>init() (self, first call)"]
+
+    GOVQ{"governance"} --> GOVOPEN["Open join: no membrane proof.<br/>Writes are gated instead (diagram 3)"]
+
+    PRIVQ{"researcher_repository<br/>and validator_workspace"} --> PRIVOPEN["No membrane check.<br/>Every entry is private, so peers never see the content"]
+```
+
+*Who may join each of the four networks, drawn from the code (2026-10-18). Notes: [DIAGRAMS.md §4](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna). The four are separate networks, not nested, and governance is the open one.*
 
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
 
@@ -68,9 +83,26 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **What it stores:** HarmonyRecord (the final validated outcome — immutable), ReproducibilityBadge (Gold / Silver / Bronze / Failed), ValidatorReputation, GovernanceDecision.
 
-<div align="center">
-<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/4%20membranes%20alt.jpeg" alt="The 4 DNA Membrane Architecture" width="800">
-</div>
+```mermaid
+flowchart LR
+    subgraph ME["One person's conductor (same agent key in every cell)"]
+        RR["researcher_repository<br/>private, one per researcher"]
+        VW["validator_workspace<br/>private, one per validator"]
+        ATT["attestation<br/>shared, credentialed membrane"]
+        GOV["governance<br/>shared, open join"]
+    end
+
+    RR -->|"publish_researcher_commitment<br/>(called by lock_researcher_result)"| ATT
+    VW -->|"notify_commitment_sealed<br/>(called by post_commit after seal)"| ATT
+    ATT -->|"check_and_create_harmony_record<br/>(after every submit_attestation)"| GOV
+    GOV -->|"reads back: attestations, cohort size,<br/>request, claims, validator certification"| ATT
+
+    ATT <-->|"gossip with other credentialed agents"| ATTNET(("attestation DHT"))
+    GOV <-->|"gossip with everyone"| GOVNET(("governance DHT"))
+    READERS["Public readers<br/>(HTTP Gateway, read-only functions)"] --> GOVNET
+```
+
+*How the four networks connect. Notes: [DIAGRAMS.md §1](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom).*
 
 ---
 
