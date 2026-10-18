@@ -65,6 +65,17 @@ reader cannot come to believe the format supplies something it does not.
 two unrelated claims. `content_hash` was defined for exactly this question — *"is this the same
 science?"*
 
+> ⚠️ **Correction, 2026-10-18 — the paragraph above is only half true.** `content_hash` removes
+> **`meta` only** (`canonical.content_preimage`). `generated_at` is a required **top-level** field
+> (`bundle.py`), and so are the optional `repo_commit`, `harness_version` and `command`, so all of
+> them **are** inside `content_hash`. Two submissions of the same claim therefore share a
+> `data_hash` only if they also carry the same `generated_at`, and by default `build_bundle` uses
+> the current time. As built, `data_hash` does **not** yet make "the same claim from two machines"
+> collide. Options, for a decision before step 2: pass a fixed `generated_at`, move run provenance
+> into `meta`, or define the claim preimage to exclude those top-level fields too (a format
+> change). The `content_hash` docstring in `canonical.py` ("reruns that may differ only in
+> provenance (commit, timestamp, command)") has the same flaw.
+
 ⚠️ **This promotes the `meta` trap from a library nicety to a property of the published record.** `meta` is
 excluded from `content_hash`, so anything placed there that could change a result is invisible to
 `data_hash`, and two materially different claims collide as one identifier — **permanently, on an
