@@ -1,0 +1,81 @@
+# Repack the committed .happ bundles from source, with the pinned Holochain.
+#
+# Why this exists (2026-10-17): the demo stack and Oracle do NOT compile
+# anything — Dockerfile.node copies valichord/workdir/*.happ as committed. Those
+# bundles go stale on every Holochain bump, and on the 0.7.1 bump there was no
+# `hc` on the machine doing the work (Windows; no Windows `hc` is used here).
+# This builds them in CI instead and uploads them as an artifact to commit.
+#
+# The sha256 lines it prints are the deployment gate: a server running the
+# right bundles has exactly these checksums in valichord/workdir/.
+# ⚠️ An earlier version also tried to print installed DNA hashes via
+# `hc sandbox call`, marked continue-on-error. That subcommand does not exist in
+# 0.7.1, so the step failed every time and still showed green — a check that
+# could not fail. Removed rather than kept as decoration.
+#
+# Run it: Actions → Repack bundles → Run workflow (or it runs when this file
+# changes). Then: gh run download <run-id> -n happ-bundles -D valichord/workdir
+name: Repack bundles
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/repack-bundles.yml'
+
+env:
+  HOLOCHAIN_VERSION: 0.7.1
+  KITSUNE2_VERSION: 0.5.1   # must match demo/Dockerfile.node
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + wasm32 target)
+        run: rustup toolchain install stable && rustup target add wasm32-unknown-unknown
+
+      - name: Download Holochain binaries
+        run: |
+          mkdir -p ~/.local/bin/hc-tools
+          BASE=https://github.com/holochain/holochain/releases/download/holochain-${HOLOCHAIN_VERSION}
+          for b in holochain hc lair-keystore kitsune2-bootstrap-srv; do
+            curl -fsSL $BASE/$b-x86_64-unknown-linux-gnu -o ~/.local/bin/hc-tools/$b
+          done
+          chmod +x ~/.local/bin/hc-tools/*
+          echo "$HOME/.local/bin/hc-tools" >> $GITHUB_PATH
+
+      # The same check Dockerfile.node runs at image build. If the version
+      # strings ever stop matching, the Oracle build fails at that RUN layer —
+      # better to find out here.
+      - name: Check binary versions match the Docker pins
+        run: |
+          holochain --version
+          kitsune2-bootstrap-srv --version
+          holochain --version              | grep -Fq " ${HOLOCHAIN_VERSION}"
+          kitsune2-bootstrap-srv --version | grep -Fq " ${KITSUNE2_VERSION}"
+
+      - name: Build WASM zomes and pack DNAs + all three hApps
+        working-directory: valichord
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          hc dna pack dnas/attestation            -o workdir/attestation.dna
+          hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
+          hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
+          hc dna pack dnas/governance             -o workdir/governance.dna
+          hc app pack .                           -o workdir/valichord.happ
+          hc app pack researcher                  -o workdir/researcher.happ
+          hc app pack validator                   -o workdir/validator.happ
+          sha256sum workdir/*.happ
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: happ-bundles
+          path: |
+            valichord/workdir/valichord.happ
+            valichord/workdir/researcher.happ
+            valichord/workdir/validator.happ
+          retention-days: 7

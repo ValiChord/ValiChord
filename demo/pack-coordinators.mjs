@@ -56,9 +56,9 @@ const COORDINATORS = [
 // It pins the conductor version the manifest is valid for, and the updater
 // refuses to apply a manifest whose pin does not match the running conductor,
 // so a stale value here fails closed rather than dangerously. Bumped with the
-// 0.7 migration. ⚠️ The auto-updater has NOT been re-rehearsed on 0.7 —
+// 0.7 migration, and to 0.7.1 on 2026-10-17. ⚠️ The auto-updater has NOT been re-rehearsed on 0.7 —
 // see Holochain_complete.md §44.8.
-const DEFAULT_HOLOCHAIN = '0.7.0';
+const DEFAULT_HOLOCHAIN = '0.7.1';
 const SCHEMA = 'valichord-coordinators-manifest/v1';
 
 // ── arg parsing ───────────────────────────────────────────────────────────────
