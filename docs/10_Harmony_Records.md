@@ -2,6 +2,8 @@
   <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Harmony%20Records.jpeg" width="800" alt="Harmony Record">
 </div>
 
+> ⚠️ **The image above is an illustrative mock-up**, not a real record (real Holochain hashes start `uhC…`, and the duration field is the longest single validator's time, not a total). How a record is actually created and checked: [one round](DIAGRAMS.md#2-one-validation-round-end-to-end) and [what enforces what](DIAGRAMS.md#3-what-enforces-what).
+
 # Harmony Records: The Permanent Verdict of Science
 
 **ValiChord's core output — and why it matters**

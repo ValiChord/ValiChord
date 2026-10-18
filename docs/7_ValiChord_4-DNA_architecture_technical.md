@@ -13,6 +13,8 @@
 
 ## Overview
 
+> 📐 **Diagrams drawn from the code (2026-10-18):** [the four DNAs and their cross-DNA calls](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom), [one round end to end](DIAGRAMS.md#2-one-validation-round-end-to-end), [what enforces what](DIAGRAMS.md#3-what-enforces-what), [the membranes](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna). The older `4 DNA technical.png` image is partly out of date: prefer these where they differ.
+
 ValiChord is implemented as four Holochain DNAs. Each DNA defines a distinct peer-to-peer network with its own entry types, link types, validation rules, and membrane boundary. The four DNAs run simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls rather than cross-network messaging.
 
 The architectural separation is not a design preference — it is the privacy and security model. Sensitive data is confined to single-agent private DNAs by structural impossibility of DHT propagation, not by policy. Until the reveal, only cryptographic hashes cross membrane boundaries. At reveal, each validator's attestation and the researcher's summary metrics are published on purpose; the dataset itself never is.

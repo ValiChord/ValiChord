@@ -2,6 +2,8 @@
 <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
 </div>
 
+> ⚠️ **The pictures in this document are illustrations, not accurate maps** (the DNAs are separate networks, not nested, and governance is the open one). For an accurate picture see [the membranes diagram](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna) and [the four DNAs](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom).
+
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
 
 ValiChord is built as a series of independent but connected "bubbles" (technically called DNAs) rather than a single monolithic program. Each bubble has its own membrane — a digital boundary that controls who can join the network and what information is allowed to leave. This ensures that sensitive research data stays private while the proof of the science becomes public.

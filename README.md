@@ -104,6 +104,8 @@ cd valichord-ui && npm run dev
 
 ## 🏗️ 4-DNA Membrane Architecture
 
+> 📐 **Current diagrams, drawn from the code:** [the four DNAs](docs/DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom), [what enforces what](docs/DIAGRAMS.md#3-what-enforces-what) and [the membranes](docs/DIAGRAMS.md#4-the-membranes-who-may-join-each-dna).
+
 ValiChord is built as four distinct Holochain DNAs — four separate peer-to-peer networks — ensuring absolute data sovereignty and GDPR compliance by architecture, not policy.
 
 | DNA | Purpose | Access Control |
@@ -191,6 +193,8 @@ What the tests prove, in brief:
 
 ---
 
+
+> 📐 **Step by step, with the real function names:** [one validation round, end to end](docs/DIAGRAMS.md#2-one-validation-round-end-to-end).
 ## 🔐 The Blind Commit-Reveal Protocol — Fully Symmetric (March 2026)
 
 > **This is the core anti-gaming guarantee that makes ValiChord different from every other reproducibility system.**

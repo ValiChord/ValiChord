@@ -10,6 +10,8 @@
 
 ## The Study
 
+> 📐 The pictures below are illustrations. For the exact sequence with real function names, see [one validation round, end to end](DIAGRAMS.md#2-one-validation-round-end-to-end).
+
 Dr. Sarah Chen has spent eighteen months developing a computational model of protein folding behaviour under oxidative stress. Her paper has been accepted for publication. The code is on GitHub. The data is archived. The reviewers were satisfied.
 
 But Sarah knows that "reviewers were satisfied" and "the results can be independently reproduced" are two different things. Peer review checked the logic of her methodology. Nobody has sat down with her code and data and actually run it.
