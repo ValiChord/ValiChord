@@ -1,5 +1,10 @@
 # Attestation → protocol bridge — build plan and decision record
 
+> **Status checked 2026-10-18: step 1 is on `main` (`828839f`, 2026-08-22); steps 2–4 have not
+> been started** — no commit has touched `valichord_attestation/protocol.py` since. The branch
+> named below was the working branch. The test count quoted is from 2026-08-22; see CI for the
+> current one.
+
 **Branch:** `integration/attestation-protocol-bridge`
 **Governed by:** `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`. Every decision below cites the
 precondition it satisfies.
@@ -60,7 +65,7 @@ reader cannot come to believe the format supplies something it does not.
 two unrelated claims. `content_hash` was defined for exactly this question — *"is this the same
 science?"*
 
-⚠️ **This promotes the `meta` trap from a library nicety to an on-chain property.** `meta` is
+⚠️ **This promotes the `meta` trap from a library nicety to a property of the published record.** `meta` is
 excluded from `content_hash`, so anything placed there that could change a result is invisible to
 `data_hash`, and two materially different claims collide as one identifier — **permanently, on an
 immutable record**. Backlog items 02–05 (judge configuration, rubric versions, thresholds,

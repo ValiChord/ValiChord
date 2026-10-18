@@ -1,5 +1,15 @@
 # Coordinator Auto-Updater Sidecar — Plan
 
+> **Note added 2026-10-18.** Built (Phases 1–3) and still opt-in, default OFF
+> (`demo/node-entrypoint.sh:81`). Rehearsed green again on Holochain 0.7.0 on 2026-08-02
+> (`PROJECT_STATUS.md`). The Status paragraph below describes the **old Oracle host
+> `152.67.153.149`** (now a dead 0.6.2 network) — "18 commits behind" and the 2026-07-08
+> hot-swap refer to that box. The current host `132.145.23.78` was built from `main` on
+> 2026-08-24, so it has the updater script; whether `AUTOUPDATE` was ever switched on there is not
+> recorded. `coordinators-rev-1` was packed for Holochain 0.6.2 and the updater refuses a manifest
+> whose Holochain version does not match the conductor, so a live rollout on 0.7.x needs a new
+> revision.
+
 **Status:** Phases 1–3 built + tested — 2026-07-23 (end-to-end rehearsal PASS on a real conductor;
 `coordinators-rev-1` published). Only the first live Oracle rollout remains — an ops step, not
 code, **but it is a container rebuild, not a config flip**: the Oracle clone is 18 commits behind
