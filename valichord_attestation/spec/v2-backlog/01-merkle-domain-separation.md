@@ -1,5 +1,7 @@
 # v2 backlog item: Merkle leaf/node domain separation
 
+> **CLOSED — shipped in format v2 on 2026-08-18** (label added 2026-10-18). This file is kept as the design record; any "Status", "open" or "proposed" below describes the time it was written. See [README.md](README.md).
+
 **Status:** Deferred from the 2026-07-05 security/efficiency audit (item 3 of "still deferred").
 **Blocks:** nothing — it is a `format_version` bump, not a fix to shipped bundles.
 **Related:** `02-odd-node-promotion.md` (same construction change, same release).

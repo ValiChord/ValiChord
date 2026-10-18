@@ -9,9 +9,9 @@ The system enables:
 - **Bounded-confidence fraud detection** — the verifier picks random samples; the probability of catching a misreport grows with the number of samples requested
 - **Deterministic cross-implementation comparison** — RFC 8785 (JCS) canonical encoding means two implementations in different languages produce byte-identical bundles for the same input
 
-v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 adds the probabilistic challenge-response. v1.2 (current) adds `Metric.filter` for multi-filter harnesses and `Bundle.meta` for provenance-aware comparison, together with a `content_hash` function for scientific-equivalence checks. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs. The probabilistic approach is a deliberate choice given current constraints on cryptographic proof systems — full rationale in [§11 of the spec](spec/attestation_format_v1.md#11-why-probabilistic-verification-instead-of-full-cryptographic-proofs).
+v1 ships the format spec, the Merkle commitment, and selective disclosure. v1.1 adds the probabilistic challenge-response. v1.2 adds `Metric.filter` for multi-filter harnesses and `Bundle.meta` for provenance-aware comparison, together with a `content_hash` function for scientific-equivalence checks. **v2 (current, package 2.0.0, 2026-08-18)** changes only the Merkle construction — RFC 6962 style with domain separation ([spec](spec/attestation_format_v2.md)); `build_bundle` writes v2, and v1.x bundles still verify. No format version carries a signature. Future work extends this with hardware-attested execution and zero-knowledge faithfulness proofs. The probabilistic approach is a deliberate choice given current constraints on cryptographic proof systems — full rationale in [§11 of the spec](spec/attestation_format_v1.md#11-why-probabilistic-verification-instead-of-full-cryptographic-proofs).
 
-The format is harness-agnostic. Adapters for specific harnesses (Inspect AI, lm-evaluation-harness, etc.) are thin converters written separately.
+The format is harness-agnostic. Adapters for specific harnesses are thin converters kept outside the core format; the package ships several in `valichord_attestation/adapters/` (Inspect AI logs, lm-evaluation-harness, AILuminate, W&B, pi sessions, and an Inspect Evals stub).
 
 Architectural context: this format was designed in response to Scott Simmons's review of [UKGovernmentBEIS/inspect_evals#1610](https://github.com/UKGovernmentBEIS/inspect_evals/pull/1610). The core feedback was that the canonical spec belongs in Valichord, not in each eval harness, and that the valuable attestation is not "I have the log file" but "this reported result is faithful to the run."
 
@@ -21,9 +21,16 @@ Architectural context: this format was designed in response to Scott Simmons's r
 
 A bundle in isolation is a **verifiable statement**: any reader can confirm the bundle's internal consistency (the Merkle root commits to the per-sample outputs; the canonical encoding is deterministic; the challenge-response succeeds against a holder of the log). But anyone could have produced the bundle — there is no built-in identity layer in the format itself.
 
-When a bundle is committed to a signed, append-only log — for example, Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`) — it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in a tamper-proof source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
+When a bundle is committed to a signed, append-only log — for example, Valichord's Holochain DNAs (`validator_workspace`, `attestation`, `governance`) — it becomes an **attested claim**: the commit is signed by the validator's Ed25519 keypair, recorded in a tamper-evident source chain, and witnessed by independent peers. At this point the bundle carries cryptographic non-repudiation: the validator cannot later deny they made the claim.
 
 The two layers are deliberately separable. The format is harness-agnostic and substrate-agnostic — useful in contexts beyond Valichord's protocol, and compatible with any signed-log infrastructure. Within Valichord's protocol, the signed-log layer adds the identity and witnessing properties that the format alone deliberately doesn't carry.
+
+> **Status (2026-10-18).** This library does not write to the Valichord DHT itself; it is a
+> separate, client-side on-ramp, and Valichord's protocol is the Holochain code in `valichord/`.
+> The one existing link: a validator's `ValidationAttestation` has an optional
+> `reproduction_bundle_hash` field for the bundle's `content_hash`, sealed into its commitment
+> (`valichord/shared_types/src/lib.rs`). Rules for any fuller integration are in
+> [`docs/PROTOCOL_INTEGRATION_BOUNDARY.md`](../docs/PROTOCOL_INTEGRATION_BOUNDARY.md).
 
 ---
 
@@ -62,7 +69,7 @@ From the `valichord_attestation/` directory:
 pip install -e .
 ```
 
-For development (includes pytest, coverage, and type-checking tools):
+For development (includes pytest and pytest-cov):
 
 ```bash
 pip install -e ".[dev]"
@@ -135,6 +142,8 @@ raw_metrics = [
 | **Use for** | Archival, challenge-response, DHT entries | Comparing reruns, asserting reproducibility |
 | **v1.1 bundles** | Unchanged — backward-compatible | Equals `bundle_hash` (no meta present) |
 
+⚠️ `generated_at` is a top-level field, not part of `meta`, so it **is** inside `content_hash` (and so are top-level `repo_commit`, `harness_version` and `command` if you pass them). Two reruns only share a `content_hash` if you pass the same `generated_at` to `build_bundle` — by default it is the current time. Put run-specific provenance in `meta`. *(Added 2026-10-18.)*
+
 ---
 
 ## Writing a harness adapter
@@ -205,9 +214,9 @@ The real-data demo (`mistral_7b_gsm8k_demo/`) exercises the full v1.1 protocol �
 
 ## Spec
 
-Full format specification: [`spec/attestation_format_v1.md`](spec/attestation_format_v1.md)
+Full format specification: [`spec/attestation_format_v1.md`](spec/attestation_format_v1.md), with the current Merkle construction in [`spec/attestation_format_v2.md`](spec/attestation_format_v2.md) and what a conforming implementation must do in [`spec/conformance.md`](spec/conformance.md).
 
-Covers: bundle schema, canonical encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, adapter interface, security considerations.
+The v1 spec covers: bundle schema, canonical encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, adapter interface, security considerations.
 
 ---
 

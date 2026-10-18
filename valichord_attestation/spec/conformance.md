@@ -71,6 +71,12 @@ science?* Two runs differing only in provenance share a `content_hash`; that exc
 deliberate and is the reason anything capable of changing a result MUST NOT be recorded only in
 `meta` (§4.1.9).
 
+> **Note, 2026-10-18.** "Differing only in provenance" means differing only in `meta`. The
+> required top-level `generated_at` is *not* in `meta`, so it is inside `content_hash`: two runs
+> share a `content_hash` only if they also carry the same `generated_at` (and the same top-level
+> `repo_commit`, `harness_version`, `command`, `prml_lock_hash` where present). See the
+> correction note in §4 of `attestation_format_v1.md`.
+
 **3.9 canonical encoding** — RFC 8785 (JCS), applied after the pre-rounding of §3.10.
 
 **3.10 pre-rounding** — the normalisation applied to numeric values *before* canonical encoding,

@@ -33,7 +33,7 @@ This directory tracks the changes that require a `format_version` bump to `"v2"`
 Each file is a proposal skeleton: problem, the v1.2 position, the proposed v2 direction,
 open questions.
 
-Section 12 of `spec/attestation_format_v1.md` is the rule that put them here:
+Section 7 (versioning policy) of `spec/attestation_format_v1.md` is the rule that put them here *(corrected 2026-10-18 from "Section 12")*:
 
 > **Breaking changes** (removing required fields, changing canonical encoding rules,
 > changing Merkle construction) MUST increment to `"v2"`.
