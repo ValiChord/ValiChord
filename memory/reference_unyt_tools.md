@@ -2,6 +2,8 @@
 
 Reference notes on tools from **Unyt** (`unytco`, [unyt.co](https://unyt.co) — Unyt Accounting LTD, decentralized cryptographic accounting on Holochain) that are relevant to ValiChord's roadmap. Referenced from `CLAUDE.md`. Last reviewed: 2026-06-13.
 
+> **Dated note (2026-10-18).** Version statements below ("our exact stack", "Holochain 0.6.1", "no version gap") reflect ValiChord on 2026-06-13. `main` is now on Holochain 0.7.1; the version gap with tauri-plugin-holochain and joining-service must be re-checked before adopting either. Third-party repo details are unre-verified since 2026-06-13.
+
 ## tauri-plugin-holochain — **now public** (was "not yet open-source")
 
 `unytco/tauri-plugin-holochain` is a public **fork of the canonical `darksoil-studio/tauri-plugin-holochain`** (darksoil-studio = Guillem Córdoba's studio, the maintaining home). Tagline: *"Ship cross-platform p2p apps."*
