@@ -32,6 +32,11 @@ because it is easy — including for the people who wrote them — to reach for 
 > complete normally. ⚠️ They also **moved host** in that rebuild; see the warning under
 > Option A. The free server-key tier that once funded the public demo has been **withdrawn**
 > — a user-supplied key is now required.
+>
+> **Update, 2026-10-18.** `main` is now on Holochain **0.7.1** (merged 2026-10-17) and its DNAs
+> changed again with PR #47, so a local Docker build (Option B) is a 0.7.1 network. The Oracle
+> nodes are **still on 0.7.0** until the fresh install in `docs/ORACLE_0.7.1_UPGRADE.md` is run;
+> that install starts a new network, and records written before it stop resolving.
 
 ---
 
@@ -46,7 +51,7 @@ Three independent Claude instances act as validators. **The validators are compl
 - Docker and Docker Compose
 - Python 3.8+
 - An Anthropic API key (`claude-sonnet-4-6` or better)
-- Linux x86_64 (the Holochain binary is auto-downloaded for this platform)
+- Linux x86_64 or aarch64 (the Holochain 0.7.1 and kitsune2-bootstrap-srv 0.5.1 binaries are auto-downloaded for either, see `Dockerfile.node`)
 
 > **Ubuntu 20.04 users:** `docker compose` (without a hyphen) requires a plugin not in Ubuntu 20.04's default repos. Either install docker-compose-plugin separately, or use the standalone `docker-compose` binary: `sudo apt-get install docker-compose`.
 
@@ -55,7 +60,7 @@ Three independent Claude instances act as validators. **The validators are compl
 A permanent instance of the 5-container stack runs on Oracle Cloud (132.145.23.78). The containers restart automatically after any reboot. You only need an Anthropic API key:
 
 > ⚠️ **Use `132.145.23.78`, not `152.67.153.149`.** Oracle moved host on 2026-08-24. The old
-> instance is still running and still returns a healthy `200` — but on Holochain 0.6.2, which is a
+> instance (152.67.153.149) is a dead network: as of 2026-08-25 it still returned a healthy `200` — but on Holochain 0.6.2, which is a
 > different DNA hash and therefore a **different network**. Pointing at it gives you a run that
 > looks entirely successful and writes a record onto a network nothing reads.
 
@@ -154,4 +159,4 @@ cd ..
 docker compose -f demo/docker-compose.yml up --build -d
 ```
 
-Requires: `cargo`, `wasm32-unknown-unknown` target, and `hc` CLI (`cargo install holochain_cli --version 0.6.1 --locked`).
+Requires: `cargo`, `wasm32-unknown-unknown` target, and the `hc` CLI **0.7.1** — CI downloads the `hc-x86_64-unknown-linux-gnu` binary from the `holochain-0.7.1` GitHub release (see `.github/workflows/repack-bundles.yml`). *(Corrected 2026-10-18: this line used to say `holochain_cli --version 0.6.1`, which packs for the wrong Holochain.)*
