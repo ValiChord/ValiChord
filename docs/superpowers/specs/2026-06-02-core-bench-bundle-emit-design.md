@@ -1,5 +1,7 @@
 # CORE-Bench bundle-emit — design
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 **Date:** 2026-06-02
 **Status:** Approved (brainstorming complete; ready for implementation plan)
 **Scope:** Bundle-emit feature only. Submitting bundles to EveryEvalEver (EEE) and drafting the GitHub issue are separate downstream tasks.

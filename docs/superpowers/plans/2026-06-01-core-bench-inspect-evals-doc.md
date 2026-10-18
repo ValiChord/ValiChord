@@ -1,5 +1,7 @@
 # Maintainer-facing CORE-Bench Doc — Implementation Plan
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Write `docs/CORE_BENCH_FOR_INSPECT_EVALS.md` — a thorough, respectful, in-repo doc for inspect_evals maintainers describing the CORE-Bench × ValiChord demo (what it does / doesn't yet do / what's needed / the gap it fills), plus a "reproduce it yourself" section that defaults to a local stack.

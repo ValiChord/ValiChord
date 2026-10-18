@@ -1,5 +1,7 @@
 # CORE-Bench × ValiChord CLI Demo — Implementation Plan
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A fully-local CLI demo that runs one real CORE-Bench capsule through ValiChord's blind commit-reveal protocol with three mixed-model AI validators, producing a HarmonyRecord whose replication verdict is decided by recomputable arithmetic, not LLM opinion.
