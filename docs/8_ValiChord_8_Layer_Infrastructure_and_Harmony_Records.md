@@ -3,7 +3,7 @@
 
 # ValiChord: Eight-Layer Infrastructure and Harmony Records
 
-ValiChord is an end-to-end system designed to address the reproducibility crisis by providing a tamper-evident, distributed engine for validating computational research. The core infrastructure is **built and integration-tested**: four Holochain DNAs, compiled to WebAssembly, with 80 passing integration tests including real multi-node network validation.
+ValiChord is an end-to-end system designed to address the reproducibility crisis by providing a tamper-evident, distributed engine for validating computational research. The core infrastructure is **built and integration-tested**: four Holochain DNAs (Holochain 0.7.1), compiled to WebAssembly, with Rust sweettest integration tests that run many validator agents against each other (see CI for the current count).
 
 ---
 
@@ -17,7 +17,7 @@ The system is organised into eight functional layers describing the lifecycle of
 
 The foundation. Research artefacts — code, data, protocols — are identified by unique cryptographic fingerprints (SHA-256 hashes). Every validator works from materials anchored to the same fingerprint. If a single byte changes, the fingerprint changes, making tampering immediately detectable.
 
-In the engineering implementation: hashes are computed in DNA 1 (Researcher Repository) and are the only thing that travels outward to the shared network.
+In the engineering implementation: hashes are computed in DNA 1 (Researcher Repository) and are the only thing that travels outward to the shared network before the reveal. At the reveal, the researcher publishes their summary result metrics; the data itself never leaves.
 
 ---
 
@@ -31,9 +31,9 @@ In the engineering implementation: `PreRegisteredProtocol` entries in DNA 1 are 
 
 ### L2 — Validation Execution Engine
 
-The core layer where independent, **credentialed** validators re-run computational code within their own isolated environments to verify the original findings. Validators are institutionally verified — anonymous or self-certified participation is architecturally impossible. Each validator works without knowledge of what other validators are finding.
+The core layer where independent, **credentialed** validators re-run computational code within their own isolated environments to verify the original findings. Every validator holds a credential signed by an authorised issuer (an institution for human validators; the ValiChord operator for AI validators) — anonymous or self-certified participation is architecturally impossible. Each validator works without knowledge of what other validators are finding.
 
-In the engineering implementation: DNA 2 (Validator Workspace) provides each validator with a private, single-agent environment. The blind commit-reveal protocol ensures independence. DNA 3 (Attestation) requires a cryptographic institutional credential (membrane proof) to join.
+In the engineering implementation: DNA 2 (Validator Workspace) provides each validator with a private, single-agent environment. The blind commit-reveal protocol ensures independence. DNA 3 (Attestation) requires a cryptographic credential (membrane proof) to join, and every peer checks it for themselves (since PR #47, October 2026).
 
 ---
 
@@ -41,7 +41,7 @@ In the engineering implementation: DNA 2 (Validator Workspace) provides each val
 
 Transforms individual validation results into structured, permanent trust signals. Once all validators have revealed their findings, this layer assembles them into a unified Harmony Record — capturing not just the outcome but the full pattern of agreement and disagreement.
 
-In the engineering implementation: `check_and_create_harmony_record` in DNA 4 (Governance) retrieves all attestations and calculates consensus outcome and agreement level. The resulting `HarmonyRecord` is immutable once written.
+In the engineering implementation: `check_and_create_harmony_record` in DNA 4 (Governance) retrieves all attestations and calculates the majority outcome and agreement level. The resulting `HarmonyRecord` carries every validator's signed attestation, every peer checks that its summary matches them, and it is immutable once written.
 
 ---
 
@@ -61,7 +61,7 @@ In the engineering implementation: `CommitmentAnchor`, `PhaseMarker`, `Validatio
 
 Manages multi-dimensional reputation scores for validators, rewarding quality, consistency, and honesty over time. Validator contributions are attributed using the CRediT taxonomy, creating a legitimate career record for validation work. This layer is designed to make validation a recognised professional activity, not an invisible service.
 
-In the engineering implementation: `ValidatorReputation` in DNA 4 tracks validation history, agreement rates, and discipline coverage. Full cumulative reputation progression is deferred to Phase 1.
+In the engineering implementation: `ValidatorReputation` in DNA 4 tracks validation history, agreement rates, and discipline coverage. Full cumulative reputation progression is deferred to Phase 1 (who writes reputation records in production is still undecided). CRediT attribution is a design intention, not yet built.
 
 ---
 
@@ -71,7 +71,7 @@ Oversees system-wide standards, disciplinary rules, and the evolution of the pro
 
 The full governance philosophy — including explicit mechanisms against domestication — is documented in the [Governance Framework](2_ValiChord_Governance_Framework.md), published as a Zenodo preprint: [10.5281/zenodo.18878108](https://doi.org/10.5281/zenodo.18878108).
 
-In the engineering implementation: `GovernanceDecision` entries in DNA 4 are immutable and gated by `system_coordinator_key` in DNA properties — governance decisions represent human deliberation outcomes and require a designated recorder. `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` writes are open to any participant — no designated key required. This decentralisation means any validator who participated in a round can trigger finalisation without a central coordinator node.
+In the engineering implementation: `GovernanceDecision` entries in DNA 4 are immutable and gated by `system_coordinator_key` in DNA properties — governance decisions represent human deliberation outcomes and require a designated recorder. `ValidatorReputation` is gated by the same key. `HarmonyRecord` and `ReproducibilityBadge` need no designated key: any validator who took part in a round can write them, and every peer checks them against the validators' own signed attestations. This means finalisation does not depend on a central coordinator node.
 
 ---
 
@@ -92,12 +92,12 @@ Unlike traditional binary "pass/fail" metrics, a Harmony Record preserves the fu
 A completed Harmony Record contains:
 
 - **Study reference** — a cryptographic hash anchoring the record to the exact materials that were validated
-- **Outcome** — the consensus finding (Reproduced, PartiallyReproduced, NotReproduced, FailedToReproduce, UnableToAssess)
-- **Agreement level** — how closely validators agreed (ExactMatch, WithinTolerance, DirectionalMatch, Divergent)
-- **Participating validators** — who validated, identified by their verified institutional credentials
-- **Validation duration** — collective time invested
-- **Divergent findings** — explicitly documented where validators reached different conclusions, never averaged away
-- **Reproducibility Badge** — Gold, Silver, Bronze, or Failed, issued automatically based on validator count and agreement threshold
+- **Outcome** — the majority finding (Reproduced, PartiallyReproduced, FailedToReproduce, UnableToAssess)
+- **Agreement level** — how closely validators agreed (ExactMatch, WithinTolerance, DirectionalMatch, Divergent, UnableToAssess)
+- **Participating validators** — who validated, identified by their public keys (each one admitted by a verified credential), and how many validators were requested
+- **Validation duration** — the longest time any one validator spent
+- **Each validator's own findings** — carried in the record with their signature, so where validators reached different conclusions it is visible, never averaged away
+- **Reproducibility Badge** — Gold, Silver, Bronze, or Failed, a separate entry issued automatically from validator count and agreement level (the thresholds are placeholders, to be calibrated with real data)
 
 The record is permanent and immutable the moment it is written to the public DHT. It cannot be altered or deleted by anyone.
 
