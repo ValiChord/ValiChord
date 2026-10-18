@@ -206,6 +206,8 @@ python examples/challenge_response_demo.py
 python examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
 ```
 
+⚠️ *(2026-10-18)* The committed demo `bundle.json` files are format v1, and the demo script builds its response under the library default (v2), so the last command above is expected to fail as written; `bash examples/mistral_7b_gsm8k_demo/verify_demo.sh` rebuilds the bundle first. See the note in that demo's README.
+
 The synthetic examples contain GSM8K-shaped and agentdojo-shaped bundles with pre-computed inclusion proofs. `verify_examples.py` recomputes bundle hashes and Merkle roots from scratch.
 
 The real-data demo (`mistral_7b_gsm8k_demo/`) exercises the full v1.1 protocol — `samples_total=100` declared explicitly, k=20 challenge-response, tamper detection — against a committed `bundle.json`. The bundle ships with simulated fixture data so the demo runs without a GPU. Run `run_eval.sh` on a GPU and re-run `build_bundle.py --output-path ./eval_output` to replace it with real eval output. See [`examples/mistral_7b_gsm8k_demo/README.md`](examples/mistral_7b_gsm8k_demo/README.md) for full instructions.
