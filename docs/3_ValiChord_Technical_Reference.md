@@ -2426,7 +2426,7 @@ pub fn submit_verdict(input: AttestationRevealInput) -> ExternResult<ActionHash>
 
 ## Frontend — `valichord-ui`
 
-**Status: Complete (v0.4.2, April 2026).** A Svelte 5 + TypeScript single-page application that connects directly to a running Holochain conductor via `AppWebsocket` over WebSocket — no intermediary server required.
+**Status: working, developer-stage (v0.4.2 as built April 2026; see `valichord-ui/FRONTEND.md` for current state).** A Svelte 5 + TypeScript single-page application that connects directly to a running Holochain conductor via `AppWebsocket` over WebSocket — no intermediary server required.
 
 ### Tech Stack
 
