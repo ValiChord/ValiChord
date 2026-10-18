@@ -102,7 +102,7 @@ Recorded in advance, because a precondition is only real if it can halt work alr
 
 - Any step requiring a **new entry type or integrity-zome change** (§3.1).
 - Any step requiring the protocol to **parse a bundle** (§3.2).
-- Any step putting **bundle content, rather than a digest, on DNA 1 or DNA 4** (§3.3).
+- Any step putting **bundle content, rather than a digest, on DNA 3 or DNA 4** (§3.3; this said "DNA 1" until 2026-10-18 — attestation is DNA 3).
 - Any step where a value's **asserted/observed status cannot be stated**, or where a guarantee
   cannot be attributed to a named layer (§3.4).
 

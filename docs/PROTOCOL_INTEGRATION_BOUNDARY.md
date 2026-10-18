@@ -87,8 +87,9 @@ be enforced in constant time and constant memory, it does not belong in an integ
 
 ### 3.3 Integration payload *content* MUST NOT be written to a public DHT — digests only
 
-**The failure this prevents.** DNA 1 (`attestation`) and DNA 4 (`governance`) are **public and
-permanent**. Nothing written there can be redacted, and Holochain has no delete that removes data
+**The failure this prevents.** DNA 3 (`attestation`) and DNA 4 (`governance`) are **public and
+permanent**. *(Corrected 2026-10-18: this said "DNA 1 (`attestation`)"; attestation is DNA 3,
+and DNA 1 is the private `researcher_repository`.)* Nothing written there can be redacted, and Holochain has no delete that removes data
 from peers who already hold it.
 
 Integration payloads routinely carry free-form provenance authored by tooling rather than by a
@@ -167,10 +168,16 @@ having been built**, and it is worth recording why, because it is the shape to c
 
 Nothing further is wired, **nobody has asked for a bridge**, and none is proposed here.
 
+> **Update 2026-10-18.** A bridge was started the same day, under these rules:
+> [`ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`](ATTESTATION_PROTOCOL_BRIDGE_PLAN.md). Only its step 1
+> exists — library-side functions in `valichord_attestation/protocol.py` that compute the digests
+> the protocol already accepts. No Rust, DNA or entry type changed, and steps 2–4 are not started,
+> so the protocol side is still as described above.
+
 ⚠️ **One consequence of §3.1 deserves stating on its own.** The attestation format's late arrival
 at the DHT was luck, not judgement, and it was worth a great deal. Format v1's Merkle construction
 produced the same root for `[A, B, C]` and `[A, B, C, C]` — a root did not uniquely identify its
 leaf list. **Had bundles been on the DHT during v1, every one of those ambiguous roots would now
 sit on a permanent, immutable record**, and shipping v2 would not have fixed a single one of them.
-A format bug is cheap while it is off-chain and permanent the moment it is not. **Let a format
+A format bug is cheap while it is off the DHT and permanent the moment it is not. **Let a format
 settle before binding it to something immutable.**
