@@ -4,6 +4,13 @@
 holds the background (why this is a rebuild, failure modes, risks). Read that once; this file
 carries only what is different.
 
+**Updated 2026-10-18 after PR #47 merged.** #47 changed the integrity zomes of the attestation and
+governance DNAs: peers now check joining credentials (#37), a HarmonyRecord's signed attestation
+evidence (#11) and validator tiers (#8). That is a second DNA-hash change on top of 0.7.1's, so the
+bundles were repacked and the checksums below replaced. **This one install pays for both** —
+which is why it was held back until #47 landed. ⚠️ If any other integrity change merges before the
+install, repack and update the checksums again first.
+
 ## What is different from the 0.7.0 runbook
 
 | | 0.7.0 (2026-08-24) | 0.7.1 (this) |
@@ -11,7 +18,7 @@ carries only what is different.
 | Host | `132.145.23.78` (that runbook still names the old `152.67.153.149` — ignore it) | same |
 | Access | SSH as `opc`, key `~/.ssh/valichord_oracle` | same |
 | Docker pins | `HOLOCHAIN_VERSION=0.7.0`, `KITSUNE2_VERSION=0.5.0` | **`0.7.1`, `0.5.1`** |
-| Bundles | packed 2026-08-03 | **packed in CI 2026-10-17**, run `39059468490` (`repack-bundles.yml`) |
+| Bundles | packed 2026-08-03 | **packed in CI 2026-10-18**, run `39132429337` (`repack-bundles.yml`), from `a7b2a0a` — after #47 |
 | Gate | DNA-hash table | **sha256 of the bundle files** (below), then record the DNA hashes |
 
 ⚠️ **kitsune2-bootstrap-srv is 0.5.1, not 0.5.2.** The kitsune2 *library* crates resolve to 0.5.2,
@@ -55,9 +62,9 @@ sha256sum "$R"/valichord/workdir/*.happ
 The checksums must be **exactly**:
 
 ```
-602506bdbb177477ac64bdae961f5339459a14f96914107cfe06e935b38450bb  researcher.happ
-10d88b7b87e4332bff5cb684f4a209897a70bf1e72ae982bf01be16c181b01cc  valichord.happ
-4903e8c3dd1e7752068cb2a59f1d593b1c3a1d85e9d4d17d79917c47c2e0b501  validator.happ
+1cfffbed1d24099559406ba0c2be493d694211aff20e6610500aa4add4e4a15b  researcher.happ
+67fe1f8e74f01c1cdd0f904275cdb37d8c1a57f32ac405965413acfc864904ed  valichord.happ
+e824961f66ae48aef2120491cdfc55d92cea0dd92c26e70690769da6b194c3af  validator.happ
 ```
 
 Any difference means the pull did not land or the files were changed on the server. **Stop.**

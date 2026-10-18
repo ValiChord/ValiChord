@@ -73,6 +73,17 @@ still serves the 0.7.0 network, and its records still resolve, until the reinsta
   bundles** workflow, because there is no `hc` on the Windows machine. That run also checked the
   binary version strings the Docker build greps for. Checksums are in the runbook.
 
+**Also merged before the reinstall (2026-10-18): PR #47**, on purpose, so one install pays for
+both breaks. It changes the attestation and governance integrity zomes: every peer now checks
+joining credentials (#37 — they were checked only by the joining agent's own `init()`), a
+HarmonyRecord must carry its validators' signed attestations and match them, including the cohort
+size so a subset cannot pass as complete (#11), and a ValidatorProfile's tier must be the one its
+issuer granted (#8 — any validator could previously self-assign `Certified`, and an AI validator's
+granted tier was never read). Bundles repacked after it (run `39132429337`); the runbook carries
+the new checksums. PR #48 set the demo validator node's `agent_type` to `AutomatedTool`.
+Still Ceri's decisions: who writes `ValidatorReputation` in production (human progression only),
+and whether a timed-out HarmonyRecord carrying fewer attestations than requested may earn a badge.
+
 **What is left:**
 
 1. 🔴 **Oracle fresh install — needs Ceri.** Runbook: **`docs/ORACLE_0.7.1_UPGRADE.md`**. Claude's
