@@ -170,7 +170,7 @@ valichord-ui/               — Svelte 5 + TypeScript browser UI
 └── FRONTEND.md             — UX walkthrough and setup guide
 ```
 
-**159 automated tests across three suites (117 Rust sweettest, 36 Rust unit, 6 Playwright browser e2e) — all running in CI, none skipped.** The system is also integration-ready: a small REST API ([`backend/app_protocol.py`](backend/README.md) — `POST /attest`, `GET /health`) lets a validator submit a verdict that runs the commit-reveal protocol on a Holochain network and returns a HarmonyRecord, and a working HTTP Gateway exposes Harmony Records as publicly verifiable links. The API supports optional API key authentication and has an [OpenAPI 3.0 spec](backend/openapi_protocol.yaml), served at `GET /openapi.yaml` with Swagger UI at `GET /docs`. Any tool that can make an HTTP request can integrate.
+**159 automated tests across three suites (117 Rust sweettest, 36 Rust unit, 6 Playwright browser e2e) — all running in CI, none skipped.** Harmony Records are publicly readable over plain HTTP: each demo node serves them at `GET /record?hash=…` (the curl command the web demo prints). The earlier Holochain HTTP Gateway deployment was retired in July 2026. A small validator REST API, [`backend/app_protocol.py`](backend/README.md) (`POST /attest`, with an [OpenAPI 3.0 spec](backend/openapi_protocol.yaml)), exists in the repo but ⚠️ **does not currently start** — it imports a bridge module that was removed in April 2026 (see [`backend/README.md`](backend/README.md)).
 
 > **ValiChord has been demonstrated running as a real multi-node network.** Integration tests launch up to 7 independent Holochain conductors — each with its own agent identity, source chain, and DHT participation — executing the full blind commit-reveal protocol and producing a Harmony Record on a shared live DHT. This is not a simulation: each conductor is an independent process with separate state, communicating over a real peer-to-peer network. The constraint is infrastructure RAM, not architecture.
 
@@ -384,8 +384,8 @@ python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_respo
 | Document | Description |
 | :--- | :--- |
 | [Deployment Checklist](https://github.com/ValiChord/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) | All DNA properties, dev/test bypass values, production requirements, and misconfiguration failure modes |
-| [Integration Guide](https://github.com/ValiChord/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide for any tool — curl, Python, TypeScript examples, webhooks |
-| [OpenAPI 3.0 Spec](https://github.com/ValiChord/ValiChord/blob/main/backend/openapi_protocol.yaml) | Machine-readable spec for the protocol API (`backend/app_protocol.py`); served live at `GET /openapi.yaml` |
+| [Integration Guide](https://github.com/ValiChord/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide — ⚠️ written for the `/validate` + webhooks API, which left with [ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home) in April 2026 |
+| [OpenAPI 3.0 Spec](https://github.com/ValiChord/ValiChord/blob/main/backend/openapi_protocol.yaml) | Machine-readable spec for the protocol API (`backend/app_protocol.py`); served at `GET /openapi.yaml` when that API runs |
 | [Attestation Format Spec](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md) ([v2 changes](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v2.md)) | Canonical attestation bundle format for AI evaluation runs — schema, Merkle construction, encoding rules |
 | [Nondominium Integration Vision](https://github.com/ValiChord/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
 | [Nondominium Integration Status](https://github.com/ValiChord/ValiChord/blob/main/nondominium_integration/README.md) | Status and open design decisions |
@@ -464,7 +464,7 @@ pkill -x holochain; pkill -x lair-keystore; sleep 2   # -x, never -f: -f matches
 | :--- | :--- | :--- |
 | **Phase 0** | **Workload Discovery:** Empirical study to quantify the true cost of validation — how long it takes, what makes it difficult, what it costs. | **Seeking funding / may be superseded by direct project engagement.** |
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI browser-tested on Holochain 0.7.1 (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
-| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Protocol REST API (`backend/app_protocol.py`): optional API keys, OpenAPI spec, Swagger UI. HTTP Gateway working. Nondominium integration in design.** |
+| **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Records readable over HTTP from the demo nodes (`/record?hash=…`). Validator REST API (`backend/app_protocol.py`) needs repair before use. Nondominium integration in design.** |
 
 Probabilistic challenge-response is shipped in `valichord_attestation` (format v2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
 
