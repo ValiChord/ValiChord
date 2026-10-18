@@ -14,7 +14,7 @@ A note on pace and expectations: this is an early, small project, currently main
 ## What we ask
 - **Open an issue first** for anything beyond a small fix, so we can agree the approach before you invest time.
 - **Keep changes focused** — one concern per pull request.
-- **Include tests** where it makes sense, and make sure existing tests pass.
+- **Include tests** where it makes sense, and make sure existing tests pass. How to run each suite is in [`TESTING.md`](TESTING.md) (integration tests are sweettest, in `valichord/sweettest_integration/`).
 - **Write it so a person can read it.** Clear, genuine, human-understood contributions — not auto-generated bulk. Quality and intelligibility matter more than volume.
 
 ## How to contribute

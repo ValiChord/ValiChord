@@ -12,10 +12,10 @@ For the full UX walkthrough, type mapping, and architecture notes see [FRONTEND.
 
 ### Prerequisites
 
-- Node.js 18+
-- Holochain 0.6.1 on your PATH — install via `cargo install holochain --version 0.6.1 --locked`
+- Node.js 20.19+ (or 22.12+) — required by Vite 8; CI uses Node 22
+- Holochain 0.7.1 on your PATH (the version `main` is built against) — install via `cargo install holochain --version 0.7.1 --locked`. `dev-conductor.yaml` uses 0.7-only config, so an older conductor cannot start it; set `HOLOCHAIN_BIN=/path/to/holochain` if PATH holds a different version
 - Holochain CLI (`hc`) on your PATH — install via `cargo install holochain_cli --locked`
-- `valichord/workdir/valichord.happ` built (see `valichord/tests/README.md`)
+- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing.md`, or the root README Quickstart; `dev.sh` prints the commands if the file is missing)
 
 ### Terminal 1 — conductor
 
@@ -130,7 +130,7 @@ Conductor data lives in `/tmp/valichord-dev-data` and is wiped each time `dev.sh
 valichord-ui/
 ├── dev.sh                  # start script (conductor + setup)
 ├── dev-conductor.yaml      # conductor config (admin :4444, in-proc lair, /tmp data)
-│                           # relay_url required for Holochain 0.6.1 iroh/QUIC transport
+│                           # relay_url required (iroh/QUIC transport); 0.7 config, see header comments
 ├── dev-setup.mjs           # Node.js: install app, issue token, write .env.local
 ├── vite.config.ts          # Vite config; includes /hc-ws → ws://localhost:8888 WS proxy
 ├── public/

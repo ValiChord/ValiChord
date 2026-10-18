@@ -1,8 +1,8 @@
 # ValiChord UI — Frontend Guide
 
-**Version:** 0.5.0 — May 2026  
+**Version:** 0.5.0 — May 2026 (setup/version text re-checked 2026-10-18; the UI screens below were last written for 0.6.x — see "Known gaps")  
 **Stack:** Svelte 5 + TypeScript + Vite 8  
-**Connects to:** Holochain 0.6.1 conductor (local or Launcher) via WebSocket
+**Connects to:** Holochain 0.7.1 conductor (local or Launcher) via WebSocket
 
 ---
 
@@ -10,9 +10,9 @@
 
 ### Prerequisites
 
-- Node.js 18+
-- Holochain CLI on your PATH — `cargo install holochain_cli --locked`
-- `valichord/workdir/valichord.happ` built (see `valichord/tests/README.md`)
+- Node.js 20.19+ (or 22.12+) — required by Vite 8
+- Holochain 0.7.1 and the Holochain CLI on your PATH — `cargo install holochain --version 0.7.1 --locked` and `cargo install holochain_cli --locked`
+- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing.md`, or the root README Quickstart)
 
 ### Local dev — two terminals
 
@@ -164,7 +164,7 @@ Fill in:
 - **Institution** — your organisation name
 - **ORCID** — optional; your researcher identifier
 - **Disciplines** — select all disciplines you can validate
-- **Certification tier** — `Provisional`, `Standard`, `Advanced`, or `Certified` (your current accreditation level)
+- (There is no certification-tier field: `ValidatorView.svelte` always sends `Provisional`. See "Known gaps".)
 - **Agent type** — `Individual`, `Institution`, or `AutomatedTool`
 - **Maximum concurrent tasks** — how many studies you can work on simultaneously
 - **Available** — toggle on to appear in the validator pool
@@ -242,7 +242,7 @@ Select a discipline from the dropdown and click **Load records**. This calls `ge
 
 Each record card shows:
 - Agreement level and outcome
-- Inferred badge: **Gold** (≥7 exact matches), **Silver** (≥5 exact/within-tolerance), **Bronze** (≥3 positive), **Failed** (≥3 divergent/unable-to-assess)
+- Inferred badge, worked out in the browser by `inferBadge()` in `GovernanceView.svelte` (it mirrors `evaluate_badge`; the thresholds are **placeholders to be calibrated with real data**, not statistically justified): **Gold** (≥7 validators, exact match), **Silver** (≥5, exact/within-tolerance), **Bronze** (≥3, any positive), **Failed** (≥3, divergent/unable-to-assess)
 - Validator count and type breakdown (Individual / Institution / AutomatedTool)
 - Round duration
 
@@ -272,9 +272,9 @@ browser  →  wss://<codespace>/hc-ws  →  Vite proxy  →  ws://localhost:8888
 
 In Holochain Launcher, `APP_PORT` is injected via the URL hash and `resolveWsUrl()` returns `ws://localhost:<port>` as before — the proxy is not involved.
 
-### Holochain 0.6.1 — `relay_url` required
+### Conductor network config (`relay_url`, 0.7 syntax)
 
-Holochain 0.6.1 switched from tx5/WebRTC to iroh/QUIC transport. The `NetworkConfig` YAML now requires a `relay_url` field (a non-null URL string). `dev-conductor.yaml` sets it to the Holochain dev relay server. Running without it causes the conductor to crash with `ENXIO` during network initialisation.
+Since Holochain 0.6.1 the transport is iroh/QUIC and `NetworkConfig` requires a `relay_url` (a non-null URL string); without it the conductor crashed with `ENXIO` at network start. `dev-conductor.yaml` sets it to the Holochain dev relay server. On 0.7 the old `signal_url` field is rejected (the conductor exits 42) and `db_sync_strategy` became `db_sync_level`; the header comments in `dev-conductor.yaml` record this.
 
 ### Zome name map
 
@@ -339,3 +339,10 @@ await AppWebsocket.connect({ url: new URL(`ws://localhost:${port}`) });
 ```
 
 A plain string will cause a type error at connection time.
+
+---
+
+## Known gaps (checked against the code, 2026-10-18)
+
+- **No joining certificate in the profile form.** Since PR #47 (v0.6.6), a network that has an issuer key set requires every ValidatorProfile to carry a `joining_certificate` and a `certification_tier` equal to what it grants. `ValidatorProfile` in `src/lib/types.ts` has no `joining_certificate` field and the form hard-codes `Provisional`, so this UI only works against the dev-bypass install that `dev.sh` and the e2e suite use. It has not been tried against a credentialed network.
+- **Badge shown on the Governance tab is computed client-side** from the record's validator count and agreement level, not read from a stored `ReproducibilityBadge`.
