@@ -15,7 +15,7 @@
 | Holochain | `main` on **0.7.1**; Oracle (`132.145.23.78`) **still on 0.7.0** — fresh install pending, runbook written | 2026-10-17 |
 | `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 608 tests, 97% coverage | 2026-08-22 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Main's CI on that commit was still running at publish time | 2026-10-18 |
+| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`) | 2026-10-18 |
 | Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt); open PRs `feat/local-model-validators` (#35), `docs/oracle-status-current` (#36); in-flight `fix/cma-custom-runner-conformance`, `fix/cma-validator-api-conformance`; unreviewed `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-08-25 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
