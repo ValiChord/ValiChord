@@ -22,20 +22,22 @@ She submits her study to ValiChord.
 
 Sarah opens her Researcher Repository — her private, local ValiChord workspace. Nothing she stores here will ever leave her machine. She registers her study, uploads her pre-registered protocol (which is immediately locked and immutable — she cannot change it after this point), and takes a verified snapshot of her dataset.
 
-ValiChord does not store any of this. It computes a SHA-256 cryptographic fingerprint — a 39-byte hash — of her data. That fingerprint, and only that fingerprint, will travel to the shared network. Sarah's proprietary data stays exactly where it is.
+ValiChord does not store any of this. It computes a SHA-256 cryptographic fingerprint of her data (carried as a 39-byte Holochain hash). That fingerprint, and only that fingerprint, will travel to the shared network. Sarah's proprietary data stays exactly where it is.
 
-She submits a Validation Request to the shared network, attaching the fingerprint, specifying her discipline (Computational Biology), and indicating the number of validators required. The request appears on the shared network — visible to credentialed validators in her field.
+She submits a Validation Request to the shared network, attaching the fingerprint, specifying her discipline (Computational Biology), and indicating the number of validators required (she chooses three; each study sets its own number, which must not be below the network's minimum). The request appears on the shared network — visible to credentialed validators in her field.
 
-There is one more step that happens at submission, invisible to the validators: Sarah **locks her result**. ValiChord generates a random nonce and computes a cryptographic hash of her structured result metrics — the exact numbers from her paper. Only that hash travels to the shared network, recorded as a `ResearcherResultCommitment`. The metrics and nonce stay sealed in Sarah's private workspace. The validators cannot see what Sarah found. Sarah cannot change what she claimed to have found. The envelope is sealed.
+There is one more step that happens at submission, invisible to the validators: Sarah **locks her result**. ValiChord generates a random nonce and computes a cryptographic hash of her structured result metrics — the exact numbers from her paper. Only that hash travels to the shared network, recorded as a `ResearcherResultCommitment`. The metrics and nonce stay sealed in Sarah's private workspace. The validators cannot see what Sarah found. Sarah cannot change what she claimed to have found. The envelope is sealed. (On a production network this lock is compulsory: no validator can seal a finding until the researcher's commitment is on the network.)
 
 <div align="center">
   <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20round%201.jpeg" width="800px" alt="Validator Round 1">
 </div>
 ---
 
-## Step 2: Validator Assignment
+## Step 2: Validators Claim the Study
 
-Three credentialed validators are assigned to Sarah's study. Each holds an institutional credential — a cryptographic proof, signed by an authorised issuer, that they are a verified computational researcher. Without this credential, they cannot join the validation network at all. The credential is checked mathematically, not administratively.
+Nobody assigns validators. Three credentialed validators browse the queue of open requests in their discipline and each **claims** a place on Sarah's study. Once three places are taken, the study is full and no one else can claim it. A validator who shares an institution with Sarah is refused by the network (a conflict-of-interest rule every peer checks). If a validator drops out, their place can be released and claimed by someone else. (Drawing validators at random from a pool is a possible future design, not how it works today.)
+
+Each validator holds a joining credential — a cryptographic proof, signed by an authorised issuer, that they are allowed on the validation network. Without this credential, they cannot join the validation network at all. The credential is checked mathematically, not administratively, and every peer on the network checks it, not just the validator's own node.
 
 The validators are:
 - **Dr. James Okoye** — research software engineer, University of Edinburgh
@@ -44,7 +46,7 @@ The validators are:
 
 None of them know what the others will find. That is the point.
 
-Each validator receives a ValidationTask in their own private workspace. They download Sarah's code and data from the public archive, set up the computational environment as documented, and begin work.
+Each validator records a ValidationTask in their own private workspace. They download Sarah's code and data from the public archive, set up the computational environment as documented, and begin work.
 
 <div align="center">
   <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20round%202.jpeg" width="800px" alt="Validator Round 2">
@@ -60,11 +62,11 @@ James finishes his reproduction attempt first. He ran the code, compared the out
 
 His assessment — *Reproduced, high confidence, 14 hours* — is written to his local machine as a `ValidatorPrivateAttestation`. It is cryptographically locked the moment it is created. He cannot change it. He cannot delete it. And crucially, **nobody else can see it**.
 
-The moment James seals his assessment, something happens automatically: his workspace fires a signal to the shared network, writing a `CommitmentAnchor` — a public, zero-content proof that James has committed. The network can see that James has acted. It cannot see what he found.
+The moment James seals his assessment, something happens automatically: his workspace calls across to the shared network, writing a `CommitmentAnchor` — a public, zero-content proof that James has committed. The network can see that James has acted. It cannot see what he found.
 
 Fatima completes her work two days later and seals her assessment. Another CommitmentAnchor appears on the network.
 
-Marcus finishes on day six. A third CommitmentAnchor is written.
+Marcus finishes on day eight. A third CommitmentAnchor is written.
 
 All three validators have committed. None of them knows what the others found.
 
@@ -76,9 +78,9 @@ All three validators have committed. None of them knows what the others found.
 
 ## Step 4: The Reveal Opens
 
-The moment the third CommitmentAnchor appears, ValiChord writes a `PhaseMarker` to the shared network: **Reveal Open**.
+When the third CommitmentAnchor is written, the same call (made from Marcus's node, as the last to commit) sees that every place has committed and writes a `PhaseMarker` to the shared network: **Reveal Open**. After that, no new commitments are accepted for this study.
 
-James, Fatima, and Marcus each discover this by checking the network — not by receiving a message. This matters: if reveal timing were signal-driven, a fast internet connection could give one validator a head start on seeing others' results before submitting their own. The poll-driven design means the reveal window opens simultaneously for everyone, regardless of network speed or time zone.
+James, Fatima, and Marcus may also get a quick notification, but that is only a courtesy: the PhaseMarker on the network is what counts, and each validator's software checks the network for it. This matters: if reveal timing depended on messages arriving, a fast or slow connection could change who knew first. Because the record on the network is the authority, the reveal window is the same for everyone, regardless of network speed or time zone.
 
 <div align="center">
   <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Validator%20Round%204.jpeg" width="800px" alt="Validator Round 4">
@@ -88,11 +90,11 @@ James, Fatima, and Marcus each discover this by checking the network — not by 
 
 ## Step 5: The Reveal
 
-James submits his public `ValidationAttestation`. It is permanent the moment it is written — immutable, tamper-proof, recorded on the shared distributed network. He cannot revise it.
+James submits his public `ValidationAttestation`, together with the private nonce from his sealed envelope. The network recomputes the hash and refuses the attestation unless it matches his CommitmentAnchor exactly. The study's terms — how many validators it asked for, and when the request was made — are stamped into the attestation from Sarah's original request, and every peer checks them. It is permanent the moment it is written — immutable, tamper-proof, published to the shared network. He cannot revise it.
 
 Fatima submits hers. Marcus submits his.
 
-At the same time, Sarah receives a notification that all validators have committed. She opens her private workspace, retrieves the nonce and metrics she locked at submission, and calls `reveal_researcher_result`. ValiChord verifies the hash on the shared network — confirming that the metrics she is now publishing match exactly what she committed to before any validator started work — and writes her `ResearcherReveal` to the DHT.
+Once the reveal is open, Sarah can reveal too. She opens her private workspace, retrieves the nonce and metrics she locked at submission, and calls `reveal_researcher_result` (only the researcher who submitted the study may do this). ValiChord verifies the hash on the shared network — confirming that the metrics she is now publishing match exactly what she committed to before any validator started work — and writes her `ResearcherReveal` to the DHT.
 
 The three validator attestations and Sarah's verified result are now all public, permanent, and independently verifiable by anyone on the network. Neither Sarah nor the validators could have adjusted their numbers after seeing anyone else's. The comparison is genuine.
 
@@ -105,33 +107,38 @@ The three validator attestations and Sarah's verified result are now all public,
 
 ## Step 6: The Harmony Record
 
-ValiChord's Governance layer detects that all three attestations are present. It retrieves them, calculates the consensus outcome and the level of agreement among the validators, and assembles a **Harmony Record**.
+When the last validator (here, Marcus) submits, his node automatically asks ValiChord's Governance layer to finish the round. It checks that all three attestations are present, retrieves them, works out the majority outcome and the level of agreement among the validators, and assembles a **Harmony Record**.
 
 In this case:
-- James found: *Reproduced, Within Tolerance*
-- Fatima found: *Reproduced, Exact Match*
-- Marcus found: *Reproduced, Within Tolerance*
+- James found: *Reproduced*
+- Fatima found: *Reproduced*
+- Marcus found: *Partially Reproduced* (most figures matched; one fell outside the stated tolerance)
+
+The agreement level is not chosen by anyone: it is calculated from the three findings. Two full reproductions and one partial reproduction give *Within Tolerance*. (Three full reproductions would have given *Exact Match*.)
 
 The Harmony Record captures all of this:
 
 ```
-Outcome:         Reproduced
-Agreement Level: Within Tolerance
-Validators:      3
-Duration:        collective 38 hours
-Discipline:      Computational Biology
-Badge:           Bronze Reproducible
+Outcome:              Reproduced
+Agreement Level:      Within Tolerance
+Validators:           3 of 3 requested
+Duration:             16 hours (the longest single validator's reported time)
+Discipline:           Computational Biology
+Attestation evidence: each validator's signed attestation
+Badge:                Bronze Reproducible
 ```
 
-The record is written to the public DHT. It is permanent. Nobody can alter it — not Sarah, not the validators, not ValiChord's operators. It exists now as an immutable fact about Sarah's study.
+The record carries each validator's signed attestation, and every peer that stores it checks those signatures, the request, the outcome, the agreement level and the number of validators against what was asked for. A record with fewer validators than requested is only accepted after the round's timeout. The record is written to the public DHT. It is permanent. Nobody can alter it — not Sarah, not the validators, not ValiChord's operators. It exists now as an immutable fact about Sarah's study.
 
-Because three validators all independently reproduced the results, a **Bronze Reproducible** badge is automatically issued and linked to the record.
+Because three validators reached at least *Directional Match* agreement, a **Bronze Reproducible** badge is automatically issued and linked to the record. (The badge thresholds — 3, 5 and 7 validators for Bronze, Silver and Gold — are placeholders, to be calibrated with real data.)
+
+If a validator had gone silent instead, the round would not hang for ever: once the round's timeout has passed and no one still holds a place, anyone can close it with the attestations that are present (`force_finalize_round`), and the record then reads, for example, "2 of 3 requested".
 
 ---
 
 ## Step 7: The Public Record
 
-Sarah's Harmony Record is now publicly readable by anyone — a journal editor, a funder, another researcher, a science journalist. No Holochain node required. No institutional membership. A standard web request returns the record.
+Sarah's Harmony Record is now publicly readable by anyone — a journal editor, a funder, another researcher, a science journalist. The reader needs no Holochain node of their own and no institutional membership: a standard web request to any node that offers a public read endpoint (the demo host does) returns the record.
 
 The record does not say Sarah's science is correct. It says three independent credentialed validators, working without knowledge of each other's findings, each reproduced her computational results. That is a different and more specific claim — and it is one that can now be made with cryptographic certainty.
 
@@ -143,14 +150,14 @@ The record does not say Sarah's science is correct. It says three independent cr
 
 ## What If the Validators Disagreed?
 
-Not every round ends in consensus. Suppose Marcus had found something different — his environment produced results that diverged from Sarah's published figures. He seals that finding honestly during the commit phase. He cannot change it after the reveal opens.
+Not every round ends in agreement. Suppose Marcus had found something different — his environment produced results that diverged from Sarah's published figures. He seals that finding honestly during the commit phase. He cannot change it after the reveal opens.
 
 The Harmony Record would then reflect:
 - James: *Reproduced*
 - Fatima: *Reproduced*
-- Marcus: *Divergent*
+- Marcus: *Failed to Reproduce*
 
-The Agreement Level would be `DirectionalMatch` — two out of three agreed. The divergence is recorded in full. The record does not hide Marcus's finding or average it away. A reader can see exactly what happened: two validators reproduced, one did not, and here is the full picture.
+The Agreement Level would be `DirectionalMatch` — two out of three reproduced. (Under the current placeholder thresholds, a three-validator Directional Match still earns a Bronze badge; those thresholds are to be calibrated with real data.) The divergence is recorded in full. The record does not hide Marcus's finding or average it away. A reader can see exactly what happened: two validators reproduced, one did not, and here is the full picture.
 
 This is what "harmony from dissonance" means. The record captures the truth of what the validators found — including the disagreement — rather than forcing a binary verdict that discards information.
 
@@ -174,7 +181,7 @@ The commit-reveal protocol rests on three specific cryptographic choices:
 
 **Hash function — SHA-256.** Every commitment hash is `SHA-256(serialised_data || nonce)`. SHA-256 is a one-way function: given only the commitment hash and nonce, it is computationally infeasible to recover or alter the underlying assessment. The 256-bit output is verified byte-for-byte at reveal time.
 
-**Nonce — 32 random bytes from Holochain's host function.** Each commit generates a fresh nonce via `random_bytes(32)` — Holochain's cryptographically secure host-level random source. The nonce is never published; it travels only inside the private `ValidatorPrivateAttestation` entry and is submitted by the validator at reveal time. Without the nonce, an observer who intercepts the commitment hash cannot brute-force the small set of possible verdicts (Reproduced / Diverged / UnableToAssess).
+**Nonce — 32 random bytes from Holochain's host function.** Each commit generates a fresh nonce via `random_bytes(32)` — Holochain's cryptographically secure host-level random source. The nonce is never published; it travels only inside the private `ValidatorPrivateAttestation` entry and is submitted by the validator at reveal time. Without the nonce, an observer who intercepts the commitment hash cannot brute-force the small set of possible verdicts (Reproduced / PartiallyReproduced / FailedToReproduce / UnableToAssess).
 
 **Serialisation — MessagePack named-field encoding (`rmp_serde::to_vec_named`).** The same function is used at commit time (to hash the attestation before sealing) and at reveal time (to verify the hash against the public attestation). Because the encoding is deterministic and field-order-stable, the byte string produced at reveal is identical to the byte string produced at commit — a property that does not hold for JSON serialisation with arbitrary key ordering. Both `seal_private_attestation` (DNA 2) and `submit_attestation` (DNA 3) call `ValidationAttestation::commitment_msgpack_bytes()`, the same shared function in `valichord_shared_types`, guaranteeing byte-for-byte consistency across DNA boundaries.
 
@@ -199,7 +206,7 @@ Both hashes are written to the shared DHT before any reveal begins. At reveal ti
 | Day | Event |
 |---|---|
 | Day 1 | Sarah submits Validation Request |
-| Day 1–2 | Validators assigned, tasks received |
+| Day 1–2 | Validators claim the study, tasks recorded |
 | Days 2–8 | Validators work independently |
 | Day 4 | James seals his assessment (CommitmentAnchor 1 written) |
 | Day 6 | Fatima seals her assessment (CommitmentAnchor 2 written) |

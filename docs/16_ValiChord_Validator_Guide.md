@@ -59,7 +59,7 @@ To do this well, you need:
 - Patience with underdocumented codebases
 
 **Helpful:**
-- Experience with the discipline of the study you are assigned (though cross-discipline assignments are sometimes made deliberately — see below)
+- Experience with the discipline of the study you take on (validators claim places on studies themselves; nobody assigns them — though cross-discipline claims may be encouraged deliberately — see below)
 - Familiarity with HPC environments, cloud platforms, or containerisation
 - Experience debugging other people's code
 
@@ -116,7 +116,7 @@ Based on what is known from comparable initiatives:
 
 A **40-hour time cap** applies to all Phase 0 tasks. If you reach 40 hours without completing reproduction, you record what you found up to that point and submit. Reaching the cap is not a failure — it is a data point about the study's difficulty.
 
-You will not know in advance where your assigned study falls on this spectrum. That is intentional.
+You will not know in advance where a study you claim falls on this spectrum. That is intentional.
 
 ---
 
@@ -126,7 +126,7 @@ Phase 0 validators are paid at professional rates.
 
 **Standard rate:** £500 per completed validation task
 
-**Difficulty adjustment:** If you are assigned a disproportionately difficult task — one that takes significantly longer than average — additional compensation is provided. This is determined at study end based on the actual workload distribution across all tasks.
+**Difficulty adjustment:** If you take on a disproportionately difficult task — one that takes significantly longer than average — additional compensation is provided. This is determined at study end based on the actual workload distribution across all tasks.
 
 You are compensated for your time and expertise regardless of whether the study reproduces. Your job is to find out what happens honestly — not to produce a particular result.
 

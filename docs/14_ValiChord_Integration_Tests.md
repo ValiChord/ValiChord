@@ -1,21 +1,20 @@
 <div align="center">
-  <img src="https://github.com/ValiChord/ValiChord/blob/main/Valichord%20logo-standard%20v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
+  <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="450px" alt="ValiChord Logo">
 </div>
 
 # ValiChord — Integration Tests
 
-Two test suites cover the protocol end-to-end:
+> **Updated 2026-10-18.** The integration suite is now **sweettest only** (Rust, `valichord/sweettest_integration/tests/`). The **Tryorama** suite described in the first half of this page was **retired on 2026-08-03** (upstream Tryorama will not support Holochain 0.7; its unique tests were ported to sweettest first) and `valichord/tests/` no longer exists. That half is kept as a historical record only — none of its commands will work. For current counts and how to run every suite, see [TESTING.md](../TESTING.md) and the CI workflow `.github/workflows/tests.yml`.
 
-- **Tryorama** (TypeScript/Node) — live conductor tests against a compiled `.happ` bundle. Status: **96 pass, 1 skipped, 0 fail** (as of 2026-05-09). GoldReproducible covered by sweettest test 15.
-- **Sweettest** (Rust/`cargo test`) — native HDK harness, faster, no bundle needed. Authoritative source: `valichord/sweettest_integration/tests/`
+- **Sweettest** (Rust/`cargo test`) — native conductor harness, the only integration suite. Authoritative source: `valichord/sweettest_integration/tests/`. Runs in CI on every push and PR.
+- **Tryorama** (TypeScript/Node) — *historical.* Last recorded status: 96 pass, 1 skipped, 0 fail (2026-05-09).
 
 ---
 
-## Tryorama Integration Tests
+## Tryorama Integration Tests (historical — retired 2026-08-03)
 
-Four test files, one per DNA. All tests exercise live Holochain conductors via
-the compiled `workdir/valichord.happ` bundle.
-
+Four test files, one per DNA. All tests exercised live Holochain conductors via
+the compiled `workdir/valichord.happ` bundle. The commands below are kept as a record; `tests/` has been deleted.
 ---
 
 ## Build prerequisites
@@ -197,71 +196,40 @@ cd tests && npm test
 
 ## Sweettest Integration Tests
 
-Rust-native tests using `hdk`'s `sweettest` harness. Run directly via `cargo test` — no Node, no Tryorama. Each test file mirrors one DNA. Authoritative source: `valichord/sweettest_integration/tests/`.
+Rust-native tests using Holochain's `sweettest` harness. Run directly via `cargo test` — no Node, no Tryorama. Authoritative source: `valichord/sweettest_integration/tests/`. The lists below were counted from the source on 2026-10-18 (117 tests across nine files); if they disagree with the files, the files win.
 
-### DNA 1 — `researcher_repository.rs` (10 tests)
+**How to run** (from `valichord/`, after building the WASM and packing the DNAs with `hc dna pack` / `hc app pack` as in the CI workflow):
 
-All entries are private (single-agent source chain only). No DHT sync needed.
+```bash
+./run-sweettest.sh attestation                # one suite; keeps the raw log and cross-checks the result count
+./run-sweettest.sh governance silver_badge    # optional name filter
+```
 
-1. register_study + get_study
-2. register_protocol + get_protocol_for_study
-3. take_data_snapshot + get_snapshots_for_study
-4. declare_deviation + get_deviations_for_study
-5. compute_data_hash (SHA-256, deterministic, collision-resistant)
-6. PreRegisteredProtocol immutability — no delete function in API
-7. get_all_studies (empty + multi)
-8. lock_researcher_result + get_locked_result
-9. lock_researcher_result cross-DNA commitment publish
-10. get_locked_result returns None for unknown request_ref
+CI runs each suite from `valichord/sweettest_integration/` as `cargo test --test <suite> -- --test-threads=1` (see `.github/workflows/tests.yml`). The immutability and forgery tests need a separate test-only build: `./build-test-dnas.sh`, then `VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire`.
 
-### DNA 2 — `validator_workspace.rs` (5 tests)
+### DNA 1 — `researcher_repository.rs` (17 tests)
 
 All entries are private (single-agent source chain only). No DHT sync needed.
 
-1. receive_task + get_task
-2. seal_private_attestation + get_private_attestation_for_task
-3. get_all_tasks (empty + multi)
-4. get_all_private_attestations — empty + multi
-5. ValidatorPrivateAttestation immutability — no delete function in API
+register_and_get_study · get_study_unknown_hash_returns_none · register_and_get_protocol · get_protocol_returns_none_before_registration · two_snapshots_are_both_retrievable · get_snapshots_empty_before_any_snapshot · declare_and_retrieve_deviation · get_deviations_empty_before_any_declaration · compute_data_hash_returns_external_hash · compute_data_hash_is_deterministic · compute_data_hash_collision_resistant · protocol_immutability_no_delete_fn_in_api · get_all_studies_empty_initially · get_all_studies_returns_all_registered · lock_researcher_result_creates_private_entry · get_locked_result_returns_none_for_unknown_request · lock_researcher_result_publishes_commitment_to_attestation_dna
 
-### DNA 3 — `attestation.rs` (15 tests)
+### DNA 2 — `validator_workspace.rs` (13 tests)
 
-1. submit_validation_request + get_validation_request + get_validation_request_for_data_hash
-2. get_current_phase returns None before any commits
-3. Two validators commit → phase transitions to RevealOpen
-4. Full commit-reveal round (core 2-agent protocol)
-5. get_attestations_for_request
-6. ValidationAttestation immutability — no update/delete functions
-7. CommitmentAnchor and PhaseMarker immutability — no update/delete functions
-8. publish_validator_profile + get_validator_profile
-9. claim_study + release_claim
-10. COI rejection — same institution blocks claim
-11. reclaim_abandoned_claim with timeout_secs=0
-12. assess_difficulty + get_difficulty_assessment
-13. link_agent_identity — self-link rejected
-14. get_linked_agents returns empty when no identity links exist
-15. DHT-poll phase transition (late-joining validator discovers RevealOpen)
+All entries are private (single-agent source chain only).
 
-### DNA 4 — `governance.rs` (14 tests)
+receive_and_get_task · get_task_unknown_hash_returns_none · seal_and_get_private_attestation · get_private_attestation_returns_none_before_sealing · get_all_tasks_empty_initially · get_all_tasks_returns_all_received · get_all_private_attestations_empty_initially · get_all_private_attestations_returns_all_sealed · private_attestation_immutability_no_delete_fn_in_api · get_abstention_returns_none_before_recording · record_and_retrieve_deliberate_abstention · duplicate_abstention_is_rejected · bob_cannot_read_alices_sealed_private_attestation
 
-1. check_and_create_harmony_record returns None when no attestations
-2. Full 2-agent round — HarmonyRecord created on public DHT
-3. check_and_create_harmony_record idempotent after record exists
-4. Any participant can trigger finalisation (Bob, not the request submitter)
-5. Premature finalisation (1 of 2 attestations) returns None
-6. force_finalize_round — partial quorum + round_timeout_secs=0
-7. GovernanceDecision key-gated — non-matching key rejected
-8. update_validator_reputation — dev bypass allows any agent
-9. get_harmony_records_by_discipline — empty + after round
-10. get_badges_for_study — 2 validators, count < 3, no badge
-11. get_badges_by_type — 3 validators, BronzeReproducible issued
-12. Tier promotion — Provisional → Standard after 3 Reproduced rounds
-13. Tier stays Provisional before 3 rounds
-14. AI validator tier does not advance through completed rounds
+### DNA 3 — `attestation.rs` (30 tests)
 
-### Security — `security.rs` (7 tests)
+submit_and_get_validation_request · get_validation_request_unknown_returns_none · get_validation_request_for_data_hash · get_current_phase_none_before_commits · two_commits_trigger_reveal_open_phase · full_commit_reveal_round · get_attestations_for_request_empty_before_reveal · publish_and_get_validator_profile · get_validator_profile_none_when_unpublished · claim_and_release_study · claim_study_coi_same_institution_rejected · reclaim_abandoned_claim_timeout_zero · assess_and_get_difficulty · link_agent_identity_self_link_rejected · get_linked_agents_empty_initially · late_joining_validator_discovers_reveal_open_via_dht_poll · update_validator_profile_merges_fields · check_all_commitments_sealed_lifecycle · get_researcher_reveal_none_then_some · revoke_agent_identity_link_removes_from_linked_agents · get_my_claimed_studies_filtered_by_release · researcher_cannot_claim_their_own_study · claim_rejected_when_study_is_at_capacity · same_validator_cannot_claim_a_study_twice · reclaim_refused_once_validator_has_attested · third_party_cannot_revoke_an_identity_link · validator_profiles_are_indexed_by_discipline_and_institution · pending_requests_are_indexed_by_discipline · attestations_are_indexed_by_discipline · link_agent_identity_bad_signature_rejected
 
-Covers protocol-gap fixes. Only guards exercisable at the coordinator/client layer are tested here.
+### DNA 4 — `governance.rs` (22 tests)
+
+check_and_create_harmony_record_no_attestations_returns_none · full_round_creates_harmony_record · check_and_create_harmony_record_idempotent · any_participant_can_finalize · premature_finalization_returns_none · force_finalize_round_with_partial_quorum · governance_decision_non_matching_key_rejected · update_validator_reputation_dev_bypass · get_harmony_records_by_discipline_empty_initially · get_harmony_records_by_discipline_returns_record_after_round · get_badges_for_study_none_with_two_validators · get_badges_by_type_bronze_with_three_validators · validator_tier_promotes_to_standard_after_three_rounds · validator_tier_stays_provisional_before_three_rounds · ai_validator_tier_does_not_advance_through_rounds · gold_badge_issued_with_seven_validators · silver_badge_issued_with_five_validators · get_pending_request_refs_includes_other_discipline_studies · sweep_cannot_finalize_a_round_still_in_progress · live_claim_blocks_force_finalize · released_claim_allows_force_finalize · governance_decisions_round_trip_and_accumulate
+
+### Security — `security.rs` (12 tests)
+
+Covers protocol-gap fixes and commit-reveal hash verification.
 
 - S1. Duplicate attestation guard — second submit_attestation rejected
 - S2. Duplicate commitment guard — second notify_commitment_sealed rejected
@@ -270,30 +238,41 @@ Covers protocol-gap fixes. Only guards exercisable at the coordinator/client lay
 - S4b. reclaim_abandoned_claim: no floor (0) → timeout_secs=0 succeeds
 - S5. force_finalize_round conservative abort when no ValidationRequest
 - S6. reveal_researcher_result idempotency — second call rejected
+- S7. A reveal with the real nonce passes hash verification
+- S8. A tampered reveal is rejected by hash verification
+- S9–S11. Reproduction-bundle hash binding: a different bundle hash is rejected, the same one succeeds, a wrong-length one is rejected
+
+### Membrane — `membrane_proof.rs` (6 tests)
+
+The only tests that run with a real Ed25519 credential issuer instead of the dev bypass: a valid proof is accepted; a wrong signature, a proof issued to another agent, a missing proof and a too-short proof are each rejected at genesis; an empty issuer bypasses the membrane (dev/test mode).
+
+### Test-only builds — `immutability_tripwire.rs` (15), `harmony_record_forgery.rs` (1), `validator_tier_forgery.rs` (1)
+
+These need the `--features test_utils` build from `build-test-dnas.sh`, because no production coordinator can write a forbidden update, delete or forged entry. The tripwires prove the integrity zomes reject forbidden updates and deletes; the two forgery tests (added with PR #47) prove peers refuse a forged HarmonyRecord and a self-assigned validator tier in `validate()`.
 
 ---
 
 ## Remaining gaps
 
-These are areas not yet covered by tests, ordered by value.
+These were the gaps recorded when the Tryorama suite was current. Status as of 2026-10-18 is in the Notes column.
 
 | Area | What to add | Notes |
 |------|-------------|-------|
-| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | **Covered by sweettest** (test 15, `gold_badge_issued_with_seven_validators`). Tryorama version remains `test.skip` (≥16 GB RAM for 7 process conductors). |
-| DNA 1 — lock_researcher_result | lock_researcher_result → LockedResult stored privately + ResearcherResultCommitment on DNA 3; get_locked_result returns private record | Cross-DNA call in test scenario required |
-| DNA 3 — reveal_researcher_result | Correct metrics+nonce → ResearcherReveal on DHT; wrong nonce → error rejected; get_researcher_reveal returns verified reveal | Must call all validators notify_commitment_sealed first (gate: check_all_commitments_sealed) |
-| DNA 4 — force_finalize_round success path | Round ≥ 7 days old + partial attestations → HarmonyRecord created | ROUND_TIMEOUT_SECS is hardcoded; cannot wind clock in Tryorama |
+| DNA 3 — GoldReproducible (12.3) | 7 validators all Reproduced → GoldReproducible | **Covered by sweettest** (`gold_badge_issued_with_seven_validators`). |
+| DNA 1 — lock_researcher_result | lock_researcher_result → LockedResult stored privately + ResearcherResultCommitment on DNA 3; get_locked_result returns private record | **Covered by sweettest** (`lock_researcher_result_creates_private_entry`, `lock_researcher_result_publishes_commitment_to_attestation_dna`). |
+| DNA 3 — reveal_researcher_result | Correct metrics+nonce → ResearcherReveal on DHT; wrong nonce → error rejected; get_researcher_reveal returns verified reveal | **Partly covered:** `get_researcher_reveal_none_then_some` reveals using the empty-nonce dev bypass, and S6 checks idempotency. A researcher reveal with a real nonce, and one with a wrong nonce, still have no test. |
+| DNA 4 — force_finalize_round success path | Timed-out round + partial attestations → HarmonyRecord created | **Covered by sweettest** (`force_finalize_round_with_partial_quorum`, `released_claim_allows_force_finalize`). The timeout is now a DNA property, `round_timeout_secs`, so tests set it to 0. |
 
 ---
 
 ## Architecture notes
 
-- `minimum_validators: 2` is set in test DNA properties (production default is 3–7). `check_all_commitments_sealed_inner` uses `num_validators_required` from the `ValidationRequest` entry (not the DNA-property `minimum_validators`) — phase opens when the study's own validator count has committed.
-- `system_coordinator_key` is set to the test admin's base64 pubkey in governance DNA test properties. It gates `GovernanceDecision` writes only. `harmony_record_creator_key` no longer exists — `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are open to any participant. Empty string = dev/test bypass for `system_coordinator_key`.
-- Membrane proof signature verification is real Ed25519: `coordinator init()` calls `verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
-- Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production this is triggered by DNA 2's `post_commit` (exercised by test 9.1). The function now takes `CommitmentSealedInput { request_ref, commitment_hash }` — pass the commitment hash alongside the request reference.
-- `dhtSync` is required between agents for any multi-player read assertion.
-- ExternalHash in JS: use `hashFrom32AndType(core32, HoloHashType.External)` — never `new Uint8Array(39).fill(byte)` (DHT location bytes must be a valid blake2b checksum).
+- `minimum_validators: 2` is set in test DNA properties (`happ.yaml`; the attestation `dna.yaml` default is 3). It is a network-wide floor that every peer enforces on a ValidationRequest, not the quorum target. `check_all_commitments_sealed_inner` uses `num_validators_required` from the `ValidationRequest` entry (not the DNA-property `minimum_validators`) — phase opens when the study's own validator count has committed.
+- `system_coordinator_key` gates `GovernanceDecision` **and** `ValidatorReputation` writes (`governance_integrity`). `harmony_record_creator_key` no longer exists — any participant may write a `HarmonyRecord` or `ReproducibilityBadge`, but since PR #47 a HarmonyRecord must carry its validators' signed attestations and every peer checks them against the request, outcome, agreement level and cohort size. Empty string = dev/test bypass for `system_coordinator_key`.
+- Membrane proof signature verification is real Ed25519 (`verify_signature(issuer_key, sig, Vec<u8> of joining agent's 39-byte pubkey)`). Since PR #47 it runs in `attestation_integrity::check_joining_certificate`, called from `validate()` by **every peer**, not only from the joining agent's own `init()`. Empty `authorized_joining_certificate_issuer` = dev/test bypass.
+- Tests call `notify_commitment_sealed()` directly on the attestation DNA; in production this is triggered by DNA 2's `post_commit` (exercised by Tryorama test 9.1 in its day). The function now takes `CommitmentSealedInput { request_ref, commitment_hash }` — pass the commitment hash alongside the request reference.
+- *(Tryorama-era)* `dhtSync` is required between agents for any multi-player read assertion.
+- *(JS clients, e.g. the UI and demo)* ExternalHash in JS: use `hashFrom32AndType(core32, HoloHashType.External)` — never `new Uint8Array(39).fill(byte)` (DHT location bytes must be a valid blake2b checksum).
 - `Discipline` and `AttestationOutcome` use `#[serde(tag="type", content="content")]` (adjacent tagging) → `{ type: "ComputationalBiology" }` / `{ type: "Reproduced" }`. All other enums (`ValidationPhase`, `AgreementLevel`, etc.) use no tag → plain strings.
 - `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do **not** store self-reported timestamps. Timestamps are read from the Holochain Action. Do not add timestamp fields back.
 - `CommitmentAnchor` now carries `commitment_hash: Vec<u8>` — the SHA-256 of the validator's serialised `ValidationAttestation` concatenated with a private nonce. At reveal time, verifying `SHA-256(msgpack(attestation) || nonce) == commitment_hash` closes the last-mover-advantage gap at the architectural level, not just the UX level.

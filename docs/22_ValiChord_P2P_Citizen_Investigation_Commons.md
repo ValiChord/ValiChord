@@ -69,7 +69,7 @@ The investigation commons stack is structurally the same as the biosensor calibr
 
 **Nondominium** manages the resource lifecycle, contributor identity, role hierarchy, and economic accounting (ValueFlows / hREA). It does not provide a blind validation protocol.
 
-**ValiChord** provides the blind commit-reveal protocol and tamper-evident consensus record. It does not provide contribution tracking or resource lifecycle management.
+**ValiChord** provides the blind commit-reveal protocol and a tamper-evident record of how far the validators agreed (the Harmony Record). It does not provide contribution tracking or resource lifecycle management.
 
 Together they produce a commons where investigative claims earn their `Active` status through cryptographically rigorous peer corroboration — with no platform, no editorial board, and no single point of trust at any stage.
 
