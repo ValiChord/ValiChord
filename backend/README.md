@@ -26,7 +26,7 @@ This is the core of ValiChord. It runs the Holochain blind commit-reveal protoco
 and returns a **HarmonyRecord** — a cryptographically tamper-evident proof of the
 reproducibility verdict.
 
-**Who uses it:** AI validators (PI, Feynman) and human validators.
+**Who uses it:** AI validators and human validators (the PI and Feynman integrations that called it are historical).
 
 **Endpoints:** `/attest`, `/health`, `/openapi.yaml`, `/docs`
 
@@ -73,7 +73,7 @@ gracefully (harmony_record_hash is always null — no conductor). The canonical
 
 ---
 
-## Which one should PI / Feynman point to?
+## Which one should an AI validator integration point to?
 
 `app_protocol.py` — the protocol API running in the Codespace.
 
