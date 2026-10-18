@@ -1,6 +1,7 @@
 # Plan: ValiChord/valichord-evals — Repo Extraction
 
-**Status:** Planned  
+**Status:** Planned — **not done** (checked 2026-10-18: `valichord_attestation/` is still in this
+repo and `ValiChord/valichord-evals` does not exist).  
 **Estimated effort:** Half a day  
 **Do before:** TerraCommons repo creation (TerraCommons will depend on this library)
 

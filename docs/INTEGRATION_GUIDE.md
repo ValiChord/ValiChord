@@ -7,6 +7,16 @@ permanent entry on a Holochain distributed network.
 
 Any tool that can make HTTP requests can integrate with ValiChord.
 
+> ⚠️ **Out of date — checked 2026-10-18.** The ZIP-upload service this guide describes
+> (`/validate`, `/result`, `/download`, `/upload-chunk`, the deposit-cleaning report) is
+> **ValiChord at Home**, which moved to its own repository,
+> [`topeuph-ai/valichord_at_home`](https://github.com/topeuph-ai/valichord_at_home), on
+> 2026-04-22. Those endpoints are not in this repo and were not re-checked there. The only REST
+> API in this repo is `backend/app_protocol.py` — `POST /attest`, `GET /health`, `GET /docs`,
+> `GET /openapi.yaml` — documented in [`backend/README.md`](../backend/README.md) and
+> `backend/openapi_protocol.yaml`. The `valichord_attestation` section near the end is still
+> current.
+
 > **Looking for the protocol, not the API?** This guide covers the REST service — submitting a
 > deposit and reading a verdict. It does not touch the protocol's trust boundary. If you are
 > proposing to write into, or be read by, the Holochain protocol itself, the preconditions are in
@@ -342,8 +352,9 @@ so a verifier can spot-check any subset of samples without holding the full log.
 
 A bundle is the *evidence layer*. A researcher publishes the bundle hash as their claim.
 Independent validators run the same evaluation, build their own bundles, and compare. When a
-full ValiChord validation round is required (commit-reveal on the Holochain DHT), the bundle
-hash becomes the `data_hash` passed into the attestation DNA.
+full ValiChord validation round is required (commit-reveal on the Holochain DHT), the bundle's
+`content_hash` (not its `bundle_hash`) becomes the `data_hash` passed into the attestation DNA —
+see `valichord_attestation/protocol.py` (`data_hash`) and `ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`.
 
 ```python
 from valichord_attestation import build_bundle, hash_bundle

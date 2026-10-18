@@ -1,5 +1,7 @@
 # ValiChord Demo Website Implementation Plan
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a public demo page at `GET /demo` (served via Render) that runs the full ValiChord commit-reveal protocol end-to-end when a visitor clicks "Run Protocol", showing live 7-step progress and a permanent shareable HarmonyRecord URL.

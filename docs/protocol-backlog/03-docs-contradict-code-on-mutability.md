@@ -1,6 +1,9 @@
 # Backlog: the docs and the code contradict each other on whether HarmonyRecords can change
 
-**Status:** Open. **Category: 🟢 cheap forever** — prose only, no DNA change. **Needs the rebuild window: no.**
+**Status:** ✅ **Fixed 2026-08-22** (commit `2e22dca`) — the four passages now carry correction
+notes (`1_ValiChord_Vision&Architecture.md`, `2_ValiChord_Governance_Framework.md`,
+`10_Harmony_Records.md`), and `last_updated` is marked *not built*. The text below is the original
+finding. Supersession itself is still not built — that is item 01. **Category: 🟢 cheap forever** — prose only, no DNA change. **Needs the rebuild window: no.**
 **Found:** 2026-08-22, when Ceri said he was *"pretty sure that harmony records can be updated"*
 and the code turned out to say the opposite. He was right that the docs say so. **Both were right
 about different documents.**
@@ -28,12 +31,13 @@ enforces immutable.** A reader picks up whichever they open first.
 - `docs/10_Harmony_Records.md:144` — *"the integrity zome's `validate()` callback rejects all
   updates and deletes of `HarmonyRecord` entries"*
 
-**The code:** `governance_integrity/src/lib.rs:433` rejects updates with
+**The code:** `governance_integrity/src/lib.rs:476` (was `:433` when filed) rejects updates with
 *"HarmonyRecord is immutable — the public record cannot be changed"*.
 
 ## 🆕 There is no `last_updated` field
 
-`HarmonyRecord` has eight fields and that is not one of them. **A licence condition requires
+`HarmonyRecord` had eight fields when this was filed (nine since PR #47 added
+`attestation_evidence`, 2026-10-18) and that is not one of them. **A licence condition requires
 displaying a field that has never existed**, which means any integrator who implemented the licence
 literally could not comply, and any who did comply were displaying something invented.
 

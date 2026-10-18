@@ -1,5 +1,7 @@
 # Maintainer-facing CORE-Bench demo doc — design
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 **Date:** 2026-06-01
 **Status:** design approved (pending written-spec review)
 **Output artifact:** `docs/CORE_BENCH_FOR_INSPECT_EVALS.md` (written in the implementation step)

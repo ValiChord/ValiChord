@@ -1,5 +1,7 @@
 # CORE-Bench demo — review-hardening design (3 findings)
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 **Date:** 2026-05-31
 **Branch:** `core-bench-demo` (already merged to `main`)
 **Status:** ✅ IMPLEMENTED 2026-06-01 — all 3 units built TDD via subagent-driven-development and merged to `main` (fast-forward). Tests green: Python 44 / JS 5 / Rust 27 (incl. cross-language agreement golden). See `docs/superpowers/plans/2026-05-31-core-bench-review-hardening.md`.

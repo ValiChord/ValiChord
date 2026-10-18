@@ -32,6 +32,8 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 
 **How to set:** Generate a keypair for your credential-issuing authority. Export the `AgentPubKey` as a `uhCAk...` string. Set it in `happ.yaml` under the `attestation` role `modifiers.authorized_joining_certificate_issuer`.
 
+**Who checks it:** since PR #47 (2026-10-18) the joining certificate is checked by **every peer** in `validate()` (`attestation_integrity::check_joining_certificate`), not only by the joining agent — so a wrong key here is enforced network-wide. A validator's `certification_tier` must also equal what its certificate grants.
+
 **Coordinated update required:** Any change to this key requires simultaneous updates to: (1) `happ.yaml` modifiers, (2) the membrane-proof issuer in all test fixtures, (3) any onboarding tooling that signs joining credentials.
 
 ---
@@ -60,7 +62,7 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 | Type | `String` — the discipline slug this network instance covers |
 | Dev/test value | `"computational_biology"` (or any non-empty string) |
 | Production requirement | The canonical discipline identifier for this network (e.g. `"computational_biology"`, `"psychology"`) |
-| What breaks if wrong | Validators claiming studies in the wrong discipline will be rejected by integrity checks that compare `attestation.discipline` against the declared `ValidationRequest.discipline`. |
+| What breaks if wrong | Missing: the DNA cannot read its properties (the field has no default). Otherwise, as of 2026-10-18 **no code reads this property's value** — the discipline check at `attestation_integrity/src/lib.rs:887` compares an attestation's `discipline` with its `ValidationRequest`'s, not with this property. Changing it still changes the DNA hash. |
 
 ---
 
@@ -95,11 +97,11 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 | Property | Value |
 |---|---|
 | Type | `String` (base64url-encoded `AgentPubKey`, `uhCAk...` format) |
-| Dev/test bypass | **Empty string `""`** — reputation writes are skipped (no-op) |
+| Dev/test bypass | **Empty string `""`** — the authorship check is off: **any** agent may write `ValidatorReputation` and `GovernanceDecision` entries, and whoever writes a HarmonyRecord also updates each participant's reputation as a side effect (`governance_integrity/src/lib.rs:376,462`; `governance_coordinator/src/lib.rs:634`) |
 | Production requirement | The `AgentPubKey` of your trusted reputation-update agent |
-| What breaks if wrong | Empty string in production: `_update_reputation_internal` is a no-op — no validator reputation is ever written, every validator stays `Provisional`, and badges reflect participant count only (not experience). This is the **intended Phase 0 behaviour**; it is the Phase 1 integration point. Wrong key: reputation updates fail silently (the call is fire-and-forget). |
+| What breaks if wrong | Empty string in production: any agent can write any validator's reputation, or a governance decision. Set to a key: only that agent may write them; the automatic update runs only when that agent itself writes the HarmonyRecord, so otherwise something must call `update_validator_reputation` — and **who does that in production is not yet decided**. Until it is, human validators stay `Provisional`; an AI validator's first record takes the tier its joining certificate grants. Wrong key: those writes are rejected by validation, and the automatic update's failure is ignored (fire-and-forget). Badges reflect agreement level and participant count only, whatever this is set to. |
 
-> **Phase 0 note:** ValiChord Phase 0 ships with this key intentionally empty. Badge tiers in Phase 0 reflect agreement level and participant count only. See the Phase 0 caveat in the Architecture doc and the Technical Reference changelog.
+> **Phase 0 note:** _(Corrected 2026-10-18 — this table used to say an empty key makes reputation writes a no-op. The code does the opposite: it removes the authorship check.)_ ValiChord Phase 0 ships with this key intentionally empty. Badge tiers in Phase 0 reflect agreement level and participant count only. See the Phase 0 caveat in the Architecture doc and the Technical Reference changelog.
 
 ---
 
@@ -145,10 +147,10 @@ No security-sensitive DNA properties. This DNA is single-agent private (no DHT, 
 |---|---|---|---|
 | 3 — Attestation | `authorized_joining_certificate_issuer` | `""` (anyone joins) | Issuer `AgentPubKey` in `uhCAk...` format |
 | 3 — Attestation | `ai_validator_issuer` | `""` (falls back to human issuer) | Operator `AgentPubKey` for AI-validator certs; leave empty to reuse human issuer |
-| 3 — Attestation | `discipline` | any string | Canonical discipline slug |
+| 3 — Attestation | `discipline` | any string | Canonical discipline slug (value not currently checked) |
 | 3 — Attestation | `minimum_validators` | `0` (no quorum floor) | `≥ 3` |
 | 3 — Attestation | `min_claim_timeout_secs` | `0` (no floor) | `≥ 259200` (72 h) |
-| 4 — Governance | `system_coordinator_key` | `""` (no-op reputation) | Reputation oracle `AgentPubKey` (Phase 1) |
+| 4 — Governance | `system_coordinator_key` | `""` (anyone may write reputation) | Reputation oracle `AgentPubKey` (Phase 1) |
 | 4 — Governance | `min_attestations_for_finalization` | `0` | Equal to or just below `minimum_validators` |
 | 4 — Governance | `round_timeout_secs` | `0` (no floor) | `604800` (7 days) |
 

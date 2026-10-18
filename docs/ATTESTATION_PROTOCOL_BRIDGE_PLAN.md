@@ -1,5 +1,10 @@
 # Attestation → protocol bridge — build plan and decision record
 
+> **Status checked 2026-10-18: step 1 is on `main` (`828839f`, 2026-08-22); steps 2–4 have not
+> been started** — no commit has touched `valichord_attestation/protocol.py` since. The branch
+> named below was the working branch. The test count quoted is from 2026-08-22; see CI for the
+> current one.
+
 **Branch:** `integration/attestation-protocol-bridge`
 **Governed by:** `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`. Every decision below cites the
 precondition it satisfies.
@@ -60,7 +65,18 @@ reader cannot come to believe the format supplies something it does not.
 two unrelated claims. `content_hash` was defined for exactly this question — *"is this the same
 science?"*
 
-⚠️ **This promotes the `meta` trap from a library nicety to an on-chain property.** `meta` is
+> ⚠️ **Correction, 2026-10-18 — the paragraph above is only half true.** `content_hash` removes
+> **`meta` only** (`canonical.content_preimage`). `generated_at` is a required **top-level** field
+> (`bundle.py`), and so are the optional `repo_commit`, `harness_version` and `command`, so all of
+> them **are** inside `content_hash`. Two submissions of the same claim therefore share a
+> `data_hash` only if they also carry the same `generated_at`, and by default `build_bundle` uses
+> the current time. As built, `data_hash` does **not** yet make "the same claim from two machines"
+> collide. Options, for a decision before step 2: pass a fixed `generated_at`, move run provenance
+> into `meta`, or define the claim preimage to exclude those top-level fields too (a format
+> change). The `content_hash` docstring in `canonical.py` ("reruns that may differ only in
+> provenance (commit, timestamp, command)") has the same flaw.
+
+⚠️ **This promotes the `meta` trap from a library nicety to a property of the published record.** `meta` is
 excluded from `content_hash`, so anything placed there that could change a result is invisible to
 `data_hash`, and two materially different claims collide as one identifier — **permanently, on an
 immutable record**. Backlog items 02–05 (judge configuration, rubric versions, thresholds,
@@ -97,7 +113,7 @@ Recorded in advance, because a precondition is only real if it can halt work alr
 
 - Any step requiring a **new entry type or integrity-zome change** (§3.1).
 - Any step requiring the protocol to **parse a bundle** (§3.2).
-- Any step putting **bundle content, rather than a digest, on DNA 1 or DNA 4** (§3.3).
+- Any step putting **bundle content, rather than a digest, on DNA 3 or DNA 4** (§3.3; this said "DNA 1" until 2026-10-18 — attestation is DNA 3).
 - Any step where a value's **asserted/observed status cannot be stated**, or where a guarantee
   cannot be attributed to a named layer (§3.4).
 

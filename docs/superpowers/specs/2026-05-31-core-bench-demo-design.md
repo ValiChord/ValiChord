@@ -1,5 +1,7 @@
 # CORE-Bench × ValiChord — CLI Demo Design
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 **Date:** 2026-05-31
 **Status:** Design — approved in brainstorming, pending spec review
 **Author:** Ceri John (with Claude)

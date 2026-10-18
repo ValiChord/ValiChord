@@ -1,5 +1,10 @@
 # DNA migration across a hash change — prior art, read properly
 
+> **Note added 2026-10-18.** The verdict below was followed: the 0.7.0 move (merged 2026-08-03,
+> deployed to Oracle 2026-08-24) was a plain network reset, and the Holochain 0.7.1 move (merged
+> 2026-10-17) is planned the same way — see `ORACLE_0.7.1_UPGRADE.md`. The reading of Unyt's code
+> is dated 2026-07-27 and was not re-checked.
+
 **Read before the Holochain 0.7 migration.** Source: `unytco/migration-service` @ `740889a` (2026-07-22), read in full 2026-07-27 — both Rust services, the TypeScript router, the state machines and the error contract.
 
 > ⚠️ **Licence: Cryptographic Autonomy License v1.0 (CAL-1.0), not Apache-2.0.** Strong copyleft with a user-data provision. This document is a **design reading**. Do not copy code into Apache-2.0 ValiChord.
@@ -22,13 +27,13 @@ Three components, none of which hold the security property:
 | `notary-daemon/` | Rust, axum + `ham` | Runs beside a conductor still serving the **old** network. `/healthz` + `/v1/fetch-close` behind bearer auth. Calls `read_predecessor_close` — a pure read. **No signing capability of any kind.** |
 | `headless-migrator/` | Rust, clap + `ham` | Two supervised systemd services: **close** on the old server, **open** on the new. Probe-first, idempotent, exit 0 only on success so `Restart=on-failure` drives the loop. |
 
-The registry the router validates against is bundled or KV-loaded, and pins each notary to a daemon API version; an unsupported version is a **startup** error, never a request-time one. Each `DnaEntry` carries `upgrades_from` (predecessor) and `upgrade_targets` (permitted forward destinations, mirroring the on-chain global definition).
+The registry the router validates against is bundled or KV-loaded, and pins each notary to a daemon API version; an unsupported version is a **startup** error, never a request-time one. Each `DnaEntry` carries `upgrades_from` (predecessor) and `upgrade_targets` (permitted forward destinations, mirroring the global definition held in the DNA).
 
 **The security is not in any of this.** It is in the DNA's own validators, which the next section makes explicit. The three services are transport and orchestration.
 
 ## 2. Close side
 
-The old chain is quiesced, then `close_agent_chain` commits a `ClosingStateSummary` and issues `close_chain`. Before that, M-of-N notary signatures are gathered **on-chain**, and it is those signatures — not any service — that carry the trust forward.
+The old chain is quiesced, then `close_agent_chain` commits a `ClosingStateSummary` and issues `close_chain`. Before that, M-of-N notary signatures are gathered **onto the source chain**, and it is those signatures — not any service — that carry the trust forward.
 
 The collection policy (`headless-migrator/src/policy.rs`) is the part worth stealing conceptually:
 
@@ -61,7 +66,7 @@ Two traps documented there apply to **any** programmatic install, migration or n
 
 ## 4. Where the trust actually lives
 
-`headless-migrator/src/dna_errors.rs` exposes the on-chain validation contract, and it is the most transferable thing in the repo after `policy.rs`.
+`headless-migrator/src/dna_errors.rs` exposes the integrity-zome validation contract, and it is the most transferable thing in the repo after `policy.rs`.
 
 `rave_engine`'s `MigrationError` renders a machine-extractable **`[MIGERR:<CODE>]` prefix** on every DNA-side verdict, and `from_rendered` recovers the variant from a conductor-wrapped string. Every classifier matches **the code, not the English text**, so rewording a validator message can never silently reclassify an error. Substring matching survives only as a fallback for surfaces that carry no tag, and those are enumerated in one place.
 
