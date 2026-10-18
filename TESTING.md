@@ -11,7 +11,7 @@ ValiChord is tested at four layers. Every layer runs against real Holochain cond
 | Browser E2E | `valichord-ui/tests/e2e/` | Playwright + real conductor | 6 | The real Svelte UI driving real zome calls in a real browser |
 | Performance | `valichord/wind-tunnel/` | Wind-Tunnel (Rust) | 5 scenarios | Throughput, DHT propagation latency, load behaviour |
 
-**Totals: 159 automated tests, none skipped — 117 sweettest (including 17 tripwire/forgery tests and 6 membrane-proof), 36 Rust unit, 6 Playwright browser e2e. All run in CI on every push and PR that changes code** (documentation-only changes skip the matrix — see `paths-ignore` in `tests.yml`). Counted from the source on 2026-10-18.
+**Totals: 159 automated tests, none skipped — 117 sweettest (including 17 tripwire/forgery tests and 6 membrane-proof), 36 Rust unit, 6 Playwright browser e2e. All run in CI on every push to `main` and every PR into it that changes code** (documentation-only changes skip the matrix — see `paths-ignore` in `tests.yml`). Counted from the source on 2026-10-18.
 
 > **The Tryorama suite (TypeScript, 92 tests) was retired on 2026-08-03**, not lost. Upstream `@holochain/tryorama` is unmaintained and will not support Holochain 0.7. Roughly 69 of its tests were already duplicated in sweettest; every unique one was ported and run green *before* the suite was deleted. That audit found three guards with no working coverage at all — the conflict-of-interest rule, DNA 2's cross-agent privacy, and `link_agent_identity`'s signature checks — each now covered by a test that has been **seen to fail**. The headline count drops because a suite of duplicates was removed, not because coverage did.
 
@@ -62,7 +62,7 @@ cargo run -p validation_request_throughput -- --agents 4 --duration 60
 
 Before any conductor-based run, kill stale conductors: `pkill -x holochain; pkill -x lair-keystore; sleep 2` (use `-x`, not `-f`: `-f` also matches the shell running the command and kills it).
 
-In CI (`.github/workflows/tests.yml`): five jobs run on every push/PR that touches code — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the conductor-free `unit` job, the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the `tripwire` job, which runs the immutability tripwires plus the two forgery tests against the `test_utils` build. Since 2026-10-17 the e2e job builds and packs the hApp from source rather than testing the committed `valichord/workdir/valichord.happ`, so a stale committed bundle can no longer pass or fail it by accident (the bundles Oracle and the Docker demo run are refreshed by the separate **Repack bundles** workflow).
+In CI (`.github/workflows/tests.yml`): five jobs run on every push to `main` and every PR into it that touches code — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the conductor-free `unit` job, the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the `tripwire` job, which runs the immutability tripwires plus the two forgery tests against the `test_utils` build. Since 2026-10-17 the e2e job builds and packs the hApp from source rather than testing the committed `valichord/workdir/valichord.happ`, so a stale committed bundle can no longer pass or fail it by accident (the bundles Oracle and the Docker demo run are refreshed by the separate **Repack bundles** workflow).
 
 ---
 
