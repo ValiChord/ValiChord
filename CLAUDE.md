@@ -59,18 +59,21 @@ Deliberately NOT ported: the `FailedReproduction` / `Divergent` badge variants. 
 
 The only tests that prove the **integrity zomes** reject forbidden updates. They need a special build, because no production coordinator exposes `update_entry`.
 
+Since #47 (2026-10-18) two **forgery** tests share that build and ride the same CI `tripwire` job:
+`harmony_record_forgery.rs` (#11 — peers refuse a HarmonyRecord its signed attestations do not back)
+and `validator_tier_forgery.rs` (#8 — peers refuse a self-assigned `certification_tier`). 1 test each.
+
 ```bash
 cd valichord
 ./build-test-dnas.sh                       # builds --features test_utils -> target-test/, packs -> workdir-test/
 cd sweettest_integration
-VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --test-threads=1
-# 15 tests (5 update + 10 delete), ~50 min (each scenario JIT-compiles ~30 MB WASM)
+VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery -- --test-threads=1
+# 15 tripwires (5 update + 10 delete) + 2 forgery, ~50 min (each scenario JIT-compiles ~30 MB WASM)
 #
-# ⚠️ HC_BIN is REQUIRED on the v0.7.0 branch: build-test-dnas.sh packs with `hc`
-# from PATH, which is deliberately still 0.6.2 here. Pack with the same version
-# workdir/ was packed with, or the test bundles differ from production for a
-# reason unrelated to the code under test:
-#   HC_BIN=/path/to/hc-0.7.0 ./build-test-dnas.sh
+# ⚠️ Pack with the same `hc` version workdir/ was packed with (0.7.1 since 2026-10-17), or the
+# test bundles differ from production for a reason unrelated to the code under test.
+# build-test-dnas.sh uses `hc` from PATH; override with HC_BIN=/path/to/hc ./build-test-dnas.sh.
+# (The script's own comment still says HC_BIN is required "on the v0.7.0 branch" — stale.)
 #
 # ⚠️ Run via ./run-sweettest.sh, NOT a hand-rolled `| grep -v sqlcipher_mlock`.
 # ENOMEM spam splices into the MIDDLE of a `test <name> ... ok` line, so an
@@ -107,7 +110,7 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire -- --t
 
 ```bash
 cd valichord
-cargo test -p valichord_shared_types    # 27 — badge/agreement arithmetic
+cargo test -p valichord_shared_types    # 33 — 27 badge/agreement arithmetic, 4 certificate tier grants, 2 commitment encoding
 cargo test -p governance_coordinator    #  3 — validator_attestation_pairs
 ```
 
@@ -135,12 +138,15 @@ cargo test --test governance
 cargo test --test researcher_repository
 cargo test --test validator_workspace
 cargo test --test security
+cargo test --test membrane_proof     # the only suite NOT on the dev bypass
 
 # Single test by name
 cargo test --test governance silver_badge_issued_with_five_validators -- --test-threads=1
 ```
 
-`sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "0.6.2"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
+Prefer `../run-sweettest.sh <suite>` for any run whose result you will report (see the `tail`/`grep -v` traps above). Counts (2026-10-18): attestation 30, governance 22, researcher_repository 17, validator_workspace 13, security 12, membrane_proof 6 — plus the 17 tripwire/forgery tests.
+
+`sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "=0.7.1"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
 
 ### valichord_attestation (Python)
 
@@ -252,6 +258,11 @@ rebuild's DNA-hash change, which was already being paid for. **That rebuild happ
 2026-08-24**, so each one now costs a network break of its own — a second one. Anything in the
 backlog that was deferred on the reasoning that the window was still open needs re-deciding on its
 own merits, not on a discount that no longer exists.
+🟠 **Update 2026-10-18 — a second break is now pending anyway.** `main` changed DNA hash with
+Holochain 0.7.1 (#45) and again with #47's integrity changes; the live Oracle network has not, and
+will break once, at the 0.7.1 fresh install. So a 🟠 item landed **before that reinstall** shares the
+same break. That is a fact about cost, not a recommendation: whether any item (01 supersession, 02
+hardware provenance) rides it is **Ceri's decision** (`PROJECT_STATUS.md` → 0.7.1 section, "What is left").
 
 ### Four-DNA architecture (valichord/)
 
@@ -277,7 +288,7 @@ The `sweettest_integration/` and `wind-tunnel/` directories are each their own C
 | `merkle_v2.py` | current construction — RFC 6962 §2.1 |
 | `challenge.py` | Probabilistic challenge generation (HMAC-SHA256 seed, SHA-256 counter-mode PRNG) |
 | `response.py` | `build_response`, `verify_response` — Merkle-path selective disclosure |
-| `adapters/` | `AdapterBase` ABC; `InspectAILogAdapter` (reads `.eval` files); `InspectEvalsAdapter` |
+| `adapters/` | `AdapterBase` ABC + six adapters: `InspectAILogAdapter` (reads `.eval` files), `InspectEvalsAdapter`, `PiSessionAdapter` (these three exported from the package root), `LmEvalAdapter`, `AiluminateAdapter`, `WandbRunAdapter` |
 
 **Format version: v2** (since 2026-08-18; `build_bundle` writes `"v2"`, package 2.0.0). Bundles have a `bundle_hash` (full content) and `content_hash` (excludes `Bundle.meta` provenance block). v1/v1.1/v1.2 bundles remain valid and are **not** rewritten.
 
@@ -295,9 +306,9 @@ Conformance vectors: `tests/vectors/merkle_v1_2.json` (+ `_odd_node`) and `merkl
 
 ### Svelte UI architecture (valichord-ui/)
 
-`holochain.ts` — AppWebsocket singleton; reads auth token + signing credentials from `.env.local` (written by `dev-setup.mjs`); sets `SigningCredentials` before connecting (required by `@holochain/client 0.20.x`).
+`holochain.ts` — AppWebsocket singleton; reads auth token + signing credentials from `.env.local` (written by `dev-setup.mjs`); sets `SigningCredentials` before connecting (required since `@holochain/client 0.20.x`; the UI is on **0.21.1**, the 0.7.1 line).
 
-`types.ts` — TypeScript mirrors of all Rust types; `entryFromRecord` msgpack-decodes the raw entry bytes (client 0.20.x does not auto-decode entries — must call `decode()` from `@msgpack/msgpack`).
+`types.ts` — TypeScript mirrors of all Rust types; `entryFromRecord` msgpack-decodes the raw entry bytes (since client 0.20.x entries are not auto-decoded — must call `decode()` from `@msgpack/msgpack`; still the case in the code on 0.21.1).
 
 `App.svelte` → role-based tab nav → `ResearcherView`, `ValidatorView`, `GovernanceView`. Signal subscription is set up in `App.svelte` and cleaned up in `onDestroy` (one handler per mount, no stacking).
 
@@ -402,6 +413,15 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   ⚠️ **Existing installs cannot be upgraded in place either** — 0.7.1 cannot read capability grants
   written by 0.7.0 (#5820), and `init` does not re-run, so the public-read grant would be missing.
   **Fresh install only.**
+- ✅ **#47 merged 2026-10-18; latest release `v0.6.6`** (0.7.1 + #47; v0.6.5 was the 0.7.0 one).
+  Peers now enforce, in `validate()`: joining credentials (`attestation_integrity::check_joining_certificate`,
+  also run at genesis and `init()` — #37); a HarmonyRecord's `attestation_evidence` (signatures,
+  request, outcome, agreement level, `validators_requested`; a short record only after
+  `round_timeout_secs` — #11); a ValidatorProfile's `certification_tier` = what its certificate
+  grants (#8). ⚠️ So "validate() cannot check HarmonyRecord content" / "the membrane is only checked
+  in init()" are **wrong now**, and "`verify_signature` is unavailable in integrity zomes" was
+  **always** wrong. Still undecided (Ceri): who writes `ValidatorReputation` in production, and
+  whether a timed-out short record may earn a badge.
 - 🟠 **Oracle still runs 0.7.0** (since 2026-08-24) — `main` is ahead of the live demo again until
   the 0.7.1 fresh install is done. Runbook: **`docs/ORACLE_0.7.1_UPGRADE.md`** (written, not yet
   run). Until then, the live demo is the 0.7.0 network and its records still resolve.
@@ -443,8 +463,9 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 touches our code.** `reject_if_warranted` reads an empty response as *"no warrants"*, so the gate
 **fails OPEN** — the wrong direction. "Only local peers" describes every sweettest run, the Docker
 demo stack, and any freshly-bootstrapped network. Three call sites share the pattern:
-`attestation_coordinator:637`, `governance_coordinator:188`, `governance_coordinator:394`
-(the last was recorded as `:367` until 2026-10-17; the line had moved).
+`attestation_coordinator::reject_if_warranted` (`:688`), `governance_coordinator:188`,
+`governance_coordinator:394` (re-checked 2026-10-18: the attestation one was `:637` until #47 moved
+it, and the last was `:367` until 2026-10-17 — cite by function name, line numbers drift).
 ⚠️ **Do not cite the warrant gate as a safety property without checking this first.**
 
 **2. Source-chain restore — SHIPPED in 0.7.1** (`#5800`/PR `#5920` closed 2026-08-10, `#5802`
@@ -472,9 +493,10 @@ an empty changelog is routine line-opening.** Judge 0.8 by commits on `develop`,
 
 ### CI binary upgrade (any Holochain version bump)
 
-Update **6** places in `.github/workflows/tests.yml` — 3 jobs (`test`, `sweettest`, `ui-e2e`) ×
-(`BASE=…/releases/download/holochain-X.Y.Z` + `key: …-hc-bin-X.Y.Z`). Verify the binary names exist
-on the release before pushing.
+Update **6** places in `.github/workflows/tests.yml` — 3 jobs (`ui-e2e`, `sweettest`, `tripwire`) ×
+(`BASE=…/releases/download/holochain-X.Y.Z` + `key: …-hc-bin-X.Y.Z`) — plus `HOLOCHAIN_VERSION` in
+`.github/workflows/repack-bundles.yml`. (The `test` job named here until 2026-10-18 was the
+Tryorama job, deleted 2026-08-03.) Verify the binary names exist on the release before pushing.
 
 
 ## Ecosystem tool notes
@@ -483,4 +505,4 @@ on the release before pushing.
 - **Unyt heart** — Go/Pulumi **fleet** deployer (one stack per release; `progenitor` + `notary` node types). Use when setting up production nodes. Note `cloudinit/cloud-config.yaml` hardcodes **`target_arc_factor: 1`** (every node full-arc) — the concrete "kitsune2 #160 in production" artifact.
 - **Unyt migration-service** — working `close_chain`/`open_chain` DNA-migration pipeline. **Read in full 2026-07-27 → `docs/DNA_MIGRATION_PRIOR_ART.md`, which is the answer to "can we carry data across the 0.7 DNA-hash change?"** Verdict: **no — accept the reset and republish.** It carries an agent's own source chain, not the DHT, so it saves no published HarmonyRecord URL; it cannot touch DNA 1/DNA 2 (single-agent, no notaries); and we have no carried state to summarise. **CAL-1.0 — design source, don't copy code.** Read it for `policy.rs` (the algorithm `select_validators()` needs) and the `[MIGERR:<CODE>]` typed-error pattern.
 - **Unyt tauri-plugin-holochain** — lighter Electron alternative (not yet open-source); revisit before building the validator desktop app.
-- **kangaroo-electron** (`holochain/kangaroo-electron`, branch `main-0.6`) — cross-platform Electron packaging. Full plan: `docs/KANGAROO_PACKAGING_PLAN.md`. Remaining blockers: dedicated bootstrap/relay servers.
+- **kangaroo-electron** (`holochain/kangaroo-electron`, branch **`main-0.7`** — `main-0.6` was current when the plan was written) — cross-platform Electron packaging. Full plan: `docs/KANGAROO_PACKAGING_PLAN.md`. Remaining blockers: dedicated bootstrap/relay servers.
