@@ -1,5 +1,13 @@
 # ValiChord × PI Integration
 
+> **Historical (record from April 2026). Status checked 2026-10-18:**
+> - The `POST /attest` endpoint this integration calls **does not currently start** —
+>   `backend/app_protocol.py` imports `holochain_bridge`, removed 2026-04-22, and `demo/serve.mjs`
+>   (listed under Key files) is also gone. See `backend/README.md`.
+> - Upstream issue badlogic/pi-mono#2942 was auto-closed on 2026-04-08 (OSS weekend) and never
+>   reopened; no PR was opened. The extension and skill exist only in the `topeuph-ai/pi-mono` fork.
+> - The "Next steps" below are the April plan, not current work.
+
 ## Status
 
 | Item | Status |

@@ -19,12 +19,15 @@ ValiChord runs a blind commit-reveal round across four Holochain DNAs. A validat
 - The outcome (`Reproduced` / `PartiallyReproduced` / `FailedToReproduce`)
 - A SHA-256 hash of the deposit (proof of exactly what was verified)
 - A `harmony_record_hash` — unique cryptographic identifier, permanent on the DHT
-- A `harmony_record_url` — publicly verifiable link via HTTP Gateway
+- A publicly readable link — the demo nodes serve each record at `GET /record?hash=…` (the HTTP Gateway deployment that used to populate `harmony_record_url` was retired in July 2026)
+
+Since v0.6.6 (October 2026) every peer also checks, before accepting them: each joining validator's credential, each HarmonyRecord's signed validator attestations (participants, outcome, agreement level, cohort size), and each validator profile's tier against what its credential grants.
 
 This is the core of ValiChord. Everything else is supporting infrastructure.
 
 ### 2. The protocol API
 
+- ⚠️ **Not working as of 2026-10-18:** `backend/app_protocol.py` fails at import (its `holochain_bridge` module was removed in April 2026 — see `backend/README.md`). The design:
 - `POST /attest` — **validator path**: pass `data_hash` + verdict; returns HarmonyRecord synchronously (~60 s, no polling, no upload required)
 - `GET /health` — liveness check + conductor status
 
@@ -35,7 +38,7 @@ Both researcher and validators commit blind and reveal simultaneously:
 - Researcher seals result in DNA 1 before validators begin; only the hash is published
 - Each validator seals verdict privately in DNA 2; `post_commit` publishes commitment hash to shared DHT
 - Phase gate opens automatically when all commitment anchors are present
-- Both sides reveal with SHA-256 verification on-chain — neither can change their claim
+- Both sides reveal with SHA-256 verification in the zome code — neither can change their claim
 
 ---
 
@@ -65,11 +68,11 @@ A messy deposit can still reproduce. A tidy deposit can still fail. The proxy do
 
 | What's missing | Why it matters |
 |---|---|
-| Multiple validators in production | The protocol supports multi-validator consensus — the decentralised demo runs 3 validators; production deployment with real researchers and validators is Phase 1 |
-| Always-on hosted network | Currently requires local conductor or Docker demo; Phase 1 deployment is awaiting funding |
+| Multiple validators in production | The protocol supports multi-validator rounds (validators per study is a per-study setting, 1–255) — the decentralised demo runs 3 validators; production deployment with real researchers and validators is Phase 1 |
+| Always-on production network | A public demo network runs on one Oracle Cloud host (`132.145.23.78`, still Holochain 0.7.0 until the 0.7.1 fresh install); a production deployment with independent nodes is Phase 1, awaiting funding |
 | Human validator onboarding | The original vision includes credentialed human researchers as validators — none are on a live network yet |
-| Validator reputation tracking | Badge tiers (Bronze/Silver/Gold) reflect participant count and agreement level; validator experience tracking is Phase 1 |
+| Validator reputation tracking | Badge tiers (Bronze/Silver/Gold) reflect participant count and agreement level, using placeholder thresholds (3/5/7) still to be calibrated with real data; who writes validator reputation in production is undecided |
 
 ---
 
-*Last updated: April 2026*
+*Last updated: April 2026; status facts corrected 2026-10-18 (v0.6.6).*
