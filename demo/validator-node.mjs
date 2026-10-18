@@ -135,7 +135,14 @@ const server = createServer(async (req, res) => {
           available:            true,
           max_concurrent_tasks: 4,
           orcid:                null,
-          agent_type:           null,
+          // Every validator this node serves is an AI validator (driven by
+          // ai_validator.py). On a dev network — no joining certificate, which is
+          // how the demo runs — this self-declared type is the only thing that
+          // tells governance to use the AI reputation path (issuer-granted tier,
+          // no round-based progression). It was `null` until 2026-10-18, so demo
+          // AI validators were progressed as humans. On a credentialed network the
+          // certificate decides instead (#8).
+          agent_type:           'AutomatedTool',
           person_key:           null,
         });
 
