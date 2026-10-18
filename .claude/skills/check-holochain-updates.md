@@ -8,9 +8,9 @@ Run this skill periodically (suggested: before any upgrade, or monthly) to get a
 
 Read `valichord/Cargo.toml` and note the current `hdk` and `hdi` version constraints.
 
-Current baseline (last checked 2026-03-21):
-- `hdk = "0.6"` → stable channel
-- `hdi = "0.7"` → stable channel
+Current baseline (checked 2026-10-18):
+- `hdk = "=0.7.1"`, `hdi = "=0.8.1"` (Holochain 0.7.1; merged to main 2026-10-17). Pinned exactly, so a bump is always a deliberate edit.
+- 0.7.1 is a network break: fresh install only, no in-place upgrade of an existing network.
 
 ---
 
@@ -31,13 +31,14 @@ Fetch the following GitHub issues and note: open/closed, current project status 
 
 | Issue | What it affects | Last known status |
 |---|---|---|
-| https://github.com/holochain/holochain/issues/5010 | validate() API breaking change (0.8) | Open, Ready for refinement, no PR (2026-03-21) |
-| https://github.com/holochain/holochain/issues/5131 | Validate memproofs on demand — credential revocation | Open, Ready for refinement, no assignee (2026-03-21) |
-| https://github.com/holochain/holochain/issues/5132 | Kitsune2 Access module — transport-layer membrane enforcement | Open, Ready for refinement, no assignee (2026-03-21) |
-| https://github.com/holochain/holochain/issues/4345 | Private entry hash collision bug | Open, Ready for refinement, no fix (2026-03-21) |
-| https://github.com/holochain/holochain/issues/4911 | Coordinator updates: capability tokens | Open, Ready for refinement, no PR (2026-03-21) |
-| https://github.com/holochain/holochain/issues/4912 | Coordinator updates: remote calls | Open, Ready for refinement, no PR (2026-03-21) |
-| https://github.com/holochain/holochain/issues/4126 | Agent migration / Deepkey InstallApp | Open, no milestone, no PR (2026-03-21) |
+| https://github.com/holochain/holochain/issues/5010 | validate() API breaking change (0.8) | Open, Ready for refinement, no PR (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/5131 | Validate memproofs on demand — credential revocation | Open, Ready for refinement, no assignee (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/5132 | Kitsune2 Access module — transport-layer membrane enforcement | Open, Ready for refinement, no assignee (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/4345 | Private entry hash collision bug | Open, Ready for refinement, no fix (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/4911 | Coordinator updates: capability tokens | Open, Ready for refinement, no PR (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/4912 | Coordinator updates: remote calls | Open, Ready for refinement, no PR (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
+| https://github.com/holochain/holochain/issues/5288 | `get_agent_activity` empty when only local peers are known — the warrant gate fails open | Open (2026-10-18) |
+| https://github.com/holochain/holochain/issues/4126 | Agent migration / Deepkey InstallApp | Open, no milestone, no PR (2026-03-21; issue still OPEN on 2026-10-18, board column not re-checked) |
 
 **Flag if any issue has moved from "Ready for refinement" to "In Progress", gained a PR, or been closed.** These are the trigger events that require action.
 
@@ -50,16 +51,17 @@ Fetch https://github.com/holochain/holochain/releases and note:
 - Latest dev release and date
 - Any new release since the last check
 
-Releases to watch:
-- **0.6.1 stable** — safe upgrade when released, no API changes
-- **0.7.0 stable** — requires hdk/hdi version bump + network config review (iroh transport)
-- **0.8.x** — validate() API breaking change; do not upgrade without migration plan
+Releases to watch (as of 2026-10-18: latest stable is 0.7.1, released 2026-10-14; 0.8.0-dev.x pre-releases are out):
+- **0.7.x patch releases** — check the changelog for network breaks before bumping the `=` pins
+- **0.8.x** — validate() API breaking change (#5010); do not upgrade without a migration plan
+
+Also check the tooling that moves separately: `@holochain/client` (currently 0.21.1), `kitsune2-bootstrap-srv` (0.5.1), Rust `holochain_client` (0.9.1). Past upgrades: 0.6.2 → 0.7.0 (2026-08-03), 0.7.0 → 0.7.1 (2026-10-17).
 
 ---
 
 ## Step 5 — Update the handover doc
 
-If anything has changed, update the "Holochain Upgrade Radar" section of `docs/13_Valichord_Engineer_Handover.md`:
+If anything has changed, update the "Holochain Upgrade Radar" section of `docs/13_Valichord_Engineer_Handover.md` (last updated 2026-05-13, so it is behind this file):
 - Update the "as of" date
 - Correct any issue statuses that have moved
 - Add notes on any new releases
