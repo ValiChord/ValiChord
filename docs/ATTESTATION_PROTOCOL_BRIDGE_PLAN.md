@@ -75,6 +75,13 @@ science?"*
 > into `meta`, or define the claim preimage to exclude those top-level fields too (a format
 > change). The `content_hash` docstring in `canonical.py` ("reruns that may differ only in
 > provenance (commit, timestamp, command)") has the same flaw.
+>
+> ✅ **Resolved 2026-10-19:** `canonical.claim_hash` excludes `meta` **and** those four fields
+> (`CLAIM_EXCLUDED_FIELDS`), and `protocol.data_hash`, `submission_bytes` and
+> `reproduction_bundle_hash` now use it. `prml_lock_hash` stays in, because a pre-registered claim
+> and a post-hoc one are different claims. `test_a_rerun_is_the_same_claim` covers it, with a
+> negative control showing that `content_hash` does differ between the reruns. Library-only, so no
+> protocol or network change.
 
 ⚠️ **This promotes the `meta` trap from a library nicety to a property of the published record.** `meta` is
 excluded from `content_hash`, so anything placed there that could change a result is invisible to

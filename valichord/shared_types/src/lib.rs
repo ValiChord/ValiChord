@@ -421,9 +421,10 @@ pub struct ValidationAttestation {
     /// Set by the coordinator (not the caller) — `None` only for entries predating this field.
     #[serde(default)]
     pub commitment_anchor_hash:  Option<ActionHash>,
-    /// `content_hash` of the validator's own `valichord_attestation` bundle for this
+    /// `claim_hash` of the validator's own `valichord_attestation` bundle for this
     /// reproduction — SHA-256 over the bundle's canonical (JCS) content, excluding the
-    /// `meta` provenance block, so two validators who genuinely produced the same
+    /// `meta` block and the run-provenance fields (`generated_at`, `repo_commit`,
+    /// `harness_version`, `command`), so two validators who genuinely produced the same
     /// per-sample outputs commit to the same value even though their timestamps differ.
     ///
     /// **This is what turns a verdict into a claim about specific work.** Without it a
@@ -436,8 +437,9 @@ pub struct ValidationAttestation {
     /// no tooling has no bundle to bind. It means "unbound verdict", and consumers should
     /// read it that way rather than as "not yet populated".
     ///
-    /// Use the bundle's `content_hash`, never its `bundle_hash` — the latter covers
-    /// `Bundle.meta` (provenance, timestamps), so two honest validators would never match.
+    /// Use the bundle's `claim_hash` — not `bundle_hash`, which covers
+    /// `Bundle.meta`, nor `content_hash`, which still includes `generated_at` — with either,
+    /// two honest validators would never match. (This said `content_hash` until 2026-10-19.)
     #[serde(default)]
     pub reproduction_bundle_hash: Option<Vec<u8>>,
     /// The study's `num_validators_required`, copied from the ValidationRequest by

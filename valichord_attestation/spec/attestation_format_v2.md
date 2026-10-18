@@ -67,7 +67,7 @@ uniquely identify its leaf list. `samples.completed` is a separate committed
 field, so a *bundle* remained distinguishable, but a root considered alone did
 not — and roots can be carried alone. *(Corrected 2026-10-18: this sentence gave
 `ValidationRequest.data_hash` on the Holochain side as an example of a root carried
-alone. It is not one: `data_hash` wraps the bundle's `content_hash`, not its Merkle
+alone. It is not one: `data_hash` wraps the bundle's `claim_hash` (`content_hash` until 2026-10-19), not its Merkle
 root — `valichord_attestation/protocol.py`, `data_hash()`.)*
 
 ### 1.3 The empty and single-leaf cases are defined

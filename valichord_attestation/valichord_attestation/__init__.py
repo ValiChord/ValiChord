@@ -6,6 +6,7 @@ from .builder import build_bundle
 from .canonical import (
     bundle_to_dict,
     canonicalise,
+    claim_hash,
     content_hash,
     content_preimage,
     hash_bundle,
@@ -37,6 +38,7 @@ __all__ = [
     "build_bundle",
     "bundle_to_dict",
     "canonicalise",
+    "claim_hash",
     "content_hash",
     "content_preimage",
     "hash_bundle",

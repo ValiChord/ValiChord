@@ -14,7 +14,10 @@ import pytest
 
 from valichord_attestation.bundle import Bundle, Metric
 from valichord_attestation.canonical import (
+    CLAIM_EXCLUDED_FIELDS,
     bundle_to_dict,
+    claim_hash,
+    claim_preimage,
     content_hash,
     content_preimage,
     hash_bundle,
@@ -152,20 +155,20 @@ def test_encode_rejects_a_wrong_length():
 # ---------------------------------------------------------------------------
 
 
-def test_submission_bytes_are_the_content_hash_preimage():
+def test_submission_bytes_are_the_claim_hash_preimage():
     """The invariant the whole bridge rests on.
 
     The DNA SHA-256s whatever bytes it is handed. If these bytes are not the
-    content_hash preimage, data_hash stops being predictable off-chain and a
+    claim_hash preimage, data_hash stops being predictable without a conductor and a
     verifier can no longer check a published record against a bundle.
     """
     b = _sample_bundle(meta={"host": "laptop-01"})
-    assert hashlib.sha256(submission_bytes(b)).hexdigest() == content_hash(b)
+    assert hashlib.sha256(submission_bytes(b)).hexdigest() == claim_hash(b)
 
 
-def test_data_hash_core_is_the_content_hash():
+def test_data_hash_core_is_the_claim_hash():
     b = _sample_bundle()
-    assert data_hash(b)[3:35].hex() == content_hash(b)
+    assert data_hash(b)[3:35].hex() == claim_hash(b)
 
 
 def test_data_hash_is_a_well_formed_external_hash():
@@ -209,12 +212,12 @@ def test_a_different_merkle_root_is_a_different_claim():
     assert data_hash(a) != data_hash(b)
 
 
-def test_reproduction_bundle_hash_is_32_raw_bytes_of_content_hash():
+def test_reproduction_bundle_hash_is_32_raw_bytes_of_claim_hash():
     b = _sample_bundle(meta={"host": "validator-2"})
     rbh = reproduction_bundle_hash(b)
 
     assert len(rbh) == 32
-    assert rbh.hex() == content_hash(b)
+    assert rbh.hex() == claim_hash(b)
 
 
 def test_reproduction_bundle_hash_survives_a_provenance_change():
@@ -227,6 +230,55 @@ def test_reproduction_bundle_hash_survives_a_provenance_change():
     assert reproduction_bundle_hash(_sample_bundle()) == reproduction_bundle_hash(
         _sample_bundle(meta={"host": "elsewhere"})
     )
+
+
+def _rerun_of(b: Bundle) -> Bundle:
+    """The same evaluation run again: different time, commit, harness and command."""
+    r = _sample_bundle(meta={"host": "another-machine"})
+    r.generated_at = "2026-10-19T17:30:00+00:00"
+    r.repo_commit = "0123456789abcdef0123456789abcdef01234567"
+    r.harness_version = "inspect-ai 0.3.99"
+    r.command = "inspect eval gsm8k --model gpt-4o"
+    return r
+
+
+def test_a_rerun_is_the_same_claim():
+    """The property the bridge needs, and the one that was broken until 2026-10-19.
+
+    Every earlier test varied ``meta`` only, with a fixed ``generated_at`` — so
+    they passed while ``data_hash`` (then built on ``content_hash``) changed on
+    every real rerun, because ``build_bundle`` defaults ``generated_at`` to now.
+    """
+    original = _sample_bundle()
+    rerun = _rerun_of(original)
+
+    # Negative control: the rerun really does differ in the provenance fields,
+    # and content_hash sees that. Without this the test could pass vacuously.
+    assert content_hash(original) != content_hash(rerun)
+
+    assert claim_hash(original) == claim_hash(rerun)
+    assert data_hash(original) == data_hash(rerun)
+    assert reproduction_bundle_hash(original) == reproduction_bundle_hash(rerun)
+
+
+def test_a_pre_registration_lock_is_part_of_the_claim():
+    """A pre-registered claim and a post-hoc one must not collide."""
+    post_hoc = _sample_bundle()
+    pre_registered = _sample_bundle()
+    pre_registered.prml_lock_hash = "c" * 64
+
+    assert data_hash(post_hoc) != data_hash(pre_registered)
+
+
+def test_claim_preimage_excludes_exactly_the_run_provenance():
+    b = _rerun_of(_sample_bundle())
+    text = claim_preimage(b).decode("utf-8")
+
+    for key in bundle_to_dict(b):
+        if key in CLAIM_EXCLUDED_FIELDS:
+            assert f'"{key}"' not in text, f"{key} must not be part of the claim"
+        else:
+            assert f'"{key}"' in text, f"{key} must be part of the claim"
 
 
 # ---------------------------------------------------------------------------

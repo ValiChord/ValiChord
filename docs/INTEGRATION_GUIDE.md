@@ -353,7 +353,7 @@ so a verifier can spot-check any subset of samples without holding the full log.
 A bundle is the *evidence layer*. A researcher publishes the bundle hash as their claim.
 Independent validators run the same evaluation, build their own bundles, and compare. When a
 full ValiChord validation round is required (commit-reveal on the Holochain DHT), the bundle's
-`content_hash` (not its `bundle_hash`) becomes the `data_hash` passed into the attestation DNA —
+`claim_hash` (not its `bundle_hash` or `content_hash`) becomes the `data_hash` passed into the attestation DNA —
 see `valichord_attestation/protocol.py` (`data_hash`) and `ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`.
 
 ```python

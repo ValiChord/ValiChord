@@ -28,7 +28,7 @@ The two layers are deliberately separable. The format is harness-agnostic and su
 > **Status (2026-10-18).** This library does not write to the Valichord DHT itself; it is a
 > separate, client-side on-ramp, and Valichord's protocol is the Holochain code in `valichord/`.
 > The one existing link: a validator's `ValidationAttestation` has an optional
-> `reproduction_bundle_hash` field for the bundle's `content_hash`, sealed into its commitment
+> `reproduction_bundle_hash` field for the bundle's `claim_hash`, sealed into its commitment
 > (`valichord/shared_types/src/lib.rs`). Rules for any fuller integration are in
 > [`docs/PROTOCOL_INTEGRATION_BOUNDARY.md`](../docs/PROTOCOL_INTEGRATION_BOUNDARY.md).
 
