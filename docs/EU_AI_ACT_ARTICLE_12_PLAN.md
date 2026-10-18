@@ -1,5 +1,12 @@
 # ValiChord × EU AI Act Article 12 — Compliance Plan
 
+> **Status checked 2026-10-18: still a draft; none of the three protocol gaps (§5) has been
+> built.** The 0.7.0 DNA-hash break this plan meant to ride (2026-08-03) went ahead without them —
+> `HarmonyRecord` and `ValidationRequest` have no `system_ref` or evaluation timestamps. A new
+> break (Holochain 0.7.1 + PR #47) is merged on `main` and not yet deployed to Oracle; see
+> `protocol-backlog/README.md` on that window. Whether to use it is Ceri's decision. Legal
+> dates below were not re-checked.
+
 **Created:** 2026-06-18  
 **Status:** Draft — for review before Arcadia Impact conversation  
 **Deadline:** 2 December 2027 (high-risk obligations; deferred from August 2026 by EU Digital Omnibus, May 2026)

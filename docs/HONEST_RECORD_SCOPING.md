@@ -16,6 +16,14 @@ writing `0` if it cannot determine the count; and the UI rendering "3 of 7 · va
 (incomplete)". Verified: partial quorum records **1 of 2**, a full round records **2 of 2**, and
 all 15 immutability tripwires still pass against the rebuilt integrity zome.
 
+> **Updated 2026-10-18 — the §4 limit no longer holds.** Since PR #47 (issue #11 follow-up), a
+> HarmonyRecord carries each validator's signed attestation, and every attestation states the
+> study's `num_validators_required`. Peers now check that `validators_requested` equals that number
+> and that a record with fewer attestations is written only after `round_timeout_secs`
+> (`check_attestation_evidence`, `governance_integrity/src/lib.rs:705`). So the field is now
+> **peer-enforced**, not just disclosure. Where this file says the integrity zome "cannot verify
+> it", read that as the position on 2026-08-03.
+
 **The decision is one thing:** take this now, while the 0.7 migration is already breaking every
 DNA hash, or accept that taking it later costs a *second* break. It is not a question of whether
 the change is desirable.
