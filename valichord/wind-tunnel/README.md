@@ -2,13 +2,12 @@
 
 Performance / load-testing scenarios for ValiChord, built on
 [holochain/wind-tunnel](https://github.com/holochain/wind-tunnel)
-(`holochain_wind_tunnel_runner` **0.7.1**, targeting Holochain 0.6.3 / Kitsune2 0.4.1 per
-upstream's version-compatibility table; we run it against our 0.6.2 conductor — a patch-level
-difference on the same line).
-
-**0.7.1 is the last release usable on our stack.** Upstream `main` moved to Holochain
-0.7.0-rc.1 on 2026-07-24, so every release after v0.7.1 is on the 0.7 line and is gated behind
-our own 0.7 migration. Hold here until then.
+— pinned to a **git rev**, `e4861457` (upstream's *"Update to Holochain 0.7.0"* commit), not to a
+crates.io release. The crates.io `holochain_wind_tunnel_runner` (0.7.x by its own version number) is
+still a **Holochain 0.6** runner, and our scenarios depend on `valichord_shared_types` by path, so
+mixing the two puts two `holo_hash` versions in one graph. Lockfile today: Holochain conductor
+crates 0.7.1, Kitsune2 0.5.0. *(Updated 2026-10-18 — this paragraph used to describe the 0.6.2-era
+crates.io pin.)*
 
 A scenario applies user-defined load with N agents and reports metrics. Each
 agent is one thread of execution that repeatedly runs a *behaviour*. Wind-Tunnel
@@ -41,7 +40,7 @@ Override the hApp path with `VALICHORD_HAPP_PATH=/path/to/valichord.happ`.
 Always kill stale conductors before a run:
 
 ```bash
-pkill -f holochain; pkill -f lair-keystore; sleep 2
+pkill -x holochain; pkill -x lair-keystore; sleep 2   # -x, never -f: -f matches the invoking shell
 ```
 
 **The Kitsune scenario** (`kitsune_dht_propagation`) does **not** use the hApp.
@@ -173,15 +172,16 @@ cargo run -p kitsune_dht_propagation -- \
 > solved the same problem locally by building its own combined
 > `bootstrap_relay` binary — that remains the fallback if a live run is wanted
 > sooner.)
+>
+> **Update 2026-10-18:** we are on 0.7 now, and the lockfile has kitsune2 **0.5.0**, which
+> contains `3746be1`. The runner at our pinned rev still takes both flags as required strings, so
+> the thing to try is pointing both at one kitsune2-bootstrap-srv 0.5.x instance. **Not tried
+> yet** — there has still been no live run of this scenario.
 
-> **Dependency pin — do not remove.** This scenario's transitive iroh stack
-> pulls `ed25519-dalek 3.0.0-pre.1`, which only builds against the
-> release-*candidate* `pkcs8`/`ed25519` crates (the final 0.11.0 / 3.0.0
-> releases changed `pkcs8::Error::KeyMalformed` to a tuple variant and break the
-> build). The exact RC versions are pinned in `kitsune_dht_propagation/Cargo.toml`
-> (matching upstream's own lockfile). An unconstrained `cargo update` will try to
-> undo this — if the Kitsune build breaks after a dep update, re-check those pins
-> first. The Holochain scenarios are unaffected (they use `ed25519-dalek 2.x`).
+> **Dependency pin — removed 2026-08-03.** This section used to say the RC `pkcs8`/`ed25519`
+> pins must stay. They were removed when kitsune2 0.5.0 moved the iroh stack to a final
+> `ed25519` 3.0.0 (the old pins then blocked resolution); the reasoning is in
+> `kitsune_dht_propagation/Cargo.toml`. The Holochain scenarios use `ed25519-dalek 2.x`.
 
 ---
 
