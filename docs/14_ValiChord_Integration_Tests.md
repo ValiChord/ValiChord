@@ -205,7 +205,7 @@ Rust-native tests using Holochain's `sweettest` harness. Run directly via `cargo
 ./run-sweettest.sh governance silver_badge    # optional name filter
 ```
 
-CI runs each suite as `cargo test --test <suite> -- --test-threads=1` (see `.github/workflows/tests.yml`). The immutability and forgery tests need a separate test-only build: `./build-test-dnas.sh`, then `VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire`.
+CI runs each suite from `valichord/sweettest_integration/` as `cargo test --test <suite> -- --test-threads=1` (see `.github/workflows/tests.yml`). The immutability and forgery tests need a separate test-only build: `./build-test-dnas.sh`, then `VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire`.
 
 ### DNA 1 — `researcher_repository.rs` (17 tests)
 
