@@ -9,10 +9,11 @@ should also be part of the harmony record."*
 
 ## Problem
 
-**There is no hardware field anywhere.** Not on `HarmonyRecord`, whose eight fields are
+**There is no hardware field anywhere.** Not on `HarmonyRecord`, whose nine fields are
 `request_ref`, `outcome`, `agreement_level`, `participating_validators`, `validator_types`,
-`validation_duration_secs`, `discipline`, `validators_requested`
-(`governance_integrity/src/lib.rs`). Not in the attestation bundle either.
+`validation_duration_secs`, `discipline`, `validators_requested`, and — since PR #47
+(2026-10-18) — `attestation_evidence` (`governance_integrity/src/lib.rs:65`; still no hardware
+field, checked 2026-10-18). Not in the attestation bundle either.
 
 So when a researcher and a validator get different results, **the record cannot say whether the
 environment differed**. A disagreement that was caused by hardware reads identically to a
