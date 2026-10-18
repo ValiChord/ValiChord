@@ -12,6 +12,15 @@
 
 **Contact:** topeuph@gmail.com
 
+> **Status note (2026-10-18).** This is a governance *design*. Most of it is policy for people to carry out, and most of the mechanical parts (cartel detection, tripwires, display rules, fraud corrections) are **not built yet**. What the Holochain code (`valichord/dnas/`) actually enforces today, on every peer:
+> - **Who may join the Attestation DNA:** only an agent holding a joining certificate signed by `authorized_joining_certificate_issuer` (human validators) or `ai_validator_issuer` (AI validators; falls back to the human key if unset). Checked by every peer since PR #47.
+> - **Validator tier:** a `ValidatorProfile`'s `certification_tier` must equal what its joining certificate grants (AI: the issuer's chosen tier; human: `Provisional`). Validators cannot promote themselves.
+> - **Who may write governance decisions and reputation:** only `system_coordinator_key`. Reputation is written automatically only in dev mode or on the coordinator's own node; who writes it in production is undecided.
+> - **Badges:** Bronze/Silver/Gold need 3/5/7 participating validators plus a minimum agreement level; tier plays no part. These numbers, the reputation tier thresholds (3/10/25 rounds) and the agreement cut-offs (90/70/50%) are **placeholders, to be calibrated with real data** — not statistically justified.
+> - **Records:** Harmony Records, badges and governance decisions cannot be edited or deleted, and every peer checks a Harmony Record against the validators' own signed attestations.
+>
+> An empty key in the DNA properties switches the matching check off (dev/test networks only).
+
 ---
 
 ## Why This Document Exists
@@ -72,6 +81,8 @@ Before any validation assignment:
 
 COI declarations logged. False declarations = immediate removal from pilot.
 
+*In code (2026-10):* the protocol checks only institution names. A validator must declare an institution to claim a study, a researcher cannot claim their own study, and a claim is rejected if the validator's institution string equals the researcher's — so the code is **stricter** than the "same institution, different department" allowance above, and does not check co-authorship or departments at all. Those remain manual checks.
+
 ### 1.3 Basic Transparency
 
 - All governance decisions published with rationale
@@ -92,7 +103,7 @@ COI declarations logged. False declarations = immediate removal from pilot.
 The most pervasive form of validation failure is not fraud or deliberate rubber-stamping — it is unconscious deference to claimed results. A validator who knows what answer they are supposed to find will tend, without any dishonest intent, to interpret ambiguous evidence in favour of that answer. This is not a character flaw; it is a documented feature of human cognition under uncertainty.
 ValiChord eliminates this failure mode architecturally rather than normatively. Validators receive only what they need to reproduce the work: the data, the code, and the execution instructions. They never receive the researcher's claimed result. They cannot confirm what they have never seen. The commit-reveal protocol then ensures they cannot see each other's independent conclusions before sealing their own.
 
-This is not merely a design intention — it is cryptographically enforced at the code layer. Each validator seals a SHA-256 hash of their full assessment concatenated with a private nonce before any reveal window opens. At reveal time, the system verifies that the revealed assessment matches the committed hash exactly; a mismatch is rejected by the network. No validator can adapt their revealed conclusion after observing others. The researcher's result is committed in the same way before validators begin. Three rounds of independent adversarial security review (March 2026) confirmed this protocol is sound and that the implementation correctly enforces the design.
+This is not merely a design intention — it is cryptographically enforced at the code layer. Each validator seals a SHA-256 hash of their full assessment concatenated with a private nonce before any reveal window opens. At reveal time, the validator's own ValiChord software verifies that the revealed assessment matches the committed hash exactly, and refuses a mismatch. No validator can adapt their revealed conclusion after observing others. The researcher's result is committed in the same way before validators begin. Three rounds of adversarial review by AI models (Gemini, ChatGPT, Grok — March 2026) tested this protocol; the gaps they found were closed. *(Precision note, 2026-10: the hash match is checked by the revealing node's coordinator zome, not re-checked by peers, because the nonce is never published. It stops an honest client from changing its answer; a deliberately modified client could bypass it. See the Technical Reference, Layer 2.)*
 
 This means that the most common form of rubber-stamping in peer review — result-anchored deference — is structurally impossible in ValiChord. No governance commitment or training programme is required to prevent it. The architecture prevents it by default.
 This is the sharpest distinction between ValiChord and every existing reproducibility tool: those tools verify that code runs and produces outputs. ValiChord verifies that independent experts, working without knowledge of what the answer is supposed to be, reached the same conclusion.
@@ -160,7 +171,7 @@ A designated function (not necessarily a separate office at this scale) responsi
 
 *Partial fraud (subset of validators):* Where fraud is established for some but not all validators in a round, the HarmonyRecordCorrection records which validators' attestations are considered fraudulent. The remaining validators' attestations stand. If the remaining attestations are sufficient to constitute a valid round under the original quorum rules, a corrected HarmonyRecord may be issued reflecting only the non-fraudulent attestations. If not, the record is marked as process-compromised with no replacement outcome — the honest finding is that the round cannot be evaluated.
 
-*Consequence:* A fraud finding triggers immediate removal from the validator pool and a permanent `FraudDetected` entry in the validator's reputation record on the Governance DHT. Appeal is permitted through the standard appeals process but does not suspend the removal during review.
+*Consequence:* A fraud finding triggers immediate removal from the validator pool and a permanent `FraudDetected` entry in the validator's reputation record on the Governance DHT. *(Planned — not implemented as of 2026-10: neither `HarmonyRecordCorrection` nor a `FraudDetected` marker exists in the code; see [`protocol-backlog/01`](../docs/protocol-backlog/01-harmony-record-supersession.md).)* Appeal is permitted through the standard appeals process but does not suspend the removal during review.
 
 ### 2.3 Validator Cartel Detection
 
@@ -223,6 +234,8 @@ When Harmony Records become formal outputs:
 | Gold | 7 | ≥80% | Multi-institutional, open data + code |
 
 Badge criteria reviewed annually. Changes apply to new protocols only. Tightening requires 2-year notice.
+
+*As built (2026-10):* the code uses the validator counts in this table but not the other columns. A badge is decided from the round's agreement level and the number of participating validators only: Gold = at least 90% of validators `Reproduced` (`ExactMatch`) with ≥7 validators; Silver = `ExactMatch` or `WithinTolerance` (≥70% reproduced or partly reproduced) with ≥5; Bronze = any of those or `DirectionalMatch` (≥50%) with ≥3; a `FailedReproduction` badge is issued for weaker agreement with ≥3; below 3 validators, no badge. Success-rate percentages, pre-registration, multi-institution and open-data conditions are not checked. All of these numbers are placeholders to be calibrated with real data.
 
 ### 2.6 Compensation Fairness
 
@@ -505,6 +518,8 @@ Regardless of who asks — funders, partner institutions, journal editors, gover
 
 The Defence Playbook above states what ValiChord will not concede. This section specifies *how* those commitments are enforced mechanically — through code-level constraints, API licence terms, and automatic tripwires that operate without requiring anyone to be brave in the moment.
 
+> **Status (2026-10):** none of Mechanics 1–9 is implemented in code yet; they are designs (Mechanics 4, 5, 6 and 9 are policy and licence terms rather than code). The parts of the Defence Playbook the code already enforces are narrower: Harmony Records, badges and governance decisions cannot be edited or deleted, and disagreement is kept in the record (`agreement_level` plus each validator's own signed attestation).
+
 These mechanisms are designed around two concrete failure scenarios that were stress-tested against the governance framework and revealed gaps between philosophical commitment and operational reality.
 
 ### Scenario A: Institutional Soft-Capture via Flagship Partnership
@@ -517,7 +532,7 @@ These mechanisms are designed around two concrete failure scenarios that were st
 
 If material disagreement exists in a Harmony Record, it must be visible in the first screen, first scroll, and first API response. Not behind tabs, summaries, confidence labels, or badges.
 
-This is a UI governance constraint enforced in code, not a policy preference. Any interface — internal or partner-facing — that renders Harmony Records must pass a salience check: disagreement visible without user action.
+This is a UI governance constraint to be enforced in code (planned), not a policy preference. Any interface — internal or partner-facing — that renders Harmony Records must pass a salience check: disagreement visible without user action.
 
 **Rationale:** Default views define reality. Almost no one clicks through. A "summary-first" display that technically preserves disagreement behind a link is functionally indistinguishable from hiding it.
 
@@ -741,72 +756,10 @@ That's what infrastructure requires.
 **Companion Documents:**
 - *ValiChord Vision & Architecture* — What ValiChord is and why it matters
 - *ValiChord Technical Reference* — Architecture sketches for engineering discussion
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months — see `5_ValiChord_Grant_Proposal.md`)
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
 
 **Contact:** Ceri John — topeuph@gmail.com
 
 **© 2026 Ceri John. All Rights Reserved.**
 
-
-Multi-jurisdictional operation creates legal complexity: GDPR (Europe) vs. CCPA (California) vs. PIPL (China). Research ethics standards vary. Cultural norms around transparency differ.
-
-**Approach:** Minimum global standards (baseline), regional adaptations (where necessary), mutual recognition (federation model), shared principles (transparency, integrity).
-
-### Challenge 5: Governance Capture
-
-The most insidious risk. ValiChord governance could be captured by large institutions (volume dominance), funders (financial pressure), established researchers (prestige bias), or special interests (methodology wars).
-
-**Defences:** The Anti-Domestication Mechanics section above provides nine specific mechanical defences against the two most plausible capture scenarios — institutional soft-capture and journal-led workflow capture. These complement the structural defences: graph-based independence verification, separation of powers, term limits and rotation, diverse representation requirements, the Epistemic Integrity Commitments, and active monitoring of decision patterns.
-
-**Capture is insidious.** It happens gradually through procedurally correct means. The Anti-Domestication Mechanics are designed to make capture visible and costly before it becomes structural. Vigilance is not a phase — it's permanent.
-
----
-
-## GOVERNANCE EVOLUTION
-
-### Principle
-
-Governance must evolve. The system learns from experience. Edge cases reveal gaps. Gaming strategies adapt. Community needs change.
-
-### Process
-
-1. **Identify need** — Pattern analysis, community feedback, governance bottlenecks, external changes
-2. **Propose change** — Document current state, specify proposed change, explain rationale and evidence, identify risks
-3. **Community input** — Public comment period (30 days minimum), stakeholder consultation, impact assessment
-4. **Decision** — RIO deliberates, rationale published, implementation timeline if approved
-5. **Monitor** — Track metrics post-change. Did it solve the problem? Did it create new ones? Adjust or revert if needed.
-
-### Constraints on Evolution
-
-- Changes must be evidence-based, not ideological
-- Changes must be transparent — the community sees the reasoning
-- Changes must be conservative — requiring justification proportional to impact
-- Changes must be reversible where possible
-- The six non-negotiable commitments cannot be weakened through the evolution process
-
----
-
-## Conclusion
-
-ValiChord's governance is not an afterthought. It is the immune system that determines whether the technical architecture serves its purpose or gets captured by the forces it was designed to resist.
-
-The tiered approach means governance matches operational scale — minimal overhead during the pilot, enhanced mechanisms as the system grows, and a complete architecture designed in advance so the mature system inherits the right principles.
-
-If governance fails, ValiChord fails. Not because of technical problems. Not because of adoption challenges. Because trust is lost.
-
-This framework is designed to maintain that trust, even under pressure. Even when it's uncomfortable. Especially when it's uncomfortable.
-
-That's what infrastructure requires.
-
----
-
-**Companion Documents:**
-- *ValiChord Vision & Architecture* — What ValiChord is and why it matters
-- *ValiChord Technical Reference* — Architecture sketches for engineering discussion
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (£69K, 6 months)
-- *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
-
-**Contact:** Ceri John — topeuph@gmail.com
-
-**© 2026 Ceri John. All Rights Reserved.**
