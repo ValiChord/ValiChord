@@ -164,7 +164,7 @@ Fill in:
 - **Institution** — your organisation name
 - **ORCID** — optional; your researcher identifier
 - **Disciplines** — select all disciplines you can validate
-- (There is no certification-tier field: `ValidatorView.svelte` always sends `Provisional`. See "Known gaps".)
+- (There is no certification-tier field: the tier comes from the validator's joining certificate, and the app sets it. `ValidatorView.svelte` sends `Provisional`, which is overwritten on a credentialed network.)
 - **Agent type** — `Individual`, `Institution`, or `AutomatedTool`
 - **Maximum concurrent tasks** — how many studies you can work on simultaneously
 - **Available** — toggle on to appear in the validator pool
@@ -344,5 +344,5 @@ A plain string will cause a type error at connection time.
 
 ## Known gaps (checked against the code, 2026-10-18)
 
-- **No joining certificate in the profile form.** Since PR #47 (v0.6.6), a network that has an issuer key set requires every ValidatorProfile to carry a `joining_certificate` and a `certification_tier` equal to what it grants. `ValidatorProfile` in `src/lib/types.ts` has no `joining_certificate` field and the form hard-codes `Provisional`, so this UI only works against the dev-bypass install that `dev.sh` and the e2e suite use. It has not been tried against a credentialed network.
+- **The profile form does not need a certificate or tier — and that is by design.** Since PR #47 (v0.6.6), on a network with an issuer key set, every ValidatorProfile must carry the author's `joining_certificate` and the `certification_tier` it grants. The UI does not have to supply either: `publish_validator_profile` attaches the validator's own certificate and overwrites whatever tier the caller sent (`attestation_coordinator`, `publish_validator_profile`). So the form's hard-coded `Provisional` is harmless. `types.ts` simply lacks the optional `joining_certificate` field, which only matters if the UI ever wants to *display* it. Not yet exercised against a credentialed network in e2e (which uses the dev bypass).
 - **Badge shown on the Governance tab is computed client-side** from the record's validator count and agreement level, not read from a stored `ReproducibilityBadge`.
