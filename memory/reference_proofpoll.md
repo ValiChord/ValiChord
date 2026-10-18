@@ -2,6 +2,8 @@
 
 Reference notes on `WeAreFlowsta/ProofPoll` and the `agent_linking` zome in `WeAreFlowsta/flowsta-identity-dna`, both relevant to ValiChord's validator-desktop-app and `person_key` roadmap. Same org as `flowsta-vault-app`. Last reviewed: 2026-06-13.
 
+> **Dated note (2026-10-18).** "Our exact stack" / "0.6.1" below means ValiChord as of 2026-06-13. ValiChord `main` is now on Holochain 0.7.1 (`hdk =0.7.1`), so ProofPoll's 0.6.1 pins are a version behind, not a match. Re-check upstream before lifting patterns that depend on 0.6.1 conductor config fields.
+
 ## ProofPoll — Tauri v2 + Qwik desktop app on our exact stack
 
 `WeAreFlowsta/ProofPoll` is a desktop polling app: Tauri v2 + Qwik frontend, local Holochain **0.6.1** conductor, sybil-resistant ("one vote per real person") via Flowsta identity, censorship-resistant via DHT. DNA pins `hdk=0.6.0`/`hdi=0.7.0` (conductor binaries are 0.6.1). Written as an explicit **fork template** — every `src-tauri/src/` file has a "keep as-is / replace your data model" header.

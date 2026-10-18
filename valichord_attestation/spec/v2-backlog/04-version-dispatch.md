@@ -1,5 +1,7 @@
 # v2 backlog item: keeping v1.1/v1.2 bundles verifiable
 
+> **CLOSED — shipped in format v2 on 2026-08-18** (label added 2026-10-18). This file is kept as the design record; any "Status", "open" or "proposed" below describes the time it was written. See [README.md](README.md).
+
 **Status:** Open design. The only item here that is not "adopt RFC 6962".
 **Blocks:** all of `01`–`03`. None of them can ship until this is decided.
 

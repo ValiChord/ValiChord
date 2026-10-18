@@ -133,6 +133,13 @@ fetchable), but they are *not* aggregated into the on-chain record. So the gate 
 at this level"; reconstructing the per-lab numeric panel is a separate read across the attestations.
 (This matches the PEP Master finding: per-builder numerics don't survive into the `HarmonyRecord`.)
 
+> **Update 2026-10-18 (ValiChord PR #47).** A `HarmonyRecord` now also carries
+> `attestation_evidence`: for each participating validator, their signed `ValidationAttestation`
+> (action, signature and content), which every peer verifies. So each lab's revealed attestation
+> — including its `outcome_summary.key_metrics` — is inside the record, not only in DNA 3. What
+> those metrics contain is still whatever the node layer put there (see the PEP Master limits),
+> so the per-lab numeric panel point above is narrowed, not closed.
+
 **Reused as-is:** the numeric tolerance + agreement machinery built for CORE-Bench (`match_value`,
 tolerance pinned at commit, `derive_agreement_level` / `derive_majority_outcome`). The Holochain
 layer is source-agnostic — it doesn't care the number came from an electrical ping rig.

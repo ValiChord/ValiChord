@@ -389,7 +389,10 @@ placing a ValiChord-side authority in the trust path would make a general-purpos
 domain-specific.
 
 Two mechanisms are available. ValiChord supports a credential membrane enforced at network join, via
-a DNA property naming an issuing authority; this is built and running. Nondominium's own model is
+a DNA property naming an issuing authority; this is built and running. *(Note 2026-10-18: since
+ValiChord PR #47 the credential is checked by every peer in `validate()`, not only by the joining
+agent. "Running" means built and tested; the public demo network runs with the issuer left empty,
+which switches the check off.)* Nondominium's own model is
 in-DHT moderated membership, which is visible, reversible and pluralistic. The recommended starting
 point is delegation: ValiChord runs an open membrane, and Nondominium's governance is the sole gate on
 who is invited to a round.

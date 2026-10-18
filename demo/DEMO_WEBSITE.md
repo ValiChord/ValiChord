@@ -30,12 +30,12 @@ The user enters a hypothesis and their own assessment of it. That assessment is 
 
 **Phase 1 — Commit (background thread, ~5–8 minutes)**
 
-1. `classify_discipline(claim, api_key)` — a short Haiku call classifies the claim into an academic discipline (e.g. "Social Psychology", "Exercise Science") and returns `{"type": "Other", "content": "<name>"}` for the DHT. This runs before anything is written to the network.
+1. `classify_discipline(claim, api_key)` — a short Claude call (`MODEL_CMA`, `claude-sonnet-4-6` — corrected 2026-10-18, it is no longer Haiku) classifies the claim into an academic discipline (e.g. "Social Psychology", "Exercise Science") and returns `{"type": "Other", "content": "<name>"}` for the DHT. This runs before anything is written to the network.
 2. The user's answer is SHA-256 hashed with a random UUID salt → `POST /lock-result` on the researcher node.
 3. `POST /submit-request` creates a `ValidationRequest` on the DHT with `num_validators_required: 3`.
 4. 30-second sleep to let the `ValidationRequest` propagate via DHT gossip to all validator nodes.
 5. Three CMA validator sessions run in parallel via `ThreadPoolExecutor`. Each validator:
-   - Creates a dedicated Holochain CMA environment + agent + session
+   - Opens its own CMA session (own isolated container) on an agent + environment shared by all three validators and reused across runs (`_get_or_create_agent_env` in `custom_runner.py`; corrected 2026-10-18 — they were once created per validator)
    - Receives a `user.message` with the hypothesis and its validator index
    - Works through 5 steps using `web_search`, `web_fetch`, and `write` tools
    - Writes its verdict to `/mnt/session/verdict.json` — `outcome`, `confidence`, `reasoning`
@@ -48,7 +48,7 @@ The user enters a hypothesis and their own assessment of it. That assessment is 
 1. Polls `GET /phase` on the researcher node until `"RevealOpen"` (up to 240 s).
 2. `POST /reveal` on the researcher node — unseals the researcher's commitment.
 3. `POST /reveal` on each of the three validator nodes (15 s apart to avoid DHT write conflicts); each call retried up to 3 times on transient network errors.
-4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns a human-readable `summary` comparing the researcher's answer to the panel. (Its `outcome`/`agreement_level` are no longer used for display; a malformed-JSON reply falls back to a neutral summary so the HarmonyRecord is still written.) The displayed `outcome` and `agreement_level` are derived from the validator verdicts by `demo/agreement.py`, which mirrors the on-chain Rust logic (`shared_types::derive_majority_outcome` / `derive_agreement_level`) — so the label always matches the HarmonyRecord a skeptic fetches, and can never show "3/3 Reproduced" beside a contradictory agreement level.
+4. `compare_answers(claim, user_answer, verdicts, api_key)` — a single non-CMA Claude call that reads all four sealed answers and returns a human-readable `summary` comparing the researcher's answer to the panel. (Its `outcome`/`agreement_level` are no longer used for display; a malformed-JSON reply falls back to a neutral summary so the HarmonyRecord is still written.) The displayed `outcome` and `agreement_level` are derived from the validator verdicts by `demo/agreement.py`, which mirrors the Rust zome logic (`shared_types::derive_majority_outcome` / `derive_agreement_level`) — so the label always matches the HarmonyRecord a skeptic fetches, and can never show "3/3 Reproduced" beside a contradictory agreement level.
 5. `POST /create-harmony-record` → permanent HarmonyRecord on the DHT.
 6. `job["phase"] = "done"` — UI renders the full result.
 
@@ -102,9 +102,9 @@ Private fields (`_claim`, `_user_answer`, `_api_key`, `_started_at`) are stored 
 }
 ```
 
-Note: `outcome` and `agreement_level` are derived from the validator verdicts with the same logic as the on-chain HarmonyRecord, so the displayed label always matches the record you can fetch yourself (validator-to-validator consensus). `comparison_summary` is the separate researcher-to-validator narrative from `compare_answers` — it explains how the panel's finding relates to the researcher's sealed answer, but does not drive the outcome label.
+Note: `outcome` and `agreement_level` are derived from the validator verdicts with the same logic as the published HarmonyRecord, so the displayed label always matches the record you can fetch yourself (validator-to-validator agreement). `comparison_summary` is the separate researcher-to-validator narrative from `compare_answers` — it explains how the panel's finding relates to the researcher's sealed answer, but does not drive the outcome label.
 
-`headline` is a **display-only** field (`_claim_headline` in `custom_runner.py`) that translates the result into claim vocabulary for the badge. The reproducibility scale bottoms out at "UnableToAssess" for a unanimous *refutation* — technically correct (zero "reproduction") but confusing, because the validators clearly assessed the claim and agreed. The headline buckets the validator outcomes into **Supported / Partially supported / Refuted / Inconclusive**, notes unanimity (e.g. "validators unanimous", "2 of 3 validators agree", "validators split"), and appends whether the researcher's sealed answer aligned (from the `compare_answers` outcome: "matches / partly matches / diverges from your sealed answer"). The badge in `app.py` uses `headline` when present and falls back to the old `{outcome} — {agreement_level}` format. Nothing on-chain changes — the HarmonyRecord still records the reproducibility vocabulary, and `outcome`/`agreement_level` remain in the result dict for the raw-record view.
+`headline` is a **display-only** field (`_claim_headline` in `custom_runner.py`) that translates the result into claim vocabulary for the badge. The reproducibility scale bottoms out at "UnableToAssess" for a unanimous *refutation* — technically correct (zero "reproduction") but confusing, because the validators clearly assessed the claim and agreed. The headline buckets the validator outcomes into **Supported / Partially supported / Refuted / Inconclusive**, notes unanimity (e.g. "validators unanimous", "2 of 3 validators agree", "validators split"), and appends whether the researcher's sealed answer aligned (from the `compare_answers` outcome: "matches / partly matches / diverges from your sealed answer"). The badge in `app.py` uses `headline` when present and falls back to the old `{outcome} — {agreement_level}` format. Nothing in the published record changes — the HarmonyRecord still records the reproducibility vocabulary, and `outcome`/`agreement_level` remain in the result dict for the raw-record view.
 
 ### Concurrency
 
@@ -122,7 +122,7 @@ One custom run at a time, enforced by `_custom_running` bool + `_custom_lock`. A
 
 The server-funded free demo was removed in June 2026. It used the server's `ANTHROPIC_API_KEY` for every visitor run, so public traffic spent the operator's own quota — the cause of repeated rate-limit alerts. The `/demo/run` and `/demo/result/<id>` routes, their job state, and the per-IP/monthly-budget rate-limit logic are all gone from `app.py`.
 
-`demo/demo_runner.py` (the old free-demo study logic) is **not** deleted — it is still imported by `core_bench_runner.py` for its node HTTP helpers (`_node_post`, `_node_get`, URL config) and is exercised by `tests/test_demo_runner.py`. It is simply no longer reachable from the website.
+`demo/demo_runner.py` (the old free-demo study logic) is **not** deleted — it is still imported by `core_bench_runner.py` for its node HTTP helpers (`_node_post`, `_node_get`, URL config) (the test file `tests/test_demo_runner.py` this line once cited no longer exists — corrected 2026-10-18). It is simply no longer reachable from the website.
 
 ---
 
@@ -158,7 +158,7 @@ The custom demo runs on the visitor's own key, so there is no server-cost budget
 | `demo/synthetic_study/study.py` | The actual study code validators reproduce |
 | `demo/static/valichord-logo.jpeg` | ValiChord logo in header |
 | `demo/static/holochain-logo.png` | Holochain logo in header |
-| `demo/requirements.txt` | `flask`, `flask-cors`, `anthropic`, `gunicorn` |
+| `demo/requirements.txt` | `flask`, `flask-cors`, `anthropic`, `gunicorn`, plus `litellm` (local-model mode) and `scipy` (`report_to_verdict.py`) |
 | `demo/Dockerfile` | Container — python:3.12-slim, non-root appuser, gunicorn |
 | `render.yaml` | Render service configuration |
 
@@ -194,7 +194,7 @@ The Oracle node URLs are set in `render.yaml` and are not secrets. **Do not set 
 
 **Dockerfile notes:**
 - `python:3.12-slim`, runs as non-root `appuser`
-- COPY line includes all four Python modules: `app.py`, `demo_runner.py`, `custom_runner.py`, `ai_validator_cma.py`
+- COPY line includes five Python modules: `app.py`, `demo_runner.py`, `custom_runner.py`, `ai_validator_cma.py`, `agreement.py`
 - Gunicorn: `--workers 1 --threads 4 --timeout 180` (180 s covers the full protocol round-trip)
 - Static files served from `demo/static/` — both logos are included
 - Health check: `GET /health` → `{"status": "ok"}`

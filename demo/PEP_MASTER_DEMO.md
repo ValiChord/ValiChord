@@ -51,9 +51,10 @@ You need a host with:
 - **Python 3.8+** (standard library only — **no `pip install` needed**)
 - **No API keys.** Unlike ValiChord's AI-validator demos, the builder verdicts here come
   from the measurement bundle, not from a model. Nothing calls out to any LLM.
-- An **x86_64 Linux host** is recommended (the bundled Holochain + bootstrap binaries are
-  Linux x86_64). **GitHub Codespaces is the easiest path** — it just works. On Apple Silicon,
-  run Docker with amd64 emulation.
+- A **Linux x86_64 or aarch64 Docker host**. `Dockerfile.node` downloads the matching
+  Holochain 0.7.1 and kitsune2-bootstrap-srv 0.5.1 builds for either architecture, so Apple
+  Silicon should no longer need amd64 emulation *(updated 2026-10-18; not re-tested on a Mac)*.
+  **GitHub Codespaces is the easiest path** — it just works.
 
 Everything else — the four Holochain conductors, the compiled device hApps, and the
 peer-discovery (bootstrap) server — runs inside Docker containers built from this repo. No
@@ -209,7 +210,7 @@ lives in a peer-validated DHT. The demo runs four conductors across five contain
 | **Request** | A `ValidationRequest` is published to the shared DHT (`num_validators_required = 3`). |
 | **Commit (blind)** | Each of the 3 builder conductors seals its verdict: `commitment_hash = SHA-256(attestation ‖ nonce)`. No builder can see another's verdict. |
 | **Phase gate** | When all 3 commitments are on the DHT, the reveal window opens (poll-driven, not signal-driven). |
-| **Reveal** | Researcher and all builders reveal together; each reveal is SHA-256-verified on-chain against its commitment. |
+| **Reveal** | Researcher and all builders reveal together; each reveal is SHA-256-verified by the zome against its commitment. |
 | **HarmonyRecord** | Aggregated outcome + agreement level written to the public DHT — tamper-evident, immutable, fetchable by anyone. |
 
 This is the **same protocol and the same code** ValiChord uses for computational
@@ -218,7 +219,7 @@ pressure gauge instead of a re-run script — which is exactly the point.
 
 ---
 
-## 8. Honest limits — what survives on-chain in Version A
+## 8. Honest limits — what survives in the published record in Version A
 
 Version A demonstrates agreement **at the outcome level**. Specifically, what the public
 HarmonyRecord and attestations carry today:

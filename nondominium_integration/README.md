@@ -5,6 +5,14 @@
 **Last updated:** May 2026
 
 > **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.5.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting.
+>
+> **Status update (2026-10-18).** "Live on Oracle (v0.5.0)" was the May 2026 state. Today:
+> latest release **v0.6.6**, Holochain **0.7.1** on `main`; the public Oracle host is
+> `132.145.23.78` (still on 0.7.0 until a fresh 0.7.1 install, which starts a new network — so
+> records are durable within a network, not across these upgrades). Since PR #47 (2026-10-18)
+> every peer checks joining credentials, validator tiers, and each HarmonyRecord's signed
+> per-validator attestations. Validation thresholds (badge 3/5/7, tier 3/10/25) are placeholders
+> still to be calibrated.
 
 ---
 
@@ -141,6 +149,14 @@ Neither project needs to build cross-DNA call infrastructure — Nondominium's h
 | Test framework | Sweettest + Tryorama/Vitest | Sweettest (primary; Tryorama deprecated in fork) |
 
 Compatible — same minor version. No upgrades required to begin integration work.
+
+> **Update 2026-10-18 — the ValiChord column above is out of date.** ValiChord `main` is on
+> Holochain **0.7.1** (`hdk =0.7.1`, `hdi =0.8.1`, merged 2026-10-17; 0.7.0 from 2026-08-03), and
+> its tests are Sweettest only — Tryorama was retired on 2026-08-03. Nondominium was on
+> `hdk ^0.6.0` / `holochain =0.6.0` at the last check (2026-08-16, see
+> `NONDOMINIUM_ARCHITECTURE.md`), so the two are **no longer on the same minor version**. Code
+> that only reads a HarmonyRecord as data is unaffected; anything running both in one conductor
+> is not.
 
 **Note (April 2026):** Nondominium has no `DnaProperties` struct and `dna.yaml` has `properties: ~`.
 Any integration configuration (e.g. ValiChord callback URL or contract address) cannot live in

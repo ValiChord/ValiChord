@@ -4,6 +4,11 @@
 > demo's specifics warrant deviation. The two existing demos
 > (`mistral_7b_gsm8k_demo`, `inspect_ai_popularity_demo`) follow this
 > structure with minor variations.
+>
+> **2026-10-18:** the current format is **v2** (package 2.0.0); "v1.1" in the title is the
+> protocol generation the first demos were written against. In a new demo, pass the bundle's own
+> `format_version` to `build_response` (and to `merkle_proof` / `verify_faithfulness`) so a
+> committed bundle keeps verifying after the library's default changes.
 
 ---
 

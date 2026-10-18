@@ -154,6 +154,13 @@ files under `samples/`, `summaries.json`, and `reductions.json`.
 
 **Quickest run:** `bash verify_demo.sh`
 
+> ⚠️ **Format-version note, 2026-10-18 (found by reading the code; not run).** The committed
+> `bundle.json` is format **v1**. Since package 2.0.0, `build_bundle.py` writes format **v2**, so
+> "reproduce the committed bundle" now gives a v2 bundle with a different Merkle root and
+> overwrites `bundle.json`. `challenge_response_demo.py` calls `build_response` without a
+> `format_version`, which defaults to v2 — so running it directly on the committed v1 file is
+> expected to **fail** verification. `bash verify_demo.sh` rebuilds first, so it should pass.
+
 The committed `bundle.json` was produced from built-in simulated data
 (`random.Random(42)`, 50 samples, 80% accuracy).  All scripts run without any
 download or API key:

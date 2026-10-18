@@ -26,7 +26,7 @@ bundle_capsule-0851068_v2_anthropic_claude-sonnet-4-6.json
 bundle_capsule-0851068_v3_anthropic_claude-sonnet-4-6.json
 ```
 
-Each is a `valichord_attestation` v1.2 bundle. The parts that matter:
+Each is a `valichord_attestation` v1.2 bundle. *(Note 2026-10-18: the committed bundles are v1.2, made before package 2.0.0. `build_bundle` now always writes format **v2** (`valichord_attestation/builder.py`), so regenerating with Path A or B gives v2 bundles — same fields, different Merkle roots and bundle hashes. v1.2 bundles still verify.)* The parts that matter:
 
 | Field | Source | Value in this example |
 |---|---|---|
@@ -38,7 +38,7 @@ Each is a `valichord_attestation` v1.2 bundle. The parts that matter:
 
 All three validators independently reproduced the capsule's final AUC to 16
 digits (`0.9157952669235003`), inside the researcher's committed interval — hence
-the round's on-chain outcome `Reproduced` / `ExactMatch`.
+the round's recorded outcome `Reproduced` / `ExactMatch`.
 
 ---
 

@@ -84,7 +84,7 @@ export VALICHORD_LOCAL_MODELS=alice,bob,carol
 python3 demo/app.py
 ```
 
-Then open `http://127.0.0.1:5000/demo`.
+Then open `http://127.0.0.1:8080/demo` (`app.py` listens on `$PORT`, default 8080 — corrected 2026-10-18 from 5000).
 
 The page swaps the API-key box for a **source material** box. You type a claim,
 paste the evidence, and write your own answer. Your answer *and the sources* are

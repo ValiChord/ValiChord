@@ -4,6 +4,12 @@
 **Written:** March 2026 | **Updated:** May 2026
 **Based on:** Full read-through of both codebases
 
+> **ValiChord status note (2026-10-18).** Facts about ValiChord below are as of May 2026 (v0.5.0).
+> Current: release v0.6.6, Holochain 0.7.1, public Oracle host `132.145.23.78`; since PR #47
+> every peer verifies joining credentials, validator tiers and each HarmonyRecord's signed
+> attestations. The badge (Gold ≥7 / Silver ≥5 / Bronze ≥3) and tier thresholds used in the
+> scenario are **placeholders to be calibrated with real data**, not settled values.
+
 ---
 
 > **⚠️ Correction (2026-08-16) — the slot tag described below does not exist on their side.**

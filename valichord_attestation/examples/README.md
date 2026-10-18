@@ -6,8 +6,14 @@
 |---|---|
 | `simple_eval.json` | 10-sample GSM8K-shaped bundle (gpt-4o, synthetic) |
 | `complex_eval.json` | 16-sample agentdojo/travel bundle with 3 metrics (claude-3-5-sonnet, synthetic) |
-| `verify_examples.py` | Loads both JSONs, recomputes hashes and Merkle roots, verifies sample proofs |
-| `challenge_response_demo.py` | Full v1.1 challenge-response walkthrough on a 500-sample synthetic bundle |
+| `simple_eval_v2.json` | The same 10 samples as `simple_eval.json`, written as a format **v2** bundle (current format; different Merkle root) |
+| `verify_examples.py` | Loads all three JSONs, recomputes hashes and Merkle roots under each bundle's own `format_version`, verifies sample proofs |
+| `challenge_response_demo.py` | Full challenge-response walkthrough on a 500-sample synthetic bundle (built now, so it is a v2 bundle) |
+
+> **Format versions (note 2026-10-18).** The committed bundles in this folder and in both demo
+> folders are format **v1** except `simple_eval_v2.json`. They still verify. Anything you build
+> fresh with `build_bundle` (including the demos' `build_bundle.py`) is **v2**, so its root and
+> hashes will not match the committed v1 file.
 
 Run all synthetic verifications:
 
