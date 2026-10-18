@@ -24,7 +24,7 @@ Sarah opens her Researcher Repository — her private, local ValiChord workspace
 
 ValiChord does not store any of this. It computes a SHA-256 cryptographic fingerprint of her data (carried as a 39-byte Holochain hash). That fingerprint, and only that fingerprint, will travel to the shared network. Sarah's proprietary data stays exactly where it is.
 
-She submits a Validation Request to the shared network, attaching the fingerprint, specifying her discipline (Computational Biology), and indicating the number of validators required (she chooses three; any number from 1 to 255 is allowed). The request appears on the shared network — visible to credentialed validators in her field.
+She submits a Validation Request to the shared network, attaching the fingerprint, specifying her discipline (Computational Biology), and indicating the number of validators required (she chooses three; each study sets its own number, which must not be below the network's minimum). The request appears on the shared network — visible to credentialed validators in her field.
 
 There is one more step that happens at submission, invisible to the validators: Sarah **locks her result**. ValiChord generates a random nonce and computes a cryptographic hash of her structured result metrics — the exact numbers from her paper. Only that hash travels to the shared network, recorded as a `ResearcherResultCommitment`. The metrics and nonce stay sealed in Sarah's private workspace. The validators cannot see what Sarah found. Sarah cannot change what she claimed to have found. The envelope is sealed. (On a production network this lock is compulsory: no validator can seal a finding until the researcher's commitment is on the network.)
 
