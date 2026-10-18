@@ -4,6 +4,8 @@
 
 # ValiChord at Home
 
+> **A separate tool, not the protocol.** ValiChord at Home lives in its own repository ([valichord_at_home](https://github.com/topeuph-ai/valichord_at_home)). It helps a researcher tidy a deposit *before* validation. It does not run the commit-reveal protocol, does not join the Holochain network, and does not produce a verdict — validators do that, through the ValiChord protocol in `valichord/`. This page describes its design intentions; check its own repository for what is built.
+
 
 ## Your Private Research Companion for Pre-Submission Readiness
 
@@ -30,7 +32,7 @@ The tool provides **Level 1: Pre-Submission Self-Assessment** through a local, p
 * **Actionable Triage:** It identifies exactly what a validator would need to find and provides specific guidance on how to fix each gap before submission.
 
 
-* **Environment Fingerprinting:** The tool automatically captures a standardised snapshot of the researcher's computational environment — OS family, CPU architecture, GPU presence, and RAM class — alongside the software environment inferred from the deposit's dependency files (requirements.txt, environment.yml, sessionInfo() output, Dockerfile, or similar). This fingerprint is stored locally and only transmitted to the ValiChord network at submission time, with the researcher's explicit consent. It is used by the validator selection algorithm to prioritise validators whose setup is closest to the researcher's, reducing setup-attributable divergence before validation begins. Researchers who submit without ValiChord at Home can provide the hardware portion (OS, CPU architecture, GPU) via a short form at submission; the software portion is inferred automatically from a well-prepared deposit.
+* **Environment Fingerprinting:** The tool automatically captures a standardised snapshot of the researcher's computational environment — OS family, CPU architecture, GPU presence, and RAM class — alongside the software environment inferred from the deposit's dependency files (requirements.txt, environment.yml, sessionInfo() output, Dockerfile, or similar). This fingerprint is stored locally and only transmitted to the ValiChord network at submission time, with the researcher's explicit consent. It is intended for a future validator selection algorithm that would prioritise validators whose setup is closest to the researcher's, reducing setup-attributable divergence before validation begins. *(As of October 2026 the protocol has no selection algorithm and no environment-fingerprint field; validators choose studies themselves.)* Researchers who submit without ValiChord at Home can provide the hardware portion (OS, CPU architecture, GPU) via a short form at submission; the software portion is inferred automatically from a well-prepared deposit.
 
 
 
@@ -70,4 +72,4 @@ Consistent with the broader ValiChord architecture, the "at Home" tool is design
 
 ---
 
-For more information on the full validation pipeline, see the [ValiChord Vision & Architecture](https://github.com/ValiChord/ValiChord/blob/main/docs/Vision%20%26%20Architecture.md) and the [Researcher Support Document](https://github.com/ValiChord/ValiChord/blob/main/ValiChord_Researcher_Support.md)
+For more information on the full validation pipeline, see the [ValiChord Vision & Architecture](1_ValiChord_Vision&Architecture.md) and the [Researcher Support Document](17_ValiChord_Researcher_Support.md)

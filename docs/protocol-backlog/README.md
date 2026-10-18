@@ -34,6 +34,16 @@ Changing an integrity zome changes the DNA hash, which produces a **separate net
 HarmonyRecord URLs die and existing records do not carry over. That is the expensive change, and
 it was paid deliberately once already on 2026-08-03 for the Holochain 0.7 migration.
 
+> **Updated 2026-10-18 — the window described below has moved on once.** The 2026-08-24 Oracle
+> rebuild that this section was written around **happened** (new host `132.145.23.78`, 0.7.0
+> network), and no 🟠 item rode it. A **new** DNA-hash break is now merged on `main`: Holochain
+> 0.7.1 (PR #45, 2026-10-17) plus PR #47's integrity changes (2026-10-18). It is **not yet
+> deployed** — Oracle still serves the 0.7.0 network until the fresh install in
+> [`../ORACLE_0.7.1_UPGRADE.md`](../ORACLE_0.7.1_UPGRADE.md) is run. So a 🟠 item that merges
+> **before that reinstall** would ride the same break (the bundles would need repacking and the
+> runbook checksums updating, as that runbook warns). Whether to use this window is Ceri's
+> decision. The 2026-08-22 text follows unchanged.
+
 **It is going to be paid again.** Oracle still runs 0.6.2 and needs a full rebuild with state
 loss — already accepted, and the pre-0.7 published URLs are already gone (`PROJECT_STATUS.md`).
 

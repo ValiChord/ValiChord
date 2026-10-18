@@ -10,9 +10,13 @@
 > places the port actually touched.** The rest is unrewritten 0.6.x prose. The table below is
 > the map of which is which, and it is the most important thing on this page.
 >
-> **`main` is still on 0.6.2.** If you are reading this from `main`, or working on the live
-> Oracle demo or the Render site, the 0.6.x prose *is* your reference and the 0.7 notes are
-> the future.
+> **Update 2026-10-18: `main` is now on Holochain 0.7.1** (`hdk =0.7.1`, `hdi =0.8.1`; PR #45,
+> merged 2026-10-17), not 0.6.2 and not 0.7.0. Tryorama is retired - integration tests are
+> sweettest (`valichord/sweettest_integration/`). Some APIs below changed again in 0.7.1; where
+> this file and the code disagree, the code is right (see the notes at §11 and §13). The Oracle demo
+> host still runs the 0.7.0 network until `docs/ORACLE_0.7.1_UPGRADE.md` is run.
+>
+
 
 **Why this file was not simply rewritten for 0.7.** Rewriting all 43 sections would have meant
 relabelling 0.6 knowledge as 0.7 knowledge without checking it — producing a document that
@@ -343,7 +347,7 @@ Receipts only available in the authoring conductor's cells (and other cells with
 - **Blake2b-256** — Holochain's internal hashing algorithm. Used for ActionHash, EntryHash, AgentPubKey. NOT SHA-256.
 - **SHA-256** — for research file fingerprints. Requires external crate (`ring` or `sha2`) compiled to WASM. Store result as `ExternalHash` (32-byte type).
 - **`sign(agent_pubkey, data)`** — sign arbitrary data with agent's key
-- **`verify_signature(pubkey, signature, data)`** — verify a signature
+- **`verify_signature(pubkey, signature, data)`** — verify a signature - available in integrity zomes too, so `validate()` can check signatures (ValiChord does: `attestation_integrity/src/lib.rs:949`)
 - **`hash_entry(entry)`** — get Blake2b-256 hash of entry content
 - **`x_salsa20_poly1305_encrypt/decrypt`** — authenticated encryption
 - **`create_x25519_keypair`**, **`x_25519_x_salsa20_poly1305_encrypt/decrypt`** — key agreement + encryption
@@ -368,7 +372,10 @@ All coordinator-only:
 
 (From previous session — documented in scaffold v4)
 
+**0.7.1 note (2026-10-18):** the code block below was updated to the 0.7.1 API; the 0.6/0.7.0 form (`ZomeCallCapGrant`, `CapAccess`) no longer compiles. Use `CapGrant::new_zome_call_grant(tag, GrantConstraint::..., functions)` - see `valichord/dnas/attestation/zomes/attestation_coordinator/src/lib.rs:58`. Grants written by 0.7.0 cannot be read by 0.7.1.
+
 **Three levels:**
+
 - `Unrestricted` — any caller, no secret needed
 - `Transferable` — any caller with the right secret
 - `Assigned` — caller must have secret AND sign with authorized key
@@ -384,11 +391,11 @@ pub fn init() -> ExternResult<InitCallbackResult> {
     // Grant unrestricted access to recv_remote_signal
     let mut functions = BTreeSet::new();
     functions.insert((zome_info()?.name, "recv_remote_signal".into()));
-    create_cap_grant(ZomeCallCapGrant {
-        tag: "unrestricted-remote-signals".into(),
-        access: CapAccess::Unrestricted,
-        functions: GrantedFunctions::Listed(functions),
-    })?;
+    create_cap_grant(CapGrant::new_zome_call_grant(
+        "unrestricted-remote-signals".into(),
+        GrantConstraint::Unrestricted,
+        GrantedFunctions::Listed(functions),
+    ))?;
     Ok(InitCallbackResult::Pass)
 }
 ```
@@ -558,6 +565,8 @@ For case 3, `WarrantOp.timestamp()` lets you filter to warrants issued *after* t
 ---
 
 ## 20. TESTING WITH TRYORAMA
+
+> **Retired 2026-08-03.** ValiChord no longer uses Tryorama; integration tests are sweettest (`valichord/sweettest_integration/`). This section is kept as reference only.
 
 JavaScript-based test framework. Write scenarios as async functions.
 

@@ -46,7 +46,7 @@ Researcher runs the capsule -> committed metrics + interval (SEALED on the DHT)
 All commit -> reveal phase opens -> simultaneous reveal -> HarmonyRecord
         |
 Numeric panel: each validator's value vs the researcher's committed interval
-        (pure arithmetic; recomputable from the on-chain record)
+        (pure arithmetic; recomputable from the published record)
 ```
 
 - **Foundation:** the [`inspect_evals`](https://github.com/UKGovernmentBEIS/inspect_evals)
@@ -63,7 +63,7 @@ Numeric panel: each validator's value vs the researcher's committed interval
   *researcher-relative match* is computed at reveal — `lower ≤ value ≤ upper`
   against the researcher's **committed** interval. No adjudicator model is in
   the trust path.
-- **Display == on-chain:** the demo's agreement label is derived only through
+- **Display == record:** the demo's agreement label is derived only through
   `agreement.py`, which mirrors the Rust `derive_agreement_level`, so what's
   printed can never diverge from the HarmonyRecord.
 
@@ -97,7 +97,7 @@ Three independent units from an external review, built TDD and merged to `main`.
    pinned to a shared fixture `valichord/shared_types/tests/agreement_golden.json`
    asserted by **both** `demo/test_agreement.py` (Python) and a Rust `#[test]` in
    `shared_types` — a cross-language guard against threshold drift. The runner now
-   **echoes the authoritative on-chain `outcome`/`agreement_level`** read
+   **echoes the authoritative recorded `outcome`/`agreement_level`** read
    gossip-free on the authoring node (`/create-harmony-record` returns them),
    falling back to a local recompute only if absent and flagging it
    (`agreement_recomputed`, labelled in the printed output).
@@ -114,7 +114,7 @@ set**. So:
 - **Mixed models** (Claude + GPT-4o + Gemini) is the configuration that earns
   the word "independent" without an asterisk — a shared model blind-spot can't
   pass undetected through all three.
-- The on-chain `agreement_level` is described as **"independent execution
+- The recorded `agreement_level` is described as **"independent execution
   agreement"** (the validators each independently produced a result and agree
   they reproduced). The **numeric convergence** against the researcher's claim
   is the separate, verifiable headline.
@@ -161,7 +161,7 @@ python3 core_bench_spike.py --capsule capsule-0851068 --model anthropic/claude-o
 
 # The commit-reveal half targets localhost by default. Bring up the local stack:
 docker compose -f docker-compose.yml up --build -d
-until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node API ->')" -ge 4 ]; do sleep 3; done && echo Ready
+until [ "$(docker compose -f docker-compose.yml logs 2>/dev/null | grep -c 'node API →')" -ge 4 ]; do sleep 3; done && echo Ready
 # (or: bash run_local_demo.sh — starts the stack AND runs the demo in one command)
 
 # To record on the public Oracle DHT instead (no local stack needed), set:
@@ -198,7 +198,7 @@ validator** to `--bundle-dir` (default `bundles/`): file
 filenames distinct when several validators share one model, e.g. an all-Sonnet
 round). Each bundle's `raw_metrics` are that
 validator's reproduced numbers (via `build_numeric_panel`, so they equal the
-on-chain panel by construction); its `samples` are parsed from the run's `.eval`
+recorded panel by construction); its `samples` are parsed from the run's `.eval`
 log through **EveryEvalEver's `InspectAIAdapter`**; and `meta.attestation_uri`
 points at the shared HarmonyRecord — so all three per-validator records share one
 tamper-evident anchor. Emission is **opt-in and isolated**: any failure (e.g.
@@ -217,7 +217,7 @@ three benchmark runs): **`0.9157952669235003`** — deterministic.
 **Verified 2026-05-31:** both Claude **Opus 4.8** (~9 min) and Claude
 **Sonnet 4.6** (~11 min) reproduced it **exactly** (`0.9157952669235003`, to 16
 digits). Because it's deterministic, the researcher commits the value plus an
-explicit ±0.1% tolerance (sealed on-chain), and faithful validator runs converge
+explicit ±0.1% tolerance (sealed in the researcher's commitment), and faithful validator runs converge
 on the same value → `ExactMatch`.
 
 > **More-representative follow-up:** a deterministic capsule gives the crispest

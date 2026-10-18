@@ -30,7 +30,7 @@ read as one record — not a mutable entry.
 
 ## What the code actually does
 
-`governance_integrity/src/lib.rs:433`:
+`governance_integrity/src/lib.rs:472` (was `:433` when filed):
 
 ```rust
 // --- Immutability: block updates to HarmonyRecord ---
@@ -42,15 +42,15 @@ FlatOp::Update(OpUpdate::Entry {
 ```
 
 No production coordinator exposes any update or delete for it. The only delete in the governance
-coordinator is `test_force_delete_entry` (`:1371`), compiled solely under `--features test_utils`
+coordinator is `test_force_delete_entry` (`:1418`; was `:1371`), compiled solely under `--features test_utils`
 and scanned for by `check-no-test-hooks.sh` in CI so it cannot ship.
 
 **The code is right. Do not weaken this guard.**
 
 ## What is missing
 
-The governance DNA has three link types (`governance_integrity/src/lib.rs:195`):
-`RequestToHarmonyRecord`, `StudyToBadge`, `AllDecisions`.
+The governance DNA has six link types (`governance_integrity/src/lib.rs:231`, checked 2026-10-18):
+`ValidatorToReputation`, `RequestToHarmonyRecord`, `DisciplinePath`, `BadgePath`, `StudyToBadge`, `AllDecisions`.
 
 **There is no supersession link**, and `grep -i "supersed|annotat|retract"` across all four DNAs
 returns nothing for HarmonyRecord. The mechanism the docs describe was never built.
@@ -103,7 +103,7 @@ it is permanent and cannot be quietly withdrawn.
 
 - **Link direction and shape.** A `SupersededBy` link from old to new, a `Supersedes` link from
   new to old, or both? One direction is cheaper; two make both reads O(1).
-- **Should the reason be on-chain?** Grounds for supersession are enumerated in the governance
+- **Should the reason be recorded in the entry?** Grounds for supersession are enumerated in the governance
   framework. A typed reason makes the record self-describing; a free-text one repeats the `meta`
   trap in a new place.
 - **Should supersession be authorised, and by whom?** A researcher superseding their own failure

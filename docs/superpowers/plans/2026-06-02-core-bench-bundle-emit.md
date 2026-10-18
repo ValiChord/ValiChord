@@ -1,5 +1,7 @@
 # CORE-Bench Bundle-Emit Implementation Plan
 
+> **Historical AI-generated plan/spec (2026-05/06), kept as a record. Not maintained - check the code and current docs before relying on it.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add an opt-in `--emit-bundles` step to the CORE-Bench demo that, after a successful commit-reveal round, writes one `valichord_attestation` bundle per validator — metrics from the validator's reproduced report, samples via EveryEvalEver's `InspectAIAdapter`, and `meta.attestation_uri` pointing at the shared HarmonyRecord.

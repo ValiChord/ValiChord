@@ -18,10 +18,12 @@ hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 hc app pack .                           -o workdir/valichord.happ
 
-# Run tests (kill stale conductors first)
-pkill -f holochain; pkill -f lair-keystore; sleep 2
-cd valichord/tests && npm test
+# Run tests (kill stale conductors first; -x not -f, -f kills your own shell)
+pkill -x holochain; pkill -x lair-keystore; sleep 2
+./run-sweettest.sh governance        # sweettest; Tryorama (valichord/tests, npm test) was retired 2026-08-03
 ```
+
+See `integration-testing.md` for the full test workflow.
 
 **Never use `pack_dna.py`** — it embeds the same DNA bytes for all four roles.
 
@@ -70,22 +72,18 @@ Used by: `ValidationTier`, `AttestationConfidence`, `ValidationPhase`,
 
 ---
 
-## Membrane proof two-stage pattern
+## Membrane proof (joining certificate) pattern
 
-**Stage 1 — integrity zome `validate()`**
-- Only format check (≥ 64 bytes): `verify_signature` is HDK-only, not available in HDI
-- Rejects missing or short proofs
+One function, `attestation_integrity::check_joining_certificate`
+(`valichord/dnas/attestation/zomes/attestation_integrity/src/lib.rs`), is called from three places:
 
-**Stage 2 — coordinator `init()`**
-- Full Ed25519 verification: `verify_signature(issuer_key, sig, raw_bytes)`
-- Failure → `InitCallbackResult::Fail` (agent becomes read-only observer)
-- Empty `authorized_joining_certificate_issuer` = dev/test bypass
+- **`validate()`, `AgentValidationPkg` arm — run by EVERY peer.** This is the security property; a modified hApp cannot skip it.
+- `genesis_self_check` — the joining agent only, before joining; fails an honest bad install early.
+- coordinator `init()` (`verify_membrane_proof`) — joining agent only; defence in depth.
 
-**Signed data format** (critical for JS signing tool):
-```
-msgpack-BIN-encoded Vec<u8> of the joining agent's raw 39-byte pubkey
-```
-Use `encode(Buffer.from(agentPubKey))` NOT `encode(Array.from(agentPubKey))` — the latter produces a fixarray, not BIN format, and will fail `verify_signature`.
+Do not describe the check as "init() only" or say `verify_signature` is unavailable in integrity zomes (both were in older versions of this doc and are wrong). Empty `authorized_joining_certificate_issuer` = dev/test bypass. A ValidatorProfile's `certification_tier` must equal the tier its certificate grants (`check_profile_certification`).
+
+**Signed data format** (critical for any signing tool): `agent_raw_39 || meta_bytes`, passed to `verify_signature` as a `Vec<u8>`, which msgpack-ENCODES it (BIN format) before verifying. Do not hand-roll it; read the doc comment on `check_joining_certificate` and `sweettest_integration/tests/membrane_proof.rs` first. In JS use `Buffer`/`Uint8Array`, not `Array.from(...)` (a plain array encodes as msgpack fixarray, not BIN, and will fail).
 
 ---
 
@@ -178,10 +176,11 @@ This prevents a race condition where two concurrent DHT writes in the same gossi
 
 ---
 
-## ExternalHash construction in JS tests
+## ExternalHash construction in JS (UI and Playwright e2e)
 
 ```typescript
 import { hashFrom32AndType, HoloHashType } from "@holochain/client";
+// see valichord-ui/src/lib/holochain.ts and valichord-ui/tests/e2e/utils/helpers.ts
 
 // Correct — DHT location bytes are valid blake2b checksum
 const core = new Uint8Array(32).fill(0xAB);

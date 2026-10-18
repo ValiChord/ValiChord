@@ -4,14 +4,14 @@ ValiChord is tested at four layers. Every layer runs against real Holochain cond
 
 | Layer | Suite | Tool | Count | What it proves |
 | :--- | :--- | :--- | :--- | :--- |
-| Unit | `valichord/shared_types` + coordinators | `cargo test` | 30, conductor-free | Pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`, `evaluate_badge`) |
+| Unit | `valichord/shared_types` + coordinators | `cargo test` | 36, conductor-free (33 + 3) | Pure outcome functions (`derive_majority_outcome`, `derive_agreement_level`, `evaluate_badge`), joining-certificate tier grants, `validator_attestation_pairs` |
 | Integration | `valichord/sweettest_integration/` | Sweettest (Rust, native conductor) | 94 | Zome logic, validation rules, cross-DNA calls, badge issuance |
-| Membrane | `sweettest_integration/tests/membrane_proof.rs` | Sweettest + real Ed25519 issuer | 5 | DNA 3's credentialed membrane — the only tests that do NOT use the dev bypass |
-| Immutability | `sweettest_integration/tests/immutability_tripwire.rs` | Sweettest + `--features test_utils` | 15 | That the integrity zomes REJECT forbidden updates and deletes |
+| Membrane | `sweettest_integration/tests/membrane_proof.rs` | Sweettest + real Ed25519 issuer | 6 | DNA 3's credentialed membrane — the only tests that do NOT use the dev bypass; since v0.6.6 one check runs at genesis, in every peer's `validate()` and in `init()`, so a bad proof is rejected at install |
+| Immutability + forgery | `immutability_tripwire.rs`, `harmony_record_forgery.rs`, `validator_tier_forgery.rs` (in `sweettest_integration/tests/`) | Sweettest + `--features test_utils` | 17 (15 + 1 + 1) | That the integrity zomes REJECT forbidden updates and deletes, forged HarmonyRecords and self-assigned validator tiers |
 | Browser E2E | `valichord-ui/tests/e2e/` | Playwright + real conductor | 6 | The real Svelte UI driving real zome calls in a real browser |
 | Performance | `valichord/wind-tunnel/` | Wind-Tunnel (Rust) | 5 scenarios | Throughput, DHT propagation latency, load behaviour |
 
-**Totals: 150 automated tests, none skipped — 114 sweettest (including 15 immutability tripwires and 5 membrane-proof), 30 Rust unit, 6 Playwright browser e2e. All run in CI on every push and PR.**
+**Totals: 159 automated tests, none skipped — 117 sweettest (including 17 tripwire/forgery tests and 6 membrane-proof), 36 Rust unit, 6 Playwright browser e2e. All run in CI on every push to `main` and every PR into it that changes code** (documentation-only changes skip the matrix — see `paths-ignore` in `tests.yml`). Counted from the source on 2026-10-18.
 
 > **The Tryorama suite (TypeScript, 92 tests) was retired on 2026-08-03**, not lost. Upstream `@holochain/tryorama` is unmaintained and will not support Holochain 0.7. Roughly 69 of its tests were already duplicated in sweettest; every unique one was ported and run green *before* the suite was deleted. That audit found three guards with no working coverage at all — the conflict-of-interest rule, DNA 2's cross-agent privacy, and `link_agent_identity`'s signature checks — each now covered by a test that has been **seen to fail**. The headline count drops because a suite of duplicates was removed, not because coverage did.
 
@@ -27,9 +27,10 @@ Build and pack the hApp first (see the [README Quickstart](README.md#-quickstart
 
 ```bash
 # Unit — pure outcome functions, < 1 s
-cargo test -p valichord_shared_types                  # from valichord/
+cargo test -p valichord_shared_types                  # from valichord/ — 33 tests
+cargo test -p governance_coordinator                  #  3 tests
 
-# Sweettest (94 tests; separate Cargo workspace — native conductor deps)
+# Sweettest (100 tests across these six; separate Cargo workspace — native conductor deps)
 # Use ./run-sweettest.sh, not a hand-rolled `| grep -v`: under memory pressure
 # SQLCipher ENOMEM spam splices into the MIDDLE of a result line, and an
 # exclusive filter deletes the result along with the noise. The script keeps the
@@ -42,12 +43,14 @@ cd valichord
 ./run-sweettest.sh security
 ./run-sweettest.sh membrane_proof
 
-# Immutability tripwires (15 tests, ~50 min) — need their own build, because no
-# production coordinator exposes update_entry or delete_entry.
+# Immutability tripwires + forgery tests (17 tests, ~50 min) — need their own build, because no
+# production coordinator exposes update_entry or delete_entry (or a way to write a forged record).
 cd valichord && ./build-test-dnas.sh
 VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh harmony_record_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh validator_tier_forgery
 
-# Browser e2e (6 tests, ~1.5 min; needs the packed hApp + chromium)
+# Browser e2e (6 tests, ~1.5 min once built; needs the packed hApp + chromium)
 cd valichord-ui && npm install
 npx playwright install --with-deps chromium           # one-time
 npm run test:e2e
@@ -57,9 +60,9 @@ cd valichord/wind-tunnel
 cargo run -p validation_request_throughput -- --agents 4 --duration 60
 ```
 
-Before any conductor-based run, kill stale conductors: `pkill -f holochain; pkill -f lair-keystore; sleep 2`.
+Before any conductor-based run, kill stale conductors: `pkill -x holochain; pkill -x lair-keystore; sleep 2` (use `-x`, not `-f`: `-f` also matches the shell running the command and kills it).
 
-In CI (`.github/workflows/tests.yml`): five jobs run on every push/PR — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the conductor-free `unit` job, the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the immutability tripwires. The e2e job needs no Rust toolchain — it uses the committed `valichord/workdir/valichord.happ` — and reports in ~2 minutes.
+In CI (`.github/workflows/tests.yml`): five jobs run on every push to `main` and every PR into it that touches code — a dependency-free supply-chain guard (`no-test-hooks`, seconds), the conductor-free `unit` job, the browser e2e job, the sweettest suite as **six** parallel matrix legs (one per test binary), and the `tripwire` job, which runs the immutability tripwires plus the two forgery tests against the `test_utils` build. Since 2026-10-17 the e2e job builds and packs the hApp from source rather than testing the committed `valichord/workdir/valichord.happ`, so a stale committed bundle can no longer pass or fail it by accident (the bundles Oracle and the Docker demo run are refreshed by the separate **Repack bundles** workflow).
 
 ---
 
@@ -70,16 +73,18 @@ In CI (`.github/workflows/tests.yml`): five jobs run on every push/PR — a depe
 - Full blind commit-reveal protocol end-to-end across all four DNAs
 - Cross-DNA post_commit chain: DNA 2 seal (generates nonce + SHA-256 commitment_hash) → DNA 3 notify (CommitmentAnchor carries hash) → phase open
 - Full symmetric commit-reveal: researcher `lock_researcher_result` (DNA 1) → `publish_researcher_commitment` (DNA 3 hash only) → `reveal_researcher_result` (DNA 3, hash-verified) → `ResearcherReveal` on DHT for comparison against validator outputs
-- On-chain enforcement proven by test: a real-nonce reveal passes hash verification, and a verdict altered between sealing and reveal is rejected with a hash mismatch (security sweettests S7/S8, added v0.6.0)
+- Reveal enforcement proven by test: a real-nonce reveal passes hash verification, and a verdict altered between sealing and reveal is rejected with a hash mismatch (security sweettests S7/S8, added v0.6.0)
 - DHT-poll-driven phase transitions (CommitmentAnchor → PhaseMarker)
 - Commit phase state detection — `check_all_commitments_sealed` verified at partial and full threshold
 - Mixed outcome HarmonyRecord assembly — Divergent agreement level from split validator results
 
 ### Identity, membrane, and privacy
 
-- Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at coordinator init
+- Real Ed25519 membrane proof verification — issuer-signed proofs accepted, forged signatures rejected at install (genesis), and checked again by every peer in `validate()` (v0.6.6, #37)
 - Privacy across agents — private attestations are not readable by peers
-- Author key enforcement on GovernanceDecision (HarmonyRecord/Badge/Reputation open to any participant — fully decentralised)
+- Validator tier forgery (v0.6.6, #8) — a `ValidatorProfile` whose `certification_tier` differs from what its joining certificate grants is refused by peers (`validator_tier_forgery.rs`)
+- Author key enforcement on GovernanceDecision (HarmonyRecord/Badge/Reputation can be written by any participant — fully decentralised)
+- HarmonyRecord forgery (v0.6.6, #11) — a record whose validators' signed attestations do not back its participants, outcome, agreement level or cohort size (`validators_requested`) is refused by peers; a short record only after `round_timeout_secs` (`harmony_record_forgery.rs`)
 
 ### Immutability
 

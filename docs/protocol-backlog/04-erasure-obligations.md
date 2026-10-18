@@ -145,6 +145,13 @@ and it is exactly the kind of thing that must not be discovered halfway through 
 *(The other two checks on this field — the parallel-length check on `validator_types` and the
 quorum count — only use `.len()` and are indifferent to what the elements are.)*
 
+> **Added 2026-10-18 — a third guard now depends on named validators.** PR #47 (issue #11) added
+> `attestation_evidence` to the HarmonyRecord. `check_attestation_evidence`
+> (`governance_integrity/src/lib.rs:705`) requires entry *i* to be a `ValidationAttestation`
+> action signed by `participating_validators[i]` and verifies that signature. That check, too,
+> needs the real agent key, so an anonymous mode would have to replace three guards, not two.
+> (The author-presence guard quoted above is now at `lib.rs:297`; it was `:253` when filed.)
+
 ### 3. `ValidatorReputation` — the real ongoing exposure, and it is a product decision. 🟠 or 🟢
 
 `update_validator_reputation` is a live production coordinator function, so the profile

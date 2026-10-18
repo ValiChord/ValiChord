@@ -1,5 +1,10 @@
 # PiSessionAdapter — Implementation Plan
 
+> **Historical plan — built 2026-05-20.** The adapter exists at
+> `valichord_attestation/valichord_attestation/adapters/pi_session_adapter.py` and is exported
+> from the package. The library has since moved to format v2 (2026-08-18), so where this plan and
+> the code differ, the code and `valichord_attestation/README.md` are right.
+
 **Target:** `valichord_attestation/valichord_attestation/adapters/pi_session_adapter.py`
 
 **Parallel:** `InspectAILogAdapter` for inspect_ai `.eval` files. Same pattern, different source format.

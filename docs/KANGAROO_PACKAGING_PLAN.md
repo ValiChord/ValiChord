@@ -19,7 +19,7 @@ Bundles `.webhapp` + Holochain conductor (0.7.x on `main-0.7`) + Lair keystore i
 | Prerequisite | Status |
 |---|---|
 | Browser UI (`valichord-ui/`) wired to conductor | ✓ Done |
-| Holochain 0.7.x | ✓ `main` is on 0.7.0; 0.7.1 in progress (PR #45) |
+| Holochain 0.7.x | ✓ `main` is on 0.7.1 (PR #45, merged 2026-10-17); check that `main-0.7` of kangaroo ships a 0.7.1 conductor before packaging — 0.7.1 is a network break from 0.7.0 |
 | `.happ` build working | ✓ Done (`workdir/valichord.happ`) |
 | Bootstrap/relay servers | ✗ Needed for production; dev servers usable for pilot |
 | Kangaroo key-continuity patch | ✗ Required before any breaking upgrade ships to validators |

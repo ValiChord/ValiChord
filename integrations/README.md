@@ -2,6 +2,12 @@
 
 ValiChord exposes a REST API that any AI agent, tool, or service can call to participate in the commit-reveal protocol.
 
+> ⚠️ **Status (checked 2026-10-18): the protocol API does not currently run.** `backend/app_protocol.py`
+> imports `holochain_bridge`, which was removed on 2026-04-22 when `valichord_at_home` moved to its
+> own repo, so it fails at start-up. Everything below describes the API's design. See
+> `backend/README.md`. The working path today is the demo stack (`demo/`), which talks to the
+> Oracle nodes directly.
+
 ---
 
 ## Integration API
@@ -21,7 +27,7 @@ The protocol API (`app_protocol.py`) runs on port 5001. It does not run the stru
 
 | Integration | Status | Doc |
 |---|---|---|
-| [PI](https://github.com/badlogic/pi-mono) — AI coding agent | PR pending upstream | [PI_INTEGRATION.md](PI_INTEGRATION.md) |
+| [PI](https://github.com/badlogic/pi-mono) — AI coding agent | Extension in the `topeuph-ai/pi-mono` fork only; upstream issue auto-closed 2026-04-08, no PR opened | [PI_INTEGRATION.md](PI_INTEGRATION.md) |
 
 ---
 
@@ -50,7 +56,7 @@ Returns synchronously:
 }
 ```
 
-`harmony_record_hash` is null only when the Holochain conductor is offline — the response always succeeds.
+`harmony_record_hash` is null only when the Holochain conductor is offline — the response always succeeds. `harmony_record_url` is null unless an HTTP Gateway is configured; none is deployed (retired 2026-07).
 
 ---
 

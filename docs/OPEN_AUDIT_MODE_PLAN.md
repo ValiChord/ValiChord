@@ -4,6 +4,15 @@
 **Estimated effort:** 1 week (16 MB limit, no chunking); 2 weeks (with chunking)  
 **Last updated:** 2026-05-27
 
+> **Note added 2026-10-18 — partly started.** Only the mode switch exists: a `DataLocalityMode`
+> enum (`Gdpr` default, `OpenAudit`) on `LockedResult`, added in the 0.7 migration so it would not
+> cost a later DNA-hash break (`valichord/shared_types/src/lib.rs:262`). Its one implemented effect
+> is that Open Audit sealed material cannot be deleted
+> (`researcher_repository_integrity/src/lib.rs:199`). The encryption, `EncryptedDataset`, key
+> publication and gateway read described below are **not built** — every study today is `Gdpr`.
+> The DNA 3 capability grant mentioned in §6 is now written with Holochain 0.7.1's
+> `CapGrant::new_zome_call_grant`, but is the same unrestricted grant.
+
 ---
 
 ## 1. What This Is

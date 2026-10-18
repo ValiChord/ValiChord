@@ -1,5 +1,11 @@
 # CMA Upgrade Plan — Smarter AI Validators
 
+> **Historical (plan from 2026-05; label added 2026-10-18).** The upgrade was built:
+> `demo/ai_validator_cma.py` (CLI) and `demo/custom_runner.py` (the public "Your Hypothesis"
+> page) exist. For how it works now, read [DEMO_WEBSITE.md](DEMO_WEBSITE.md). The Oracle address
+> `132.145.34.27` in the commands below is a reclaimed host — the live one is `132.145.23.78`
+> (see [README.md](README.md)).
+
 **What this is:** A plan to upgrade the AI validators in the demo from quick one-shot answers to proper, thorough multi-step analysis using Anthropic's Claude Managed Agents (CMA).
 
 **What stays the same:** Everything in Holochain. The four DNAs, the commit-reveal protocol, HarmonyRecords, badges — none of that changes. This is purely an upgrade to the AI layer that sits on top.

@@ -2,6 +2,8 @@
   <img src="https://github.com/ValiChord/ValiChord/blob/main/Images/Valichord%20logo-standard%20v2-1.5x.jpeg" width="550px" alt="ValiChord Logo">
 </div>
 
+> **Submitted proposal, kept as written (note added 2026-10-18).** This is a Phase 0 funding proposal from early 2026 (first added February–March 2026). Its body has not been changed. Status statements in it — for example "87 integration tests pass" — describe the project at that time. For the current state of the software see [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) and the [technical architecture](7_ValiChord_4-DNA_architecture_technical.md).
+
 # ValiChord Phase 0: Validation Workload Discovery
 ## Scaled Design — 12 Months, £158K FEC
 

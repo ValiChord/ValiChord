@@ -60,7 +60,7 @@ For validation to mean anything, it must be possible to verify that a validation
 
 These are provenance guarantees. They require cryptographic infrastructure — specifically, the ability to sign records with keys that can be verified independently, and to timestamp those signatures in a way that cannot be backdated.
 
-Holochain provides this natively. Every action taken by a participant in a Holochain network is signed with their cryptographic key and recorded in their local chain. The network can verify these signatures without trusting any central party. This means ValiChord's Harmony Records — the permanent logs of validation events — are independently verifiable by anyone with access to the network, without requiring trust in ValiChord as an organisation.
+Holochain provides this natively. Every action taken by a participant in a Holochain network is signed with their cryptographic key and recorded in their local chain. The network can verify these signatures without trusting any central party. This means ValiChord's Harmony Records — the permanent logs of validation events — are independently verifiable by anyone with access to the network, without requiring trust in ValiChord as an organisation. One caution: a Holochain timestamp is set by the author's own device. It fixes the order of a participant's actions in their signed chain, but it is not an independent clock — proving *when* something happened against an outside clock would need a trusted external timestamp.
 
 This is the property that makes distributed validation meaningful rather than merely claimed. Anyone can check whether a validation event occurred. No one can alter the record after the fact.
 
@@ -76,7 +76,7 @@ Holochain-based infrastructure scales differently. Each new validator who joins 
 
 Holochain is not a cryptocurrency platform. There are no tokens, no mining, no speculative financial instruments involved in ValiChord's use of it. ValiChord uses Holochain as infrastructure — the same way a web application uses a database — for its technical properties, not for any association with cryptocurrency markets.
 
-Holochain is also not experimental in the sense of being unproven. It is a mature open-source framework maintained by the Holochain Foundation, with an active developer community and a growing ecosystem of applications. ValiChord's architectural direction has been reviewed and confirmed as technically feasible by Holochain Foundation engineers (Paul D'Aoust, January 2026). Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, confirming the overall direction and providing implementation guidance that shaped the four-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the architecture and confirmed the approach is sound (February 2026). The four-DNA Holochain infrastructure has since been implemented in Rust and integration-tested — 87 tests pass against live Holochain conductors as of March 2026.
+Holochain is also not experimental in the sense of being unproven. It is a mature open-source framework maintained by the Holochain Foundation, with an active developer community and a growing ecosystem of applications. ValiChord's architectural direction has been reviewed and confirmed as technically feasible by Holochain Foundation engineers (Paul D'Aoust, January 2026). Arthur Brock (co-founder and architect, Holochain) conducted a solution engineering review in February 2026, confirming the overall direction and providing implementation guidance that shaped the four-DNA membrane architecture. Joel Marcey (Tech Director, Rust Foundation) independently reviewed the architecture and confirmed the approach is sound (February 2026). The four-DNA Holochain infrastructure has since been implemented in Rust and integration-tested — 87 tests passed against live Holochain conductors as of March 2026. As of October 2026 it runs on Holochain 0.7.1, tested with Rust sweettest (see CI for current counts).
 
 You can learn more about Holochain at [www.holochain.org](https://www.holochain.org).
 
@@ -97,5 +97,5 @@ The choice is not ideological. It is architectural.
 
 ---
 
-*For the full technical specification of ValiChord's Holochain implementation, see the [Technical Reference](./TECHNICAL_REFERENCE.md).*  
+*For the full technical specification of ValiChord's Holochain implementation, see the [Technical Reference](3_ValiChord_Technical_Reference.md).*  
 *For the governance design that complements this architecture, see the [Governance Framework preprint](https://zenodo.org/records/18878108).*

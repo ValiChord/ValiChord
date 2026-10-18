@@ -6,13 +6,15 @@
 
 # ValiChord and the Digital Commons: A Framework for Open Cooperativism
 
+> **Vision paper.** This describes how ValiChord *could* serve open cooperativism and open hardware. None of the applications below (hardware certification, reward systems, value reciprocity) is built; what exists today is the four-DNA reproducibility protocol described in [doc 15](15_How_a_Validation_Round_Works.md).
+
 ## 🎯 Overview
-While ValiChord was initially designed for high-stakes computational research, its core architecture is domain-agnostic.  [It serves as a universal Integrity Engine for the Digital Commons, supporting organizational models such as Cosmolocalism (Design Global, Manufacture Local) and Open Cooperativism.  [cite_start]These models seek to challenge extractive modes of production by establishing a counter-hegemony based on shared resources. [cite: 3, 15]
+While ValiChord was initially designed for high-stakes computational research, its core architecture is domain-agnostic.  It could serve as a universal Integrity Engine for the Digital Commons, supporting organizational models such as Cosmolocalism (Design Global, Manufacture Local) and Open Cooperativism.  These models seek to challenge extractive modes of production by establishing a counter-hegemony based on shared resources.
 
 ---
 
 ## 🏛️ The "Ostrom Plug"
-Distributed ledgers like Holochain have the capacity to "plug" Elinor Ostrom’s design principles into the technical infrastructure of commons-based peer production.  ValiChord implements these principles via its 4-DNA membranes:
+Peer-to-peer frameworks like Holochain have the capacity to "plug" Elinor Ostrom’s design principles into the technical infrastructure of commons-based peer production.  ValiChord could implement these principles via its 4-DNA membranes:
 
 **Principle 4: Monitoring** 
 – Providing cryptographically certain, peer-led monitoring of contributions and production logic. 
@@ -55,4 +57,4 @@ It provides:
 
 **Structural Resistance**: Resistance to the co-optation of the commons by ensuring that the comparison of results is cryptographically genuine. 
 
-# ValiChord does not just track value; it verifies the structural integrity of the shared resource. This ensures that distributed cooperation is built on a foundation of verifiable, cryptographic truth rather than institutional trust alone.
+ValiChord does not just track value; it verifies the structural integrity of the shared resource. This ensures that distributed cooperation is built on a foundation of verifiable, cryptographic truth rather than institutional trust alone.

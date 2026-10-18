@@ -1,5 +1,11 @@
 # CORE-Bench × ValiChord — an independent-verification layer for reproduction evals
 
+> **Note added 2026-10-18 — written June 2026; body unchanged.** Where it mentions "a hosted node
+> running older code" and "today's public record", that describes June 2026. The public Oracle
+> host has since been replaced (a new host on Holochain 0.7.0 from 2026-08-24), and a 0.7.1 fresh
+> install is pending, which drops all records again. No public CORE-Bench record exists to
+> fetch; the local run below remains the way to see one.
+
 > For the inspect_evals maintainers. This describes a working demo that runs the
 > existing `core_bench` task and adds a multi-party, blinded, tamper-evident
 > verification layer on top. Composition, not competition — Inspect runs the

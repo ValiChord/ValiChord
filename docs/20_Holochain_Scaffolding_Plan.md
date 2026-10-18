@@ -1,3 +1,5 @@
+> **Historical (plan from March 2026).** This was the pre-build scaffolding plan. The code in `valichord/` is now the source of truth (Holochain 0.7.1; Tryorama retired in favour of sweettest). Current state: `PROJECT_STATUS.md` and `CLAUDE.md`.
+
 # ValiChord — Holochain Scaffolding Plan
 
 **Author:** Generated from full document analysis (Technical Reference v12, Scaffold v10, Holochain Build Guide knowledge base)

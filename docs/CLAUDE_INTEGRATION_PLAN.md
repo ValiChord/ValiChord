@@ -1,5 +1,13 @@
 # Claude API Integration Plan — ValiChord Autogenerate
 
+> **Historical plan (March 2026). The code it describes is no longer in this repo.**
+> `valichord_at_home/` and its `backend/app.py` were moved to their own repository,
+> [`topeuph-ai/valichord_at_home`](https://github.com/topeuph-ai/valichord_at_home), on 2026-04-22
+> (`83c1105`). That repo has `valichord_at_home/detectors/claude_semantic.py` and documents
+> `ANTHROPIC_API_KEY` for semantic analysis, so the "pending" status below is out of date
+> (checked 2026-10-18 via its file list; its behaviour was not tested). The `backend/` folder in
+> this repo now holds only `app_protocol.py`.
+
 **Author:** Ceri John + Claude Code
 **Date:** March 2026
 **Status:** Rule-based detectors implemented. Claude semantic layer pending API credit allocation.

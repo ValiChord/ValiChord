@@ -1,5 +1,7 @@
 # v2 backlog item: define the empty and single-leaf cases
 
+> **CLOSED — shipped in format v2 on 2026-08-18** (label added 2026-10-18). This file is kept as the design record; any "Status", "open" or "proposed" below describes the time it was written. See [README.md](README.md).
+
 **Status:** Surfaced 2026-08-18. The v1.2 conformance vectors pin single-leaf behaviour but
 not the empty case, and neither is stated in the spec.
 **Related:** `01-merkle-domain-separation.md` — RFC 6962 defines both, so adopting it

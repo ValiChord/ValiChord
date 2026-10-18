@@ -11,13 +11,18 @@ A fully automated, end-to-end run of the ValiChord commit-reveal protocol across
 
 **This is the closest a single-machine setup can get to a real multi-party deployment.** Each container generates its own keypair at startup, writes to its own SQLite conductor database, and communicates with the others exclusively through the DHT — exactly as researcher and validators would on separate machines in production.
 
-**A permanent instance of this stack runs on Oracle Cloud (132.145.23.78)**
+**A permanent instance of this stack runs on Oracle Cloud (132.145.23.78)** with `restart: unless-stopped`, surviving reboots automatically. See [Running on Oracle](#running-on-oracle) below.
 
-> ⚠️ **Not `132.145.23.78` — that is the previous host.** Oracle moved on
-> 2026-08-24 and the old instance is still running on Holochain 0.6.2, which is a different
-> DNA hash and therefore a **different network**. It answers a healthy `200`, so pointing at
+> ⚠️ **Not `152.67.153.149` — that is the previous host.** Oracle moved on
+> 2026-08-24 and the old instance ran Holochain 0.6.2, which is a different
+> DNA hash and therefore a **different network**. It answered a healthy `200`, so pointing at
 > it gives you a run that looks entirely successful and writes a record onto a network
-> nothing reads. with `restart: unless-stopped`, surviving reboots automatically. See [Running on Oracle](#running-on-oracle) below.
+> nothing reads.
+>
+> **2026-10-18:** the Oracle stack runs Holochain **0.7.0**; `main` is on **0.7.1**. Until the
+> fresh install in `docs/ORACLE_0.7.1_UPGRADE.md` is run, a local build of `main` and the
+> Oracle nodes are separate networks. *(This note was corrected 2026-10-18: it had been
+> garbled and named the current host as the old one.)*
 
 What happens when you run it:
 
@@ -34,7 +39,7 @@ What happens when you run it:
 
 ## What this demo proves — beyond the Oracle demo
 
-The [Oracle demo](AI_VALIDATOR_DEMO.md) runs the same protocol on a single conductor where researcher and all three validators share the same Holochain process. The decentralised demo proves the same protocol works when:
+The older single-conductor demo (`--mode centralised`; its guide, `AI_VALIDATOR_DEMO.md`, no longer exists) runs the same protocol on a single conductor where researcher and all three validators share the same Holochain process. The decentralised demo proves the same protocol works when:
 
 - **Conductors are genuinely isolated** — separate processes, separate keystores, separate databases. Each validator's private attestation cannot be read by any other process.
 - **DHT gossip is the only communication channel** — there is no shared memory, no shared socket, no common broker. Data written by the researcher's conductor reaches validators only through the kitsune2 DHT network.
@@ -126,7 +131,7 @@ ai_validator.py --mode decentralised
 - Docker and Docker Compose
 - Python 3.8+
 - An Anthropic API key (`claude-sonnet-4-6` or better)
-- Linux x86_64 (the Holochain binary is downloaded automatically)
+- Linux x86_64 or aarch64 (the Holochain 0.7.1 and kitsune2-bootstrap-srv 0.5.1 binaries are downloaded automatically)
 
 > **Ubuntu 20.04:** the docker-compose-plugin is not in the default apt repos. Use `sudo apt-get install docker-compose` or download the standalone binary from GitHub releases and place it at `/usr/local/bin/docker-compose`.
 
@@ -145,7 +150,7 @@ This is the simplest approach — the API key and node URLs are already configur
 ssh -i "path\to\your-oracle-key.key" opc@132.145.23.78
 ```
 
-> **Note:** The Oracle username is `ubuntu`, not `opc`.
+> **Note (corrected 2026-10-18):** the current host runs Oracle Linux 9 and the login user is `opc`; the repo is at `/home/opc/ValiChord` (see `docs/ORACLE_0.7.0_UPGRADE.md`). The `ubuntu` user belonged to the old host.
 
 Once connected:
 ```bash
@@ -172,6 +177,10 @@ python3 demo/ai_validator.py --mode decentralised
 The shareable HarmonyRecord URL in the output will automatically use the public IP (`http://132.145.23.78:3001/record?hash=...`). Port 3001 must be open in the Oracle Security List for external access to that URL.
 
 **To set up Oracle from scratch** (already done; documented for reference):
+
+> **Historical.** These steps are for the original Ubuntu 20.04 host. The current host
+> (Oracle Linux 9, ARM64, user `opc`) was built with `docs/ORACLE_0.7.0_UPGRADE.md`; follow that
+> and `docs/ORACLE_0.7.1_UPGRADE.md` instead.
 
 ```bash
 # On Oracle VM (Ubuntu 20.04):
@@ -335,10 +344,10 @@ The `-v` flag removes the named volumes (each conductor's keystore and DHT cache
 
 | Component | Detail |
 |---|---|
-| bootstrap container | `kitsune2-bootstrap-srv` 0.4.1 — peer discovery (HTTP) + SBD (WebSocket), port 9000, committed to `demo/bin/` |
-| researcher container | Holochain 0.6.x, `researcher.happ` (DNAs 1 + 3 + 4), `researcher-node.mjs` bridge, port 3001 exposed on host |
-| validator-{1,2,3} containers | Holochain 0.6.x, `validator.happ` (DNAs 2 + 3 + 4), `validator-node.mjs` bridge, ports 3002–3004 on host |
-| Holochain binary | Auto-downloaded from GitHub Releases on first build if `demo/bin/holochain` absent |
+| bootstrap container | `kitsune2-bootstrap-srv` 0.5.1 — peer discovery (HTTP) + iroh relay, port 9000. Runs from the shared node image; `Dockerfile.node` downloads the 0.5.1 binary because the one committed in `demo/bin/` is the old 0.4.1 |
+| researcher container | Holochain 0.7.1, `researcher.happ` (DNAs 1 + 3 + 4), `researcher-node.mjs` bridge, port 3001 exposed on host |
+| validator-{1,2,3} containers | Holochain 0.7.1, `validator.happ` (DNAs 2 + 3 + 4), `validator-node.mjs` bridge, ports 3002–3004 on host. Each publishes a ValidatorProfile with `agent_type: 'AutomatedTool'` (AI validator) |
+| Holochain binary | Auto-downloaded from GitHub Releases on first build unless `demo/bin/holochain` is already the pinned version (0.7.1) |
 | Network isolation | Docker bridge network `valichord`; containers reach each other by service name, not host network |
 | DHT seed | `valichord-demo-decentralised` — all five conductors join the same network seed; data is visible to all five |
 
@@ -390,13 +399,13 @@ The protocol is symmetric across five isolated conductors. Neither the researche
 
 | Step | Who | What | Verified where |
 |---|---|---|---|
-| (0) Researcher locks | DNA 1 (researcher container) | `SHA-256(msgpack(metrics) || nonce)` sealed privately; hash only published to shared DHT via `publish_researcher_commitment` | On-chain at step (6a) |
+| (0) Researcher locks | DNA 1 (researcher container) | `SHA-256(msgpack(metrics) || nonce)` sealed privately; hash only published to shared DHT via `publish_researcher_commitment` | In the Rust zome at step (6a) |
 | (1) Submit request | DNA 3 (researcher container) | `ValidationRequest` with `num_validators_required=3` | DHT validates entry integrity |
 | (2–4) Validators commit | DNA 2 (each validator container) | Each seals verdict privately; `post_commit` → `CommitmentAnchor` on shared DHT | Hash recomputed at reveal |
 | (5) Phase gate | DNA 3 (any conductor) | `PhaseMarker(RevealOpen)` written once all 3 `CommitmentAnchor` entries seen | Any conductor can verify |
-| (6a) Researcher reveals | DNA 3 (researcher container) | `reveal_researcher_result` verifies `SHA-256(msgpack(metrics) || nonce)` on-chain; `ResearcherReveal` published | Rust zome, rejects mismatch |
+| (6a) Researcher reveals | DNA 3 (researcher container) | `reveal_researcher_result` verifies `SHA-256(msgpack(metrics) || nonce)` in the zome; `ResearcherReveal` published | Rust zome, rejects mismatch |
 | (6b) Validators reveal | DNA 3 (each validator container) | `submit_attestation` with nonce retrieved from DNA 2; verifies `SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash` | Rust zome, rejects mismatch |
-| (7) HarmonyRecord | DNA 4 (validator-1 container) | Permanent immutable record on public Governance DHT | Governance integrity zome validates author ∈ participants |
+| (7) HarmonyRecord | DNA 4 (validator-1 container) | Permanent immutable record on public Governance DHT | Governance integrity zome: author ∈ participants, and (since PR #47, 2026-10-18) every peer checks each validator's signed attestation evidence and the cohort size |
 
 ---
 
@@ -428,7 +437,7 @@ Each validator runs `study.py` and checks whether its output matches those three
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
 | `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
 | `demo/ai_validator.py` | Python orchestrator — `--mode decentralised` calls the five node APIs |
-| `demo/bin/kitsune2-bootstrap-srv` | Pre-compiled bootstrap server binary |
+| `demo/bin/kitsune2-bootstrap-srv` | Old 0.4.1 bootstrap binary (Holochain 0.6.2 line). `Dockerfile.node` ignores it and downloads 0.5.1 |
 | `valichord/workdir/researcher.happ` | Role-filtered happ for researcher containers (DNAs 1, 3, 4) |
 | `valichord/workdir/validator.happ` | Role-filtered happ for validator containers (DNAs 2, 3, 4) |
 | `demo/synthetic_study/` | Minimal reproducible study (README, data.csv, study.py) |
@@ -453,4 +462,4 @@ cd ..
 docker compose -f demo/docker-compose.yml up --build -d
 ```
 
-Requires: `cargo`, `wasm32-unknown-unknown` target, and `hc` CLI (`cargo install holochain_cli --version 0.6.1 --locked`).
+Requires: `cargo`, `wasm32-unknown-unknown` target, and the `hc` CLI **0.7.1** — CI downloads the `hc-x86_64-unknown-linux-gnu` binary from the `holochain-0.7.1` GitHub release (see `.github/workflows/repack-bundles.yml`). *(Corrected 2026-10-18: this line used to say `holochain_cli --version 0.6.1`.)*

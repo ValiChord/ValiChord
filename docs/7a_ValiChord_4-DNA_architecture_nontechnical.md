@@ -1,6 +1,23 @@
-<div align="center">
-<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/the%204%20membranes.png" alt="The 4 DNA Membrane Architecture" width="800">
-</div>
+```mermaid
+flowchart TB
+    JOIN["An agent installs the ValiChord hApp"] --> ATTQ
+    JOIN --> GOVQ
+    JOIN --> PRIVQ
+
+    ATTQ{"attestation:<br/>is the issuer key empty?"}
+    ATTQ -->|"yes: dev or test network"| ATTOPEN["Anyone joins.<br/>No credential checked"]
+    ATTQ -->|"no"| CERT["check_joining_certificate"]
+    CERT --> C1["Membrane proof present and at least 64 bytes"]
+    C1 --> C2["Pick the issuer: AI uses ai_validator_issuer if set,<br/>otherwise the main issuer key"]
+    C2 --> C3["Issuer's signature over the joining agent's key<br/>plus certificate details is valid"]
+    C3 --> WHERE["Run three times: genesis_self_check (self, before joining),<br/>validate() by EVERY peer (the real guard),<br/>init() (self, first call)"]
+
+    GOVQ{"governance"} --> GOVOPEN["Open join: no membrane proof.<br/>Writes are gated instead (diagram 3)"]
+
+    PRIVQ{"researcher_repository<br/>and validator_workspace"} --> PRIVOPEN["No membrane check.<br/>Every entry is private, so peers never see the content"]
+```
+
+*Who may join each of the four networks, drawn from the code (2026-10-18). Notes: [DIAGRAMS.md §4](DIAGRAMS.md#4-the-membranes-who-may-join-each-dna). The four are separate networks, not nested, and governance is the open one.*
 
 # 🛡️ ValiChord: The 4-DNA Membrane Architecture
 
@@ -16,7 +33,7 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **Privacy:** Sensitive information (such as private patient records or commercially sensitive data) stays inside this bubble permanently. It never touches the shared network, making the system GDPR compliant by its very nature — not as a policy overlay, but as a structural fact.
 
-**What it stores:** ResearchStudy, PreRegisteredProtocol (locked and immutable once registered), VerifiedDataSnapshot (a timestamped hash of the dataset at the moment of validation), LockedResult (the researcher's sealed result metrics and cryptographic nonce — immutable, never leaves this DNA).
+**What it stores:** ResearchStudy, PreRegisteredProtocol (locked and immutable once registered), VerifiedDataSnapshot (a timestamped hash of the dataset at the moment of validation), LockedResult (the researcher's sealed result metrics and cryptographic nonce — cannot be changed and never leaves this DNA; in the default privacy mode the researcher may still delete it, to honour erasure rights).
 
 ---
 
@@ -26,15 +43,15 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **Role:** This is where the actual reproduction attempt happens. The validator downloads the researcher's code and data, re-runs it independently, and records their findings here. Crucially, the findings are **sealed** (committed) as a private entry before any other validator can see them — preventing groupthink and ensuring each validator's judgement is genuinely independent.
 
-**Privacy:** No other validator can see inside this workspace. The sealed assessment stays here permanently; only a cryptographic proof that it exists travels to the shared network.
+**Privacy:** No other validator can see inside this workspace. The sealed assessment stays here. Until the reveal, only a cryptographic proof that it exists travels to the shared network; at the reveal, the validator publishes the same findings openly (see step 4 below).
 
-**What it stores:** ValidationTask (the assigned study), ValidatorPrivateAttestation (the sealed private assessment — immutable once written, never leaves this DNA).
+**What it stores:** ValidationTask (the assigned study), ValidatorPrivateAttestation (the sealed private assessment — immutable once written, never leaves this DNA), DeliberateAbstention (a record that the validator chose not to take part).
 
 ---
 
 # 3. Attestation DNA (Shared DHT / Credentialed Membrane)
 
-**Function:** A shared digital coordination layer for credentialed validators. Joining requires an institutional membrane proof — a cryptographic credential issued by an authorised body.
+**Function:** A shared digital coordination layer for credentialed validators. Joining requires a membrane proof — a cryptographic credential signed by an authorised issuer (an institutional body for human validators; the ValiChord operator for AI validators). Every member of the network checks that credential for themselves, not just the newcomer's own software. The credential also fixes the validator's starting tier, so nobody can award themselves a higher one.
 
 **Role:** This DNA manages the blind commit-reveal protocol and records the public outcome of each validator's work. It does not store the research itself — only the acts of validation.
 
@@ -48,11 +65,11 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 2. This automatically writes a **CommitmentAnchor** to DNA 3 — a public, zero-content proof that a commitment was made, without revealing what was found.
 3. When all validators have committed, a **PhaseMarker** is written to the shared network, opening the reveal window. Validators discover this by checking the network (polling), not by receiving a message — so no validator can gain an advantage from faster internet.
 
-**At reveal (all parties simultaneously):**
+**At reveal (once the reveal window is open):**
 4. Validators publish their **ValidationAttestation** — their full public findings — to DNA 3. These are permanent and cannot be changed.
-5. The researcher publishes their **ResearcherReveal** — the structured result metrics, verified on-chain against the hash committed at submission. Anyone can now compare what Sarah originally claimed against what each validator independently reproduced.
+5. The researcher publishes their **ResearcherReveal** — the structured result metrics, checked by the network against the hash committed at submission. Anyone can now compare what the researcher originally claimed against what each validator independently reproduced.
 
-**What it stores:** ValidationRequest, ResearcherResultCommitment, ResearcherReveal, CommitmentAnchor, PhaseMarker, ValidationAttestation (all immutable after publication), ValidatorProfile, StudyClaim.
+**What it stores:** ValidationRequest, ResearcherResultCommitment, ResearcherReveal, CommitmentAnchor, PhaseMarker, ValidationAttestation (all immutable after publication), ValidatorProfile, StudyClaim and StudyClaimRelease (a validator taking, or giving up, a place on a study).
 
 ---
 
@@ -62,13 +79,30 @@ ValiChord is built as a series of independent but connected "bubbles" (technical
 
 **Role:** Stores the final Harmony Records, Reproducibility Badges, validator reputation scores, and governance decisions. Anyone — journals, funders, other researchers, or the public — can query this layer to verify the reproducibility status of any study.
 
-**Control:** Only the system's authorised keys (baked into the DNA at deployment and cryptographically immutable) may write to this library. The rules are enforced by every peer on the network independently — there is no central administrator who could override them.
+**Control:** A Harmony Record can only be written by a validator who took part in the round, and it must carry every participating validator's own signed findings — so nobody can list validators who never took part, or claim a result their findings do not support. Reputation scores and governance decisions can only be written by a key fixed into the DNA at deployment. The rules are enforced by every peer on the network independently — there is no central administrator who could override them.
 
 **What it stores:** HarmonyRecord (the final validated outcome — immutable), ReproducibilityBadge (Gold / Silver / Bronze / Failed), ValidatorReputation, GovernanceDecision.
 
-<div align="center">
-<img src="https://github.com/ValiChord/ValiChord/blob/main/Images/4%20membranes%20alt.jpeg" alt="The 4 DNA Membrane Architecture" width="800">
-</div>
+```mermaid
+flowchart LR
+    subgraph ME["One person's conductor (same agent key in every cell)"]
+        RR["researcher_repository<br/>private, one per researcher"]
+        VW["validator_workspace<br/>private, one per validator"]
+        ATT["attestation<br/>shared, credentialed membrane"]
+        GOV["governance<br/>shared, open join"]
+    end
+
+    RR -->|"publish_researcher_commitment<br/>(called by lock_researcher_result)"| ATT
+    VW -->|"notify_commitment_sealed<br/>(called by post_commit after seal)"| ATT
+    ATT -->|"check_and_create_harmony_record<br/>(after every submit_attestation)"| GOV
+    GOV -->|"reads back: attestations, cohort size,<br/>request, claims, validator certification"| ATT
+
+    ATT <-->|"gossip with other credentialed agents"| ATTNET(("attestation DHT"))
+    GOV <-->|"gossip with everyone"| GOVNET(("governance DHT"))
+    READERS["Public readers<br/>(HTTP Gateway, read-only functions)"] --> GOVNET
+```
+
+*How the four networks connect. Notes: [DIAGRAMS.md §1](DIAGRAMS.md#1-the-four-dnas-and-who-talks-to-whom).*
 
 ---
 

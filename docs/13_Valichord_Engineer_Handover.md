@@ -1,8 +1,10 @@
 # ValiChord: Engineer Handover Document
 
-**Version:** 2.5 — May 2026
+**Version:** 2.5 — May 2026 (spot-corrected 2026-10-18)
 **Author:** Ceri John
-**Status:** Current — reflects codebase as of last commit
+**Status:** Last fully revised May 2026. Individual claims were checked against the code on 2026-10-18 and corrected where wrong; sections not marked as corrected may still describe May 2026.
+
+> **Read first (2026-10-18).** Since this handover was written: `main` moved to **Holochain 0.7.1** (`hdk =0.7.1`, `hdi =0.8.1`; PR #45, 2026-10-17); the **Tryorama suite was retired** (2026-08-03) and integration tests are **sweettest only**; and **PR #47** (2026-10-18) made every peer check joining credentials in `validate()`, made a HarmonyRecord carry and be checked against its validators' signed attestations, and tied a ValidatorProfile's tier to its joining certificate. Latest release: **v0.6.6**. For current state see [PROJECT_STATUS.md](../PROJECT_STATUS.md); for tests see [TESTING.md](../TESTING.md) and [doc 14](14_ValiChord_Integration_Tests.md). The code is the ground truth — where this document and the code disagree, the code wins.
 
 ---
 
@@ -18,7 +20,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and 166 integration tests pass across two suites (97 Tryorama, 69 Rust sweettest native), with 1 Tryorama test.skip (GoldReproducible — hardware-constrained; sweettest equivalent passes). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and the sweettest integration suite passes in CI on every push (117 tests across nine files when counted from the source on 2026-10-18; the Tryorama suite quoted here in May was retired on 2026-08-03 — see [TESTING.md](../TESTING.md)). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -44,11 +46,11 @@ Private, single-agent DNA. The commit phase of the blind commit-reveal protocol 
 
 **`seal_private_attestation` now generates and stores the cryptographic commitment** (2026-03-18). The function accepts `SealAttestationInput { task_hash, attestation: ValidationAttestation }` — the exact public attestation the validator intends to reveal. It:
 1. Generates a 32-byte nonce via `random_bytes(32)` (HDK host function).
-2. Serialises the `ValidationAttestation` to MessagePack via `SerializedBytes::try_from`.
+2. Serialises the `ValidationAttestation` to MessagePack via the shared `ValidationAttestation::commitment_msgpack_bytes()` in `shared_types` (`SerializedBytes::try_from`, i.e. named-field MessagePack, with the three fields set only at reveal time — `commitment_anchor_hash`, `request_num_validators`, `request_created_at` — normalised to `None`) — the same function `submit_attestation` uses.
 3. Computes `commitment_hash = SHA-256(msgpack_bytes || nonce)` using the `sha2` crate.
 4. Writes the private entry with all attestation fields plus `discipline`, `nonce`, and `commitment_hash`.
 
-`ValidatorPrivateAttestation` now carries five generated/derived fields: `nonce: Vec<u8>`, `commitment_hash: Vec<u8>`, and `discipline: Discipline`. The caller must NOT supply these — they are computed by `seal_private_attestation`. The `discipline` field mirrors the public attestation's discipline so the full `ValidationAttestation` can be reconstructed at reveal time without a separate task lookup.
+`ValidatorPrivateAttestation` now carries three generated/derived fields: `nonce: Vec<u8>`, `commitment_hash: Vec<u8>`, and `discipline: Discipline`. The caller must NOT supply these — they are computed by `seal_private_attestation`. The `discipline` field mirrors the public attestation's discipline so the full `ValidationAttestation` can be reconstructed at reveal time without a separate task lookup.
 
 **Critical:** `post_commit` fires `call(OtherRole("attestation"), "notify_commitment_sealed")` after a `ValidatorPrivateAttestation` is created. The payload is now `CommitmentSealedInput { request_ref, commitment_hash }` — the commitment hash is forwarded to DNA 3 so the `CommitmentAnchor` on the shared DHT carries the cryptographic proof. The target attestation cell must be initialised before `post_commit` fires — see the deadlock section below.
 
@@ -63,7 +65,7 @@ Private, single-agent DNA. The commit phase of the blind commit-reveal protocol 
 
 Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit-reveal protocol, phase transitions, and public attestation records.
 
-**Membrane proof:** Real Ed25519 verification is implemented in the **coordinator** `init()`, not the integrity zome. The integrity zome does format-only checks (≥64 bytes). The coordinator queries the source chain for `AgentValidationPkg`, reads `authorized_joining_certificate_issuer` from DNA properties, and calls `verify_signature()`. Empty string in DNA properties = dev/test bypass.
+**Membrane proof:** Real Ed25519 verification of the joining certificate. *(Corrected 2026-10-18.)* Until PR #47 this ran only in the **coordinator** `init()` — i.e. only the joining agent checked its own credential. Since PR #47 the check lives in `attestation_integrity::check_joining_certificate` and is run from `validate()` by **every peer** (integrity zomes can call `verify_signature`; it is an HDI function). The coordinator `init()` calls the same function on its own `AgentValidationPkg`. It reads `authorized_joining_certificate_issuer` from DNA properties; empty string = dev/test bypass.
 
 **Phase transitions** are DHT-poll-driven. `get_current_phase()` is always the authoritative source of phase state — signals are best-effort and can be lost if an agent is offline. When the last commitment arrives, `notify_commitment_sealed` emits a typed `Signal::RevealOpen { request_ref }` locally via `emit_signal` AND fire-and-forget pushes it to all other committed validators via `send_remote_signal`. The receiving end is `recv_remote_signal(signal: Signal)` — it re-emits locally so the agent's `AppWebsocket` subscriber sees the same payload. Serde encoding: `{ type: "RevealOpen", content: { request_ref: "uhCEk..." } }` (adjacent tag, matching ValiChord's enum convention). Do not gate protocol logic on signals — always verify state via DHT.
 
@@ -86,25 +88,25 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 `DepositAccessType` is defined in `attestation_integrity`. The DHT membrane (credentialed joining, membrane proof required) protects the token — only validators with a valid `authorized_joining_certificate_issuer` signature can read the `ValidationRequest` entry and therefore the token.
 
-**`TokenGated` flow:** the researcher's Flask backend generates the token at job creation time, stores it in `_jobs[job_id]`, and passes `data_access_url = {VALICHORD_BASE_URL}/deposit/{job_id}` + `deposit_token` to `_runValidationRound` in `serve.mjs`, which includes both in the `submit_validation_request` call. Validators read the `ValidationRequest` from the shared DHT, append `?token={deposit_token}` to the URL, and `GET /deposit/<job_id>` serves the ZIP back (token verified with `secrets.compare_digest`).
+**`TokenGated` flow** *(2026-10-18: not present in the current code. The `deposit_access_type` / `deposit_token` fields exist in the entry type, but `serve.mjs` and `backend/app.py` no longer exist and the demo's `researcher-node.mjs` always sends `deposit_token: null`. The paragraph below describes the April 2026 design.)*: the researcher's Flask backend generates the token at job creation time, stores it in `_jobs[job_id]`, and passes `data_access_url = {VALICHORD_BASE_URL}/deposit/{job_id}` + `deposit_token` to `_runValidationRound` in `serve.mjs`, which includes both in the `submit_validation_request` call. Validators read the `ValidationRequest` from the shared DHT, append `?token={deposit_token}` to the URL, and `GET /deposit/<job_id>` serves the ZIP back (token verified with `secrets.compare_digest`).
 
 **`VALICHORD_BASE_URL` env var** — must be set in institutional deployments to the server's public address (e.g. `https://valichord.example.com`). Defaults to `http://localhost:5000` for dev/Codespace.
 
 **Critical Holochain constraint:** `call_remote` cannot cross DNA network boundaries. DNA 1 (Researcher Repository) is a private single-agent DNA in a different network from DNA 3 (Attestation). Validators cannot `call_remote` to the researcher's DNA 1 to fetch the deposit. The token in the `ValidationRequest` entry and the HTTP endpoint in `backend/app.py` are the correct architecture — Holochain carries the credential, HTTP delivers the bytes.
 
-**Governance DNA is now fully decentralised** (2026-03-14): `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are no longer author-gated by a designated coordinator key. Any participant who was part of the round can trigger finalisation by calling `check_and_create_harmony_record`. The function enforces completeness (must have ≥ `num_validators_required` attestations before writing) and idempotency (a second call short-circuits if a record already exists). `submit_attestation` in the Attestation DNA now automatically fires a same-agent cross-DNA call to `check_and_create_harmony_record` — the last validator to submit their attestation triggers the HarmonyRecord write without any central coordinator node.
+**Governance DNA is now fully decentralised** (2026-03-14): `HarmonyRecord` and `ReproducibilityBadge` are no longer author-gated by a designated coordinator key. *(Corrected 2026-10-18: `ValidatorReputation` creates and updates ARE gated by `system_coordinator_key` in `governance_integrity`; empty key = dev/test bypass. Who writes reputation in production is still undecided.)* Any participant who was part of the round can trigger finalisation by calling `check_and_create_harmony_record`. The function enforces completeness (must have ≥ `num_validators_required` attestations before writing) and idempotency (a second call short-circuits if a record already exists). `submit_attestation` in the Attestation DNA now automatically fires a same-agent cross-DNA call to `check_and_create_harmony_record` — the last validator to submit their attestation triggers the HarmonyRecord write without any central coordinator node.
 
 `GovernanceDecision` remains key-gated by `system_coordinator_key` — governance votes are human deliberation outcomes that require a designated recorder. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
 
-**Known remaining limitation (Phase 1):** the Governance integrity zome's `validate()` cannot perform cross-DNA lookups to cryptographically verify that a HarmonyRecord's content is correct against the Attestation DHT. Content correctness is currently enforced at the coordinator layer (completeness check + algorithmic derivation) but not at the network validation layer. Making it trustless at the validation layer requires either moving HarmonyRecord creation into the Attestation DNA or embedding sufficient proof in the entry itself. A partial guard IS enforced (2026-03-20): `validate()` requires the HarmonyRecord author to be listed in `record.participating_validators` — prevents non-participants from anonymously forging a record and winning the first-write idempotency race.
+**Formerly a known limitation — closed by PR #47 (2026-10-18).** The Governance integrity zome's `validate()` cannot make cross-DNA lookups, so until #47 HarmonyRecord content was checked only at the coordinator layer. #47 took the "embed sufficient proof in the entry" route: a HarmonyRecord now carries `attestation_evidence` — each validator's signed attestation action — and peers verify the signatures, that each attestation is for this request, the outcome and agreement level derived from them, and the cohort size (`validators_requested` must match what the attestations were stamped with; a record with fewer validators than requested is valid only after `round_timeout_secs`). The older partial guard (2026-03-20) — the author must be listed in `participating_validators` — still applies. Covered by `sweettest_integration/tests/harmony_record_forgery.rs`. What it does **not** prove (see `check_attestation_evidence` in `governance_integrity`): that the attestations completed commit–reveal on the Attestation DNA; which subset was chosen once a round has timed out (the record only discloses "k of n", and the author asserts the timestamp the timeout reads); or anything about colluding validators who each sign a false attestation.
 
 **Non-deterministic `links.last()` replaced in DNA 4 (April 2026).** `get_harmony_record` used `links.last()` to pick the single `RequestToHarmonyRecord` link. Replaced with `links.iter().max_by_key(|l| l.timestamp)` for consistency with the DNA 3 fix and to be robust if the idempotency guard ever fails to prevent a duplicate write.
 
 `required_validations = 7` is set on `ValidationAttestation`. This is a Holochain DHT validation parameter — it means 7 peers must validate the entry before it is considered fully integrated.
 
-**Validator self-assignment (`StudyClaim`)** — implemented 2026-03-14. Validators discover studies via `get_pending_requests_for_discipline` and call `claim_study(request_ref: ExternalHash)` to self-assign without any central matchmaker. The coordinator resolves the `ValidationRequest` ActionHash via the `StudyToValidation` path, reads the validator's institution from their `ValidatorProfile`, enforces capacity (no more than `num_validators_required` claims per study) and duplicate (no double-claiming) at the coordinator layer, then writes a `StudyClaim` entry plus two link indexes — `RequestToClaim` (base = request_ref, for `get_claims_for_request`) and `ValidatorToClaim` (base = agent pubkey, for `get_my_claimed_studies`). The integrity zome's `validate()` enforces conflict-of-interest at the network layer: if both `validator_institution` and `researcher_institution` are non-empty and equal, the claim is rejected. `release_claim(request_ref)` deletes both links (freeing the slot for another validator); the `StudyClaim` entry remains permanently as an audit record. Empty institution on either side bypasses the COI check (dev mode / researcher did not declare institution). `ValidationRequest` now also carries `researcher_institution: String` alongside the pointer fields `data_access_url` and `protocol_access_url`.
+**Validator self-assignment (`StudyClaim`)** — implemented 2026-03-14. Validators discover studies via `get_pending_requests_for_discipline` and call `claim_study(request_ref: ExternalHash)` to self-assign without any central matchmaker. The coordinator resolves the `ValidationRequest` ActionHash via the `StudyToValidation` path, reads the validator's institution from their `ValidatorProfile`, enforces capacity (no more than `num_validators_required` claims per study) and duplicate (no double-claiming) at the coordinator layer, then writes a `StudyClaim` entry plus two link indexes — `RequestToClaim` (base = request_ref, for `get_claims_for_request`) and `ValidatorToClaim` (base = agent pubkey, for `get_my_claimed_studies`). The integrity zome's `validate()` enforces conflict-of-interest at the network layer: if both `validator_institution` and `researcher_institution` are non-empty and equal, the claim is rejected. `release_claim(request_ref)` frees the slot by writing a `StudyClaimRelease` marker plus release index links *(corrected 2026-10-18: claim links are immutable and are never deleted)*; the `StudyClaim` entry and its links remain permanently as an audit record. Empty institution on either side bypasses the COI check (dev mode / researcher did not declare institution). `ValidationRequest` now also carries `researcher_institution: String` alongside the pointer fields `data_access_url` and `protocol_access_url`.
 
-**Dropout recovery** — implemented 2026-03-14. `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` is callable by any participant. It verifies the claim is older than `timeout_secs` AND the absent validator has not attested, then deletes both link indexes to free the slot. Use `timeout_secs = 604800` (7 days) in production; `0` in tests. The companion function `force_finalize_round(request_ref)` in DNA 4 closes a round still stuck after `round_timeout_secs` seconds (DNA property, default 604 800 s / 7 days; set to `0` in tests so the age check always passes) with whatever attestations are present, subject to `min_attestations_for_finalization` (see governance `DnaProperties`). Neither function requires special keys — both are open to any participant, consistent with the decentralised governance model.
+**Dropout recovery** — implemented 2026-03-14. `reclaim_abandoned_claim(input: { request_ref, claim_hash, timeout_secs })` is callable by any participant. It verifies the claim is older than `timeout_secs` AND the absent validator has not attested, then writes a `StudyClaimRelease` marker to free the slot (the claim links themselves are immutable and stay). Use `timeout_secs = 604800` (7 days) in production; `0` in tests. The companion function `force_finalize_round(request_ref)` in DNA 4 closes a round still stuck after `round_timeout_secs` seconds (DNA property, default 604 800 s / 7 days; set to `0` in tests so the age check always passes) with whatever attestations are present, subject to `min_attestations_for_finalization` (see governance `DnaProperties`). Neither function requires special keys — both are open to any participant, consistent with the decentralised governance model.
 
 **`check_all_commitments_sealed_inner` fix** — 2026-03-16. Previously used `props.minimum_validators` (network-wide DNA property) to decide when to open the reveal window. Now calls `get_num_validators_required(request_ref)` which reads `num_validators_required` from the actual `ValidationRequest` entry. The phase transition now opens when the correct number of validators *for that specific study* have committed, not the network minimum.
 
@@ -133,15 +135,15 @@ Shared DHT, credentialed membrane. The most complex DNA. Manages the full commit
 
 Public DHT, HTTP Gateway target. Stores final outcomes — Harmony Records, Reproducibility Badges, validator reputation, governance decisions.
 
-Write access is decentralised: `HarmonyRecord`, `ReproducibilityBadge`, and `ValidatorReputation` are open to any participant — no author key required. `GovernanceDecision` is the sole exception, gated by `system_coordinator_key` in `validate()` (human deliberation outcomes need a designated recorder). Empty string = dev/test bypass. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
+Write access is decentralised: `HarmonyRecord` and `ReproducibilityBadge` are open to any participant — no author key required (since PR #47 a HarmonyRecord must carry, and match, its validators' signed attestations). `GovernanceDecision` and `ValidatorReputation` are gated by `system_coordinator_key` in `validate()` (human deliberation outcomes need a designated recorder). Empty string = dev/test bypass. `harmony_record_creator_key` has been removed from `DnaProperties` entirely.
 
-**`DnaProperties`** (governance) contains two fields: `system_coordinator_key: String` (gates GovernanceDecision writes) and `min_attestations_for_finalization: u32` (minimum attestations required before `force_finalize_round` will write a HarmonyRecord). Policy: set equal to `minimum_validators` for panels of ≤4 validators (no dropout tolerated — governance decides); set to `minimum_validators - 1` for larger panels (one dropout tolerated, auto-finalises after timeout). Value `0` falls back to requiring at least one attestation (safe dev/test default).
+**`DnaProperties`** (governance) contains three fields: `system_coordinator_key: String` (gates GovernanceDecision and ValidatorReputation writes), `min_attestations_for_finalization: u32` (minimum attestations required before `force_finalize_round` will write a HarmonyRecord) and `round_timeout_secs: u64` (default 604 800 s / 7 days). Policy: set equal to `minimum_validators` for panels of ≤4 validators (no dropout tolerated — governance decides); set to `minimum_validators - 1` for larger panels (one dropout tolerated, auto-finalises after timeout). Value `0` falls back to requiring at least one attestation (safe dev/test default).
 
-`HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are immutable. `ValidatorReputation` allows updates (no key gate — updated automatically during round finalisation).
+`HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are immutable. `ValidatorReputation` allows updates, by the `system_coordinator_key` agent only (or anyone when the key is empty, dev/test). It is updated automatically during round finalisation only when the finalising agent is that key holder or the key is empty; who writes it in production is undecided.
 
 **No self-reported timestamps.** `HarmonyRecord`, `ValidatorReputation`, and `ReproducibilityBadge` do not store `created_at_secs`, `last_updated_secs`, or `issued_at_secs` fields. These were removed because Holochain Actions carry an authoritative, tamper-evident timestamp — self-reported timestamps in entry content are falsifiable and redundant. Do not add them back.
 
-**Badge recipient is the researcher, not the first validator.** `ReproducibilityBadge.issued_to` is resolved via a cross-DNA call: `call(OtherRole("attestation"), "get_validation_request_for_data_hash", data_hash)`. The record's `action().author()` is the researcher who submitted the study. Falls back to the first participating validator if the cross-DNA call fails.
+**Badge recipient is the researcher, not the first validator.** `ReproducibilityBadge.issued_to` is resolved via a cross-DNA call: `call(OtherRole("attestation"), "get_validation_request_for_data_hash", data_hash)`. The record's `action().author()` is the researcher who submitted the study. If the researcher cannot be resolved, no badge is issued (the earlier fallback to the first participating validator was removed — see the Security Audit table); `check_and_create_harmony_record` retries issuance later via `issue_badge_if_missing`.
 
 `check_and_create_harmony_record` is idempotent and decentralised — any participant may call it. It checks for an existing record first, then verifies that enough attestations exist (`attestation_records.len() >= num_validators_required`) before writing. `submit_attestation` in DNA 3 automatically fires this call on the governance role after writing each attestation — the last validator to reveal triggers HarmonyRecord creation without any central coordinator node. When a badge is issued it is linked twice: via `StudyToBadge` (per-study lookup) and via `BadgePath` (cross-study type-based analytics).
 
@@ -185,7 +187,7 @@ Svelte 5 + TypeScript SPA. Connects directly to the running conductor via `AppWe
 
 **Port detection** — three-source priority: `window.location.hash` (`#APP_PORT=PORT`, Launcher injection) → `VITE_HC_PORT` env var → Launcher default. `AppWebsocket.connect()` requires `url: new URL(...)` (URL object, not string).
 
-**Signal encoding** — `Signal` enum in `attestation_coordinator` has no `#[serde(tag)]`, so external-tag serialisation applies: `{ RevealOpen: { request_ref: Uint8Array } }`.
+**Signal encoding** *(corrected 2026-10-18)* — the `Signal` enum in `attestation_coordinator` uses `#[serde(tag = "type", content = "content")]` (adjacent tagging): `{ type: "RevealOpen", content: { request_ref: Uint8Array } }`. Remote signals between nodes use a flat `RevealOpenWire` struct instead, re-emitted locally as `Signal::RevealOpen`.
 
 **To run:**
 ```bash
@@ -198,7 +200,7 @@ See `valichord-ui/FRONTEND.md` for the full UX walkthrough with screen-by-screen
 ---
 
 ### `valichord_attestation` — Canonical AI Evaluation Attestation Format
-**Status: format v2 (package 2.0.0) — standalone Python library, 584 tests (measured 2026-08-22 via CI)**
+**Status: format v2 (package 2.0.0) — standalone Python library; 608 tests at 97% coverage when last measured (2026-08-22) — see CI for the current count**
 
 `valichord_attestation/` is a harness-agnostic Python library that produces cryptographically verifiable attestation bundles for AI evaluation runs. It applies the same commit-hash-reveal principle that ValiChord uses for scientific reproducibility to AI capability benchmarks: a published accuracy score becomes traceable to the specific run that produced it, and any individual sample can be proven to a third party without disclosing the full log.
 
@@ -235,7 +237,7 @@ Two hashes are produced per bundle:
 
 The Merkle root is a SHA-256 tree over per-sample output dicts. The bundle hash and Merkle root are both 64-char hex strings.
 
-**What v1 does not do (non-goals):** cryptographic signing (reserved for v2), zero-knowledge disclosure proofs, integration with Holochain DNAs (bundles becoming DHT attestations is post-format-stabilisation work).
+**What the format does not do (non-goals, v1 and v2):** cryptographic signing (no format version carries a signature, and signing is not scheduled), zero-knowledge disclosure proofs, integration with Holochain DNAs (bundles becoming DHT attestations is post-format-stabilisation work).
 
 **Running tests:**
 ```bash
@@ -253,7 +255,7 @@ python valichord_attestation/examples/mistral_7b_gsm8k_demo/challenge_response_d
 python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_response_demo.py
 ```
 
-**Full spec:** `valichord_attestation/spec/attestation_format_v1.md` — schema, encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, security considerations.
+**Full spec:** `valichord_attestation/spec/attestation_format_v2.md` (current; `attestation_format_v1.md` is kept for v1.x bundles) — schema, encoding rules, pre-rounding policy, Merkle tree construction, proof format and verifier algorithm, versioning policy, security considerations.
 
 **Architectural context:** the format was designed in response to Scott Simmons's review of `UKGovernmentBEIS/inspect_evals#1610`. The core feedback was that the canonical attestation spec belongs in ValiChord (the verification infrastructure), not inside each eval harness, and that the meaningful attestation is not "I have the log file" but "this reported result is faithful to the run that produced it."
 
@@ -268,9 +270,9 @@ These functions exist and compile but return placeholder values. They are design
 | Function | Location | Current behaviour | What it needs |
 |---|---|---|---|
 | `assess_difficulty` / `get_difficulty_assessment` | DNA 3 coordinator | **Now accepts real caller-provided `AssessDifficultyInput`** (2026-03-25) — all fields are stored verbatim; retrieval works via `DifficultyPath` | Automated prediction model (ML / heuristic) — Phase 1, after Phase 0 workload data collected |
-| Cumulative reputation | DNA 4 coordinator | Single-round reputation only | Multi-round cumulative tier progression |
-| Real membrane proof issuance | Outside codebase | Not implemented | A credential issuance service that signs joining agents' pubkeys with the issuer keypair |
-| Researcher identity blinding | Outside codebase | Partially improved — `TokenGated` deposits use an opaque `/deposit/<job_id>?token=...` URL that does not expose researcher identity. Public URL deposits (`PublicUrl`) still expose the full URL (e.g. `osf.io/jsmith/my-study`). A full blinding proxy would replace any URL with an opaque token before writing the `ValidationRequest` to the DHT. Until built, identity blinding for `PublicUrl` deposits is an operational convention. |
+| Cumulative reputation | DNA 4 coordinator | *(2026-10-18)* Multi-round tier progression exists (Provisional → Standard after 3 rounds; thresholds 3/10/25 are placeholders, to be calibrated with real data). Who writes `ValidatorReputation` in production is undecided | Calibrated thresholds; a production reputation writer |
+| Real membrane proof issuance | Outside codebase | Not implemented — demo nodes run with the dev bypass (`authorized_joining_certificate_issuer: ''` in `demo/node-setup.mjs`) | A credential issuance service that signs joining agents' pubkeys with the issuer keypair |
+| Researcher identity blinding | Outside codebase | Not built. *(2026-10-18: the `TokenGated` opaque-URL route described in April 2026 is not present in the current code — see the DNA 3 note above.)* Public URL deposits (`PublicUrl`) still expose the full URL (e.g. `osf.io/jsmith/my-study`). A full blinding proxy would replace any URL with an opaque token before writing the `ValidationRequest` to the DHT. Until built, identity blinding for `PublicUrl` deposits is an operational convention. |
 
 ---
 
@@ -285,10 +287,10 @@ Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `
 **April 2026 additions (ad4m-inspired refactoring):**
 
 - `ValiChordError` / `ValiChordResult<T>` — domain error enum (`thiserror::Error`) with `#[from]` derivations for `WasmError` and `SerializedBytesError`. `impl From<ValiChordError> for WasmError` allows `?` propagation across the extern boundary. Use `ValiChordResult<T>` as the return type for internal helpers; convert to `ExternResult<T>` at the `#[hdk_extern]` boundary.
-- `ValidationAttestation::msgpack_bytes(&self) -> ExternResult<Vec<u8>>` — shared serialisation method. Replaces the ad-hoc `SerializedBytes::try_from(&attestation)...map_err(|e| wasm_error!(...))` pattern that was duplicated in DNA 2 (`seal_private_attestation`) and DNA 3 (`submit_attestation`). Both now call `attestation.msgpack_bytes()?` for byte-for-byte consistency between commit and reveal.
-- `derive_majority_outcome(attestations: &[ValidationAttestation]) -> Option<AttestationOutcome>` — pure function, moved from `governance_coordinator` to `shared_types` so it can be unit-tested without a conductor.
+- `ValidationAttestation::commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>>` (originally `msgpack_bytes`; renamed when reveal-time fields were added) — shared serialisation method. Replaces the ad-hoc `SerializedBytes::try_from(&attestation)...map_err(|e| wasm_error!(...))` pattern that was duplicated in DNA 2 (`seal_private_attestation`) and DNA 3 (`submit_attestation`). Both now call `attestation.commitment_msgpack_bytes()?` for byte-for-byte consistency between commit and reveal.
+- `derive_majority_outcome(attestations: &[ValidationAttestation]) -> AttestationOutcome` — pure function, moved from `governance_coordinator` to `shared_types` so it can be unit-tested without a conductor.
 - `derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel` — likewise moved.
-- 11 conductor-free unit tests in `shared_types/src/lib.rs` (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
+- Conductor-free unit tests in `shared_types/src/lib.rs` (11 when added; 33 on 2026-10-18) (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
 
 ---
 
@@ -302,7 +304,7 @@ These are things that took significant debugging time to establish. Do not re-le
 ### 2. Target cell must be initialised before post_commit fires
 `post_commit` in DNA 2 calls `notify_commitment_sealed` in DNA 3. If DNA 3's cell has never been initialised (i.e. `init()` has never run), the `call()` triggers `init()`, which the conductor serialises — deadlock. In production, the UI layer should initialise all cells on startup. In tests, always make a warm-up read call to the attestation cell before calling `seal_private_attestation`.
 
-### 3. Add a pause after seal_private_attestation in tests
+### 3. Add a pause after seal_private_attestation in tests (Tryorama-era; the same race applies to any client)
 `post_commit` is asynchronous. If you call `dhtSync` immediately after `seal_private_attestation`, the `CommitmentAnchor` may not yet be written. Add a `pause(500)` between the seal call and the sync.
 
 ### 4. DnaProperties fields must be String, not AgentPubKey
@@ -314,7 +316,7 @@ The conductor passes DNA properties as msgpack-encoded YAML strings. Declaring a
 
 Do not mix these up when writing test fixtures.
 
-### 6. ExternalHash construction in TypeScript tests
+### 6. ExternalHash construction in TypeScript (UI, demo, and the retired Tryorama tests)
 Always construct `ExternalHash` using `hashFrom32AndType(core32, HoloHashType.External)`. Never use `new Uint8Array(39).fill(byte)` — the DHT location bytes (last 4 bytes) must be a valid blake2b checksum. Using a flat fill produces hashes that fail DHT validation silently.
 
 ### 7. do NOT use pack_dna.py
@@ -323,20 +325,20 @@ There is a `pack_dna.py` script in the repo. It has a bug that embeds the attest
 ### 8. Deadlock: DNA 4 calling back into DNA 3
 `check_and_create_harmony_record` (DNA 4) calls `get_attestations_for_request` (DNA 3) to retrieve attestations. This is safe because it is a read-only call. Do not add any write calls from DNA 4 back into DNA 3 — this creates a cycle with the pending write operation and deadlocks.
 
-### 9. verify_signature is HDK-only — not available in integrity zomes
-Integrity zomes run in a restricted WASM environment without host function access to the keystore. `verify_signature` is an HDK function. All cryptographic verification must go in coordinator zomes, not integrity zomes. The validate() callback in an integrity zome cannot call it.
+### 9. ~~verify_signature is HDK-only — not available in integrity zomes~~ — WRONG, corrected 2026-10-18
+This entry used to say signature verification could not run in `validate()`. That was never true: `hdi::ed25519::verify_signature` exists (the HDK merely re-exports it), and since PR #47 the integrity zomes use it — `attestation_integrity::check_joining_certificate` and the HarmonyRecord `attestation_evidence` check in `governance_integrity` both verify Ed25519 signatures inside `validate()`. What integrity zomes genuinely cannot do is **sign** (that needs the keystore) or make network/cross-DNA calls. Verification belongs in `validate()` whenever peers need to enforce it.
 
 ### 10. Do not use hardcoded ZomeIndex or EntryDefIndex
 `get_all_tasks` and `post_commit` in DNA 2 previously filtered entries using hardcoded `ZomeIndex(0)` and `EntryDefIndex(0/1)`. These indices break silently if the order of entry type declarations ever changes. The correct pattern is to filter by attempting deserialization: `r.entry().to_app_option::<MyType>().ok().flatten().is_some()`. Any coordinator function that needs to identify a specific entry type from the source chain must use this pattern.
 
-### 11. dhtSync with 7+ conductors exhausts websocket connections in Codespaces
+### 11. dhtSync with 7+ conductors exhausts websocket connections in Codespaces (historical — Tryorama retired 2026-08-03)
 The Tryorama Gold badge test (7 validators) is `test.skip` because spinning up 7 simultaneous Holochain conductors exhausts available websocket connections in resource-constrained environments (Codespaces, CI with <16GB RAM). **The sweettest equivalent (`gold_badge_issued_with_seven_validators` in `sweettest_integration/tests/governance.rs`) passes** — in-process conductors avoid the websocket overhead and are the authoritative coverage for this scenario.
 
 ### 12. get_private_attestation_for_task — use query(), not get()
 Private entries retrieved by the owning agent must be looked up via `query()`, not `get(target, GetOptions::local())`. In singleFork Tryorama tests, all cells share the same conductor and local DB, so `get()` with local options crosses cell boundaries — Bob's cell can retrieve Alice's private entry. `query()` is strictly bound to the calling agent's source chain and cannot cross this boundary. Pattern: follow the link to get the target ActionHash, then `query(ChainQueryFilter::new().include_entries(true))?.into_iter().find(|r| *r.action_address() == target)`.
 
 ### 13. Fire-and-forget cross-DNA calls use a named helper, not inline `call()`
-`submit_attestation` in DNA 3 fires a same-agent call to `check_and_create_harmony_record` in DNA 4 after writing each attestation. This pattern is wrapped in `call_governance_fire_and_forget(fn_name, input)` — a private helper that swallows errors with `let _ = call(...)`. Failures are intentionally ignored (the caller still continues); if every validator's reveal silently drops the governance call, the HarmonyRecord simply doesn't appear yet — any participant can re-trigger `check_and_create_harmony_record` later. Do not unwrap the result; do not panic. The one-liner suppresses the `unused Result` warning and makes the intent explicit.
+`submit_attestation` in DNA 3 fires a same-agent call to `check_and_create_harmony_record` in DNA 4 after writing each attestation. This pattern is wrapped in `call_governance_fire_and_forget(fn_name, input) -> bool` — a private helper that never fails the caller. *(Updated 2026-10-18.)* It logs a `warn!` on a failed or non-Ok call and returns `false`, and `submit_attestation` then emits a local `Signal::FinalizationFailed { request_ref }` so the UI can offer a retry. The attestation itself is still written; the HarmonyRecord simply doesn't appear yet — any participant can re-trigger `check_and_create_harmony_record` later, and the governance cell's hourly `sweep_timed_out_rounds` schedule also retries timed-out rounds. Do not unwrap the result; do not panic.
 
 ### 15. get() after get_links() can return None — return Ok(None), not Err
 
@@ -373,7 +375,7 @@ Fixed: `call_attestation_zome_opt` catches `ZomeCallResponse::Ok(io)` where `io.
 **Rule:** cross-DNA calls that retrieve data published by another conductor should treat decode failures during the gossip propagation window as `Ok(None)` — not hard errors. Always log at `warn!` so the condition is visible in logs, but allow the caller to retry.
 
 ### 14. reveal_researcher_result — idempotency guard required before hash check
-`reveal_researcher_result` checks for an existing `RequestToResearcherReveal` link **before** the SHA-256 hash verification step. Without this guard, a researcher could call the function multiple times, creating multiple `ResearcherReveal` entries linked from the same deterministic path. `get_researcher_reveal` uses `links.last()`, which is non-deterministic under concurrent DHT propagation, so duplicate entries introduce result ambiguity even though content is forced to match the commitment. Pattern mirrors `publish_researcher_commitment`: query the path's existing links at the top of the function and return an error immediately if any exist. Commitment hash for `metrics=[], nonce=[]` is `SHA256(0x90) = 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd` — used in S6 test fixture.
+`reveal_researcher_result` checks for an existing `RequestToResearcherReveal` link **before** the SHA-256 hash verification step. Without this guard, a researcher could call the function multiple times, creating multiple `ResearcherReveal` entries linked from the same deterministic path. `get_researcher_reveal` originally used `links.last()` (now `max_by_key(timestamp)`), which was non-deterministic under concurrent DHT propagation, so duplicate entries introduce result ambiguity even though content is forced to match the commitment. Pattern mirrors `publish_researcher_commitment`: query the path's existing links at the top of the function and return an error immediately if any exist. Commitment hash for `metrics=[], nonce=[]` is `SHA256(0x90) = 9e076ceaf246b6003d9c2680a2b4cf0bffd069805902b0b5edeebf49039fe4bd` — used in S6 test fixture.
 
 ### 19. validate() deserialization failures must be soft — return Invalid, not wasm_error
 
@@ -407,42 +409,42 @@ Applied to five sites in `governance_integrity` and `attestation_integrity` in c
 
 ## Build Sequence
 
+*(Updated 2026-10-18 for Holochain 0.7.1 and the sweettest-only suite. CI — `.github/workflows/tests.yml` — is the reference; it downloads the 0.7.1 release binaries rather than building them.)*
+
 ```bash
-# 1. Rust WASM toolchain
+# 1. Rust WASM toolchain (valichord/rust-toolchain.toml pins the channel)
 rustup target add wasm32-unknown-unknown
 
-# 2. Holochain CLI
-cargo install holochain hc --locked
+# 2. Holochain 0.7.1 toolchain — or just run ./setup_holochain.sh from the repo root
+cargo install holochain             --version 0.7.1 --locked
+cargo install holochain_cli         --version 0.7.1 --locked   # provides `hc`
+cargo install kitsune2_bootstrap_srv --version 0.5.1 --locked
 
-# 3. Node dependencies
-cd tests && npm install && cd ..
-
-# 4. Set PATH (Codespaces / CI)
-export PATH="/home/codespace/.cargo/bin:$PATH"
-
-# 5. Compile all four WASM zomes
+# 3. Compile all four WASM zomes (from valichord/)
 cargo build --target wasm32-unknown-unknown --release
 
-# 6. Pack each DNA — always use hc directly
+# 4. Pack each DNA — always use hc directly
 hc dna pack dnas/attestation            -o workdir/attestation.dna
 hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 
-# 7. Pack the hApp bundles
-hc app pack .            -o workdir/valichord.happ    # full 4-DNA bundle (tests)
+# 5. Pack the hApp bundles
+hc app pack .            -o workdir/valichord.happ    # full 4-DNA bundle (tests, production)
 hc app pack researcher   -o workdir/researcher.happ   # DNAs 1+3+4 (decentralised demo)
-hc app pack validator    -o workdir/validator.happ     # DNAs 2+3+4 (decentralised demo)
+hc app pack validator    -o workdir/validator.happ    # DNAs 2+3+4 (decentralised demo)
 
-# 8. Run targeted tests (preferred)
-cd tests && npm test -- -t "Membrane proof"
-cd tests && npm test -- -t "governance"
+# 6. Run one sweettest suite at a time (each takes tens of minutes)
+pkill -x holochain; pkill -x lair-keystore; sleep 2
+./run-sweettest.sh attestation
+./run-sweettest.sh governance silver_badge   # optional name filter
 
-# 9. Full suite (takes ~90 minutes in Codespaces — only when needed)
-cd tests && npm test
+# 7. Immutability and forgery tests need a separate test-only build
+./build-test-dnas.sh
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire
 ```
 
-**Role-filtered happs** (`researcher.happ`, `validator.happ`) are committed to `valichord/workdir/` as demo artefacts. They are used by the Docker Compose decentralised demo — each container loads only the DNAs it needs for that run. `valichord.happ` (all four DNAs) is used by the Tryorama integration tests and is the correct bundle for production deployment.
+**Role-filtered happs** (`researcher.happ`, `validator.happ`) are committed to `valichord/workdir/` as demo artefacts. They are used by the Docker Compose decentralised demo — each container loads only the DNAs it needs for that run. `valichord.happ` (all four DNAs) is used by the integration tests and the UI e2e tests, and is the correct bundle for production deployment.
 
 **Production model:** every participant runs the full four-DNA bundle. The same person may submit a study one day and validate a different study another day — DNA 1 holds their research deposits and DNA 2 holds their validation work. The conflict-of-interest check is per-study (`StudyClaim validate()` rejects the same agent as both submitter and claimant of the same `ValidationRequest`), not per-person. Do not use the role-filtered happs as a template for production; they exist purely to save memory and clarify roles in the single-machine demo.
 
@@ -452,25 +454,22 @@ The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Reb
 
 ## Test Inventory Summary
 
-97 Tryorama tests across 5 files, 1 skipped (GoldReproducible — hardware-constrained; sweettest equivalent passes).
+*(Rewritten 2026-10-18. The May 2026 version described the Tryorama suite, which was retired on 2026-08-03; `valichord/tests/` no longer exists.)*
 
-| File | Tests | Coverage |
+Integration tests are **sweettest only**: `valichord/sweettest_integration/tests/`, 117 tests across nine files when counted from the source on 2026-10-18. They use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead.
+
+| File | Tests | Notes |
 |---|---|---|
-| `attestation.test.ts` | 46 (1 Tryorama-skipped) | Membrane proof, commit-reveal, phase poll, immutability, profiles, requests, discipline query, cross-DNA post_commit, real Ed25519 verification, badge thresholds (Bronze/Silver/Gold), `get_validation_request_for_data_hash`, `get_validators_for_institution`, `get_attestations_for_discipline`, validator self-assignment (StudyClaim), dropout recovery (`reclaim_abandoned_claim`) — too-recent guard, eligible reclaim + slot freed, attested validator guard |
-| `governance.test.ts` | 24 | Idempotency, author enforcement, end-to-end round, reputation, read queries, Bronze/Silver/Failed badges, mixed outcomes, `GovernanceDecision` CRUD, `get_badges_by_type`, delete-immutability guards, `force_finalize_round` — not-yet-timed-out guard, no-attestations guard |
-| `researcher_repository.test.ts` | 14 | All coordinator functions, immutability enforcement, `get_all_studies` |
-| `validator_workspace.test.ts` | 7 | All coordinator functions, multi-task retrieval, `get_all_private_attestations` |
-| `security.test.ts` | 9 | S1 duplicate attestation, S2 duplicate commitment, S3 researcher commitment idempotency, S4.1 reclaim timeout floor enforced, S4.2 zero floor allows immediate reclaim, S5 force_finalize_round conservative abort on missing VR, S6 reveal_researcher_result idempotency, S7 self-claim prevention (researcher cannot claim own study), S8 capacity-full rejection |
+| `attestation.rs` | 30 | Requests, commit-reveal, phase poll, profiles, claims and COI, reclaim, identity links, indexes |
+| `governance.rs` | 22 | HarmonyRecord finalisation, force-finalise and the live-claim gate, badges (Bronze/Silver/Gold), tiers, decisions |
+| `researcher_repository.rs` | 17 | All coordinator functions, result lock and cross-DNA commitment |
+| `validator_workspace.rs` | 13 | Tasks, sealing, abstentions, cross-agent privacy |
+| `security.rs` | 12 | Duplicate guards, reclaim floor, conservative aborts, real-nonce and tampered reveals, bundle-hash binding |
+| `membrane_proof.rs` | 6 | The only tests with a real Ed25519 issuer (no dev bypass) |
+| `immutability_tripwire.rs` | 15 | Test-only build: integrity zomes reject forbidden updates and deletes |
+| `harmony_record_forgery.rs`, `validator_tier_forgery.rs` | 1 + 1 | Test-only build: peers refuse forged HarmonyRecords and self-assigned tiers (PR #47) |
 
-Full test inventory: `valichord/tests/README.md`
-
-### Sweettest (native Rust integration tests)
-
-A separate Rust-native test suite lives in `valichord/sweettest_integration/`. **64 tests across 5 files** covering all four DNAs. These tests use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead. They are the preferred home for new security and protocol tests because they compile alongside the WASM and are checked by `cargo test`.
-
-CI splits the sweettest suite into 5 parallel matrix jobs (`attestation`, `governance`, `researcher_repository`, `validator_workspace`, `security`) to stay under GitHub Actions job time limits. The Tryorama suite (`valichord/tests/`) runs as a single additional job.
-
-Run locally: `cd valichord && cargo test --test '*' -- --nocapture`
+CI runs the first six as parallel matrix jobs (`cargo test --test <suite> -- --test-threads=1` from `valichord/sweettest_integration/`) and the test-only-build files in a separate job. Conductor-free unit tests run with `cargo test -p valichord_shared_types` and `cargo test -p governance_coordinator`. Full inventory: [doc 14](14_ValiChord_Integration_Tests.md) and [TESTING.md](../TESTING.md) — if either disagrees with the source files, the files win.
 
 ---
 
@@ -497,7 +496,7 @@ These are architectural questions that have been explicitly deferred to Phase 1.
 **Researcher side (fully implemented, 2026-03-18):** The full symmetric researcher commit-reveal is complete. The commitment is a two-way blind: it prevents the researcher from adjusting their claimed values after seeing validator outputs, and it prevents validators from seeing the researcher's actual metric values before they commit their own verdicts (only the hash is on the DHT during the commit phase).
 - DNA 1 `lock_researcher_result(LockResultInput { request_ref, metrics: Vec<MetricResult> })` — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores private `LockedResult { request_ref, metrics, nonce, commitment_hash }` (immutable, private, never leaves device), calls `publish_researcher_commitment` in DNA 3.
 - DNA 1 `get_locked_result(request_ref)` — retrieves the private entry at reveal time.
-- DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on `check_all_commitments_sealed`, verifies hash on-chain against `ResearcherResultCommitment`, writes immutable `ResearcherReveal { request_ref, metrics }` to DHT.
+- DNA 3 `reveal_researcher_result(ResearcherRevealInput { request_ref, metrics, nonce })` — gates on the `RevealOpen` PhaseMarker (originally `check_all_commitments_sealed`; see constraint #17), verifies the hash against `ResearcherResultCommitment` in the coordinator, writes immutable `ResearcherReveal { request_ref, metrics }` to DHT.
 - DNA 3 `get_researcher_reveal(request_ref)` — unrestricted read.
 - `ResearcherReveal` is immutable — update + delete both rejected by `validate()`.
 
@@ -596,17 +595,17 @@ Five LLM red-team audits (ChatGPT, Gemini, Grok ×2, Claude) and two systematic 
 | Empty issuer bypass | Gemini (second) | Already documented as dev/test bypass — same pattern as governance `system_coordinator_key`. Not new. |
 | Credential revocation gap | Grok / Gemini (second) | Was: fundamental Holochain DHT architecture limitation — no CRL mechanism possible. **Status changed (2026-03-20):** Holochain roadmap item #5131 ("Validate memproofs on demand") is actively in progress with no milestone (could ship any release). If it lands, post-join credential re-validation becomes possible and a proper revocation mechanism can be built on top. Also watch #5132 / kitsune2 #263–#265 — the Kitsune2 Access module will add network-layer membrane proof enforcement, meaning revoked agents are denied DHT gossip at the transport layer rather than just at the HDI validate() layer. Revisit this gap when these items close. |
 | Self-assignment collusion | Grok (first/second) | Acknowledged architectural trade-off. Requires trusted randomness oracle for Phase 1 `select_validators`. |
-| HarmonyRecord full content forgery | Grok (second) | Partial fix (author ∈ participants) is in place. Full content verification requires cross-DNA calls in `validate()`, which is architecturally impossible in Holochain HDI. Phase 2. |
+| HarmonyRecord full content forgery | Grok (second) | Partial fix (author ∈ participants) is in place. Full content verification requires cross-DNA calls in `validate()`, which is architecturally impossible in Holochain HDI. Phase 2. **Update 2026-10-18: no longer dismissed — fixed by PR #47 without cross-DNA calls, by embedding each validator's signed attestation in the record (`attestation_evidence`).** |
 | Cross-link deletion by non-author | Grok (second) | Not real in Holochain — only the link author can delete their own links. Any agent who creates a link owns it; non-authors cannot delete it. |
 
 ### Known architectural gaps (Phase 1 / Phase 2)
 
-- **Full HarmonyRecord content verification at validate() layer** — cross-DNA calls unavailable in HDI; content correctness is coordinator-layer only. The partial fix (author ∈ participating_validators) is in place.
+- ~~**Full HarmonyRecord content verification at validate() layer**~~ — **closed by PR #47 (2026-10-18).** Peers now verify each validator's signed attestation carried in the record, and the outcome, agreement level and cohort size derived from them. Residual limits (stated in `check_attestation_evidence`): it does not prove the attestations completed commit–reveal on the Attestation DNA, a timed-out round can be closed with a chosen subset (disclosed as "k of n"), and colluding validators can each sign a false attestation.
 - **Credential revocation** — once an agent joins the Attestation DHT, they cannot be removed retroactively without governance intervention. **Watch:** Holochain roadmap item #5131 ("Validate memproofs on demand", no milestone — actively in progress as of 2026-03-20) would enable post-join re-validation and is the missing infrastructure for a proper CRL. The Kitsune2 Access module (#5132, kitsune2 #263–265) would additionally enforce membrane proof validity at the network/transport layer, denying gossip to revoked peers before they reach the DHT. When these land, revisit this gap — the Phase 2 revocation design depends on which of these ships first.
 - **Multi-device identity / agent linking — implemented (March 2026).** `AgentIdentityAttestation` is live in `attestation_integrity`. `ValidatorReputation` (DNA 4) and `ValidatorProfile` (DNA 3) both carry `person_key: Option<AgentPubKey>` (`#[serde(default)}`). **Phase 1 follow-on (still outstanding):** (1) `update_validator_profile` auto-populates `person_key` from `get_linked_agents` on first call from a new device; (2) `_update_reputation_internal` passes the resolved `person_key` so reputation accumulates under the stable person key; (3) COI checks union all keys linked to an agent. **Async ceremony gap:** `PendingIdentityLink` was not implemented — the current protocol requires both devices to be online simultaneously (device A calls `sign_for_identity_link`, passes the sig out-of-band to device B which also signs, then one calls `link_agent_identity`). A `PendingIdentityLink` stored-entry approach for fully async ceremony is a Phase 1 addition. **Deepkey coordination:** Deepkey handles key rotation (same device, key superseded); `AgentIdentityAttestation` handles the multi-device case (same person, multiple simultaneously active keys). Both are needed for Phase 1. Do not assume device keys are stable when implementing `person_key` propagation.
 - **Validator self-assignment collusion** — COI institution check enforced; cartel from distinct institutions is not preventable without random assignment (Phase 1 `select_validators`).
-- **`get_current_phase` not authoritative** — clients must not treat `PhaseMarker` as a protocol gate; always verify via `check_all_commitments_sealed`. Any credentialed agent can write a `PhaseMarker` (validate() cannot gate creates without also blocking the coordinator). Protocol itself is unaffected — only UIs that trust `get_current_phase` blindly are at risk.
-- **Production reputation is static (Phase 1 gap).** `_update_reputation_internal` is gated behind `system_coordinator_key.is_empty()` (the dev/test bypass) so it never runs in production — the write would fail `validate()` which requires the coordinator key to be the author. All validators therefore remain at `CertificationTier::Provisional` in production until the Phase 1 oracle is live. **Four tiers are defined** — `Provisional` (default) → `Standard` (≥5 rounds) → `Advanced` (≥20 rounds + agreement rate ≥60%) → `Certified` (≥50 rounds + rate ≥80%). These tiers are used for reputation scoring; they do not gate badge issuance. **Badge thresholds use raw participant count** (2026-04-26): Gold ≥7 ExactMatch, Silver ≥5 ExactMatch/WithinTolerance, Bronze ≥3, FailedReproduction ≥3. All tiers of validator contribute equally to badge issuance — an integrator with 5 validators gets Silver regardless of whether those validators are Provisional or Standard. Reputation tier is tracked for future use (governance, assignment priority) but does not change which badge is issued.
+- **`get_current_phase` not authoritative** — clients must not treat `PhaseMarker` as a protocol gate; always verify via `check_all_commitments_sealed`. Any credentialed agent can write a `PhaseMarker` (validate() cannot gate creates without also blocking the coordinator). *(Note 2026-10-18: this bullet conflicts with constraint #17 and with the code — the coordinator itself gates on the PhaseMarker: `notify_commitment_sealed` refuses commits once `RevealOpen` exists, and `reveal_researcher_result` requires it. Validation now restricts a PhaseMarker author to a committed validator, so the accurate statement of the limit is the "Single committed validator can open the reveal window unilaterally" row above: a liveness limit, not only a UI risk.)*
+- **Production reputation is static (Phase 1 gap).** *(Updated 2026-10-18.)* The automatic update in `write_harmony_record` runs only when `system_coordinator_key` is empty (dev/test) or the finalising agent **is** the coordinator key holder — any other write would fail `validate()`, which requires the coordinator key to be the author. Who that writer is in production is still undecided, so in practice validators stay at their starting tier. Since #8/#47 (2026-10-17/18) the starting tier comes from the joining certificate (AI: the issuer's `initial_tier`; Human: `Provisional`), and a ValidatorProfile's `certification_tier` must match it. **Four tiers are defined** — `Provisional` (default) → `Standard` (≥3 rounds) → `Advanced` (≥10 rounds + agreement rate ≥60%) → `Certified` (≥25 rounds + rate ≥80%) — **placeholders, to be calibrated with real data** (`shared_types` `CertificationTier`). These tiers are used for reputation scoring; they do not gate badge issuance. **Badge thresholds use raw participant count** (2026-04-26): Gold ≥7 ExactMatch, Silver ≥5 ExactMatch/WithinTolerance, Bronze ≥3, FailedReproduction ≥3. All tiers of validator contribute equally to badge issuance — an integrator with 5 validators gets Silver regardless of whether those validators are Provisional or Standard. Reputation tier is tracked for future use (governance, assignment priority) but does not change which badge is issued.
 
 ---
 
@@ -614,7 +613,9 @@ Five LLM red-team audits (ChatGPT, Gemini, Grok ×2, Claude) and two systematic 
 
 Holochain's public roadmap (github.com/orgs/holochain/projects/11) has several upcoming milestones that affect this codebase. Read this before upgrading `holochain` / `hdk` / `hdi` versions in `Cargo.toml`.
 
-**Current ValiChord versions:** `hdk = "=0.6.1"`, `hdi = "=0.7.1"`, `holochain_serialized_bytes = "=0.0.57"` — upgraded 2026-05-13. All 97 tests green.
+> **Dated section (written 2026-05-13).** Since then ValiChord moved to Holochain 0.6.2, then **0.7.0** (merged 2026-08-03), then **0.7.1** (`hdk =0.7.1`, `hdi =0.8.1`, merged 2026-10-17 — a network break: fresh install only). The "do not upgrade to 0.7" advice below is therefore historical. The full upgrade history is in [HOLOCHAIN_UPGRADE_RECORD.md](HOLOCHAIN_UPGRADE_RECORD.md); upstream issue statuses below were last checked on the dates shown.
+
+**ValiChord versions as of 2026-05-13:** `hdk = "=0.6.1"`, `hdi = "=0.7.1"`, `holochain_serialized_bytes = "=0.0.57"`. All 97 (Tryorama) tests green at the time.
 
 ---
 
@@ -694,11 +695,13 @@ Previously described as "actively in progress, could ship any release." **That w
 
 - **#5132 + kitsune2 #263–265 — Kitsune2 Access module:** OPEN. Status: "Ready for refinement". Unassigned as of January 2026. No PR. Same situation — previously described as active, currently stalled. When it eventually lands, ValiChord gets network-layer membrane proof enforcement automatically (no code changes), but that may not be soon. Watch for whether the Access module requires membrane proofs to be registered with Kitsune2 separately in conductor config; if so, ValiChord's join flow would need updating.
 
-- **#1613 — hc sandbox doesn't support membrane proofs:** Dev ergonomics fix. No change in status — still open. Until resolved, the full Tryorama test harness remains required for membrane proof testing.
+- **#1613 — hc sandbox doesn't support membrane proofs:** Dev ergonomics fix. No change in status — still open. Until resolved, membrane proof testing needs a full test harness — today `sweettest_integration/tests/membrane_proof.rs` (the Tryorama harness this originally referred to was retired 2026-08-03).
 
 ---
 
 ## Integration API and Holochain Bridge (2026-03-28, extended 2026-03-31)
+
+> **Historical (March 2026 design). Superseded — checked 2026-10-18.** `backend/app.py`, `backend/openapi.yaml`, `backend/holochain_bridge.py` and `demo/serve.mjs` no longer exist, so the endpoints, env vars and file references below do not describe the current code. Today `backend/` holds `app_protocol.py` (`/attest`, `/health`, `/openapi.yaml`, `/docs`; spec in `backend/openapi_protocol.yaml`) — see `backend/README.md`. The public demo is `demo/app.py` with the Node bridges `demo/researcher-node.mjs` and `demo/validator-node.mjs`; record URLs come from `GET /record?hash=…`. Treat this section as a record of the earlier design.
 
 Four phases of work were completed on 2026-03-28 to connect the Python analysis pipeline to the Holochain conductor and expose a clean REST integration surface. The API was extended in March 2026 to support real validator attestations, API key authentication, webhook callbacks, and machine-readable OpenAPI docs.
 
@@ -787,9 +790,9 @@ The commit-reveal sequence in `_runValidationRound` (7 steps): `submit_validatio
 
 ValiChord's commit-reveal protocol can operate in two modes depending on whether the researcher is a ValiChord participant:
 
-**Validator-only commit-reveal (current demo / plugin path):** The researcher is not on the Holochain network — their deposit is on Zenodo, OSF, or a `TokenGated` endpoint. Only the validator side of the blind commit-reveal runs. Validators seal their verdict independently before seeing what others found. The `CommitmentAnchor` on DNA 3 proves no validator changed their assessment after the consensus became visible. This is what `_runValidationRound` currently executes.
+**Validator-only commit-reveal (current demo / plugin path):** The researcher is not on the Holochain network — their deposit is on Zenodo, OSF, or a `TokenGated` endpoint. Only the validator side of the blind commit-reveal runs. Validators seal their verdict independently before seeing what others found. The `CommitmentAnchor` on DNA 3 proves no validator changed their assessment after other validators' findings became visible. This is what `_runValidationRound` currently executes.
 
-**Full double-blind commit-reveal (native ValiChord path):** The researcher also participates. They call `lock_researcher_result()` in DNA 1 before the round opens, which publishes a `ResearcherResultCommitment` (SHA-256 hash of their metrics + nonce) to DNA 3. After all validators have committed and revealed, the researcher calls `reveal_researcher_result()` — the commitment hash is verified on-chain before the metrics land on the shared DHT. This proves the researcher did not adjust their claimed result after seeing validator findings.
+**Full double-blind commit-reveal (native ValiChord path):** The researcher also participates. They call `lock_researcher_result()` in DNA 1 before the round opens, which publishes a `ResearcherResultCommitment` (SHA-256 hash of their metrics + nonce) to DNA 3. After all validators have committed and revealed, the researcher calls `reveal_researcher_result()` — the commitment hash is verified by the Attestation coordinator before the metrics land on the shared DHT. This proves the researcher did not adjust their claimed result after seeing validator findings.
 
 The Rust code for both modes is fully implemented. `_runValidationRound` currently runs the validator-only path. To activate the full double-blind, add `lock_researcher_result` (DNA 1) before `submit_validation_request`, and `reveal_researcher_result` (DNA 3) after `submit_attestation`. These are steps 0 and 7.5 in the sequence — the other 7 steps are unchanged.
 
@@ -844,15 +847,14 @@ Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondomi
 |---|---|
 | `valichord/shared_types/src/lib.rs` | All cross-DNA types |
 | `valichord/dnas/attestation/zomes/attestation_integrity/src/lib.rs` | DNA 3 entry types, link types, validate() |
-| `valichord/dnas/attestation/zomes/attestation_coordinator/src/lib.rs` | DNA 3 coordinator functions including init() membrane verification |
+| `valichord/dnas/attestation/zomes/attestation_coordinator/src/lib.rs` | DNA 3 coordinator functions; `init()` re-checks its own joining certificate (peers check it in `validate()` via `attestation_integrity::check_joining_certificate`) |
 | `valichord/dnas/governance/zomes/governance_integrity/src/lib.rs` | DNA 4 entry types, validate() with author key enforcement |
 | `valichord/dnas/governance/zomes/governance_coordinator/src/lib.rs` | DNA 4 including check_and_create_harmony_record |
 | `valichord/happ.yaml` | Role definitions, DNA property defaults |
-| `valichord/tests/src/attestation.test.ts` | DNA 3 integration tests including membrane proof |
-| `valichord/tests/README.md` | Full test inventory, build instructions, architecture notes |
-| `backend/app.py` | Flask web entry point — REST API including /validate, /result, /health |
-| `backend/holochain_bridge.py` | Python → Holochain bridge wrapper (graceful degradation) |
-| `demo/serve.mjs` | Static server + WS proxy + internal Holochain bridge endpoints |
+| `valichord/sweettest_integration/tests/` | Integration tests (sweettest), including `membrane_proof.rs` *(replaces the retired `valichord/tests/` Tryorama suite)* |
+| `TESTING.md` | Test layers, counts and how to run each suite |
+| `backend/app_protocol.py` | Protocol API (`/attest`) — see `backend/README.md` *(replaces the removed `backend/app.py`)* |
+| `demo/app.py`, `demo/researcher-node.mjs`, `demo/validator-node.mjs` | Public demo server and its Node bridges to the conductor *(replace the removed `demo/serve.mjs` and `backend/holochain_bridge.py`)* |
 | `valichord-ui/src/App.svelte` | Frontend shell — port detection, role detection, signal subscription |
 | `valichord-ui/src/lib/holochain.ts` | AppWebsocket singleton — callZome wrapper, role→zome name map |
 | `valichord-ui/src/lib/types.ts` | TypeScript mirrors of all Rust types (serde encoding preserved) |

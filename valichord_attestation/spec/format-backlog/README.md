@@ -45,6 +45,11 @@ two reruns differing only in provenance — who triggered them, on what machine,
 still compare as scientifically equivalent. Put the judge model in `meta` and two runs scored by
 *different judges* also compare as equivalent, because `content_hash` cannot see the difference.
 
+*(Note 2026-10-18: "at what time" holds only for a time kept in `meta`. The required top-level
+`generated_at` is inside `content_hash`, so two reruns with different `generated_at` values never
+compare as equivalent today — see the correction note in §4 of `attestation_format_v1.md`. That
+is a second design question next to this one.)*
+
 Anything that could change the result belongs in a field `content_hash` covers. `meta` is for
 things that cannot. That line is the actual design question behind items 02–05, and it is worth
 settling once rather than per-field.

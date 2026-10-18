@@ -41,6 +41,15 @@ The format is designed to be harness-agnostic. One bundle schema covers any eval
 - **Harness-specific adapters.** `AdapterBase` and a stub are included. Concrete adapters are shipped separately when upstream APIs stabilise.
 - **Integration with Valichord DNAs.** Bundles becoming on-chain attestations is separate work that follows format stabilisation.
 
+> **Note, 2026-10-18 (status only; nothing normative changes).** (1) v2 did not add zero-disclosure
+> proofs either; they remain unscheduled. (2) Concrete adapters now ship in the package
+> (`valichord_attestation/adapters/`: Inspect AI logs, lm-evaluation-harness, AILuminate, W&B, pi
+> sessions). (3) The only DNA link so far is the optional `reproduction_bundle_hash` field on a
+> validator's `ValidationAttestation`, which takes the bundle's **`content_hash`**, not its
+> `bundle_hash` (`valichord/shared_types/src/lib.rs`) — so the "On-chain DHT attestation →
+> `bundle_hash`" row in §4 does not describe what was built. (4) Wherever this document says
+> "on-chain", read "published to the Valichord DHT": Holochain is not a blockchain.
+
 ### Relationship to existing attestation mechanisms
 
 Git commit authorship and PR-review endorsement already constitute a *social* attestation chain for eval reports. Valichord bundles add a *cryptographic faithfulness layer* on top: the Merkle root binds the per-sample outputs to the reported aggregates, enabling verification that the report faithfully summarises the run.
@@ -222,6 +231,15 @@ content_hash = hex(SHA-256(JCS(bundle_dict_without_meta)))
 `content_hash` captures **scientific equivalence**: two bundles with identical `format_version`, `model_id`, `task_id`, `metrics` (including `filter`), `outputs_merkle_root`, `samples.total`, and `samples.completed` produce the same `content_hash` regardless of their `meta` block. Use this for:
 - Comparing two reruns of the same eval that differ only in provenance (different git commit, different timestamp, different operator)
 - Asserting that a result is reproducible: a replication bundle's `content_hash` matches the original's `content_hash`
+
+> ⚠️ **Correction note, 2026-10-18 (no change to the formula above).** The field list in the
+> paragraph above is incomplete. By the formula, every top-level field except `meta` is in the
+> preimage — including the **required `generated_at`** and, when set, the top-level
+> `repo_commit`, `harness_version`, `command` and `prml_lock_hash` (reference implementation:
+> `canonical.py`, `bundle_to_dict` / `content_preimage`). Two reruns built at different times
+> therefore have **different** `content_hash` values unless `generated_at` (and those fields) are
+> set to the same values. The "different timestamp" example above holds only for a timestamp kept
+> in `meta`. Whether to change this is an open format question, not decided here.
 
 **v1.1 compatibility:** A v1.1 bundle (no `meta` field) has `content_hash == bundle_hash`, because `meta` is absent from both encodings. The `content_hash` function is a no-op transformation for legacy bundles.
 

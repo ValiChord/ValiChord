@@ -1,5 +1,14 @@
 # ValiChord Public Demo Website — Session Handover Plan
 
+> **Historical plan (April 2026) — do not build from it.** The demo website was built and is live
+> at valichord-demo.onrender.com/demo; the current description is
+> [`demo/DEMO_WEBSITE.md`](../demo/DEMO_WEBSITE.md). Its "Free Demo" gallery was later removed
+> (June 2026) in favour of visitors using their own key. Facts below that are now wrong: Oracle
+> is **`132.145.23.78`** (not `132.145.34.27`), running the 0.7.0 network until the 0.7.1 fresh
+> install; `valichord_at_home` and its `backend/app.py` moved to their own repository on
+> 2026-04-22; and the Tryorama tests (`valichord/tests/`) were retired on 2026-08-03 —
+> integration tests are now sweettest (`valichord/sweettest_integration/`).
+
 **Written:** 2026-04-17
 **Updated:** 2026-04-20
 **Status:** Planning only — nothing built yet

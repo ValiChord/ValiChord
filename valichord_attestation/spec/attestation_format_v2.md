@@ -3,7 +3,7 @@
 **Status:** current. Supersedes v1.2 for newly written bundles.
 **Scope of change:** the Merkle construction, and nothing else.
 
-v2 exists because §12 of `attestation_format_v1.md` requires it:
+v2 exists because §7 of `attestation_format_v1.md` requires it *(corrected 2026-10-18: this said §12, which is "Limitations and trust boundaries"; the rule quoted is in §7, "Versioning policy")*:
 
 > **Breaking changes** (removing required fields, changing canonical encoding
 > rules, changing Merkle construction) MUST increment to `"v2"`.
@@ -65,8 +65,10 @@ v2:  [A, B, C]  and  [A, B, C, C]   ->  different roots
 This is the defect class of CVE-2012-2459. Under v1 a Merkle root did not
 uniquely identify its leaf list. `samples.completed` is a separate committed
 field, so a *bundle* remained distinguishable, but a root considered alone did
-not — and roots are carried alone, for example as `ValidationRequest.data_hash`
-on the Holochain side.
+not — and roots can be carried alone. *(Corrected 2026-10-18: this sentence gave
+`ValidationRequest.data_hash` on the Holochain side as an example of a root carried
+alone. It is not one: `data_hash` wraps the bundle's `content_hash`, not its Merkle
+root — `valichord_attestation/protocol.py`, `data_hash()`.)*
 
 ### 1.3 The empty and single-leaf cases are defined
 

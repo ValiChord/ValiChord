@@ -74,6 +74,11 @@ structurally, by a membrane proof:
 - Two-stage check: `genesis_self_check` (format only — rejects proofs < 64 bytes, runs before
   join) then coordinator `init()` (full Ed25519 verify — the issuer's signature must be over the
   joining agent's pubkey).
+  > **Corrected 2026-10-18 (ValiChord PR #47).** The full check now also runs in `validate()`
+  > on **every peer** (`attestation_integrity::check_joining_certificate`, on the agent's
+  > membrane-proof op), so a modified hApp can no longer skip it. `genesis_self_check` and
+  > `init()` now run the same full check as early, self-run failures. A ValidatorProfile's
+  > `certification_tier` must also match what its certificate grants.
 - An empty issuer string is the dev/test bypass (what the demo and `valichord-ui` use today).
 - Reference onboarding service: Holo-Host / Unyt `joining-service` (REST membrane-proof issuer +
   `joining-cli`).

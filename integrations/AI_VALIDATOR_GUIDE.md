@@ -44,11 +44,15 @@ Form your verdict from what you observed:
 | `PartiallyReproduced` | Code ran but outputs differ in specific ways — document what differed and by how much |
 | `FailedToReproduce` | Code failed to run, or outputs were fundamentally different — document exactly where it failed and why |
 
+`Reproduced` means you got the **same result as the researcher** — it does not mean the result is correct. Judge only agreement with what they reported.
+
 Write concise replication notes (max 2000 characters): what ran, what didn't, specific error messages, why you chose your verdict.
 
 ---
 
 ## Step 3: Submit to ValiChord
+
+> ⚠️ **Status (checked 2026-10-18):** the API behind `POST /attest` (`backend/app_protocol.py`) does not currently start — it imports a `holochain_bridge` module removed on 2026-04-22. See `backend/README.md`. Steps 1, 2 and 4 stand; this step describes the API's design.
 
 Compute the SHA-256 of the deposit locally — no upload required. Then call `POST /attest`:
 
@@ -89,7 +93,7 @@ curl -X POST $VALICHORD_BASE_URL/attest \
 }
 ```
 
-`harmony_record_hash` is null only when the Holochain conductor is offline — the response always succeeds. `harmony_record_url` is publicly accessible with no authentication required.
+`harmony_record_hash` is null only when the Holochain conductor is offline — the response always succeeds. `harmony_record_url`, when set, is publicly accessible with no authentication required; it needs an HTTP Gateway, and none is deployed at present (retired 2026-07).
 
 If ValiChord returns an error, report it clearly — do not silently fail or guess a verdict.
 

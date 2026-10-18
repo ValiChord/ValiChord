@@ -1,6 +1,18 @@
 # ValiChord backend
 
-This directory contains **two separate Flask applications** for two separate tools
+> **Status (checked 2026-10-18) — read this first.**
+> - Only `app_protocol.py` (+ `openapi_protocol.yaml`, `requirements_protocol.txt`) is in this
+>   directory now. `app.py`, `holochain_bridge.py`, `openapi.yaml` and `requirements.txt` moved to the
+>   [valichord_at_home](https://github.com/topeuph-ai/valichord_at_home) repo on 2026-04-22
+>   (commit `83c1105`). The `app.py` and "undo the split" sections below are **historical**.
+> - ⚠️ **`app_protocol.py` does not start as things stand.** It still does
+>   `from holochain_bridge import run_validation_round`, and that module was deleted in the same
+>   commit. Its other prerequisite, `demo/serve.mjs`, was removed in `9738fe1`. Nothing deploys this
+>   API: the public web demo (`demo/app.py` on Render) talks to the Oracle nodes directly.
+> - The HTTP Gateway behind `harmony_record_url` is not deployed either (retired 2026-07); records
+>   are readable from the demo nodes at `GET /record?hash=…`.
+
+This directory contained **two separate Flask applications** for two separate tools
 that happen to share infrastructure. They are intentionally kept separate because
 they answer different questions and are used by different audiences.
 
@@ -33,7 +45,7 @@ PORT=5001 gunicorn --workers 1 --threads 4 app_protocol:app
 
 ---
 
-## app.py — valichord_at_home API
+## app.py — valichord_at_home API (moved out 2026-04-22 — historical)
 
 **Question it answers:** *Does this deposit look like someone could run it?*
 
@@ -73,7 +85,7 @@ export VALICHORD_BASE_URL=http://localhost:5001
 
 ---
 
-## How to undo the split
+## How to undo the split (historical — the split was completed by moving app.py out)
 
 The split is additive:
 - `app_protocol.py`, `openapi_protocol.yaml`, `requirements_protocol.txt`, `README.md` are new files.

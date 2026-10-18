@@ -1,5 +1,14 @@
 # Oracle upgrade to Holochain 0.7.0 — runbook
 
+> **Historical runbook (2026-08-24) — do not run it again.** It is superseded by
+> [`ORACLE_0.7.1_UPGRADE.md`](ORACLE_0.7.1_UPGRADE.md), the current runbook (`main` has been on
+> Holochain 0.7.1 since 2026-10-17). Keep this file for the background the 0.7.1 runbook points
+> back to (why it is a rebuild, the failure modes, the risks). ⚠️ The **Access** and **Server
+> facts** sections, and the "From anywhere" check in step 6, describe the **old host
+> `152.67.153.149`** — now a dead 0.6.2 network. The live host is **`132.145.23.78`**, reached by
+> SSH as `opc`. The "Not yet done" Render item below was done afterwards — `PROJECT_STATUS.md`
+> records a claim run through the public site verified on 0.7.0.
+
 **Written 2026-08-24. ✅ EXECUTED THE SAME DAY — on a NEW host, not the one it was written for.**
 
 > ## Outcome, 2026-08-24

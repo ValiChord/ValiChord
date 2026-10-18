@@ -4,6 +4,12 @@
 **Estimated effort:** 3 weeks minimum (refactor only), 6–7 weeks full (with mock + unit tests)  
 **Last updated:** 2026-05-27
 
+> **Note added 2026-10-18.** Still deferred, not started. The test counts below are from May 2026:
+> the Tryorama suite was **retired on 2026-08-03** (`valichord/tests/` deleted), so integration
+> tests are now sweettest only (`valichord/sweettest_integration/`). Read "Tryorama" below as
+> history. The project is on Holochain 0.7.1 / hdk 0.7.1 now, so re-check the trait signatures
+> against that before using them.
+
 ---
 
 ## 1. Motivation
