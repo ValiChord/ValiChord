@@ -139,22 +139,29 @@ the exact eval run that produced them, without re-running the evaluation.
 
 ## Verification (challenge-response)
 
-To verify that a bundle is not fabricated (spot-check k random samples):
+To spot-check that a bundle is not fabricated (k random samples). Two things the
+bundle.json written above does **not** contain: the per-sample outputs (only their
+Merkle root is committed), and any signature (no attestation format version is
+signed; `bundle_hash` proves integrity of the content, not who produced it).
+
+- The **log holder** needs the full ordered list of per-sample dicts, built from the
+  same `.eval` log by the adapter (see `_sample_to_dict` in
+  `valichord_attestation/valichord_attestation/adapters/inspect_ai_log_adapter.py`).
+- The **verifier** needs the `Bundle` object. There is no loader from bundle.json,
+  so in practice the check is run in the same session that built the bundle, or by
+  rebuilding the bundle from the same log.
 
 ```python
-from valichord_attestation import build_response, verify_response, Challenge
-import json, os
+from valichord_attestation import Challenge, build_response, verify_response, hash_bundle
+import os
 
-with open("agent_artefacts/<eval_name>/attestation_bundle.json") as f:
-    data = json.load(f)
-
-bundle_hash = data["bundle_hash"]
-samples     = data["samples"]
-nonce       = os.urandom(16)
-k           = 20
-
-challenge = Challenge(bundle_hash=bundle_hash, k=k, verifier_nonce=nonce)
-response  = build_response(challenge, samples)
-ok        = verify_response(challenge, response, samples)
-print("Verified:", ok)   # True iff all k Merkle paths check out
+# `bundle` is the Bundle from Step 2; `samples` is the holder's per-sample dict list
+challenge = Challenge(bundle_hash=hash_bundle(bundle), verifier_nonce=os.urandom(16), k=20)
+response  = build_response(challenge, samples, format_version=bundle.format_version)
+ok        = verify_response(challenge, response, bundle)
+print("Verified:", ok)   # True iff all k Merkle paths reconstruct bundle.outputs_merkle_root
 ```
+
+Not verified by running: this repo's tooling cannot execute the Python here. The
+function signatures above were checked against `valichord_attestation/valichord_attestation/{challenge,response}.py`
+(`verifier_nonce` must be at least 16 bytes; `verify_response` takes the Bundle, not a sample list).
