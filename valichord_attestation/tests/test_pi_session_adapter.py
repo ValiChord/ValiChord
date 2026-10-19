@@ -456,7 +456,7 @@ def test_samples_total_counts_every_line_of_the_file():
     # active branch is still the 4 non-header entries.
     assert bundle.samples_total == len(MINIMAL_SESSION) == 5
     assert len(_resolve_branch(MINIMAL_SESSION[0], MINIMAL_SESSION[1:])) == 4
-    assert bundle.samples_completed == 4
+    assert bundle.samples_completed == 5   # = leaves committed
 
 
 def test_samples_total_reflects_full_branch():
@@ -484,7 +484,7 @@ def test_samples_total_reflects_full_branch():
     bundle = ADAPTER.to_bundle(session)
     assert bundle.samples_total == len(session) == 7          # every line
     assert len(_resolve_branch(session[0], session[1:])) == 6  # the whole branch
-    assert bundle.samples_completed == 6
+    assert bundle.samples_completed == 7   # = leaves committed
 
 
 # ---------------------------------------------------------------------------
