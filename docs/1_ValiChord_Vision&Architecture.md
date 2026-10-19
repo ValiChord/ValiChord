@@ -442,6 +442,8 @@ Beyond science entirely, the same infrastructure could extend to any field where
 
 Each phase generates the evidence that shapes the next. The staged approach means ~£150K FEC (Phase 0) ensures that £1.9M of infrastructure investment is designed around empirical evidence rather than untested assumptions.
 
+> **Note (2026-10-19):** the £150K Phase 0 / £1.9M Phase 1 figures in this document are no longer the current plan. They are kept as the original reasoning; do not quote them as current figures.
+
 ### Economic Model
 
 ValiChord cannot specify precise costs or revenue at this stage because the foundational data doesn't exist — Phase 0 generates it. But the structural logic of who pays for what and when can be described honestly.
@@ -511,7 +513,7 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **The verification result is a link anyone can click.** A working demo of the public verification gateway is running alongside the live network. A Harmony Record isn't just a number stored in a database somewhere — it's a link. Anyone who receives that link can independently confirm the outcome without needing any special software, accounts, or access. That's what makes it meaningful to a journal editor or a funder: it's something they can actually check.
 
-**First external partner: Feynman.** [Feynman](https://github.com/getcompanion-ai/feynman) is an AI research agent — a tool that autonomously attempts to replicate scientific studies. Its creator, Advait Paliwal, integrated ValiChord as a built-in skill, meaning Feynman can now submit its replication findings directly to ValiChord and receive a cryptographically sealed Harmony Record in return. This is the first demonstration of ValiChord serving as the integrity layer for an AI validator — the protocol is neutral about whether the validator is a human researcher or an AI agent. Feynman provides the analysis; ValiChord provides the permanent, tamper-evident record.
+**An early external integration that did not last: Feynman.** In March 2026 a ValiChord skill was merged into [Feynman](https://github.com/Companion-Inc/feynman), an open-source AI research agent, and removed by its maintainer the next day; later contributions were declined as product-specific (see `PROJECT_STATUS.md`). The skill survives only in the `topeuph-ai/feynman` fork. The point it was meant to show still holds: the protocol is neutral about whether a validator is a human researcher or an AI agent, and the demo's own AI validators (`demo/ai_validator.py`, and the local-model demo) show it in practice.
 
 **Second partnership in design: Nondominium.** Nondominium is an open-value accounting framework built by Sensorica. Conversations are underway to connect the two systems at a deeper level — so that when ValiChord issues a Harmony Record, Nondominium automatically logs it as a verified contribution and issues credit to the validators who participated. This would make validation work formally accountable and compensable within open science networks. No code has been written for this yet; the design is documented and the design decisions are open for agreement between both teams.
 
@@ -523,9 +525,9 @@ Each question has precedents in existing reproducibility initiatives, a likely V
 
 **The researcher-facing interface is a prototype.** The underlying system works — the network, the analysis pipeline, the Harmony Record, the verification link. A browser interface now exists (`valichord-ui/`, three role dashboards for researcher, validator and governance, connecting straight to a Holochain conductor), but it is a developer-stage front end, not a polished product: no onboarding, institutional login or results portal for journals. Phase 1 builds the user-facing layer on top of the working foundation.
 
-**Public demo host, not a service.** A public demo network (the "Oracle" host) runs around the clock, so Feynman or any other external system can call it. It is a demonstration deployment run by one person, not a supported service, and it is reinstalled from scratch whenever the Holochain version changes (the 0.7.1 upgrade is the next one; see `PROJECT_STATUS.md`).
+**Public demo host, not a service.** A public demo network (the "Oracle" host) runs around the clock, so an external system can call it. It is a demonstration deployment run by one person, not a supported service, and it is reinstalled from scratch whenever the Holochain version changes (the 0.7.1 upgrade is the next one; see `PROJECT_STATUS.md`).
 
-**No confirmed team.** The lead engineer role is unfilled. Shin Sakamoto, an independent Holochain application developer, has been identified as a target candidate but has not been formally recruited. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
+**No confirmed team.** The lead engineer role is unfilled. The academic PI for Phase 0 is to be determined. The project currently consists of one person — the author of this document.
 
 **No confirmed partnerships.** University discussions (Cardiff and Swansea) are at an early stage. No letters of support have been secured. No institutional commitments exist beyond the Holochain Foundation's confirmation of technical feasibility.
 
@@ -547,7 +549,7 @@ ValiChord is complementary to, not competitive with, existing reproducibility in
 
 **Automated CI/CD approaches** (Docker, containerised pipelines, GitHub Actions) can verify that code *runs* and produces *outputs*. They cannot assess whether those outputs *make sense*. Automated testing cannot flag physically impossible intermediate values, notice that a data preprocessing step is undocumented, or identify that code ran but produced garbage because of an environment difference. The gap between "code executed without errors" and "results are scientifically reproducible" is real — but it does not follow that the only thing that can cross it is a human.
 
-ValiChord's protocol is neutral about whether a validator is a human researcher or an AI agent. What the protocol requires is independence, a sealed commitment before the reveal, and a judgment against pre-registered thresholds. The Feynman integration — an AI research agent that submits replication findings directly to ValiChord and receives a cryptographically sealed Harmony Record — is the first demonstration of this in practice.
+ValiChord's protocol is neutral about whether a validator is a human researcher or an AI agent. What the protocol requires is independence, a sealed commitment before the reveal, and a judgment against pre-registered thresholds. The demo's AI validators (`demo/ai_validator.py`, and the local-model demo) show this in practice.
 
 The division of labour that is emerging is this: humans provide what automation genuinely cannot — physical execution in a wet lab, domain expertise in interpreting ambiguous protocol conditions, and the embodied judgment required when an experiment involves equipment, materials, or environmental variables that no model has seen. AI validators apply the judgment layer: checking whether a result meets a pre-declared threshold consistently, without the social desirability bias that leads human validators to call "close enough" as Reproduced out of encouragement rather than evidence. Multiple AI validators, each independently sealing their verdict in the commit-reveal protocol, provide the same independence guarantees as a human panel — with the added property that their judgments are not subject to the quiet pressures of professional courtesy.
 
@@ -577,9 +579,9 @@ The next step is to test it.
 - *ValiChord Technical Reference* — Architecture sketches for engineering discussion
 - *ValiChord Governance Framework* — Tiered governance from pilot to mature system
 - *ValiChord Open Design Questions* — Precedents, likely approaches, and resolution phases
-- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months)
+- *ValiChord Phase 0 Proposal* — Workload Discovery Pilot (~£150K FEC, 12 months) *(figures no longer current — see the note under Phases)*
 - *ValiChord Researcher Support* — Feedback pipeline and pre-validation tools
-- *ValiChord × Feynman Integration* (`feynman_integration/INTEGRATION_VISION.md`) — How the Feynman AI research agent uses ValiChord, what's live, and what's next
+- *ValiChord × Feynman* — historical: the integration was removed upstream in March 2026 (see `PROJECT_STATUS.md`); the `feynman_integration/` document it pointed to is not in this repository
 - *ValiChord × Nondominium Integration* (`nondominium_integration/INTEGRATION_VISION.md`) — Design for connecting ValiChord with Sensorica's open-value accounting framework
 
 **Contact:** Ceri John — topeuph@gmail.com

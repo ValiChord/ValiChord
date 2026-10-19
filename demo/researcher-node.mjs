@@ -12,7 +12,7 @@
  *   POST /lock-result              — lock_researcher_result + extract nonce
  *   POST /submit-request           — submit_validation_request
  *   GET  /phase?hash=<b64>         — get_current_phase (poll until RevealOpen)
- *   POST /reveal                   — reveal_researcher_result (SHA-256 verified on-chain)
+ *   POST /reveal                   — reveal_researcher_result (SHA-256 checked at reveal)
  *   GET  /record?hash=<b64>        — get_harmony_record (for shareable /record/ URLs)
  *
  * State is held in memory keyed by external_hash_b64 (unique per demo run).
@@ -194,7 +194,7 @@ const server = createServer(async (req, res) => {
 
   // ── POST /reveal ────────────────────────────────────────────────────────────
   // Calls reveal_researcher_result, which recomputes SHA-256(msgpack(metrics) || nonce)
-  // on-chain and verifies it matches the commitment hash from step (0).
+  // in the app's coordinator and verifies it matches the commitment hash from step (0).
   //
   // Body:   { external_hash_b64, metrics: MetricResult[] }
   // Returns { researcher_reveal_hash: string | null }

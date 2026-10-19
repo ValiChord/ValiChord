@@ -808,6 +808,8 @@ ${HOLOCHAIN_GATEWAY_URL}/${HOLOCHAIN_GOVERNANCE_DNA_HASH}/${HOLOCHAIN_APP_ID}/go
 
 ## Feynman Integration Milestone (2026-03-28, extended 2026-03-31)
 
+> **Historical (checked 2026-10-19).** Feynman's maintainer removed the ValiChord integration on 2026-03-28, the day after merging it (commit `62d63be`, "chore: remove valichord integration"); PRs #11, #13, #14 and #23 were closed, and a later fork review declined it as product-specific. The skill lives on only in the `topeuph-ai/feynman` fork, and the protocol API it called does not currently start (see `backend/README.md`). Kept below as the record of what was built.
+
 Feynman (getcompanion-ai/feynman) is an open-source AI research agent. ValiChord integrated with it as a validator skill:
 
 - **PR #13** in `getcompanion-ai/feynman` — cherry-picked as commit `2dea96f` into Feynman 0.2.15 by @advaitpaliwal.

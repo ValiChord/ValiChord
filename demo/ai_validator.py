@@ -359,8 +359,8 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
       (1) Researcher submits ValidationRequest (DNA 3)
       (2–4) Each validator commits blind (DNA 2 post_commit → CommitmentAnchor DNA 3)
       (5) Poll phase gate until RevealOpen
-      (6a) Researcher reveals (SHA-256 verified on-chain, DNA 3)
-      (6b) Validators reveal (SHA-256 verified on-chain, DNA 3)
+      (6a) Researcher reveals (SHA-256 checked at reveal, DNA 3)
+      (6b) Validators reveal (SHA-256 checked at reveal, DNA 3)
       (7) Validator-1 creates HarmonyRecord (DNA 4)
     """
     n_validators = len(VALIDATOR_URLS)
@@ -425,7 +425,7 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
         die('Phase gate did not open after 240 seconds.')
 
     # (6a) Researcher reveals
-    print('  (6a) Researcher revealing metrics (SHA-256 verified on-chain)…')
+    print('  (6a) Researcher revealing metrics (SHA-256 checked at reveal)…')
     reveal_resp = _node_post(f'{RESEARCHER_URL}/reveal', {
         'external_hash_b64': external_hash_b64,
         'metrics':           metrics,
@@ -447,7 +447,7 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
     })
     harmony_record_hash = harmony_resp.get('harmony_record_hash')
 
-    # Outcome + agreement derived with the same logic as the on-chain
+    # Outcome + agreement derived with the same logic as the published
     # HarmonyRecord (shared_types::derive_*) via the shared helper, so the
     # display can never diverge from the record the skeptic fetches.
     outcomes         = [v['outcome'] for v in verdicts]
@@ -482,7 +482,7 @@ def run_decentralised_protocol(data_hash: str, metrics: list, verdicts: list,
 #   (1) ValidationRequest submitted to shared DHT (num_validators_required=N)
 #   (2–N+1) Each validator seals their verdict blind (CommitmentAnchors on DNA 3)
 #   (N+2) Phase gate opens when all N CommitmentAnchors are on the DHT
-#   (6a) Researcher reveal — SHA-256(msgpack(metrics) || nonce) verified on-chain
+#   (6a) Researcher reveal — SHA-256(msgpack(metrics) || nonce) checked at reveal
 #   (6b) All N validators reveal their attestations
 #   (7) HarmonyRecord written to Governance DHT (DNA 4)
 

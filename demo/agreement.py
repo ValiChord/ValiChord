@@ -1,11 +1,11 @@
 """Outcome and agreement-level derivation for the public demo.
 
-SINGLE SOURCE OF TRUTH. Mirrors the authoritative on-chain Rust logic in
+SINGLE SOURCE OF TRUTH. Mirrors the authoritative Rust protocol logic in
 valichord/shared_types/src/lib.rs (`derive_majority_outcome` +
 `derive_agreement_level`). The HarmonyRecord written to the DHT remains
 authoritative; these functions reproduce its computation from the same
 validator verdicts so the demo's *displayed* outcome / agreement_level match
-the on-chain record — and each other.
+the published record — and each other.
 
 Why this module exists: the agreement level used to be computed in three
 different places, inconsistently:
@@ -29,7 +29,7 @@ is WithinTolerance at best, and an all-Reproduced panel is ExactMatch.
 # Different demo paths emit different strings for the "did not reproduce"
 # outcome — the claim path uses "NotReproduced", the computational paths use
 # "FailedToReproduce". Both normalise to the same bucket and neither counts
-# toward agreement; the on-chain enum is FailedToReproduce.
+# toward agreement; the protocol enum is FailedToReproduce.
 _FAILED = {"FailedToReproduce", "NotReproduced"}
 
 
@@ -64,7 +64,7 @@ def derive_agreement_level(outcomes):
 def derive_majority_outcome(outcomes):
     """Mirror shared_types::derive_majority_outcome — plurality vote, tie
     precedence Reproduced > PartiallyReproduced > FailedToReproduce > UnableToAssess.
-    Returns the on-chain-canonical outcome string."""
+    Returns the protocol-canonical outcome string."""
     if not outcomes:
         return "UnableToAssess"
     reproduced, partial, failed, unable = _counts(outcomes)

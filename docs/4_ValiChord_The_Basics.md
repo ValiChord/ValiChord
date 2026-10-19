@@ -12,7 +12,7 @@
 
 When a researcher publishes a study, the results are reviewed by peers. Those reviewers read the paper and assess whether the methods are sound and the conclusions are logical. What they almost never do is sit down with the researcher's code and data and actually run it themselves.
 
-That gap — between "the logic seems right" and "an independent party reproduced the result" — is where a great deal of science quietly breaks down. Estimates suggest that roughly 70% of researchers have failed to reproduce another scientist's published results. The cost of this, in wasted follow-on research, misled clinical decisions, and abandoned replication attempts, is estimated at around $200 billion a year.
+That gap â between "the logic seems right" and "an independent party reproduced the result" â is where a great deal of science quietly breaks down. In a 2016 *Nature* survey of 1,576 researchers, more than 70% said they had tried and failed to reproduce another scientist's experiments (Baker, *Nature* 533, 2016). More broadly, an estimated 85% of biomedical research investment — around $200 billion in 2010 — is wasted through avoidable problems in how research is designed, conducted and reported (Macleod et al., *The Lancet*, 2014); results that cannot be reproduced are one part of that waste.
 
 The problem is not that scientists are dishonest. It is that there is no infrastructure for systematic, independent verification — and no neutral record of what was found when someone tried.
 

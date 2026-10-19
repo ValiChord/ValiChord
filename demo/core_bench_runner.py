@@ -3,7 +3,7 @@ mixed-model validators -> commit-reveal via the existing demo node HTTP APIs ->
 HarmonyRecord -> recomputable numeric panel.
 
 Reuses demo_runner's node HTTP helpers and agreement.py so the displayed
-outcome matches the on-chain HarmonyRecord by construction."""
+outcome matches the published HarmonyRecord by construction."""
 import argparse
 import hashlib
 import os
@@ -33,7 +33,7 @@ _PROVIDER_KEY_ENV = {
 def claim_to_metrics(claim: dict) -> list:
     """Encode the committed claim as a MetricResult list for /lock-result.
     The interval is sealed in expected_value (string) so it is committed
-    on-chain and any third party can read the bounds the match was judged
+    published and any third party can read the bounds the match was judged
     against."""
     metrics = []
     for q, spec in claim.items():

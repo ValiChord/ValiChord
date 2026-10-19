@@ -29,6 +29,7 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 | Dev/test bypass | **Empty string `""`** — membrane proof is not verified; anyone can join |
 | Production requirement | The `AgentPubKey` of your institutional credential-issuing agent |
 | What breaks if wrong | Empty string in production: any agent can join the network without credentials. Wrong key: no agent can join (all membrane proofs fail). |
+| Shipped default | ⚠️ **A placeholder key, not empty** — `dnas/attestation/dna.yaml` and `happ.yaml` each carry one. So an unconfigured install has credentials **switched on** against a key nobody holds: nobody can join. That is deliberate (a forgotten setting fails closed, not open). **You must replace it** with your issuer's key; the demo and tests instead override it to `""`. |
 
 **How to set:** Generate a keypair for your credential-issuing authority. Export the `AgentPubKey` as a `uhCAk...` string. Set it in `happ.yaml` under the `attestation` role `modifiers.authorized_joining_certificate_issuer`.
 

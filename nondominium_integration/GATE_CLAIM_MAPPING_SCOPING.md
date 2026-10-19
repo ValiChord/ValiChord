@@ -129,7 +129,7 @@ are ValiChord's as-built (see `NONDOMINIUM_ARCHITECTURE.md` for the entry defini
 **Critical constraint — the `HarmonyRecord` is outcome-level only.** It carries `outcome`,
 `AgreementLevel`, the validator set, duration and discipline — **not** each lab's per-metric
 numbers. The individual measured signatures live on DNA-3 `ValidationAttestation` reveals (publicly
-fetchable), but they are *not* aggregated into the on-chain record. So the gate sees "they agreed,
+fetchable), but they are *not* aggregated into the published record. So the gate sees "they agreed,
 at this level"; reconstructing the per-lab numeric panel is a separate read across the attestations.
 (This matches the PEP Master finding: per-builder numerics don't survive into the `HarmonyRecord`.)
 
