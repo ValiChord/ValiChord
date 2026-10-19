@@ -149,7 +149,7 @@ ValidatorPrivateAttestation {
     discipline:              Discipline,
     nonce:                   Vec<u8>,          // 32 random bytes, generated at seal time
     commitment_hash:         Vec<u8>,          // SHA-256(msgpack(ValidationAttestation) || nonce)
-    reproduction_bundle_hash: Option<Vec<u8>>, // content_hash of the validator's own bundle, if any
+    reproduction_bundle_hash: Option<Vec<u8>>, // claim_hash of the validator's own bundle, if any
 }
 
 // A validator's deliberate decision not to take part — immutable

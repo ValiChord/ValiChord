@@ -19,18 +19,23 @@ published record against a bundle without running a conductor.
 
 The load-bearing decision, and why
 ----------------------------------
-``data_hash`` is derived from ``content_hash`` — the canonical encoding with
-``Bundle.meta`` **excluded** — not from ``bundle_hash``.
+``data_hash`` is derived from ``claim_hash`` — the canonical encoding with
+``Bundle.meta`` **and** the run-provenance fields (``generated_at``,
+``repo_commit``, ``harness_version``, ``command``) excluded — not from
+``bundle_hash`` or ``content_hash``.
 
 ``data_hash`` identifies a *claim*, and the same claim submitted twice from two
 machines differs in ``generated_at`` and in whatever provenance the harness put
 in ``meta``. Under ``bundle_hash`` those would be two unrelated claims; under
-``content_hash`` they are one, which is what ``content_hash`` was defined for
-("is this the same science?").
+``claim_hash`` they are one. (Until 2026-10-19 this module used
+``content_hash``, which excludes ``meta`` only — so ``generated_at``, which
+``build_bundle`` defaults to the current time, still made every rerun a
+different claim. The tests never caught it because they vary ``meta`` only.)
 
 .. warning::
-   **This makes the ``meta`` trap load-bearing on-chain.** ``meta`` is excluded
-   from ``content_hash``, so any value placed there that *could change a result*
+   **This makes the ``meta`` trap load-bearing in the published record.** ``meta``
+   and the provenance fields are excluded from ``claim_hash``, so any value placed
+   there that *could change a result*
    becomes invisible to ``data_hash`` — two materially different claims would
    collide as one identifier, permanently, on an immutable record. The trap is
    documented in ``spec/format-backlog/README.md`` and it is the reason backlog
@@ -57,7 +62,7 @@ import base64
 import hashlib
 
 from .bundle import Bundle
-from .canonical import content_hash, content_preimage
+from .canonical import claim_hash, claim_preimage
 
 __all__ = [
     "EXTERNAL_HASH_PREFIX",
@@ -154,16 +159,17 @@ def decode_holo_hash(encoded: str) -> bytes:
 def submission_bytes(bundle: Bundle) -> bytes:
     """Return the exact bytes to pass to the DNA's ``compute_data_hash``.
 
-    This is the ``content_hash`` preimage: the canonical (RFC 8785) encoding of
-    the bundle with ``meta`` removed. Handing these bytes to
+    This is the ``claim_hash`` preimage: the canonical (RFC 8785) encoding of
+    the bundle with ``meta`` and the run-provenance fields removed
+    (``canonical.CLAIM_EXCLUDED_FIELDS``). Handing these bytes to
     ``compute_data_hash`` yields a ``data_hash`` whose 32-byte core **is** the
-    bundle's ``content_hash``, which is what makes :func:`data_hash` predictable
-    off-chain.
+    bundle's ``claim_hash``, which is what makes :func:`data_hash` predictable
+    without a conductor.
 
     These bytes go only to the private, single-agent ``researcher_repository``
     DNA. They are never written to a public DHT (boundary precondition 3.3).
     """
-    return content_preimage(bundle)
+    return claim_preimage(bundle)
 
 
 def data_hash(bundle: Bundle) -> bytes:
@@ -173,7 +179,7 @@ def data_hash(bundle: Bundle) -> bytes:
     and compare it against a published ``ValidationRequest`` without trusting
     anyone's report of what was submitted.
     """
-    return external_hash_from_core(bytes.fromhex(content_hash(bundle)))
+    return external_hash_from_core(bytes.fromhex(claim_hash(bundle)))
 
 
 def data_hash_b64(bundle: Bundle) -> str:
@@ -188,9 +194,10 @@ def reproduction_bundle_hash(bundle: Bundle) -> bytes:
     ``Option<Vec<u8>>`` on the Rust side and treated there as **opaque** — the
     protocol never parses a bundle (boundary precondition 3.2).
 
-    This is ``content_hash``, not ``bundle_hash``: it binds the verdict to the
-    validator's own *result*, and must not change because their machine name or
-    run timestamp differs.
+    This is ``claim_hash``, not ``bundle_hash`` or ``content_hash``: it binds the
+    verdict to the validator's own *result*, and must not change because their
+    machine name or run timestamp differs. (It used ``content_hash`` until
+    2026-10-19, which includes ``generated_at`` — so the timestamp did change it.)
 
     .. warning::
        This value is bound into the commitment at seal time. It must be
@@ -198,4 +205,4 @@ def reproduction_bundle_hash(bundle: Bundle) -> bytes:
        verification. Do not recompute it from a re-serialised bundle at reveal
        time; carry the bytes.
     """
-    return bytes.fromhex(content_hash(bundle))
+    return bytes.fromhex(claim_hash(bundle))

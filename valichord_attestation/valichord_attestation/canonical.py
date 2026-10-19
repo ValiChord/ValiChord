@@ -104,13 +104,60 @@ def content_preimage(bundle: Bundle) -> bytes:
     return raw if isinstance(raw, bytes) else raw.encode("utf-8")
 
 
+#: Fields that describe *a run* rather than *the claim*. ``claim_hash`` excludes
+#: them; ``content_hash`` excludes only ``meta``. ``prml_lock_hash`` is
+#: deliberately NOT here: a pre-registered claim and a post-hoc one are
+#: different claims.
+CLAIM_EXCLUDED_FIELDS = ("meta", "generated_at", "repo_commit", "harness_version", "command")
+
+
+def claim_preimage(bundle: Bundle) -> bytes:
+    """Return the exact bytes that :func:`claim_hash` digests.
+
+    The RFC 8785 canonical encoding of the bundle with ``meta`` **and** the
+    top-level run-provenance fields (``generated_at``, ``repo_commit``,
+    ``harness_version``, ``command``) removed.
+
+    WHY THIS EXISTS (2026-10-19). ``content_hash`` removes ``meta`` only, but
+    ``generated_at`` is a required top-level field and ``build_bundle`` defaults
+    it to the current time. So two runs of the same evaluation, on two machines
+    or on two days, have different ``content_hash`` values — and the protocol
+    bridge, which needs one identifier per *claim*, cannot use it. This is the
+    preimage the bridge uses instead (``protocol.submission_bytes``).
+
+    It inherits the ``meta`` trap: anything that could change a result must not
+    be placed in ``meta`` or in these provenance fields, or two different
+    claims will share a ``claim_hash``.
+    """
+    d = bundle_to_dict(bundle)
+    for key in CLAIM_EXCLUDED_FIELDS:
+        d.pop(key, None)
+    raw = jcs.canonicalize(d)
+    return raw if isinstance(raw, bytes) else raw.encode("utf-8")
+
+
+def claim_hash(bundle: Bundle) -> str:
+    """Return the SHA-256 hex digest of :func:`claim_preimage`.
+
+    Answers "is this the same claim?": the same model, task, metrics, sample
+    counts, outputs Merkle root, format version (and pre-registration lock, if
+    any), regardless of when, where or how the run was performed.
+    """
+    return hashlib.sha256(claim_preimage(bundle)).hexdigest()
+
+
 def content_hash(bundle: Bundle) -> str:
     """Return the SHA-256 hex digest of the canonical encoding with meta excluded.
 
     Captures scientific equivalence: two bundles with identical model_id, task_id,
     metrics, outputs_merkle_root, samples counts, and format_version produce the same
-    content_hash regardless of their meta-block contents. Use this when comparing
-    reruns that may differ only in provenance (commit, timestamp, command).
+    content_hash regardless of their meta-block contents.
+
+    ⚠️ It does NOT ignore run provenance outside ``meta``: the top-level
+    ``generated_at`` (always present), ``repo_commit``, ``harness_version`` and
+    ``command`` are all inside it. To compare reruns that may differ in commit,
+    timestamp or command, use :func:`claim_hash` instead. (This docstring said
+    otherwise until 2026-10-19.)
 
     v1.1 bundles (no meta block) have content_hash == bundle_hash, because meta
     is absent from both encodings.
