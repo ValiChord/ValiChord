@@ -1,7 +1,7 @@
 use hdi::prelude::*;
 use valichord_shared_types::{
     AttestationConfidence, AttestationOutcome, ComputationalResources, Discipline,
-    OutcomeSummary, TimeBreakdown, UndeclaredDeviation,
+    HardwareDisclosure, OutcomeSummary, TimeBreakdown, UndeclaredDeviation,
 };
 
 // ---------------------------------------------------------------------------
@@ -110,6 +110,11 @@ pub struct ValidatorPrivateAttestation {
     /// `None` means the validator bound no bundle.
     #[serde(default)]
     pub reproduction_bundle_hash: Option<Vec<u8>>,
+    /// The validator's hardware disclosure (protocol-backlog 02), carried for the
+    /// same reason as `reproduction_bundle_hash`: it is part of what was hashed at
+    /// seal time, so the reveal must present it again.
+    #[serde(default)]
+    pub hardware: Option<HardwareDisclosure>,
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,8 @@ integrity:
   properties:
     system_coordinator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
     round_timeout_secs: 604800
+    # #24: every HarmonyRecord must carry this name. Part of the DNA hash.
+    network_name: "valichord-public"
   zomes:
     - name: governance_integrity
       hash: ~

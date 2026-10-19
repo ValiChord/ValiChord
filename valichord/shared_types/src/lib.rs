@@ -160,6 +160,85 @@ pub struct ComputationalResources {
 }
 
 // ---------------------------------------------------------------------------
+// Hash algorithm labels (#23) and hardware disclosure (protocol-backlog 02)
+// ---------------------------------------------------------------------------
+
+/// Which algorithm produced a hash stored on a shared DHT (#23, 2026-10-19).
+///
+/// Every protocol-side hash was SHA-256 with nothing saying so. A label next to
+/// each one lets a future algorithm coexist with records already written, the way
+/// `format_version` already lets the bundle format move between Merkle
+/// constructions. One variant today: adding one later is a deliberate protocol
+/// change, and an unknown label fails to deserialise rather than being guessed.
+///
+/// External tag, so it encodes as the plain string `"Sha256"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum HashAlgorithm {
+    #[default]
+    Sha256,
+}
+
+impl HashAlgorithm {
+    /// Digest length in bytes. Integrity zomes check stored hashes against this.
+    pub fn digest_len(&self) -> usize {
+        match self {
+            HashAlgorithm::Sha256 => 32,
+        }
+    }
+}
+
+/// Coarse public hardware class (protocol-backlog 02, option A).
+///
+/// Deliberately coarse: enough to explain most environment-driven differences
+/// between a researcher's and a validator's results, too coarse to fingerprint a
+/// machine on a public record that can never be withdrawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HardwareClass {
+    DatacentreGpu,
+    ConsumerGpu,
+    CpuOnly,
+    Other,
+}
+
+/// What a researcher or validator chose to disclose about their hardware
+/// (protocol-backlog 02, decided 2026-10-19: class plus fingerprint, both optional).
+///
+/// - `class` is public and readable.
+/// - `details_digest` is a hash of the full details (GPU model, driver, OS…), which
+///   stay with their owner and can be shown to someone who asks; the digest proves
+///   later that what was shown is what was committed to. The details never go on a
+///   DHT (`docs/PROTOCOL_INTEGRATION_BOUNDARY.md` §3.3).
+///
+/// ⚠️ **Asserted, not observed.** Nothing in the protocol can check that either
+/// value is true of the machine actually used. Read it as the person's statement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HardwareDisclosure {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class:            Option<HardwareClass>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details_digest:   Option<Vec<u8>>,
+    /// Algorithm of `details_digest` (#23).
+    #[serde(default)]
+    pub digest_algorithm: HashAlgorithm,
+}
+
+impl HardwareDisclosure {
+    /// Structural check run by every peer: a digest, if present, has the length its
+    /// algorithm produces. Returns the reason on failure.
+    pub fn structural_problem(&self) -> Option<String> {
+        match &self.details_digest {
+            Some(d) if d.len() != self.digest_algorithm.digest_len() => Some(format!(
+                "hardware details_digest must be {} bytes for {:?}, got {}",
+                self.digest_algorithm.digest_len(),
+                self.digest_algorithm,
+                d.len()
+            )),
+            _ => None,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Validation phase (DNA 3 commit-reveal protocol state)
 // ---------------------------------------------------------------------------
 
@@ -469,6 +548,36 @@ pub struct ValidationAttestation {
     /// requested — the same rule `force_finalize_round` applies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_created_at: Option<Timestamp>,
+    /// The validator's hardware disclosure (protocol-backlog 02, 2026-10-19).
+    ///
+    /// **Validator-set, so it IS bound into the commitment** — a validator cannot
+    /// change what they said about their machine after seeing anyone else's result.
+    /// `skip_serializing_if` keeps an attestation without it byte-identical to before
+    /// the field existed, so existing validator clients' commitment hashes still match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hardware: Option<HardwareDisclosure>,
+    /// ActionHash of the ValidationRequest, stamped by `submit_attestation` from the
+    /// CommitmentAnchor and checked against it by every peer — the same treatment as
+    /// `request_num_validators`, and excluded from the commitment for the same reason.
+    ///
+    /// WHY (protocol-backlog 01, 2026-10-19). It lets governance check, under the
+    /// validators' signatures, which request a HarmonyRecord answers — so a researcher
+    /// can prove they made that request by presenting its signed action (never its
+    /// entry, which holds the membrane-protected `deposit_token`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_action_hash: Option<ActionHash>,
+    /// The researcher's hardware disclosure, copied from the ValidationRequest by
+    /// `submit_attestation` and checked against it by every peer, so a HarmonyRecord
+    /// can carry it under the validators' signatures. Coordinator-set; excluded from
+    /// the commitment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_researcher_hardware: Option<HardwareDisclosure>,
+    /// Algorithm of `reproduction_bundle_hash` and of the commitment hash this
+    /// attestation was revealed against (#23). Stamped `Some(Sha256)` by
+    /// `submit_attestation`, which only verifies SHA-256 today; peers require it on
+    /// new attestations. Coordinator-set; excluded from the commitment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash_algorithm: Option<HashAlgorithm>,
 }
 
 impl ValidationAttestation {
@@ -495,12 +604,17 @@ impl ValidationAttestation {
     /// and `request_created_at` (2026-10-17): both are copied from the
     /// ValidationRequest by the coordinator at reveal, are never the validator's
     /// choice, and are checked against the request by every peer — so leaving them
-    /// out of the commitment binds nothing less. It does not extend to any other
-    /// field.
+    /// out of the commitment binds nothing less. The same holds for the three
+    /// stamped on 2026-10-19 — `request_action_hash`, `request_researcher_hardware`
+    /// and `hash_algorithm`. It does not extend to any other field: in particular
+    /// the validator's own `hardware` stays bound.
     pub fn commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>> {
         let mut canonical = self.clone();
         canonical.request_num_validators = None;
         canonical.request_created_at = None;
+        canonical.request_action_hash = None;
+        canonical.request_researcher_hardware = None;
+        canonical.hash_algorithm = None;
         canonical.commitment_anchor_hash = None;
         SerializedBytes::try_from(&canonical)
             .map(|sb| sb.bytes().to_vec())
@@ -732,6 +846,10 @@ mod tests {
             reproduction_bundle_hash: None,
             request_num_validators: None, // stamped by submit_attestation
             request_created_at: None,
+            hardware: None,
+            request_action_hash: None,
+            request_researcher_hardware: None,
+            hash_algorithm: None,
         }
     }
 
@@ -745,9 +863,21 @@ mod tests {
     #[test]
     fn unstamped_attestation_encodes_without_the_new_keys() {
         let bytes = att(AttestationOutcome::Reproduced).commitment_msgpack_bytes().unwrap();
-        for key in ["request_num_validators", "request_created_at"] {
+        for key in [
+            "request_num_validators",
+            "request_created_at",
+            "hardware",
+            "request_action_hash",
+            "request_researcher_hardware",
+            "hash_algorithm",
+        ] {
+            // Match the whole msgpack map key (fixstr length byte + name), not a
+            // substring: "hardware" also occurs inside "personal_hardware_sufficient".
+            assert!(key.len() < 32, "fixstr only");
+            let mut encoded_key = vec![0xa0 | key.len() as u8];
+            encoded_key.extend_from_slice(key.as_bytes());
             assert!(
-                !bytes.windows(key.len()).any(|w| w == key.as_bytes()),
+                !bytes.windows(encoded_key.len()).any(|w| w == encoded_key.as_slice()),
                 "{key} must be absent from the encoding when unset — otherwise every \
                  existing client's commitment hash changes"
             );
@@ -760,11 +890,51 @@ mod tests {
         let mut stamped = unstamped.clone();
         stamped.request_num_validators = Some(7);
         stamped.request_created_at = Some(Timestamp(1_700_000_000_000_000));
+        stamped.request_action_hash = Some(ActionHash::from_raw_36(vec![7u8; 36]));
+        stamped.request_researcher_hardware = Some(HardwareDisclosure {
+            class: Some(HardwareClass::CpuOnly),
+            details_digest: None,
+            digest_algorithm: HashAlgorithm::Sha256,
+        });
+        stamped.hash_algorithm = Some(HashAlgorithm::Sha256);
         assert_eq!(
             stamped.commitment_msgpack_bytes().unwrap(),
             unstamped.commitment_msgpack_bytes().unwrap(),
             "the coordinator stamps these after sealing, so they must not enter the commitment"
         );
+    }
+
+    // --- hardware (protocol-backlog 02, 2026-10-19) ---
+
+    #[test]
+    fn the_validators_own_hardware_is_bound_into_the_commitment() {
+        // Unlike the stamped fields, this is the validator's statement. If it were
+        // normalised out, a validator could change it after seeing others' results.
+        let plain = att(AttestationOutcome::Reproduced);
+        let mut with_hw = plain.clone();
+        with_hw.hardware = Some(HardwareDisclosure {
+            class: Some(HardwareClass::ConsumerGpu),
+            details_digest: Some(vec![1u8; 32]),
+            digest_algorithm: HashAlgorithm::Sha256,
+        });
+        assert_ne!(
+            with_hw.commitment_msgpack_bytes().unwrap(),
+            plain.commitment_msgpack_bytes().unwrap(),
+        );
+    }
+
+    #[test]
+    fn a_hardware_digest_must_match_its_algorithms_length() {
+        let mut hw = HardwareDisclosure {
+            class: None,
+            details_digest: Some(vec![0u8; 32]),
+            digest_algorithm: HashAlgorithm::Sha256,
+        };
+        assert!(hw.structural_problem().is_none());
+        hw.details_digest = Some(vec![0u8; 31]);
+        assert!(hw.structural_problem().is_some());
+        hw.details_digest = None;
+        assert!(hw.structural_problem().is_none(), "the digest is optional");
     }
 
     // --- JoiningCertificate: granted tier (#8) ---

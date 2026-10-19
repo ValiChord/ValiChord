@@ -85,6 +85,7 @@ if (REHEARSAL) {
               properties: {
                 system_coordinator_key: '',
                 harmony_record_creator_key: '',
+                network_name: 'valichord-public',
               },
             },
           },

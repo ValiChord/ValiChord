@@ -91,8 +91,11 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    for an irreversible step on a production host. Its gate is now the **sha256 of the bundle
    files**, and it ends by recording the real DNA hashes — the hash change is still *expected*,
    not observed.
-2. Decide whether any 🟠 item in `docs/protocol-backlog/` (01 supersession, 02 hardware
-   provenance) should ride this break. ⚠️ **Open until the Oracle reinstall, and no later** — main
+2. ✅ **Decided 2026-10-19 — all four ride this break:** backlog 01 (supersession), 02 (hardware
+   disclosure), #23 (hash-algorithm labels) and #24 (network name, `valichord-public`). Built on
+   branch `protocol/pre-reinstall-break`; **after it merges, repack the bundles and update the
+   runbook checksums again before the reinstall.** Original item: decide whether any 🟠 item in
+   `docs/protocol-backlog/` (01 supersession, 02 hardware provenance) should ride this break. ⚠️ **Open until the Oracle reinstall, and no later** — main
    has already changed hash, but the live network has not, so landing them before the reinstall
    still costs only one public break. A reason to *consider* them, not to rush them (see the 🛑
    note in that README).

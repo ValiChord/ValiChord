@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use valichord_coordinator_utils::{call_other_role_opt, records_for_links};
 use governance_integrity::{
     AttestationEvidence, DnaProperties, EntryTypes, GovernanceDecision, HarmonyRecord,
-    LinkTypes, ReproducibilityBadge, ValidatorReputation,
+    LinkTypes, ReproducibilityBadge, RequestAuthorship, Supersession, SupersessionReason,
+    SupersessionRole, ValidatorReputation,
 };
 use valichord_shared_types::{
     AttestationOutcome, BadgeType, CertificationTier, Discipline,
@@ -36,6 +37,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_badges_for_study",
         "get_badges_by_type",
         "get_all_governance_decisions",
+        "get_supersessions",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
     }
@@ -595,6 +597,14 @@ fn write_harmony_record(
     let disc_anchor    = discipline_anchor(&discipline)?;
     let validator_count = participating_validators.len();
 
+    // #24 and backlog 02: the network's own name, and the researcher's hardware as
+    // the validators' signed attestations state it. Peers check both against exactly
+    // these sources, so neither is this writer's choice.
+    let network_name = DnaProperties::try_from_dna_properties()?.network_name;
+    let researcher_hardware = attestation_evidence
+        .first()
+        .and_then(|ev| ev.attestation.request_researcher_hardware.clone());
+
     // Write HarmonyRecord entry and indexes.
     // Clone validator_types before moving into the record so the rep update loop can use it.
     let record = HarmonyRecord {
@@ -607,6 +617,8 @@ fn write_harmony_record(
         discipline,                 // moved — no clone
         validators_requested,
         attestation_evidence,
+        network_name,
+        researcher_hardware,
     };
     let record_hash = create_entry(EntryTypes::HarmonyRecord(record))?;
 
@@ -756,6 +768,110 @@ pub fn get_harmony_record_by_hash(
     action_hash: ActionHash,
 ) -> ExternResult<Option<Record>> {
     get(action_hash, GetOptions::network())
+}
+
+// ---------------------------------------------------------------------------
+// Supersession (protocol-backlog 01, 2026-10-19)
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SupersedeInput {
+    /// The older HarmonyRecord.
+    pub superseded:  ActionHash,
+    /// The newer HarmonyRecord.
+    pub superseding: ActionHash,
+    pub reason:      SupersessionReason,
+    /// The role the caller makes the link in. Peers check it is true.
+    pub asserted_as: SupersessionRole,
+}
+
+/// Link a newer HarmonyRecord to an older one. Neither record changes; the link is
+/// permanent. See `governance_integrity::Supersession` for who may make it and
+/// what it does and does not mean.
+///
+/// As the researcher, this fetches the caller's own signed ValidationRequest action
+/// from the Attestation DNA (same agent, author grant) and carries it as proof —
+/// the action only, never the entry.
+#[hdk_extern]
+pub fn supersede_harmony_record(input: SupersedeInput) -> ExternResult<ActionHash> {
+    let me = agent_info()?.agent_initial_pubkey;
+    let researcher_proof = match input.asserted_as {
+        SupersessionRole::Validator => None,
+        SupersessionRole::Researcher => {
+            let mut proof = None;
+            for hr_hash in [&input.superseded, &input.superseding] {
+                let Some(request_hash) = request_action_hash_of(hr_hash)? else { continue };
+                let Some(rec) = call_attestation_zome_opt::<ActionHash, Option<Record>>(
+                    "get_validation_request",
+                    request_hash,
+                )?
+                .flatten()
+                else {
+                    continue;
+                };
+                if rec.action().author() == &me {
+                    proof = Some(RequestAuthorship {
+                        action:    rec.action().clone(),
+                        signature: rec.signature().clone(),
+                    });
+                    break;
+                }
+            }
+            Some(proof.ok_or_else(|| wasm_error!(WasmErrorInner::Guest(
+                "supersede_harmony_record: you did not make the ValidationRequest behind \
+                 either record, so you cannot link them as the researcher"
+                    .into()
+            )))?)
+        }
+    };
+    let s = Supersession {
+        superseded:  input.superseded.clone(),
+        superseding: input.superseding.clone(),
+        reason:      input.reason,
+        asserted_as: input.asserted_as,
+        researcher_proof,
+    };
+    let s_hash = create_entry(EntryTypes::Supersession(s))?;
+    create_link(input.superseded, s_hash.clone(), LinkTypes::SupersededBy, ())?;
+    create_link(input.superseding, s_hash.clone(), LinkTypes::Supersedes, ())?;
+    Ok(s_hash)
+}
+
+/// The ValidationRequest action hash a HarmonyRecord's validators stated.
+fn request_action_hash_of(hr_hash: &ActionHash) -> ExternResult<Option<ActionHash>> {
+    let Some(rec) = get(hr_hash.clone(), GetOptions::network())? else { return Ok(None) };
+    let hr: Option<HarmonyRecord> = rec.entry().to_app_option().ok().flatten();
+    Ok(hr.and_then(|hr| {
+        hr.attestation_evidence
+            .first()
+            .and_then(|ev| ev.attestation.request_action_hash.clone())
+    }))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SupersessionsOf {
+    /// Supersessions naming this record as the OLDER one — newer attempts.
+    pub superseded_by: Vec<Record>,
+    /// Supersessions naming this record as the NEWER one — earlier attempts.
+    pub supersedes:    Vec<Record>,
+}
+
+/// Both directions for one HarmonyRecord. A reader of either record sees the whole
+/// story; neither record changes. Public read.
+#[hdk_extern]
+pub fn get_supersessions(record: ActionHash) -> ExternResult<SupersessionsOf> {
+    let by = get_links(
+        LinkQuery::try_new(record.clone(), LinkTypes::SupersededBy)?,
+        GetStrategy::Network,
+    )?;
+    let of = get_links(
+        LinkQuery::try_new(record, LinkTypes::Supersedes)?,
+        GetStrategy::Network,
+    )?;
+    Ok(SupersessionsOf {
+        superseded_by: records_for_links(by)?,
+        supersedes:    records_for_links(of)?,
+    })
 }
 
 /// Return all HarmonyRecords indexed under a discipline path.
@@ -1311,6 +1427,10 @@ mod tests {
             reproduction_bundle_hash: None,
             request_num_validators: None, // stamped by submit_attestation
             request_created_at: None,
+            hardware: None,
+            request_action_hash: None,
+            request_researcher_hardware: None,
+            hash_algorithm: None,
         }
     }
 
@@ -1433,4 +1553,31 @@ pub fn test_force_delete_entry(hash: ActionHash) -> ExternResult<ActionHash> {
 #[hdk_extern]
 pub fn test_force_create_harmony_record(record: HarmonyRecord) -> ExternResult<ActionHash> {
     create_entry(EntryTypes::HarmonyRecord(record))
+}
+
+// Supersession forgery tripwire — test builds only (protocol-backlog 01). Same
+// reason: supersede_harmony_record only ever attaches the caller's own genuine
+// request proof, so a forged role or proof can reach validate() only this way.
+// See `sweettest_integration/tests/supersession_forgery.rs`.
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_supersession(s: Supersession) -> ExternResult<ActionHash> {
+    create_entry(EntryTypes::Supersession(s))
+}
+
+// Writes a supersession index link with caller-chosen base and target, standing in
+// for a modified coordinator that points the index at the wrong record.
+#[cfg(feature = "test_utils")]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ForceLinkInput {
+    pub base:        ActionHash,
+    pub target:      ActionHash,
+    pub superseding: bool,
+}
+
+#[cfg(feature = "test_utils")]
+#[hdk_extern]
+pub fn test_force_create_supersession_link(input: ForceLinkInput) -> ExternResult<ActionHash> {
+    let lt = if input.superseding { LinkTypes::Supersedes } else { LinkTypes::SupersededBy };
+    create_link(input.base, input.target, lt, ())
 }

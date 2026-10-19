@@ -152,6 +152,24 @@ export interface OutcomeSummary {
 
 export type DepositAccessType = "PublicUrl" | "TokenGated";
 
+// ── Hash algorithm (#23) and hardware disclosure (protocol-backlog 02) ────────
+
+/** External tag → plain string. Only SHA-256 exists today. */
+export type HashAlgorithm = "Sha256";
+
+export type HardwareClass = "DatacentreGpu" | "ConsumerGpu" | "CpuOnly" | "Other";
+
+/**
+ * Optional coarse class plus optional digest of private details. Asserted by the
+ * person, never checked by the protocol — display it as their statement.
+ * Rust omits `None` fields, so both may be absent.
+ */
+export interface HardwareDisclosure {
+  class?: HardwareClass;
+  details_digest?: Uint8Array;
+  digest_algorithm: HashAlgorithm;
+}
+
 // ── ValidationRequest ─────────────────────────────────────────────────────────
 
 export interface ValidationRequest {
@@ -165,6 +183,10 @@ export interface ValidationRequest {
   validation_tier: ValidationTier;
   discipline: Discipline;
   researcher_institution: string;
+  /** #23. Rust #[serde(default)] — may be omitted when submitting (→ "Sha256"). */
+  data_hash_algorithm?: HashAlgorithm;
+  /** Backlog 02. Optional; copied into the HarmonyRecord via the validators' attestations. */
+  researcher_hardware?: HardwareDisclosure | null;
 }
 
 // ── ValidationAttestation ─────────────────────────────────────────────────────
@@ -188,6 +210,13 @@ export interface ValidationAttestation {
    * Rust `Option<Vec<u8>>` → `Uint8Array | null` (Some(x) unwraps to x, None → nil).
    */
   reproduction_bundle_hash: Uint8Array | null;
+  /**
+   * The validator's own hardware disclosure (backlog 02). Sealed into the
+   * commitment, so it must be identical at seal and reveal. Omit when not given:
+   * Rust skips it when `None`, keeping the commitment bytes of attestations
+   * without it unchanged.
+   */
+  hardware?: HardwareDisclosure;
 }
 
 // ── ValidatorProfile ──────────────────────────────────────────────────────────
@@ -217,6 +246,22 @@ export interface HarmonyRecord {
    *  Rust side is #[serde(default)], so older records decode with 0 rather than
    *  failing — treat 0 as "unknown", never as "a cohort of zero". */
   validators_requested: number;
+  /** #24 — the network this record was written on (DNA property, peer-checked). */
+  network_name: string;
+  /** Backlog 02 — the researcher's disclosure, as the validators' signed attestations state it. */
+  researcher_hardware: HardwareDisclosure | null;
+}
+
+// ── Supersession (backlog 01) ─────────────────────────────────────────────────
+
+export type SupersessionReason = "NewAttempt" | "ReportedProcessError";
+export type SupersessionRole = "Researcher" | "Validator";
+
+export interface SupersedeInput {
+  superseded: ActionHash;
+  superseding: ActionHash;
+  reason: SupersessionReason;
+  asserted_as: SupersessionRole;
 }
 
 // ── BadgeType ─────────────────────────────────────────────────────────────────

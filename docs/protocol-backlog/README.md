@@ -65,8 +65,8 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 
 | | Item | Raised by | Category | Needs the window? |
 |---|---|---|---|---|
-| 01 | HarmonyRecord supersession — no mechanism exists | Ceri, 2026-08-22 | 🟠 | **Yes** |
-| 02 | Hardware provenance for researcher and validator | Ceri, 2026-08-22 | 🟠 / 🔴 | **Yes** |
+| 01 | HarmonyRecord supersession — no mechanism exists | Ceri, 2026-08-22 | 🟠 | **Built 2026-10-19**, before the 0.7.1 reinstall |
+| 02 | Hardware provenance for researcher and validator | Ceri, 2026-08-22 | 🟠 / 🔴 | **Built 2026-10-19**, before the 0.7.1 reinstall |
 | 03 | Docs and code contradict each other on mutability | Found 2026-08-22 | 🟢 | No — **fixed 2026-08-22** |
 | 04 | Erasure obligations — for **validators**, not research subjects | Found 2026-08-22 | 🔴 | ⏸️ **Parked, with a direction to plan for** — anonymity as a per-deployment *option*. A leaning, not a decision |
 | 05 | Three public fields where typed content can expose a research subject | Found 2026-08-22 | 🟢 fix / 🔴 consequence | No |

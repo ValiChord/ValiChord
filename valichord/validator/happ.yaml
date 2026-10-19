@@ -36,4 +36,5 @@ roles:
       modifiers:
         properties:
           system_coordinator_key: "uhCAkWCnFzMFO9dSt04H6TcZWiEI3xHQkq1NV0JmqoB9i4p7Zn0Ew"
+          network_name: "valichord-public"   # #24 — every HarmonyRecord carries it
         network_seed: "valichord-test"

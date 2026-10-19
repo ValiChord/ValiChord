@@ -21,6 +21,7 @@ use valichord_shared_types::{
     UndeclaredDeviation,
 };
 pub use valichord_shared_types::ValidationAttestation;
+pub use valichord_shared_types::{HardwareClass, HardwareDisclosure, HashAlgorithm};
 
 // Re-export commonly used types so tests only need `use valichord_sweettest::*`
 pub use attestation_coordinator::AttestationRevealInput as RevealInput;
@@ -102,7 +103,8 @@ fn governance_yaml_props() -> yaml_serde::Value {
     yaml_serde::from_str(
         "system_coordinator_key: \"\"\n\
          min_attestations_for_finalization: 0\n\
-         round_timeout_secs: 86400\n",
+         round_timeout_secs: 86400\n\
+         network_name: \"valichord-test\"\n",
     )
     .unwrap()
 }
@@ -117,7 +119,8 @@ fn governance_yaml_props_instant_timeout() -> yaml_serde::Value {
     yaml_serde::from_str(
         "system_coordinator_key: \"\"\n\
          min_attestations_for_finalization: 0\n\
-         round_timeout_secs: 0\n",
+         round_timeout_secs: 0\n\
+         network_name: \"valichord-test\"\n",
     )
     .unwrap()
 }
@@ -469,6 +472,21 @@ pub fn make_validation_attestation(request_ref: ExternalHash) -> ValidationAttes
         reproduction_bundle_hash: None,
         request_num_validators: None, // stamped by submit_attestation
         request_created_at: None,
+        // The validator's own disclosure (backlog 02) — set in every fixture so the
+        // whole suite carries it through seal → reveal → HarmonyRecord evidence.
+        hardware: Some(make_hardware(HardwareClass::ConsumerGpu, 0x48)),
+        request_action_hash: None,          // stamped by submit_attestation
+        request_researcher_hardware: None,  // stamped by submit_attestation
+        hash_algorithm: None,               // stamped by submit_attestation
+    }
+}
+
+/// A hardware disclosure with a fake 32-byte details digest, distinct per `seed`.
+pub fn make_hardware(class: HardwareClass, seed: u8) -> HardwareDisclosure {
+    HardwareDisclosure {
+        class: Some(class),
+        details_digest: Some(vec![seed; 32]),
+        digest_algorithm: HashAlgorithm::Sha256,
     }
 }
 
@@ -508,6 +526,8 @@ pub fn make_validation_request(data_hash: ExternalHash) -> ValidationRequest {
         validation_tier: ValidationTier::Basic,
         discipline: Discipline::ComputationalBiology,
         researcher_institution: "Open Science Lab".into(),
+        data_hash_algorithm: HashAlgorithm::Sha256,
+        researcher_hardware: Some(make_hardware(HardwareClass::DatacentreGpu, 0x52)),
     }
 }
 

@@ -9,7 +9,7 @@ use attestation_integrity::{
     sorted_agent_pair_bytes,
 };
 use valichord_shared_types::{
-    Discipline, JoiningCertificate, ValidationAttestation, ValidationPhase, ValidatorCertification,
+    Discipline, HashAlgorithm, JoiningCertificate, ValidationAttestation, ValidationPhase, ValidatorCertification,
     ValidatorType,
     ValiChordError, ValiChordResult, discipline_tag, metric_results_msgpack_bytes,
 };
@@ -233,14 +233,14 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         LinkQuery::try_new(commit_path.path_entry_hash()?, LinkTypes::RequestToCommitment)?,
         GetStrategy::Local,
     )?;
-    let (anchor_action_hash, prior_commitment_hash, validation_request_hash) = commit_links
+    let (anchor_action_hash, prior_commitment_hash, validation_request_hash, commitment_algorithm) = commit_links
         .into_iter()
         .find_map(|link| {
             let hash = link.target.clone().into_action_hash()?;
             let record = get(hash.clone(), GetOptions::local()).ok()??;
             let anchor: CommitmentAnchor = record.entry().to_app_option().ok()??;
             if anchor.validator == agent {
-                Some((hash, anchor.commitment_hash, anchor.validation_request_hash))
+                Some((hash, anchor.commitment_hash, anchor.validation_request_hash, anchor.hash_algorithm))
             } else {
                 None
             }
@@ -282,6 +282,9 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
     if !reveal_props.authorized_joining_certificate_issuer.is_empty()
         || !input.nonce.is_empty()
     {
+        // #23: irrefutable while SHA-256 is the only algorithm; adding one makes
+        // this stop compiling until the new hash is handled here.
+        let HashAlgorithm::Sha256 = commitment_algorithm;
         let msgpack_bytes = attestation.commitment_msgpack_bytes()?;
         let mut hasher = Sha256::new();
         hasher.update(&msgpack_bytes);
@@ -320,6 +323,12 @@ pub fn submit_attestation(input: AttestationRevealInput) -> ExternResult<ActionH
         )))?;
     attestation.request_num_validators = Some(request.num_validators_required);
     attestation.request_created_at = Some(request_record.action().timestamp());
+    // 2026-10-19: the request's own hash (backlog 01 — lets a researcher prove
+    // authorship to governance), its hardware disclosure (backlog 02), and the
+    // algorithm the commitment was just verified with (#23). All peer-checked.
+    attestation.request_action_hash = Some(request_record.action_address().clone());
+    attestation.request_researcher_hardware = request.researcher_hardware.clone();
+    attestation.hash_algorithm = Some(commitment_algorithm);
 
     // Duplicate submission guard: O(1) — tag-prefix query returns non-empty
     // iff this agent has already attested for this study.  The 39-byte
@@ -1511,6 +1520,7 @@ pub fn notify_commitment_sealed(
         validator:               agent.clone(),
         commitment_hash:         input.commitment_hash,
         validation_request_hash: vr_action_hash,
+        hash_algorithm:          HashAlgorithm::Sha256,
     };
     let anchor_hash = create_entry(EntryTypes::CommitmentAnchor(anchor))?;
 
@@ -1715,6 +1725,7 @@ pub fn publish_researcher_commitment(
     let commitment = ResearcherResultCommitment {
         request_ref:            input.request_ref.clone(),
         result_commitment_hash: input.result_commitment_hash,
+        hash_algorithm:         HashAlgorithm::Sha256,
     };
     let commitment_hash = create_entry(EntryTypes::ResearcherResultCommitment(commitment))?;
 
@@ -1881,6 +1892,7 @@ pub fn reveal_researcher_result(
     if hash_props.authorized_joining_certificate_issuer.is_empty() && input.nonce.is_empty() {
         // dev bypass — skip hash verification
     } else {
+        let HashAlgorithm::Sha256 = commitment.hash_algorithm; // #23, as in submit_attestation
         let msgpack_bytes: Vec<u8> = metric_results_msgpack_bytes(&input.metrics)?;
         let mut hasher = Sha256::new();
         hasher.update(&msgpack_bytes);

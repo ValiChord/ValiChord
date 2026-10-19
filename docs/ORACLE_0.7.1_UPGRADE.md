@@ -16,6 +16,12 @@ install, repack and update the checksums again first.
 commitment — issues #51 and #53). Repacked and checksums replaced, as above. The one install still
 pays for all three changes.
 
+🛑 **DO NOT RUN YET (2026-10-19).** Ceri approved four more integrity changes to ride this same
+break — record supersession (backlog 01), hardware disclosure (02), hash-algorithm labels (#23) and
+the network name (#24), on branch `protocol/pre-reinstall-break`. The checksums below describe
+bundles **without** them. When that branch merges: repack, replace the checksums, and remove this
+note.
+
 ## What is different from the 0.7.0 runbook
 
 | | 0.7.0 (2026-08-24) | 0.7.1 (this) |

@@ -227,6 +227,20 @@ async fn full_round_creates_harmony_record() {
         hr.validators_requested, 2,
         "a complete round must report requested == participating",
     );
+
+    // 2026-10-19 — the network stamp (#24) and both hardware disclosures (backlog 02)
+    // arrive in the record: the researcher's via the validators' signed attestations,
+    // each validator's inside their own (sealed, so bound into their commitment).
+    assert_eq!(hr.network_name, "valichord-test");
+    assert_eq!(
+        hr.researcher_hardware,
+        make_validation_request(fake_external_hash(0x10)).researcher_hardware,
+    );
+    for ev in &hr.attestation_evidence {
+        assert_eq!(ev.attestation.hardware, make_validation_attestation(fake_external_hash(0x10)).hardware);
+        assert_eq!(ev.attestation.hash_algorithm, Some(HashAlgorithm::Sha256));
+        assert!(ev.attestation.request_action_hash.is_some());
+    }
 }
 
 // ---------------------------------------------------------------------------
