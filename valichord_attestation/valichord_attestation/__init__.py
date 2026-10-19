@@ -30,6 +30,15 @@ from .protocol import (
     submission_bytes,
 )
 from .response import ChallengeResponse, ResponseSample, build_response, verify_response
+from .metrics import (
+    MetricCheck,
+    MetricCheckError,
+    bind_disclosed_samples,
+    check_mean_metric,
+    check_metric,
+    find_metric,
+    recompute_metric,
+)
 
 __all__ = [
     "Bundle",
@@ -57,6 +66,14 @@ __all__ = [
     "ResponseSample",
     "build_response",
     "verify_response",
+    # Verifier-side metric recomputation - issue #13, threat model §10(c)
+    "MetricCheck",
+    "MetricCheckError",
+    "find_metric",
+    "recompute_metric",
+    "check_metric",
+    "bind_disclosed_samples",
+    "check_mean_metric",
     # Protocol bridge - see docs/PROTOCOL_INTEGRATION_BOUNDARY.md
     "submission_bytes",
     "data_hash",
