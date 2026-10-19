@@ -46,6 +46,7 @@ pub fn init(_: ()) -> ExternResult<InitCallbackResult> {
         "get_researcher_reveal",
         "get_validator_agent_type",
         "get_linked_agents",
+        "get_linked_agents_for",   // #22/#5: anyone may ask which keys an agent is linked to
         "get_pending_request_refs",
     ] {
         public_fns.insert((zome.clone(), FunctionName::from(*fn_name)));
@@ -2335,7 +2336,30 @@ pub fn link_agent_identity(input: LinkAgentIdentityInput) -> ExternResult<Action
 /// this filters out revoked attestations without relying on link deletion.
 #[hdk_extern]
 pub fn get_linked_agents(_: ()) -> ExternResult<Vec<Record>> {
-    let agent = agent_info()?.agent_initial_pubkey;
+    live_identity_links_of(agent_info()?.agent_initial_pubkey)
+}
+
+/// Return all live AgentIdentityAttestation records naming `agent` — for ANY
+/// agent, not only the caller (issues #22 and #5, 2026-10-19).
+///
+/// Until this existed, an outside verifier had no way to ask "which other keys
+/// say they are the same identity as this one?": `get_linked_agents` answers only
+/// for the caller. Both named agents are indexed (`link_agent_identity` writes an
+/// `AgentToIdentityAttestation` link from each), so asking about either key finds
+/// the attestation. Revoked links are filtered out exactly as in
+/// `get_linked_agents`. Listed in the `public-read` grant.
+///
+/// Read-only and coordinator-only: no integrity change, no DNA-hash change.
+/// It shows links; it does not make reputation or tier follow them (#5), which
+/// waits on the undecided question of who writes reputation in production.
+#[hdk_extern]
+pub fn get_linked_agents_for(agent: AgentPubKey) -> ExternResult<Vec<Record>> {
+    live_identity_links_of(agent)
+}
+
+/// Shared body of the two lookups above. Network read: the links can be written
+/// by the OTHER named agent, so the local chain is not complete.
+fn live_identity_links_of(agent: AgentPubKey) -> ExternResult<Vec<Record>> {
     let links = get_links(
         LinkQuery::try_new(agent, LinkTypes::AgentToIdentityAttestation)?,
         GetStrategy::Network,
