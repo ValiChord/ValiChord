@@ -10,7 +10,7 @@ Field mapping (pi session → Valichord Bundle):
     SessionHeader.timestamp                              → Bundle.generated_at
     git rev-parse HEAD (in session cwd, best-effort)    → Bundle.repo_commit
     Derived from branch entries (8 metrics)             → Bundle.metrics
-    All active-branch entries as leaf dicts             → Bundle.outputs_merkle_root
+    Every line of the file, as leaf dicts  → Bundle.outputs_merkle_root
 
 task_id fallback (when no session_info name is set):
     Path(header.cwd).name + "/" + header.id[:8]
@@ -26,8 +26,9 @@ Branch traversal (v2/v3 sessions):
     Compaction: entries before firstKeptEntryId of the last compaction on the
     path are excluded, matching buildSessionContext() behaviour.
 
-Merkle leaf format (each branch entry becomes one leaf dict):
-    {"id": str, "type": str, "timestamp": str, "content": dict}
+Merkle leaf format (EVERY line of the file becomes one leaf dict, header included;
+a line that is not a JSON object becomes {"type": "unparsed_line", "content": {"raw": ...}}):
+    {"id": str, "parentId": str|None, "type": str, "timestamp": str, "content": dict}
     where content = entry dict minus id / parentId / timestamp.
 
 Metrics (aggregated from the active branch):
@@ -221,12 +222,56 @@ def _entry_to_leaf_dict(entry: dict) -> dict:
     metadata.
     """
     content = {k: v for k, v in entry.items() if k not in _TREE_FIELDS}
+    parent = entry.get("parentId")
     return {
         "id": str(entry.get("id", "")),
+        # Committed since 2026-10-19. Without it the tree could be rewired —
+        # changing which branch is "active", and so the model, task and metrics —
+        # with every leaf, and so the Merkle root, unchanged.
+        "parentId": None if parent is None else str(parent),
         "type": str(entry.get("type", "")),
         "timestamp": str(entry.get("timestamp", "")),
         "content": content,
     }
+
+
+def _unparsed_leaf(raw_text: str) -> dict:
+    """A leaf for a line that is not a JSON object, so it is still covered."""
+    return {"id": "", "parentId": None, "type": "unparsed_line", "timestamp": "",
+            "content": {"raw": raw_text}}
+
+
+def _file_leaves(session: "Union[str, Path, list]") -> list[dict]:
+    """One Merkle leaf per line of the session file, in file order — header included.
+
+    WHY (2026-10-19). Until then only the ACTIVE BRANCH was committed, while this
+    adapter's documentation promised that a published session could be verified
+    "byte-for-byte unmodified". Pi sessions are trees: abandoned branches stay in
+    the file. Checked against the real public pi dataset (627 sessions,
+    huggingface.co/datasets/badlogicgames/pi-mono), the active branch was as little
+    as 12% of a file — the rest could have been edited without the root changing.
+    Now every line is a leaf, each leaf keeps its ``parentId``, and a line that is
+    not a JSON object is committed as its raw text rather than silently skipped.
+
+    Model, task and metrics still come from the active branch, as pi itself builds
+    the conversation (``SessionManager``: leaf = last entry, walk ``parentId``).
+    """
+    if isinstance(session, (str, Path)):
+        leaves: list[dict] = []
+        for line in Path(session).read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                leaves.append(_unparsed_leaf(line))
+                continue
+            leaves.append(_entry_to_leaf_dict(obj) if isinstance(obj, dict) else _unparsed_leaf(line))
+        return leaves
+    return [
+        _entry_to_leaf_dict(e) if isinstance(e, dict) else _unparsed_leaf(json.dumps(e, sort_keys=True))
+        for e in session
+    ]
 
 
 def _extract_model_id(branch: list[dict]) -> Optional[str]:
@@ -456,8 +501,8 @@ class PiSessionAdapter(AdapterBase):
         # metrics + stop reason string for meta
         raw_metrics, final_stop_reason_str = _collect_metrics(branch)
 
-        # Merkle over all active-branch entries
-        leaf_dicts = [_entry_to_leaf_dict(e) for e in branch]
+        # Merkle over EVERY line of the file (header and off-branch entries included)
+        leaf_dicts = _file_leaves(session)
 
         # meta: provenance block (excluded from content_hash)
         meta: dict = {

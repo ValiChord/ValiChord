@@ -92,10 +92,11 @@ def main(root: Path) -> int:
             if v is None or v != v or v < 0:  # None, NaN or negative
                 metric_problems[m.key] += 1
 
-        # Rebuild the leaves the adapter committed to and check the root + sample proofs.
+        # Rebuild the leaves the adapter committed to (every line of the file since
+        # 2026-10-19) and check the root + sample proofs.
         header, entries = psa._parse_session(f)
         branch = psa._resolve_branch(header, entries)
-        leaves = [psa._entry_to_leaf_dict(e) for e in branch]
+        leaves = psa._file_leaves(f)
         branch_ratio.append(len(branch) / max(1, len(entries)))
         fv = b1.format_version
         if merkle_root(leaves, format_version=fv) != b1.outputs_merkle_root:
@@ -125,7 +126,7 @@ def main(root: Path) -> int:
     if branch_ratio:
         branch_ratio.sort()
         mid = branch_ratio[len(branch_ratio) // 2]
-        print(f"== active-branch share of entries: min {branch_ratio[0]:.2f}, median {mid:.2f}")
+        print(f"== active-branch share of entries (all lines are now committed regardless): min {branch_ratio[0]:.2f}, median {mid:.2f}")
     return 0
 
 
