@@ -450,10 +450,12 @@ def test_merkle_faithfulness():
 # 10. samples_total and samples_completed
 # ---------------------------------------------------------------------------
 
-def test_samples_total_equals_branch_length():
+def test_samples_total_counts_every_line_of_the_file():
     bundle = ADAPTER.to_bundle(MINIMAL_SESSION)
-    # 4 non-header entries in MINIMAL_SESSION, all on the branch
-    assert bundle.samples_total == 4
+    # Every line is a Merkle leaf since 2026-10-19 (header + 4 entries); the
+    # active branch is still the 4 non-header entries.
+    assert bundle.samples_total == len(MINIMAL_SESSION) == 5
+    assert len(_resolve_branch(MINIMAL_SESSION[0], MINIMAL_SESSION[1:])) == 4
     assert bundle.samples_completed == 4
 
 
@@ -480,7 +482,8 @@ def test_samples_total_reflects_full_branch():
         for i in range(6)
     ]
     bundle = ADAPTER.to_bundle(session)
-    assert bundle.samples_total == 6
+    assert bundle.samples_total == len(session) == 7          # every line
+    assert len(_resolve_branch(session[0], session[1:])) == 6  # the whole branch
     assert bundle.samples_completed == 6
 
 
@@ -521,8 +524,10 @@ def test_compaction_excludes_pre_kept_entries():
         },
     ]
     bundle = ADAPTER.to_bundle(session)
-    # Branch should be [e2, comp1, e3] — e1 excluded; 3 entries
-    assert bundle.samples_total == 3
+    # Branch should be [e2, comp1, e3] — e1 excluded; 3 entries. The Merkle tree
+    # still covers every line, e1 included (2026-10-19).
+    assert [e["id"] for e in _resolve_branch(session[0], session[1:])] == ["e2", "comp1", "e3"]
+    assert bundle.samples_total == len(session) == 5
 
 
 def test_compaction_metric_counted():
@@ -623,7 +628,8 @@ def test_v1_session_linear_order():
     session = [v1_header] + v1_entries
     bundle = ADAPTER.to_bundle(session)
     assert isinstance(bundle, Bundle)
-    assert bundle.samples_total == 2
+    assert bundle.samples_total == len(session) == 3
+    assert len(_resolve_branch(session[0], session[1:])) == 2
 
 
 def test_v1_session_detected_by_missing_version():
@@ -643,7 +649,8 @@ def test_v1_session_detected_by_missing_version():
         },
     ]
     bundle = ADAPTER.to_bundle(session)
-    assert bundle.samples_total == 1
+    assert bundle.samples_total == len(session) == 2
+    assert len(_resolve_branch(session[0], session[1:])) == 1
 
 
 # ---------------------------------------------------------------------------
