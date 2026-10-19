@@ -288,6 +288,7 @@ The `sweettest_integration/` and `wind-tunnel/` directories are each their own C
 | `merkle_v2.py` | current construction — RFC 6962 §2.1 |
 | `challenge.py` | Probabilistic challenge generation (HMAC-SHA256 seed, SHA-256 counter-mode PRNG) |
 | `response.py` | `build_response`, `verify_response` — Merkle-path selective disclosure |
+| `metrics.py` | Verifier-side metric recomputation (#13): `check_metric` (exact, whole log), `bind_disclosed_samples` + `check_mean_metric` (Hoeffding bound on a challenged subset — "consistent", never "verified") |
 | `adapters/` | `AdapterBase` ABC + six adapters: `InspectAILogAdapter` (reads `.eval` files), `InspectEvalsAdapter`, `PiSessionAdapter` (these three exported from the package root), `LmEvalAdapter`, `AiluminateAdapter`, `WandbRunAdapter` |
 
 **Format version: v2** (since 2026-08-18; `build_bundle` writes `"v2"`, package 2.0.0). Bundles have a `bundle_hash` (full content) and `content_hash` (excludes `Bundle.meta` provenance block). v1/v1.1/v1.2 bundles remain valid and are **not** rewritten.

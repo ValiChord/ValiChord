@@ -166,6 +166,9 @@ A conformant verifier:
 5. **SHOULD** recompute each reported metric from the samples disclosed to it and compare against
    `metrics`. *Without this step the format's stated coverage of metric misreporting does not
    apply; see §10(c) of `attestation_format_v1.md`.*
+   *Tooling: `valichord_attestation.metrics` (issue #13). `check_metric` is exact from the whole
+   log; `bind_disclosed_samples` + `check_mean_metric` test a challenged subset statistically
+   and can only say "consistent" or "inconsistent", never "verified".*
 6. **SHOULD** compare `samples.total` against out-of-band knowledge of the benchmark's size, and
    **SHOULD** treat `total > completed` as a fact to be explained rather than noise.
 
