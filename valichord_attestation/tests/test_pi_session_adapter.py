@@ -19,6 +19,7 @@ from valichord_attestation.adapters.pi_session_adapter import (
     _entry_to_leaf_dict,
     _extract_model_id,
     _extract_task_id,
+    _file_leaves,
     _git_head,
     _resolve_branch,
     _STOP_REASON_ENCODING,
@@ -437,10 +438,8 @@ def test_merkle_root_is_64_hex_chars():
 
 def test_merkle_faithfulness():
     bundle = ADAPTER.to_bundle(MINIMAL_SESSION)
-    header = MINIMAL_SESSION[0]
-    entries = MINIMAL_SESSION[1:]
-    branch = _resolve_branch(header, entries)
-    leaf_dicts = [_entry_to_leaf_dict(e) for e in branch]
+    leaf_dicts = _file_leaves(MINIMAL_SESSION)
+    assert len(leaf_dicts) == len(MINIMAL_SESSION), "every line, header included, is a leaf"
     # Verify proof for index 0 and the last index
     for idx in (0, len(leaf_dicts) - 1):
         proof = merkle_proof(leaf_dicts, idx)
@@ -451,11 +450,13 @@ def test_merkle_faithfulness():
 # 10. samples_total and samples_completed
 # ---------------------------------------------------------------------------
 
-def test_samples_total_equals_branch_length():
+def test_samples_total_counts_every_line_of_the_file():
     bundle = ADAPTER.to_bundle(MINIMAL_SESSION)
-    # 4 non-header entries in MINIMAL_SESSION, all on the branch
-    assert bundle.samples_total == 4
-    assert bundle.samples_completed == 4
+    # Every line is a Merkle leaf since 2026-10-19 (header + 4 entries); the
+    # active branch is still the 4 non-header entries.
+    assert bundle.samples_total == len(MINIMAL_SESSION) == 5
+    assert len(_resolve_branch(MINIMAL_SESSION[0], MINIMAL_SESSION[1:])) == 4
+    assert bundle.samples_completed == 5   # = leaves committed
 
 
 def test_samples_total_reflects_full_branch():
@@ -481,8 +482,9 @@ def test_samples_total_reflects_full_branch():
         for i in range(6)
     ]
     bundle = ADAPTER.to_bundle(session)
-    assert bundle.samples_total == 6
-    assert bundle.samples_completed == 6
+    assert bundle.samples_total == len(session) == 7          # every line
+    assert len(_resolve_branch(session[0], session[1:])) == 6  # the whole branch
+    assert bundle.samples_completed == 7   # = leaves committed
 
 
 # ---------------------------------------------------------------------------
@@ -522,8 +524,10 @@ def test_compaction_excludes_pre_kept_entries():
         },
     ]
     bundle = ADAPTER.to_bundle(session)
-    # Branch should be [e2, comp1, e3] — e1 excluded; 3 entries
-    assert bundle.samples_total == 3
+    # Branch should be [e2, comp1, e3] — e1 excluded; 3 entries. The Merkle tree
+    # still covers every line, e1 included (2026-10-19).
+    assert [e["id"] for e in _resolve_branch(session[0], session[1:])] == ["e2", "comp1", "e3"]
+    assert bundle.samples_total == len(session) == 5
 
 
 def test_compaction_metric_counted():
@@ -624,7 +628,8 @@ def test_v1_session_linear_order():
     session = [v1_header] + v1_entries
     bundle = ADAPTER.to_bundle(session)
     assert isinstance(bundle, Bundle)
-    assert bundle.samples_total == 2
+    assert bundle.samples_total == len(session) == 3
+    assert len(_resolve_branch(session[0], session[1:])) == 2
 
 
 def test_v1_session_detected_by_missing_version():
@@ -644,7 +649,8 @@ def test_v1_session_detected_by_missing_version():
         },
     ]
     bundle = ADAPTER.to_bundle(session)
-    assert bundle.samples_total == 1
+    assert bundle.samples_total == len(session) == 2
+    assert len(_resolve_branch(session[0], session[1:])) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -822,7 +828,7 @@ def test_entry_to_leaf_dict_structure():
         "message": {"role": "user", "content": "hello"},
     }
     leaf = _entry_to_leaf_dict(entry)
-    assert set(leaf.keys()) == {"id", "type", "timestamp", "content"}
+    assert set(leaf.keys()) == {"id", "parentId", "type", "timestamp", "content"}
     assert leaf["id"] == "aa000001"
     assert leaf["type"] == "message"
     assert leaf["timestamp"] == "2026-05-19T10:00:01Z"
@@ -833,9 +839,10 @@ def test_entry_to_leaf_dict_structure():
     assert leaf["content"]["message"] == {"role": "user", "content": "hello"}
 
 
-def test_entry_to_leaf_dict_no_parent_id_in_content():
+def test_parent_id_is_committed_once_at_top_level():
     entry = {"type": "message", "id": "x", "parentId": "y", "timestamp": "t", "message": {}}
     leaf = _entry_to_leaf_dict(entry)
+    assert leaf["parentId"] == "y"
     assert "parentId" not in leaf["content"]
 
 
@@ -1017,3 +1024,60 @@ def test_git_head_returns_sha_in_real_git_repo():
     assert sha is not None
     assert len(sha) == 40
     assert all(c in "0123456789abcdef" for c in sha)
+
+
+# ---------------------------------------------------------------------------
+# Whole-file coverage (2026-10-19)
+#
+# Checked against the real public pi dataset (627 sessions), the active branch
+# was as little as 12% of a file, but only it was committed, while the adapter
+# promised the published session could be verified "byte-for-byte unmodified".
+# These pin the fix: every line is a leaf, with its parentId.
+# ---------------------------------------------------------------------------
+
+def _with_abandoned_branch() -> list[dict]:
+    """MINIMAL_SESSION plus an off-branch user message that pi would not follow."""
+    abandoned = {
+        "type": "message",
+        "id": "bb000001",
+        "parentId": "aa000001",
+        "timestamp": "2026-05-19T10:00:05Z",
+        "message": {"role": "user", "content": "an abandoned branch"},
+    }
+    # Insert before the final entry, so the last entry (pi's leaf) is unchanged.
+    return MINIMAL_SESSION[:-1] + [abandoned] + MINIMAL_SESSION[-1:]
+
+
+def test_an_edit_to_an_abandoned_branch_changes_the_root():
+    session = _with_abandoned_branch()
+    edited = [dict(e) for e in session]
+    i = next(k for k, e in enumerate(edited) if e.get("id") == "bb000001")
+    edited[i]["message"] = {"role": "user", "content": "edited after publication"}
+
+    # The active branch is the same in both — so the old, branch-only leaves
+    # could not have told these apart.
+    assert _resolve_branch(session[0], session[1:]) == _resolve_branch(edited[0], edited[1:])
+    assert ADAPTER.to_bundle(session).outputs_merkle_root != ADAPTER.to_bundle(edited).outputs_merkle_root
+
+
+def test_rewiring_a_parent_link_changes_the_root():
+    session = [dict(e) for e in MINIMAL_SESSION]
+    rewired = [dict(e) for e in MINIMAL_SESSION]
+    rewired[-1]["parentId"] = "aa000001"   # the same entries, joined differently
+
+    assert ADAPTER.to_bundle(session).outputs_merkle_root != ADAPTER.to_bundle(rewired).outputs_merkle_root
+
+
+def test_an_unparseable_line_is_committed_not_skipped(tmp_path):
+    lines = [json.dumps(e) for e in MINIMAL_SESSION]
+    good = tmp_path / "good.jsonl"
+    good.write_text("\n".join(lines[:2] + ["{not json"] + lines[2:]) + "\n", encoding="utf-8")
+    other = tmp_path / "other.jsonl"
+    other.write_text("\n".join(lines[:2] + ["{also not json"] + lines[2:]) + "\n", encoding="utf-8")
+
+    leaves = _file_leaves(good)
+    assert len(leaves) == len(MINIMAL_SESSION) + 1
+    assert any(leaf["type"] == "unparsed_line" for leaf in leaves)
+    # Different garbage, different root: the line is covered, not ignored.
+    assert ADAPTER.to_bundle(good, repo_commit="").outputs_merkle_root != \
+        ADAPTER.to_bundle(other, repo_commit="").outputs_merkle_root

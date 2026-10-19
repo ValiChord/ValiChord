@@ -75,6 +75,8 @@ metrics if it creates too much confusion. **Decision needed at implementation ti
 
 ## Merkle leaf format
 
+> ⚠️ **Changed 2026-10-19:** every line of the file now becomes a leaf (header and off-branch entries included, each with its `parentId`; an unparseable line as its raw text). Only the active branch was committed before, which left most of some real sessions uncovered. See `_file_leaves` in `pi_session_adapter.py`.
+
 Each non-header entry in the active branch becomes one leaf:
 
 ```python
