@@ -950,6 +950,18 @@ async fn revoke_agent_identity_link_removes_from_linked_agents() {
         .await;
     assert_eq!(linked.len(), 1, "Alice should see one identity link after creation");
 
+    // #22/#5 (2026-10-19): Bob, looking Alice up by key rather than asking about
+    // himself, sees the same link through get_linked_agents_for.
+    let bob_view: Vec<Record> = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "get_linked_agents_for",
+            setup.alice.attestation.agent_pubkey().clone(),
+        )
+        .await;
+    assert_eq!(bob_view.len(), 1, "a lookup by Alice's key must find her link");
+    assert_eq!(bob_view[0].action_address(), &att_hash);
+
     // Alice revokes it.
     let _: ActionHash = setup.conductors[0]
         .call(&setup.alice.attestation_zome(), "revoke_agent_identity_link", att_hash)
@@ -964,6 +976,16 @@ async fn revoke_agent_identity_link_removes_from_linked_agents() {
         .call(&setup.alice.attestation_zome(), "get_linked_agents", ())
         .await;
     assert_eq!(after.len(), 0, "get_linked_agents should return empty after revocation");
+
+    // ...and the lookup by key filters the revoked link too.
+    let bob_after: Vec<Record> = setup.conductors[1]
+        .call(
+            &setup.bob.attestation_zome(),
+            "get_linked_agents_for",
+            setup.alice.attestation.agent_pubkey().clone(),
+        )
+        .await;
+    assert_eq!(bob_after.len(), 0, "a revoked link must not be returned by the lookup either");
 }
 
 // ---------------------------------------------------------------------------
@@ -1342,6 +1364,25 @@ async fn third_party_cannot_revoke_an_identity_link() {
     await_consistency_s(60, [&alice.attestation, &bob.attestation, &mallory.attestation])
         .await
         .unwrap();
+
+    // #22/#5 (2026-10-19): an outsider can now look the link up by either key —
+    // the verifier-side question #22 said had no answer. And the lookup is by key,
+    // not "everything": Mallory's own key, which is in no link, returns nothing.
+    let lookup = |who: AgentPubKey| {
+        let (c, z) = (&conductors[2], mallory.attestation_zome());
+        async move {
+            let r: Vec<Record> = c.call(&z, "get_linked_agents_for", who).await;
+            r
+        }
+    };
+    let via_alice = lookup(alice.attestation.agent_pubkey().clone()).await;
+    let via_bob = lookup(bob.attestation.agent_pubkey().clone()).await;
+    let via_mallory = lookup(mallory.attestation.agent_pubkey().clone()).await;
+    assert_eq!(via_alice.len(), 1, "an outsider must find the link from Alice's key");
+    assert_eq!(via_bob.len(), 1, "...and from Bob's: both named keys are indexed");
+    assert_eq!(via_alice[0].action_address(), &att_hash);
+    assert_eq!(via_bob[0].action_address(), &att_hash);
+    assert!(via_mallory.is_empty(), "a key in no link must return nothing");
 
     // Mallory is neither named agent.
     let result: Result<ActionHash, _> = conductors[2]
