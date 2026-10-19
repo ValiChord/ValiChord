@@ -11,6 +11,11 @@ bundles were repacked and the checksums below replaced. **This one install pays 
 which is why it was held back until #47 landed. ⚠️ If any other integrity change merges before the
 install, repack and update the checksums again first.
 
+**Updated again 2026-10-19 after PR #55 merged.** #55 changed the attestation integrity zome again
+(a RevealOpen marker must list the whole cohort; a researcher's reveal must name its request and
+commitment — issues #51 and #53). Repacked and checksums replaced, as above. The one install still
+pays for all three changes.
+
 ## What is different from the 0.7.0 runbook
 
 | | 0.7.0 (2026-08-24) | 0.7.1 (this) |
@@ -18,7 +23,7 @@ install, repack and update the checksums again first.
 | Host | `132.145.23.78` (that runbook still names the old `152.67.153.149` — ignore it) | same |
 | Access | SSH as `opc`, key `~/.ssh/valichord_oracle` | same |
 | Docker pins | `HOLOCHAIN_VERSION=0.7.0`, `KITSUNE2_VERSION=0.5.0` | **`0.7.1`, `0.5.1`** |
-| Bundles | packed 2026-08-03 | **packed in CI 2026-10-18**, run `39132429337` (`repack-bundles.yml`), from `a7b2a0a` — after #47 |
+| Bundles | packed 2026-08-03 | **packed in CI 2026-10-19**, run `39227851274` (`repack-bundles.yml`), from `9842c4f` — after #47 and #55 |
 | Gate | DNA-hash table | **sha256 of the bundle files** (below), then record the DNA hashes |
 
 ⚠️ **kitsune2-bootstrap-srv is 0.5.1, not 0.5.2.** The kitsune2 *library* crates resolve to 0.5.2,
@@ -62,9 +67,9 @@ sha256sum "$R"/valichord/workdir/*.happ
 The checksums must be **exactly**:
 
 ```
-1cfffbed1d24099559406ba0c2be493d694211aff20e6610500aa4add4e4a15b  researcher.happ
-67fe1f8e74f01c1cdd0f904275cdb37d8c1a57f32ac405965413acfc864904ed  valichord.happ
-e824961f66ae48aef2120491cdfc55d92cea0dd92c26e70690769da6b194c3af  validator.happ
+89d50d0bf8adc47546690773e3017a95df71ef30984670021f17022a033fff82  researcher.happ
+f0657343f9ea703826020ca4551526f3751f35bd309259635a81c6fd385ca61f  valichord.happ
+63b8ed45256a87a33bf262875ff8cda4bdd57f7b55bb9a1594ef68bf12bb6468  validator.happ
 ```
 
 Any difference means the pull did not land or the files were changed on the server. **Stop.**
