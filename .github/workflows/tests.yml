@@ -482,6 +482,6 @@ jobs:
         working-directory: valichord/sweettest_integration
         env:
           VALICHORD_DNA_DIR: ../workdir-test
-        # harmony_record_forgery (#11) and validator_tier_forgery (#8) need the same
+        # harmony_record_forgery (#11), validator_tier_forgery (#8) and reveal_phase_forgery (#51, #53) need the same
         # test_utils build, so they ride here.
-        run: cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery -- --test-threads=1
+        run: cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery --test reveal_phase_forgery -- --test-threads=1
