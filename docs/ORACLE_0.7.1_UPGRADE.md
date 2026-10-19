@@ -16,11 +16,10 @@ install, repack and update the checksums again first.
 commitment — issues #51 and #53). Repacked and checksums replaced, as above. The one install still
 pays for all three changes.
 
-🛑 **DO NOT RUN YET (2026-10-19).** Ceri approved four more integrity changes to ride this same
-break — record supersession (backlog 01), hardware disclosure (02), hash-algorithm labels (#23) and
-the network name (#24), on branch `protocol/pre-reinstall-break`. The checksums below describe
-bundles **without** them. When that branch merges: repack, replace the checksums, and remove this
-note.
+**Updated a third time 2026-10-19 after PR #57 merged.** #57 rode this same break with four more
+integrity changes Ceri approved: record supersession (backlog 01), hardware disclosure (02),
+hash-algorithm labels (#23) and the network name (#24, `valichord-public`). Repacked and checksums
+replaced. The one install pays for all of it.
 
 ## What is different from the 0.7.0 runbook
 
@@ -29,7 +28,7 @@ note.
 | Host | `132.145.23.78` (that runbook still names the old `152.67.153.149` — ignore it) | same |
 | Access | SSH as `opc`, key `~/.ssh/valichord_oracle` | same |
 | Docker pins | `HOLOCHAIN_VERSION=0.7.0`, `KITSUNE2_VERSION=0.5.0` | **`0.7.1`, `0.5.1`** |
-| Bundles | packed 2026-08-03 | **packed in CI 2026-10-19**, run `39227851274` (`repack-bundles.yml`), from `9842c4f` — after #47 and #55 |
+| Bundles | packed 2026-08-03 | **packed in CI 2026-10-19**, run `39273798429` (`repack-bundles.yml`), from `33bbb6c` — after #47, #55 and #57 |
 | Gate | DNA-hash table | **sha256 of the bundle files** (below), then record the DNA hashes |
 
 ⚠️ **kitsune2-bootstrap-srv is 0.5.1, not 0.5.2.** The kitsune2 *library* crates resolve to 0.5.2,
@@ -73,9 +72,9 @@ sha256sum "$R"/valichord/workdir/*.happ
 The checksums must be **exactly**:
 
 ```
-89d50d0bf8adc47546690773e3017a95df71ef30984670021f17022a033fff82  researcher.happ
-f0657343f9ea703826020ca4551526f3751f35bd309259635a81c6fd385ca61f  valichord.happ
-63b8ed45256a87a33bf262875ff8cda4bdd57f7b55bb9a1594ef68bf12bb6468  validator.happ
+0af5cc189148bf1dd7d614f7434fe1432f6a307ba78cd5710949d871a7fd2cc1  researcher.happ
+798b237d6c867e0c707c576d532bb00e24815cee37b676616d69c4c0443333fa  valichord.happ
+e0ca09120f9da17278fcd958317859d8ede800a2b2aef894edfe5a9c19fb0cfb  validator.happ
 ```
 
 Any difference means the pull did not land or the files were changed on the server. **Stop.**
