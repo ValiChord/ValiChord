@@ -24,6 +24,8 @@ The page includes a skeptic-proof verify section after every run: the HarmonyRec
 
 ### What it does
 
+**Ready-made checks (added 2026-10-19).** Two buttons above the claim fill in an *election audit recount* (24 sampled ballots, one of which does not match the machine record) or a *lab result re-check* (three replicate readings and a reporting rule; every raw reading is above the limit, the reportable result is not). Both are illustrative data whose answer can be **re-derived** from the evidence given, the ValiChord shape outside AI evaluation. On the web path the evidence rides inside the claim; on the local path it fills Sources.
+
 The user enters a hypothesis and their own assessment of it. That assessment is cryptographically hashed and committed to the Holochain DHT **before** the three Claude CMA validators begin their independent research. The validators cannot see the user's answer or each other's. Once all three have committed, a flashing green Reveal button appears. The user clicks it; the answers unseal; an adjudicator Claude call compares the researcher's sealed answer against the three validator verdicts; a HarmonyRecord is written to the DHT.
 
 ### Two-phase protocol

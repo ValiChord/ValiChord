@@ -394,6 +394,13 @@ details[open]>summary::after{transform:rotate(90deg)}
   <h2>State a hypothesis. Seal your answer. Let the validators run.</h2>
   <p id="cardIntro">Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
 
+  <div style="margin:.6rem 0 .2rem">
+    <span style="font-size:.78rem;color:var(--dim)">Or try a ready-made check, where the answer can be re-derived from the evidence given:</span><br>
+    <button type="button" class="btn-ghost" onclick="fillExample('audit')">Election audit recount</button>
+    <button type="button" class="btn-ghost" onclick="fillExample('lab')">Lab result re-check</button>
+  </div>
+  <p class="key-note" id="exampleNote" style="display:none"></p>
+
   <label class="field-label">Hypothesis or claim</label>
   <textarea id="customClaim" rows="3" placeholder="e.g. Regular aerobic exercise reduces resting heart rate in healthy adults" oninput="checkCustomReady()"></textarea>
 
@@ -497,6 +504,71 @@ document.addEventListener('DOMContentLoaded',function(){
   const intro=document.getElementById('cardIntro');
   if(intro)intro.textContent="Enter a claim and the source material it should be judged against. Your answer is hashed and committed to the distributed network before the three validators begin — and so are your sources, so the evidence cannot be changed afterwards. Each validator is a different model running on this machine. They cannot see your answer, and they cannot see each other's.";
 });
+
+// ── Ready-made checks (2026-10-19) ─────────────────────────────────────────────
+// The same shape outside AI evaluation: the answer can be RE-DERIVED from the
+// evidence in the claim, so the validators recount or recompute rather than
+// opine. Data are illustrative. Each has a trap a non-independent checker would
+// miss: one mismatched ballot; raw readings above a limit that the reportable
+// result is not. No backslashes here: this page is a plain Python string.
+const EXAMPLES={
+  audit:{
+    claim:`Risk-limiting audit check (illustrative data). An audit board hand-read the 24 randomly sampled paper ballots below and compared each with the voting machine's record of that ballot. Claim: the paper ballots match the machine records on all 24 ballots.`,
+    data:`B-001 machine: A | paper: A
+B-002 machine: B | paper: B
+B-003 machine: A | paper: A
+B-004 machine: A | paper: A
+B-005 machine: B | paper: B
+B-006 machine: A | paper: A
+B-007 machine: A | paper: A
+B-008 machine: B | paper: B
+B-009 machine: A | paper: A
+B-010 machine: A | paper: A
+B-011 machine: A | paper: A
+B-012 machine: B | paper: B
+B-013 machine: A | paper: A
+B-014 machine: B | paper: B
+B-015 machine: A | paper: A
+B-016 machine: A | paper: A
+B-017 machine: A | paper: B
+B-018 machine: B | paper: B
+B-019 machine: A | paper: A
+B-020 machine: A | paper: A
+B-021 machine: B | paper: B
+B-022 machine: A | paper: A
+B-023 machine: A | paper: A
+B-024 machine: B | paper: B`,
+    answer:`False. 23 of the 24 match, but ballot B-017 does not: the machine recorded A and the paper ballot shows B.`,
+    note:`Like an election audit: each validator recounts the sample independently and seals its finding before seeing yours or each other's. The answer is pre-filled with one reading; edit it before sealing. Try sealing a wrong answer: the disagreement is recorded permanently.`
+  },
+  lab:{
+    claim:`Laboratory result re-check (illustrative data and reporting rule, not any real laboratory's procedure). Three replicate measurements of one blood sample gave 82.1, 83.4 and 81.9 mg of alcohol per 100 ml. The laboratory's stated reporting rule: take the mean of the replicates, deduct 6% for measurement uncertainty, and round down to a whole number. Claim: the reportable result is above the limit of 80 mg per 100 ml.`,
+    data:`Replicate 1: 82.1 mg/100 ml
+Replicate 2: 83.4 mg/100 ml
+Replicate 3: 81.9 mg/100 ml
+Reporting rule: mean of replicates, minus 6%, rounded down to a whole number.
+Limit: 80 mg/100 ml.`,
+    answer:`False. The mean is 82.47; minus 6% gives 77.52; rounded down, 77. The reportable result is below 80, even though every raw reading is above it.`,
+    note:`Like a blind second check in a forensic lab: each validator recomputes the result without seeing the first answer. The answer is pre-filled with one reading; edit it before sealing. Try sealing a wrong answer: the disagreement is recorded permanently.`
+  }
+};
+function fillExample(name){
+  const ex=EXAMPLES[name];
+  if(!ex)return;
+  // Local mode judges against the Sources field, so the data goes there and
+  // the claim stays short. The web path has no Sources field: the data rides
+  // inside the claim, which is what the validators read.
+  if(VALICHORD_LOCAL){
+    document.getElementById('customClaim').value=ex.claim;
+    document.getElementById('customSources').value=ex.data;
+  }else{
+    document.getElementById('customClaim').value=ex.claim+'  Evidence: '+ex.data.split(String.fromCharCode(10)).join('; ');
+  }
+  document.getElementById('customAnswer').value=ex.answer;
+  const n=document.getElementById('exampleNote');
+  n.textContent=ex.note;n.style.display='block';
+  checkCustomReady();
+}
 
 // ── Custom demo ───────────────────────────────────────────────────────────────
 let customPoll=null,customJobId=null,customPollStart=null;
