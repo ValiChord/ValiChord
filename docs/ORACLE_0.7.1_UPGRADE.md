@@ -1,6 +1,9 @@
 # Oracle upgrade to Holochain 0.7.1 — runbook
 
-**Written 2026-10-17. Not yet run.** Follows the shape of `docs/ORACLE_0.7.0_UPGRADE.md`, which
+✅ **RUN 2026-10-19 by Ceri, from his Windows PC over SSH, step by step with Claude.** Result and
+findings: see [**Run record**](#run-record-2026-10-19) at the end.
+
+**Written 2026-10-17.** Follows the shape of `docs/ORACLE_0.7.0_UPGRADE.md`, which
 holds the background (why this is a rebuild, failure modes, risks). Read that once; this file
 carries only what is different.
 
@@ -118,3 +121,45 @@ Then **run a real round end to end** — the only proof that counts — and:
 
 - The old `152.67.153.149` instance on 0.6.2 is still a hazard (it answers healthily on a dead
   network). Unchanged by this upgrade; switching it off remains the fix.
+
+## Run record 2026-10-19
+
+**Outcome: done, and verified.** Gate passed (all three sha256 values matched), `down -v` removed
+5 containers and 4 volumes with none left over, the `--no-cache` build passed the version guard
+(no `FATAL`), and all four nodes reached `node API →`. A real round then ran end to end:
+**Reproduced 3/3, ExactMatch**, read back from outside the server with HTTP 200.
+
+**Live record:** `http://132.145.23.78:3001/record?hash=uhC8kczl-ObcLqHU21FmAnHxOw_qgWEHsq0kBqrOzGenu5bwCXwk-`
+
+**DNA hashes, observed on the running conductors.** All four differ from the 0.7.0 table, so the
+network break this upgrade was planned around is now **observed, not expected**. The researcher
+and validator conductors report the same attestation and governance hashes, so they are on one
+network.
+
+| DNA | 0.7.1 hash (observed) |
+|---|---|
+| attestation | `uhC0kg1-EFqxTnOlNGU98cOHAHhXJkCWQ9eXHi6e9LBCWSy0e_JFI` |
+| researcher_repository | `uhC0kyosyy9bHNyAN1dTYQeOEF3wRwuUlzxqvX4plSYRr8KQ8X7_J` |
+| validator_workspace | `uhC0k0gM6sOJThk0M4nDF5qYYmsb3_vLQVtP65kmN5EY3kmaek_zX` |
+| governance | `uhC0kQG8wTTQ1_o_O-jARmv6il29nV27VNfbrShMcXVxZpMDqa9NM` |
+
+Read with a one-line Node call against each conductor's admin port (`listApps` →
+`cell_info[role][0].value.cell_id[0]`), run inside the `researcher` and `validator-1` containers.
+
+**What the run turned up. Fix these before relying on this runbook again:**
+
+1. **Windows SSH refused the key file** ("UNPROTECTED PRIVATE KEY FILE"): it was readable by other
+   local accounts, including an orphaned SID. Fixed with
+   `icacls <key> /grant:r "$env:USERNAME:R"` then `icacls <key> /inheritance:r`.
+2. **The server's `python3` is 3.9.** `demo/ai_validator.py` failed at import on a `dict | None`
+   annotation; fixed in `2fc8974` (`from __future__ import annotations`). Other demo scripts may
+   carry the same 3.10+ syntax.
+3. **No pip and no `anthropic` package on the server.** `sudo dnf install -y python3-pip`, then
+   `python3 -m pip install --user anthropic`.
+4. **`ANTHROPIC_API_KEY` was not in `~/.bashrc`**, contrary to `demo/DECENTRALISED_DEMO.md`
+   (corrected). It was set for the session only.
+5. **Benign, not failures:** `Admin socket connection failed … Handshake not finished` is the
+   entrypoint's port probe; `NoPeersForLocation` at first publish is a node with no peers yet.
+   Nodes took about 4 minutes to reach `node API →` (four first-time WASM compiles on 1 OCPU).
+6. A leftover, untracked `valichord/workdir/valichord/` (August `.dna` files and `happ.yaml`)
+   sits on the server. Harmless: nothing references it, and the nodes load `*.happ` by name.

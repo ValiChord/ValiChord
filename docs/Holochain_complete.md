@@ -1464,6 +1464,19 @@ conductor paths short (`mktemp -d /tmp/hc7XXXX`).
 
 ### 44.5 Bundles repacked — every DNA hash changed
 
+**Current — 0.7.1, observed on the live Oracle conductors 2026-10-19** after the fresh install
+(bundles from `376755e`: 0.7.1 plus #47, #55 and #57). Source and method: `docs/ORACLE_0.7.1_UPGRADE.md`,
+"Run record". All four differ from the 0.7.0 table below.
+
+| DNA | 0.7.1 hash |
+|---|---|
+| attestation | `uhC0kg1-EFqxTnOlNGU98cOHAHhXJkCWQ9eXHi6e9LBCWSy0e_JFI` |
+| researcher_repository | `uhC0kyosyy9bHNyAN1dTYQeOEF3wRwuUlzxqvX4plSYRr8KQ8X7_J` |
+| validator_workspace | `uhC0k0gM6sOJThk0M4nDF5qYYmsb3_vLQVtP65kmN5EY3kmaek_zX` |
+| governance | `uhC0kQG8wTTQ1_o_O-jARmv6il29nV27VNfbrShMcXVxZpMDqa9NM` |
+
+**Historical — 0.7.0** (the network the 2026-10-19 reinstall replaced):
+
 Rebuilt on `hdi 0.8.0` / `hdk 0.7.0` and repacked with `hc 0.7.0` (2026-08-01):
 
 | DNA | 0.7.0 hash |

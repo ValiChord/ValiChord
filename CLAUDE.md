@@ -423,9 +423,10 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   in init()" are **wrong now**, and "`verify_signature` is unavailable in integrity zomes" was
   **always** wrong. Still undecided (Ceri): who writes `ValidatorReputation` in production, and
   whether a timed-out short record may earn a badge.
-- 🟠 **Oracle still runs 0.7.0** (since 2026-08-24) — `main` is ahead of the live demo again until
-  the 0.7.1 fresh install is done. Runbook: **`docs/ORACLE_0.7.1_UPGRADE.md`** (written, not yet
-  run). Until then, the live demo is the 0.7.0 network and its records still resolve.
+- ✅ **Oracle runs 0.7.1** — the fresh install was run on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`,
+  which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57. A real
+  round passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's
+  `python3` is **3.9**: demo scripts run there must not evaluate 3.10+ syntax.
 - ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
   on the server. They go stale on every Holochain bump. Repack with the **Repack bundles** workflow
   (`.github/workflows/repack-bundles.yml`), not by hand on Windows (no `hc` there). The UI e2e job

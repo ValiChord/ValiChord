@@ -159,7 +159,7 @@ git pull          # pick up any updates
 python3 demo/ai_validator.py --mode decentralised
 ```
 
-No environment variables needed — `ANTHROPIC_API_KEY` is already in `~/.bashrc` on the server, and the node URLs default to localhost.
+The node URLs default to localhost. ⚠️ **Corrected 2026-10-19:** `ANTHROPIC_API_KEY` is **not** in `~/.bashrc` on the current server (`132.145.23.78`). Set it in the session with `export ANTHROPIC_API_KEY=…` first. The server's `python3` is 3.9 with no pip by default; the first run there needed `sudo dnf install -y python3-pip` and `python3 -m pip install --user anthropic`.
 
 ### Alternative: run remotely from your own machine
 
