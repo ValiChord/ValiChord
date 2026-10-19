@@ -385,7 +385,7 @@ jobs:
   tripwire:
     name: Immutability tripwires (integrity zomes)
     runs-on: ubuntu-latest
-    timeout-minutes: 120   # was 90; last run 72 min before the #11 and #8 tripwires were added
+    timeout-minutes: 150   # was 120 (and 90 before that); a run took 90 min on 2026-10-19 before supersession_forgery (two more 3-agent rounds) was added
 
     steps:
       - uses: actions/checkout@v4
@@ -482,6 +482,6 @@ jobs:
         working-directory: valichord/sweettest_integration
         env:
           VALICHORD_DNA_DIR: ../workdir-test
-        # harmony_record_forgery (#11), validator_tier_forgery (#8) and reveal_phase_forgery (#51, #53) need the same
+        # harmony_record_forgery (#11), validator_tier_forgery (#8), reveal_phase_forgery (#51, #53) and supersession_forgery (backlog 01) need the same
         # test_utils build, so they ride here.
-        run: cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery --test reveal_phase_forgery -- --test-threads=1
+        run: cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery --test reveal_phase_forgery --test supersession_forgery -- --test-threads=1

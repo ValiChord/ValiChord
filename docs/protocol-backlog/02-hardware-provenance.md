@@ -1,6 +1,8 @@
 # Backlog: hardware provenance for researcher and validator
 
-**Status:** Open. **Category: 🟠 expensive after the next network break, and 🔴 for records already written.**
+**Status: BUILT 2026-10-19, before the Oracle 0.7.1 reinstall** (branch `protocol/pre-reinstall-break`). Decided by Ceri 2026-10-19, choosing the first of three options Claude offered (marked recommended): **shape A + B — an optional coarse public class (`DatacentreGpu` / `ConsumerGpu` / `CpuOnly` / `Other`) plus an optional digest of private details**, the same treatment for researcher and validator. `HardwareDisclosure` in `shared_types`. The validator's is in their `ValidationAttestation`, so it is **sealed into their commitment**; the researcher's is on the `ValidationRequest` and reaches the HarmonyRecord through the validators' signed attestations, checked by peers. Both are **asserted, not observed**. The text below is the 2026-08-22 analysis, unchanged.
+
+**Original status:** Open. **Category: 🟠 expensive after the next network break, and 🔴 for records already written.**
 **Needs the rebuild window: yes.**
 **Raised by:** Ceri, 2026-08-22 — *"info such as the hardware of the researcher and validator
 should also be part of the harmony record."*

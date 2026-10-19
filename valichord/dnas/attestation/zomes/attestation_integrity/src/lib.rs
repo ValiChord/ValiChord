@@ -1,7 +1,7 @@
 use hdi::prelude::*;
 use valichord_shared_types::{
-    CertificationTier, Discipline, JoiningCertificate, MetricResult, ValidationAttestation,
-    ValidationPhase, ValidatorType,
+    CertificationTier, Discipline, HardwareDisclosure, HashAlgorithm, JoiningCertificate,
+    MetricResult, ValidationAttestation, ValidationPhase, ValidatorType,
 };
 
 // ---------------------------------------------------------------------------
@@ -76,6 +76,16 @@ pub struct ValidationRequest {
     /// Researcher's institution — used for conflict-of-interest checks when
     /// validators claim the study.  Empty string = COI check bypassed.
     pub researcher_institution:  String,
+    /// Algorithm whose digest is the core of `data_hash` (#23). `compute_data_hash`
+    /// in the researcher's private DNA uses SHA-256.
+    #[serde(default)]
+    pub data_hash_algorithm:     HashAlgorithm,
+    /// The researcher's hardware disclosure (protocol-backlog 02, 2026-10-19):
+    /// optional coarse class plus optional digest of private details. Asserted,
+    /// not observed. Copied into each validator's attestation at reveal (checked by
+    /// peers) so a HarmonyRecord can carry it under the validators' signatures.
+    #[serde(default)]
+    pub researcher_hardware:     Option<HardwareDisclosure>,
 }
 
 /// A validator's self-assignment to a validation study.
@@ -262,6 +272,9 @@ pub struct CommitmentAnchor {
     /// ActionHash of the ValidationRequest this commitment is for.
     /// Inductive validation chain: CommitmentAnchor → ValidationRequest.
     pub validation_request_hash: ActionHash,
+    /// Algorithm of `commitment_hash` (#23). Peers check the hash length against it.
+    #[serde(default)]
+    pub hash_algorithm:          HashAlgorithm,
 }
 
 /// Cryptographic commitment to the researcher's result.
@@ -278,6 +291,9 @@ pub struct ResearcherResultCommitment {
     pub request_ref:           ExternalHash,
     /// SHA-256 of (result_data.as_bytes() || nonce). Verified on researcher reveal.
     pub result_commitment_hash: Vec<u8>,
+    /// Algorithm of `result_commitment_hash` (#23). Peers check the length against it.
+    #[serde(default)]
+    pub hash_algorithm:        HashAlgorithm,
 }
 
 // ---------------------------------------------------------------------------
@@ -709,6 +725,9 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "num_validators_required must be at least 1".into(),
                 ));
             }
+            if let Some(reason) = vr.researcher_hardware.as_ref().and_then(|h| h.structural_problem()) {
+                return Ok(ValidateCallbackResult::Invalid(format!("ValidationRequest researcher_{reason}")));
+            }
             let props = DnaProperties::try_from_dna_properties()?;
             if props.minimum_validators > 0
                 && (vr.num_validators_required as u32) < props.minimum_validators
@@ -797,10 +816,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             // commitment_hash must be exactly 32 bytes (SHA-256).
             // A malformed hash counts toward the quorum but can never match
             // at reveal time, silently consuming a validator slot.
-            if anchor.commitment_hash.len() != 32 {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "CommitmentAnchor.commitment_hash must be exactly 32 bytes (SHA-256)".into(),
-                ));
+            if anchor.commitment_hash.len() != anchor.hash_algorithm.digest_len() {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "CommitmentAnchor.commitment_hash must be exactly {} bytes ({:?})",
+                    anchor.hash_algorithm.digest_len(),
+                    anchor.hash_algorithm,
+                )));
             }
             let req_record = must_get_valid_record(anchor.validation_request_hash.clone())?;
             let maybe_req: Option<ValidationRequest> = handle_error!(req_record.entry().to_app_option());
@@ -878,11 +899,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             // content_hash and cannot swap it afterwards — not that the bundle behind
             // it is genuine. That is the bundle's own faithfulness property.
             if let Some(h) = att.reproduction_bundle_hash.as_ref() {
-                if h.len() != 32 {
-                    return Ok(ValidateCallbackResult::Invalid(
+                let alg = att.hash_algorithm.unwrap_or_default();
+                if h.len() != alg.digest_len() {
+                    return Ok(ValidateCallbackResult::Invalid(format!(
                         "ValidationAttestation.reproduction_bundle_hash must be exactly \
-                         32 bytes (SHA-256 content_hash)".into(),
-                    ));
+                         {} bytes ({alg:?} claim_hash)",
+                        alg.digest_len(),
+                    )));
                 }
             }
             // Discipline consistency: walk the inductive chain one step further
@@ -916,6 +939,30 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                     "ValidationAttestation.request_created_at must equal the \
                      ValidationRequest's creation timestamp".into(),
                 ));
+            }
+            // 2026-10-19 (protocol-backlog 01/02, #23): three more stamped values,
+            // checked the same way. Governance relies on the first two to tie a
+            // HarmonyRecord to its request and to the researcher's hardware.
+            if att.request_action_hash.as_ref() != Some(&anchor.validation_request_hash) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.request_action_hash must equal the \
+                     CommitmentAnchor's validation_request_hash".into(),
+                ));
+            }
+            if att.request_researcher_hardware != req.researcher_hardware {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.request_researcher_hardware must equal the \
+                     ValidationRequest's researcher_hardware".into(),
+                ));
+            }
+            if att.hash_algorithm != Some(anchor.hash_algorithm) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "ValidationAttestation.hash_algorithm must equal the algorithm of \
+                     the CommitmentAnchor it was revealed against".into(),
+                ));
+            }
+            if let Some(reason) = att.hardware.as_ref().and_then(|h| h.structural_problem()) {
+                return Ok(ValidateCallbackResult::Invalid(format!("ValidationAttestation {reason}")));
             }
             Ok(ValidateCallbackResult::Valid)
         }
@@ -1167,10 +1214,12 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             app_entry: EntryTypes::ResearcherResultCommitment(ref c),
             ..
         }) => {
-            if c.result_commitment_hash.len() != 32 {
-                return Ok(ValidateCallbackResult::Invalid(
-                    "ResearcherResultCommitment.result_commitment_hash must be exactly 32 bytes (SHA-256)".into(),
-                ));
+            if c.result_commitment_hash.len() != c.hash_algorithm.digest_len() {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "ResearcherResultCommitment.result_commitment_hash must be exactly {} bytes ({:?})",
+                    c.hash_algorithm.digest_len(),
+                    c.hash_algorithm,
+                )));
             }
             Ok(ValidateCallbackResult::Valid)
         }

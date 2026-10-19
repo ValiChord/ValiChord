@@ -86,6 +86,7 @@ async function main() {
             modifiers: {
               properties: {
                 system_coordinator_key: '',   // dev bypass
+                network_name: 'valichord-public',   // #24 — stamped on every HarmonyRecord
               },
             },
           },

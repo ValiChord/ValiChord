@@ -271,4 +271,28 @@ async fn forged_harmony_records_are_refused_by_validate() {
         "carries 1 of 2 requested attestations before the round timeout",
         "incomplete round finalised early",
     );
+
+    // ── 10. Network stamp (#24) — the genuine record names this network ──────────
+    assert_eq!(genuine.network_name, "valichord-test", "the coordinator stamps the DNA property");
+    let mut r = genuine.clone();
+    r.network_name = "valichord-public".into();
+    assert_refused(
+        &force(r).await.expect_err("a record naming another network must be refused"),
+        "HarmonyRecord.network_name must be this network's name",
+        "record claiming another network",
+    );
+
+    // ── 11. Researcher hardware altered by the record's writer (backlog 02) ──────
+    // Positive half first: the request's disclosure reached the record unchanged,
+    // through every validator's signed attestation.
+    let request_hw = make_validation_request(request_ref.clone()).researcher_hardware;
+    assert!(request_hw.is_some(), "the fixture request discloses hardware");
+    assert_eq!(genuine.researcher_hardware, request_hw);
+    let mut r = genuine.clone();
+    r.researcher_hardware = Some(make_hardware(HardwareClass::CpuOnly, 0x99));
+    assert_refused(
+        &force(r).await.expect_err("altered researcher hardware must be refused"),
+        "researcher_hardware does not match what its signed attestations",
+        "researcher hardware altered",
+    );
 }

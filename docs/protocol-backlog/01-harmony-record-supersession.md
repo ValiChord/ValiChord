@@ -1,6 +1,8 @@
 # Backlog: HarmonyRecord supersession — the docs promise it, the code has no mechanism
 
-**Status:** Open. **Category: 🟠 expensive after the next network break.** **Needs the rebuild window: yes.**
+**Status: BUILT 2026-10-19, before the Oracle 0.7.1 reinstall** (branch `protocol/pre-reinstall-break`), so it shares that network break. Decided by Ceri 2026-10-19, choosing the first of three options Claude offered (marked recommended): **the researcher or any validator from either round may make the link**; the entry records the role and every peer checks it is true. Readers judge the rest. See `Supersession` and `check_supersession` in `governance_integrity`, and `tests/supersession_forgery.rs`. Answers to the "Open" questions below: links in **both** directions (`SupersededBy`, `Supersedes`); a **typed reason** from a closed list (`NewAttempt`, `ReportedProcessError` — no free text); **not** governance-authorised, and **not a retraction** (red line 5 still stands; real retraction stays governance's and is not built); the read path is `get_supersessions`. The text below is the 2026-08-22 analysis, unchanged.
+
+**Original status:** Open. **Category: 🟠 expensive after the next network break.** **Needs the rebuild window: yes.**
 **Raised by:** Ceri, 2026-08-22, asking why a researcher who fixes their methodology and is then
 successfully reproduced cannot have that reflected.
 **Related:** 02 (same integrity-zome change, should be scoped together), 03 (the doc contradiction

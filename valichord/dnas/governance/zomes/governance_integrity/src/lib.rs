@@ -1,7 +1,8 @@
 use hdi::prelude::*;
 use valichord_shared_types::{
     derive_agreement_level, derive_majority_outcome, AgreementLevel, AttestationOutcome,
-    BadgeType, CertificationTier, Discipline, ValidationAttestation, ValidatorAgentType,
+    BadgeType, CertificationTier, Discipline, HardwareDisclosure, ValidationAttestation,
+    ValidatorAgentType,
 };
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,13 @@ pub struct DnaProperties {
     /// Set to 0 in tests to bypass the clock constraint.
     #[serde(default = "default_round_timeout")]
     pub round_timeout_secs: u64,
+    /// The network's name, chosen by whoever starts it (#24, 2026-10-19) — e.g.
+    /// `valichord-public`. Every HarmonyRecord must carry exactly this value, so a
+    /// record copied off its network still says where it was written. Being a DNA
+    /// property it is part of the DNA hash: two networks with different names are
+    /// different networks. Empty = unnamed (dev/test), and records then carry "".
+    #[serde(default)]
+    pub network_name: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +128,18 @@ pub struct HarmonyRecord {
     /// `check_attestation_evidence` below for exactly what that proves — and
     /// what it does not.
     pub attestation_evidence:     Vec<AttestationEvidence>,
+    /// The network this record was written on (#24) — must equal the DNA property
+    /// `network_name`, checked by every peer.
+    #[serde(default)]
+    pub network_name:             String,
+    /// The researcher's hardware disclosure (protocol-backlog 02). Must equal the
+    /// value every carried attestation states under its validator's signature —
+    /// which attestation_integrity checked against the ValidationRequest — so the
+    /// record's author cannot alter it. The disclosure itself is still the
+    /// researcher's assertion. The validators' own disclosures are in
+    /// `attestation_evidence[i].attestation.hardware`.
+    #[serde(default)]
+    pub researcher_hardware:      Option<HardwareDisclosure>,
 }
 
 /// A validator's signed attestation, carried inside a HarmonyRecord so peers can
@@ -136,6 +156,71 @@ pub struct AttestationEvidence {
     pub action:      Action,
     pub signature:   Signature,
     pub attestation: ValidationAttestation,
+}
+
+// ---------------------------------------------------------------------------
+// Supersession (protocol-backlog 01, built 2026-10-19)
+// ---------------------------------------------------------------------------
+//
+// A newer HarmonyRecord linked to an older one. Both records stay exactly as they
+// were: HarmonyRecords remain immutable and undeletable, and the older one stays
+// visible. The link is an extra, permanent, undeletable statement.
+//
+// WHO MAY MAKE IT (Ceri, 2026-10-19, option "anyone involved"): the researcher, or
+// any validator from either round. The entry records who made it and in which
+// role, and peers check the role is true — so a reader can weigh a link made by a
+// validator differently from one made by the researcher. The protocol decides
+// nothing more than that.
+//
+// ⚠️ NOT A RETRACTION. The governance framework's red line 5 says a HarmonyRecord
+// cannot be retracted because a researcher dislikes the outcome, and reserves real
+// retraction (system error, fraud, legal) for governance. Nothing here marks the
+// older record as wrong; `reason` says why the link was made, from a closed list,
+// with no free text (the `meta` trap: free text on a permanent record).
+
+/// Why a newer HarmonyRecord was linked to an older one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SupersessionReason {
+    /// A new round of revised work. The older record stays accurate about what
+    /// validators found at the time.
+    NewAttempt,
+    /// The person making the link reports that the older record misdescribes
+    /// ValiChord's own process (e.g. a finalisation bug). Their assertion — not a
+    /// governance finding.
+    ReportedProcessError,
+}
+
+/// The role in which a Supersession's author made it. Checked by every peer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SupersessionRole {
+    Researcher,
+    Validator,
+}
+
+/// A researcher's proof that they made the ValidationRequest behind a
+/// HarmonyRecord: the request's `Create` action exactly as their conductor signed
+/// it, and that signature. **The action only, never the entry** — the entry holds
+/// `deposit_token`, which the Attestation DNA membrane protects and this open DHT
+/// would publish. The action's hash must equal the `request_action_hash` the
+/// validators stated under their own signatures.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RequestAuthorship {
+    pub action:    Action,
+    pub signature: Signature,
+}
+
+#[hdk_entry_helper]
+#[derive(Clone)]
+pub struct Supersession {
+    /// The older HarmonyRecord.
+    pub superseded:       ActionHash,
+    /// The newer HarmonyRecord.
+    pub superseding:      ActionHash,
+    pub reason:           SupersessionReason,
+    pub asserted_as:      SupersessionRole,
+    /// Required when `asserted_as` is `Researcher`, absent otherwise.
+    #[serde(default)]
+    pub researcher_proof: Option<RequestAuthorship>,
 }
 
 /// Per-validator reputation score.
@@ -221,6 +306,7 @@ pub enum EntryTypes {
     ValidatorReputation(ValidatorReputation),
     ReproducibilityBadge(ReproducibilityBadge),
     GovernanceDecision(GovernanceDecision),
+    Supersession(Supersession),
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +327,12 @@ pub enum LinkTypes {
     StudyToBadge,
     /// Path anchor ("decisions.all") → GovernanceDecision ActionHash
     AllDecisions,
+    /// Older HarmonyRecord ActionHash → Supersession ActionHash. The direction a
+    /// reader of the OLD record needs ("this story continued").
+    SupersededBy,
+    /// Newer HarmonyRecord ActionHash → Supersession ActionHash. The direction a
+    /// reader of the NEW record needs ("there was an earlier attempt").
+    Supersedes,
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +415,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             }
             // Minimum quorum from DNA properties.
             let props = DnaProperties::try_from_dna_properties()?;
+            // Network stamp (#24): the record names the network it was written on.
+            if record.network_name != props.network_name {
+                return Ok(ValidateCallbackResult::Invalid(format!(
+                    "HarmonyRecord.network_name must be this network's name ({:?}), got {:?}",
+                    props.network_name, record.network_name,
+                )));
+            }
             let min_required = if props.min_attestations_for_finalization == 0 {
                 1u32
             } else {
@@ -469,6 +568,64 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
             Ok(ValidateCallbackResult::Valid)
         }
 
+        // --- Supersession create (backlog 01): the author's role must be true ----
+        FlatOp::CreateEntry(OpEntry::CreateEntry {
+            app_entry: EntryTypes::Supersession(ref s),
+            ref action,
+            ..
+        }) => match check_supersession(s, action.author(), action.timestamp())? {
+            Some(reason) => Ok(ValidateCallbackResult::Invalid(reason)),
+            None => Ok(ValidateCallbackResult::Valid),
+        },
+
+        // --- Supersession index links: must point at a matching Supersession ------
+        //
+        // Without this, anyone could hang an index link off a HarmonyRecord pointing
+        // at a Supersession about two other records, and a reader following the
+        // index would be told a story about the wrong record.
+        FlatOp::Link(OpLink::CreateLink {
+            link_type: link_type @ (LinkTypes::SupersededBy | LinkTypes::Supersedes),
+            action,
+        }) => {
+            let target = match action.target_address.clone().into_action_hash() {
+                Some(h) => h,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "Supersession index links must target a Supersession action".into(),
+                )),
+            };
+            let s_rec = must_get_valid_record(target)?;
+            let s: Supersession = match s_rec.entry().to_app_option().ok().flatten() {
+                Some(s) => s,
+                None => return Ok(ValidateCallbackResult::Invalid(
+                    "Supersession index links must target a Supersession entry".into(),
+                )),
+            };
+            let expected_base = match link_type {
+                LinkTypes::SupersededBy => &s.superseded,
+                _ => &s.superseding,
+            };
+            if action.base_address.clone().into_action_hash().as_ref() != Some(expected_base) {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Supersession index link is based on a HarmonyRecord the Supersession \
+                     does not name in that position"
+                        .into(),
+                ));
+            }
+            if action.author() != s_rec.action().author() {
+                return Ok(ValidateCallbackResult::Invalid(
+                    "Only the author of a Supersession may index it".into(),
+                ));
+            }
+            Ok(ValidateCallbackResult::Valid)
+        }
+
+        // --- Immutability: block updates to Supersession --------------------
+        FlatOp::Update(OpUpdate::Entry {
+            app_entry: EntryTypes::Supersession(_), ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Supersession is immutable — a link between records cannot be changed".into(),
+        )),
+
         // --- Immutability: block updates to HarmonyRecord -------------------
         FlatOp::Update(OpUpdate::Entry {
             app_entry: EntryTypes::HarmonyRecord(_), ..
@@ -535,6 +692,13 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
                                 "ReproducibilityBadge is immutable — cannot be deleted".into(),
                             ));
                         }
+                        // Once asserted, permanent: a link that could be withdrawn
+                        // would let the person it embarrasses quietly undo it.
+                        Some(EntryTypes::Supersession(_)) => {
+                            return Ok(ValidateCallbackResult::Invalid(
+                                "Supersession is immutable — cannot be deleted".into(),
+                            ));
+                        }
                         _ => {}
                     }
                 }
@@ -577,6 +741,14 @@ pub fn validate(op: Op) -> ExternResult<ValidateCallbackResult> {
         }) => Ok(ValidateCallbackResult::Invalid(
             "AllDecisions links are immutable — \
              the governance decision index is append-only".into(),
+        )),
+
+        FlatOp::Link(OpLink::DeleteLink {
+            link_type: LinkTypes::SupersededBy | LinkTypes::Supersedes,
+            ..
+        }) => Ok(ValidateCallbackResult::Invalid(
+            "Supersession links are immutable — \
+             a link between records cannot be hidden".into(),
         )),
 
         // All other ops: valid. Public DHT — open read is the design intent.
@@ -804,6 +976,35 @@ fn check_attestation_evidence(
         }
     }
 
+    // 2026-10-19 (backlog 01/02). Two more stamped values, both checked against the
+    // ValidationRequest by attestation peers: they must agree across the round, the
+    // request hash must be present (a researcher's Supersession proof is matched
+    // against it), and the record's researcher_hardware must be what they state.
+    let request_hash = match evidence.first().and_then(|ev| ev.attestation.request_action_hash.as_ref()) {
+        Some(h) => h,
+        None => {
+            return Ok(Some(
+                "HarmonyRecord attestations must state the ValidationRequest's action hash".into(),
+            ))
+        }
+    };
+    if evidence.iter().any(|ev| {
+        ev.attestation.request_action_hash.as_ref() != Some(request_hash)
+            || ev.attestation.request_researcher_hardware
+                != evidence[0].attestation.request_researcher_hardware
+    }) {
+        return Ok(Some(
+            "HarmonyRecord attestations disagree about which request they answer".into(),
+        ));
+    }
+    if record.researcher_hardware != evidence[0].attestation.request_researcher_hardware {
+        return Ok(Some(
+            "HarmonyRecord researcher_hardware does not match what its signed attestations \
+             state the ValidationRequest disclosed"
+                .into(),
+        ));
+    }
+
     // Recompute the summary exactly as write_harmony_record does. The functions are
     // order-independent, but evidence is in the coordinator's sorted order anyway,
     // which is what makes `discipline` (taken from the first attestation) match.
@@ -831,6 +1032,107 @@ fn check_attestation_evidence(
             return Ok(Some(
                 "HarmonyRecord discipline does not match its signed attestations".into(),
             ));
+        }
+    }
+    Ok(None)
+}
+
+// ---------------------------------------------------------------------------
+// Supersession check (protocol-backlog 01)
+// ---------------------------------------------------------------------------
+
+/// Fetch a HarmonyRecord by action hash for `check_supersession`.
+fn harmony_record_at(hash: &ActionHash) -> ExternResult<Option<(Record, HarmonyRecord)>> {
+    let rec = must_get_valid_record(hash.clone())?;
+    let hr: Option<HarmonyRecord> = rec.entry().to_app_option().ok().flatten();
+    Ok(hr.map(|hr| (rec, hr)))
+}
+
+/// What every peer checks before accepting a Supersession. Returns the reason it
+/// is invalid, or `None`.
+///
+/// Proves: both named entries are real HarmonyRecords on this network, the newer
+/// was written after the older, and the author really held the role they claim —
+/// a validator is listed in either record (whose own participation #11's evidence
+/// check already proved); a researcher holds the signed action that created the
+/// ValidationRequest either record answers, identified by the hash its validators
+/// stated under their own signatures.
+///
+/// Does NOT prove the two rounds are about related work. That is the author's
+/// statement, made under their role, for the reader to weigh.
+fn check_supersession(
+    s: &Supersession,
+    author: &AgentPubKey,
+    written_at: Timestamp,
+) -> ExternResult<Option<String>> {
+    if s.superseded == s.superseding {
+        return Ok(Some("A HarmonyRecord cannot supersede itself".into()));
+    }
+    let Some((old_rec, old)) = harmony_record_at(&s.superseded)? else {
+        return Ok(Some("Supersession.superseded is not a HarmonyRecord".into()));
+    };
+    let Some((new_rec, new)) = harmony_record_at(&s.superseding)? else {
+        return Ok(Some("Supersession.superseding is not a HarmonyRecord".into()));
+    };
+    if new_rec.action().timestamp() <= old_rec.action().timestamp() {
+        return Ok(Some(
+            "Supersession.superseding must have been written after the record it supersedes"
+                .into(),
+        ));
+    }
+    if written_at < new_rec.action().timestamp() {
+        return Ok(Some("A Supersession cannot predate the records it links".into()));
+    }
+
+    match s.asserted_as {
+        SupersessionRole::Validator => {
+            if s.researcher_proof.is_some() {
+                return Ok(Some(
+                    "A Supersession made as a validator must not carry a researcher proof".into(),
+                ));
+            }
+            if !old.participating_validators.contains(author)
+                && !new.participating_validators.contains(author)
+            {
+                return Ok(Some(
+                    "A Supersession made as a validator must be by a validator listed in \
+                     one of the two records"
+                        .into(),
+                ));
+            }
+        }
+        SupersessionRole::Researcher => {
+            let Some(proof) = s.researcher_proof.as_ref() else {
+                return Ok(Some(
+                    "A Supersession made as the researcher must carry the signed \
+                     ValidationRequest action"
+                        .into(),
+                ));
+            };
+            if proof.action.author() != author {
+                return Ok(Some(
+                    "Supersession researcher proof is for a request made by someone else".into(),
+                ));
+            }
+            if !matches!(proof.action.data, ActionData::Create(_)) {
+                return Ok(Some("Supersession researcher proof is not a Create action".into()));
+            }
+            if !verify_signature(author.clone(), proof.signature.clone(), &proof.action)? {
+                return Ok(Some("Supersession researcher proof signature is invalid".into()));
+            }
+            let proved = hash_action(proof.action.clone())?;
+            let stated = |hr: &HarmonyRecord| {
+                hr.attestation_evidence
+                    .first()
+                    .and_then(|ev| ev.attestation.request_action_hash.clone())
+            };
+            if stated(&old) != Some(proved.clone()) && stated(&new) != Some(proved) {
+                return Ok(Some(
+                    "Supersession researcher proof is not the ValidationRequest behind \
+                     either record"
+                        .into(),
+                ));
+            }
         }
     }
     Ok(None)

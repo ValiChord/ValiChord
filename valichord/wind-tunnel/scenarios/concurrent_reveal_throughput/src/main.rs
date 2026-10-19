@@ -76,6 +76,8 @@ fn make_single_validator_request(data_hash: ExternalHash) -> ValidationRequest {
         validation_tier: ValidationTier::Basic,
         discipline: Discipline::ComputationalBiology,
         researcher_institution: "Wind Tunnel Lab".into(),
+        data_hash_algorithm: Default::default(), // SHA-256 (#23)
+        researcher_hardware: None,
     }
 }
 
@@ -109,6 +111,10 @@ fn make_attestation(request_ref: ExternalHash) -> ValidationAttestation {
         reproduction_bundle_hash: None,
         request_num_validators: None, // stamped by submit_attestation
         request_created_at: None,
+        hardware: None,                    // the validator's disclosure (backlog 02) — none here
+        request_action_hash: None,         // stamped by submit_attestation
+        request_researcher_hardware: None, // stamped by submit_attestation
+        hash_algorithm: None,              // stamped by submit_attestation
         deviation_flags: vec![],
         computational_resources: ComputationalResources {
             personal_hardware_sufficient: true,

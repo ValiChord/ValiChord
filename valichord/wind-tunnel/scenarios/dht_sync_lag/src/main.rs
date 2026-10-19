@@ -90,6 +90,8 @@ fn make_validation_request(data_hash: ExternalHash) -> ValidationRequest {
         validation_tier: ValidationTier::Basic,
         discipline: Discipline::ComputationalBiology,
         researcher_institution: "Wind Tunnel Lab".into(),
+        data_hash_algorithm: Default::default(), // SHA-256 (#23)
+        researcher_hardware: None,
     }
 }
 
