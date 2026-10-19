@@ -22,7 +22,7 @@ It runs end-to-end today on five independent nodes whose only channel is the net
 
 #### Two things that came out of building it
 
-**[valichord_attestation](https://github.com/ValiChord/ValiChord/tree/main/valichord_attestation)** — the intended client-side on-ramp: a researcher packages an evaluation run into a verifiable bundle, then submits it. So a claimed benchmark score can be checked without publishing the whole log. 537 tests, five adapters including lm-evaluation-harness and Inspect AI. Standalone Python today, not yet wired to the protocol.
+**[valichord_attestation](https://github.com/ValiChord/valichord-attestation)** — the intended client-side on-ramp: a researcher packages an evaluation run into a verifiable bundle, then submits it. So a claimed benchmark score can be checked without publishing the whole log. 537 tests, five adapters including lm-evaluation-harness and Inspect AI. Standalone Python today, not yet wired to the protocol.
 
 **[polite-shrink](https://github.com/ValiChord/polite-shrink)** — ValiChord needs a network that keeps data safe as nodes join and leave, which led me into an open problem in Holochain's networking: how a node safely *reduces* what it stores without dropping the network below its redundancy target, with no coordinator and no consensus. A simulation harness, a TLA+ proof of the safety gate, and zero data loss across 1,248 configurations — flat even at 90% message loss. Independently reproduced by another developer. Offered against kitsune2's open [sharding issue](https://github.com/holochain/kitsune2/issues/160); the harness also surfaced a real liveness bug there, now an [open PR](https://github.com/holochain/kitsune2/pull/572) upstream.
 

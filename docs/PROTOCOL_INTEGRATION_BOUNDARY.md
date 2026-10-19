@@ -4,7 +4,7 @@
 **Applies to:** any external system proposing to write into, or be read by, the ValiChord
 Holochain protocol (`valichord/`).
 
-Normative keywords per BCP 14, as in `valichord_attestation/spec/conformance.md` §1.
+Normative keywords per BCP 14, as in `spec/conformance.md` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) §1.
 
 > **This is not `INTEGRATION_GUIDE.md`.** That document covers the REST API — how a tool submits
 > a deposit over HTTP and reads a verdict back. Nothing in it touches the protocol's trust
@@ -34,8 +34,8 @@ reason to write it now than any internal need.
 Stated plainly, because rules derived from an easy case are optimistic in ways nobody notices
 until a hard case arrives.
 
-`valichord_attestation` is the **easiest integrator this protocol will ever have**: same author,
-same repository, same release cadence, same language ecosystem, no adversarial relationship, and
+`valichord_attestation` is the **easiest integrator this protocol will ever have** (same author, and until 2026-10-19 the same repository; it now has its own,
+[valichord-attestation](https://github.com/ValiChord/valichord-attestation)): same release cadence, same language ecosystem, no adversarial relationship, and
 a threat model written by the same person who wrote the protocol's. A stranger's system has none
 of that.
 
@@ -107,7 +107,7 @@ holder and are disclosed selectively, on challenge, to a party who asks.
 
 ### 3.4 Every value crossing the boundary MUST be declared **asserted** or **observed**, and every guarantee MUST name the layer that provides it
 
-Definitions in `valichord_attestation/spec/conformance.md` §3.17–3.18: **asserted** is supplied by
+Definitions in `spec/conformance.md` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) §3.17–3.18: **asserted** is supplied by
 a party with an interest in the result; **observed** is derived from evidence that party does not
 control.
 
@@ -170,7 +170,7 @@ Nothing further is wired, **nobody has asked for a bridge**, and none is propose
 
 > **Update 2026-10-18.** A bridge was started the same day, under these rules:
 > [`ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`](ATTESTATION_PROTOCOL_BRIDGE_PLAN.md). Only its step 1
-> exists — library-side functions in `valichord_attestation/protocol.py` that compute the digests
+> exists — library-side functions in `protocol.py` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) that compute the digests
 > the protocol already accepts. No Rust, DNA or entry type changed, and steps 2–4 are not started,
 > so the protocol side is still as described above.
 

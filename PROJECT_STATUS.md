@@ -13,7 +13,7 @@
 |---|---|---|
 | `main` | On **Holochain 0.7.1** — PR #45 merged 2026-10-17 (`1b5e7c8`), demo stack + repacked bundles in the follow-up PR | 2026-10-17 |
 | Holochain | `main` on **0.7.1**; Oracle (`132.145.23.78`) **still on 0.7.0** — fresh install pending, runbook written | 2026-10-17 |
-| `valichord_attestation` | **format v2** (RFC 6962 §2.1), package `2.0.0`, 608 tests, 97% coverage | 2026-08-22 |
+| `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`) | 2026-10-18 |
 | Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (2026-10-18; #35 and #36 are merged). The other 11 remote branches (`upgrade/holochain-0.7.1`, `fix/peer-enforced-signatures`, `fix/0.7.1-demo-stack`, `demo/ai-validator-agent-type`, …) are all **fully merged** into `main` (0 commits ahead) — safe to delete if Ceri wants. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
@@ -25,6 +25,12 @@ Multi-Agent World" — Schmidt Sciences / Cooperative AI Foundation / UK ARIA / 
 recorded 2026-07-29). It **stays until that window closes** — i.e. do not reconsider it before the
 notification lands. It was undocumented before today: mentioned nowhere in this file, `CLAUDE.md`
 or memory.
+
+🆕 **2026-10-19: its attestation part also lives in the new repo**, as branch
+`research/feature-selection-stability` of ValiChord/valichord-attestation (6 commits, history
+preserved). This ValiChord branch is untouched and still the only home of
+`docs/FEATURE_SELECTION_STABILITY_PLAN.md`; merging it here would now recreate files in the stub
+folder, so continue the work in the new repo.
 
 What is on it (verified 2026-08-22): 7 commits, all dated 2026-07-27, **~3,600 lines, entirely
 additive** — `docs/FEATURE_SELECTION_STABILITY_PLAN.md` plus

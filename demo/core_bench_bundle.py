@@ -5,7 +5,10 @@ Each bundle is a model x task record: the validator's reproduced metrics (from
 report.json, via the same extraction as the numeric panel), samples parsed via
 EveryEvalEver's InspectAIAdapter, and a meta.attestation_uri pointing at the
 shared HarmonyRecord. Opt-in (called by core_bench_runner only under
---emit-bundles); a derived artifact that never affects the committed record."""
+--emit-bundles); a derived artifact that never affects the committed record.
+
+Needs the separate valichord-attestation package (github.com/ValiChord/valichord-attestation):
+`pip install valichord-attestation`. It moved out of this repository on 2026-10-19."""
 import json
 import tempfile
 from pathlib import Path
