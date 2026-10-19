@@ -342,7 +342,7 @@ as normal.
 ## AI evaluation attestation (`valichord_attestation`)
 
 For AI pipelines submitting benchmark claims (e.g. model accuracy on a public dataset),
-ValiChord provides a standalone Python library — **`valichord_attestation`** — that does not
+A **separate project**, [valichord-attestation](https://github.com/ValiChord/valichord-attestation) (`pip install valichord-attestation`; moved out of this repository 2026-10-19), provides a standalone Python library — **`valichord_attestation`** — that does not
 require the full Holochain protocol.
 
 The library builds a cryptographically deterministic bundle from an AI evaluation run:
@@ -354,7 +354,7 @@ A bundle is the *evidence layer*. A researcher publishes the bundle hash as thei
 Independent validators run the same evaluation, build their own bundles, and compare. When a
 full ValiChord validation round is required (commit-reveal on the Holochain DHT), the bundle's
 `claim_hash` (not its `bundle_hash` or `content_hash`) becomes the `data_hash` passed into the attestation DNA —
-see `valichord_attestation/protocol.py` (`data_hash`) and `ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`.
+see `protocol.py` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) (`data_hash`) and `ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`.
 
 ```python
 from valichord_attestation import build_bundle, hash_bundle
@@ -369,8 +369,8 @@ bundle = build_bundle(
 print(hash_bundle(bundle))   # stable SHA-256 across implementations
 ```
 
-See `valichord_attestation/README.md` for the full API and
-`valichord_attestation/examples/` for a worked Mistral-7B / GSM8K walkthrough.
+See `README.md` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) for the full API and
+`examples/` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) for a worked Mistral-7B / GSM8K walkthrough.
 
 ---
 
@@ -378,7 +378,7 @@ See `valichord_attestation/README.md` for the full API and
 
 - **Interactive docs:** `GET /docs` (Swagger UI)
 - **OpenAPI spec:** `GET /openapi.yaml`
-- **`valichord_attestation` library:** `valichord_attestation/README.md`
+- **`valichord_attestation` library:** `README.md` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation)
 - **4-DNA architecture:** `docs/7_ValiChord_4-DNA_architecture_technical.md`
 - **How a validation round works:** `docs/15_How_a_Validation_Round_Works.md`
 - **falsify-cookbook Pattern 13** — end-to-end worked example stacking PRML pre-registration + `valichord_attestation` + ValiChord commit-reveal: https://github.com/studio-11-co/falsify-cookbook/blob/main/patterns/13-commit-reveal-validation.md

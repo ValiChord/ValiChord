@@ -148,25 +148,12 @@ Prefer `../run-sweettest.sh <suite>` for any run whose result you will report (s
 
 `sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "=0.7.1"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
 
-### valichord_attestation (Python)
+### valichord_attestation: moved out
 
-```bash
-cd valichord_attestation
-
-# Install (first time)
-pip install -e ".[dev]"
-
-# 608 tests, 97% line coverage (1114 statements, 33 missed).
-# measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13.
-# CI measures coverage on every push touching valichord_attestation/**, so
-# re-derive the figure from a run rather than quoting this comment.
-pytest --cov
-
-# Single test file
-pytest tests/test_merkle.py
-```
-
-For `InspectAILogAdapter` tests: `pip install -e ".[inspect-ai]"` first.
+The Python attestation library now lives in its own repository,
+**[ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)** (moved
+2026-10-19 with its history). Build and test it there. Only redirect stubs remain in
+`valichord_attestation/` here.
 
 ### Svelte UI (valichord-ui/)
 
@@ -220,7 +207,7 @@ cargo run -p concurrent_reveal_throughput -- --agents 4 --duration 90
 
 ### Hard separation — valichord/ vs valichord_attestation
 
-`valichord_attestation` is a standalone Python library for generating cryptographic attestation bundles from AI evaluation runs (inspect_ai logs, lm-eval outputs, etc.). It is **not** an equivalent or alternative to ValiChord proper — it is currently independent, and is intended to become the *client-side on-ramp* once wired to ValiChord proper's DHT: a researcher generates a bundle, submits it to the Holochain protocol, and the commit-reveal verification applies to AI benchmark results.
+**Since 2026-10-19 it is a separate repository: [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)** (moved partly so that no reviewer, human or AI, mistakes it for the product). `valichord_attestation` is a standalone Python library for generating cryptographic attestation bundles from AI evaluation runs (inspect_ai logs, lm-eval outputs, etc.). It is **not** an equivalent or alternative to ValiChord proper — it is currently independent, and is intended to become the *client-side on-ramp* once wired to ValiChord proper's DHT: a researcher generates a bundle, submits it to the Holochain protocol, and the commit-reveal verification applies to AI benchmark results.
 
 Rules:
 - When describing ValiChord's architecture → talk about the 4 DNAs, commit-reveal, Holochain. Do NOT describe attestation bundle formats.
@@ -230,7 +217,7 @@ Rules:
 | Component | Path | What it is |
 |---|---|---|
 | **ValiChord protocol** | `valichord/` | **The main project.** Holochain commit-reveal — 4 DNAs, blind attestation, HarmonyRecord on DHT |
-| **valichord_attestation** | `valichord_attestation/` | Python library — future client on-ramp to the protocol; currently standalone |
+| **valichord-attestation** | separate repo (stubs only in `valichord_attestation/`) | Python library — future client on-ramp to the protocol; currently standalone |
 | **valichord-ui** | `valichord-ui/` | Svelte 5 browser UI for the three protocol roles (Researcher, Validator, Governance) |
 
 `backend/app_protocol.py` is an integration layer — not a definition of either project.
@@ -246,7 +233,7 @@ attacker-shaped input is a network-wide validation bomb), no payload content on 
 other for the same guarantee and neither provides it.
 
 **Known protocol gaps: `docs/protocol-backlog/`** — the protocol-side counterpart of
-`valichord_attestation/spec/format-backlog/`, created 2026-08-22 because the protocol had no place
+`spec/format-backlog/` in the valichord-attestation repo, created 2026-08-22 because the protocol had no place
 to record known-missing things and two gaps surfaced in conversation that would otherwise have been
 lost. **It is deliberately only for changes that get more expensive with time:** 🟠 anything
 needing an entry/link type and 🔴 anything determining what an immutable record *says*
@@ -277,33 +264,12 @@ Cross-DNA calls use `CallTargetCell::OtherRole("role_name")` with the author gra
 
 The `sweettest_integration/` and `wind-tunnel/` directories are each their own Cargo workspaces isolated from `valichord/Cargo.toml`.
 
-### valichord_attestation modules
+### The attestation library is a separate repository
 
-| Module | Purpose |
-|---|---|
-| `builder.py` | `build_bundle(...)` — assembles a `Bundle` from typed fields |
-| `canonical.py` | JCS (RFC 8785) encoding + `hash_bundle()` + `content_hash()` |
-| `merkle.py` | construction selection by `format_version`; wrappers for `merkle_root`, `merkle_proof`, `root_from_path`, `verify_faithfulness` |
-| `merkle_v1.py` | **frozen** v1 construction — bare pair hashing, odd levels padded by duplication. Kept so v1.x bundles stay verifiable. Do not "fix" its known weaknesses here |
-| `merkle_v2.py` | current construction — RFC 6962 §2.1 |
-| `challenge.py` | Probabilistic challenge generation (HMAC-SHA256 seed, SHA-256 counter-mode PRNG) |
-| `response.py` | `build_response`, `verify_response` — Merkle-path selective disclosure |
-| `metrics.py` | Verifier-side metric recomputation (#13): `check_metric` (exact, whole log), `bind_disclosed_samples` + `check_mean_metric` (Hoeffding bound on a challenged subset — "consistent", never "verified") |
-| `adapters/` | `AdapterBase` ABC + six adapters: `InspectAILogAdapter` (reads `.eval` files), `InspectEvalsAdapter`, `PiSessionAdapter` (these three exported from the package root), `LmEvalAdapter`, `AiluminateAdapter`, `WandbRunAdapter` |
-
-**Format version: v2** (since 2026-08-18; `build_bundle` writes `"v2"`, package 2.0.0). Bundles have a `bundle_hash` (full content) and `content_hash` (excludes `Bundle.meta` provenance block). v1/v1.1/v1.2 bundles remain valid and are **not** rewritten.
-
-**v2 changed the Merkle construction and nothing else** — RFC 6962 §2.1, adopted whole: `0x00`/`0x01` leaf/node domain separation, odd subtrees promoted rather than duplicated, empty and single-leaf cases defined. Every other part of `spec/attestation_format_v1.md` (fields, JCS encoding, both hashes, challenge-response, threat model) still applies. Spec: `spec/attestation_format_v2.md`.
-
-⚠️ **When verifying, pass the bundle's own `format_version`** — never inherit the library default. A root is 64 hex chars under every version, so checking a v1.2 root under v2 returns *does not verify*, indistinguishable from tampering. `construction_for()` raises `UnknownFormatVersion` rather than guessing. This bit three call sites during the v2 release; assume it will bite again.
-
-**Open format backlog: `spec/format-backlog/`** — seven candidate additions raised by outside
-implementers, each naming who raised it and when. Not version-named on purpose: `spec/v2-backlog/`
-closed when its items shipped and new findings had nowhere to go. ⚠️ `Bundle.meta` is the obvious
-home for judge configuration / rubric versions and the **wrong** one — `meta` is excluded from
-`content_hash`, so two runs scored by different judges would compare as equivalent.
-
-Conformance vectors: `tests/vectors/merkle_v1_2.json` (+ `_odd_node`) and `merkle_v2.json`. The v1.2 files are **frozen** — they are the evidence old bundles still verify. A new version adds a file, never edits these.
+Its modules, format notes, backlog and conformance vectors moved to
+**[ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)** on
+2026-10-19, with that repository's own `CLAUDE.md`. Nothing about it belongs in this file beyond
+the separation rules above.
 
 ### Svelte UI architecture (valichord-ui/)
 
@@ -368,10 +334,11 @@ Used by: `ValidationTier`, `AttestationConfidence`, `ValidationPhase`, `Agreemen
   commit whose body read *"pushed deliberately without [skip ci]"* skipped both workflows. The
   explanation performed the thing it denied. Refer to it obliquely — "the skip token" — or not
   at all.
-- ⚠️ **An empty commit cannot trigger a path-filtered workflow.** `attestation.yml` runs only on
-  changes under `valichord_attestation/**`, so `git commit --allow-empty` fires the unfiltered
-  90-minute matrix and **not** the 25-second job you wanted. To run that one without a code change,
-  use **Actions → Attestation Format → Run workflow** in a browser. ⚠️ `gh workflow run` returns
+- ⚠️ **An empty commit cannot trigger a path-filtered workflow.** `demo.yml` runs only on
+  changes under its own paths, so `git commit --allow-empty` fires the unfiltered 90-minute matrix
+  and **not** the short job you wanted. To run that one without a code change, use
+  **Actions → Demo → Run workflow** in a browser. (The example was `attestation.yml` until that
+  workflow moved to the valichord-attestation repo on 2026-10-19.) ⚠️ `gh workflow run` returns
   **HTTP 403** from a Codespace — the injected `GITHUB_TOKEN` can read runs but not dispatch them.
 
 

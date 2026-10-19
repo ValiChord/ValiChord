@@ -210,7 +210,7 @@ What the tests prove, in brief:
 The protocol is implemented across all four DNAs and is fully tested:
 
 0. **Researcher seals result** *(at submission, months before validators begin)* — `lock_researcher_result` in DNA 1 generates a 32-byte random nonce, computes `commitment_hash = SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores the structured metrics and nonce as a private `LockedResult` entry that never leaves the researcher's device, and automatically publishes only the hash to DNA 3 as a `ResearcherResultCommitment`. Validators can verify this commitment exists before accepting a study — the researcher is bound to their result from day one. Critically, only the hash is published: validators cannot see the actual metric values until after they have committed their own verdicts, preventing anchoring bias.
-1. **Validators commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine. A validator who ran tooling may also set `reproduction_bundle_hash`, the `claim_hash` of their own `valichord_attestation` bundle; because it is part of the hashed struct it is sealed into the commitment automatically, so their verdict is bound to a **specific set of per-sample outputs** rather than to the bare word "Reproduced". The field is optional and `None` is a legitimate permanent state — an unbound verdict, not a missing one. It binds *which* results the validator stands behind; it does not prove the bundle came from a real run, and it does not catch a validator who genuinely computes the wrong answer.
+1. **Validators commit** — each validator seals their private assessment as a `ValidatorPrivateAttestation` in their own DNA 2 workspace. `seal_private_attestation` generates a random nonce and computes `commitment_hash = SHA-256(msgpack(ValidationAttestation) || nonce)`. The entry — including the nonce — never leaves their machine. A validator who ran tooling may also set `reproduction_bundle_hash`, the `claim_hash` of their own bundle from the separate [valichord-attestation](https://github.com/ValiChord/valichord-attestation) project; because it is part of the hashed struct it is sealed into the commitment automatically, so their verdict is bound to a **specific set of per-sample outputs** rather than to the bare word "Reproduced". The field is optional and `None` is a legitimate permanent state — an unbound verdict, not a missing one. It binds *which* results the validator stands behind; it does not prove the bundle came from a real run, and it does not catch a validator who genuinely computes the wrong answer.
 2. **Anchors published** — DNA 2's `post_commit` automatically calls `notify_commitment_sealed()` in DNA 3, writing a public `CommitmentAnchor` to the shared DHT containing the `commitment_hash`. Everyone can verify the commitment happened and that it is cryptographically bound to a specific assessment — but the assessment content remains hidden.
 3. **Phase opens** — when all expected `CommitmentAnchor` entries are present, DNA 3 writes a `PhaseMarker(RevealOpen)` to the DHT. Validators discover this by polling, not by signal — ensuring no validator is disadvantaged by network latency.
 4. **Dual reveal** *(both parties simultaneously)* — the researcher calls `reveal_researcher_result` in DNA 3, which verifies `SHA-256(rmp_serde::to_vec_named(metrics) || nonce) == result_commitment_hash` **in the zome code** and writes an immutable `ResearcherReveal` to the DHT. Each validator retrieves their sealed nonce from DNA 2 via `get_private_attestation_for_task` and calls `submit_attestation` in DNA 3, which verifies `SHA-256(msgpack(attestation) || nonce) == CommitmentAnchor.commitment_hash` **in the zome code**. Neither party can reveal different values than they committed to, and neither could see the other's committed content before committing their own.
@@ -280,75 +280,19 @@ ValiChord at Home is a standalone tool in its own repository. It does not run th
 
 ---
 
-## 🔬 AI Evaluation Attestation — `valichord_attestation`
+## 🔬 A separate project: AI evaluation attestation
 
-`valichord_attestation/` is a Python library for producing cryptographically verifiable attestation bundles for AI evaluation runs. The same verification logic that ValiChord applies to scientific reproducibility — commit, hash, reveal — applies to AI capability benchmarks: a published accuracy score should be traceable to a specific run and independently verifiable without access to the full log.
+Attestation bundles for AI evaluation runs (a verifiable commitment to a run's results and
+per-sample outputs, with challenge-response checks) are a **separate project, not part of
+ValiChord**: **[ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)**,
+`pip install valichord-attestation`. It moved out of this repository on 2026-10-19 with its full
+history.
 
-Two properties make a bundle verifiable:
-
-1. **Deterministic hash** — bundles are encoded with RFC 8785 (JSON Canonicalization Scheme), so the same run always produces the same bytes and the same SHA-256 digest.
-2. **Merkle root** — a SHA-256 Merkle tree over per-sample outputs lets the log holder prove any individual sample to a verifier without disclosing the full log.
-
-```python
-from valichord_attestation import build_bundle, hash_bundle, merkle_proof, verify_faithfulness
-
-bundle = build_bundle(
-    model_id="gpt-4o-2024-08-06",
-    task_id="gsm8k",
-    raw_metrics=[{"key": "accuracy", "value": 0.847, "stderr": 0.025}],
-    samples=[{"index": i, "output": "...", "correct": True} for i in range(1319)],
-    samples_total=1319,      # assert intended run size — detects silent sample omission
-    repo_commit="abc123",
-    harness_version="inspect_ai/0.3.19",
-)
-bundle_hash = hash_bundle(bundle)   # publish alongside the report
-proof = merkle_proof(samples, index=42)   # selective disclosure
-ok = verify_faithfulness(bundle.outputs_merkle_root, 42, samples[42], proof)
-```
-
-The format is harness-agnostic. An `AdapterBase` class and six built-in adapters cover the major evaluation harnesses:
-
-- **`InspectAILogAdapter`** — reads inspect_ai `.eval`/`.json` log files directly via the inspect_ai Python API (no pre-parsing step)
-- **`InspectEvalsAdapter`** — reads the `evaluation_report:` block from `eval.yaml`, with optional `eval_yaml_metadata=` enrichment (arxiv, human baseline, floating-asset warnings, requires_internet)
-- **`LmEvalAdapter`** — reads lm-evaluation-harness `results_*.json` (+ optional `samples_*.json`) — the de-facto industry standard for LLM benchmarking
-- **`AiluminateAdapter`** — reads MLCommons AILuminate (modelbench) safety-benchmark reports, committing model responses and grader verdicts together
-- **`PiSessionAdapter`** — reads pi coding-agent session JSONL files
-- **`WandbRunAdapter`** — reads Weights & Biases run metadata and summary metrics
-
-`InspectAILogAdapter`, `InspectEvalsAdapter` and `PiSessionAdapter` are exported from the package root; the rest import from their modules, e.g. `from valichord_attestation.adapters.lm_eval_adapter import LmEvalAdapter`.
-
-```python
-from valichord_attestation import InspectAILogAdapter
-
-bundle = InspectAILogAdapter().to_bundle("logs/my_eval.eval")
-```
-
-A **probabilistic challenge-response layer** (Section 6 of the spec) adds verifier-controlled randomness on top of the Merkle structure. The verifier supplies a random nonce; challenged indices are derived from `HMAC-SHA256(nonce, bundle_hash)` + SHA-256 counter-mode, so the holder cannot predict which samples will be inspected. The response contains only hashes and proof paths — no raw sample content. With `k=60` and a 5% fabrication rate, catch probability is ~95%.
-
-```python
-from valichord_attestation import hash_bundle, Challenge, build_response, verify_response
-import os
-
-challenge = Challenge(bundle_hash=hash_bundle(bundle), verifier_nonce=os.urandom(32), k=60)
-response = build_response(challenge, samples)          # holder's side
-ok = verify_response(challenge, response, bundle)      # verifier's side
-```
-
-**Status:** 608 tests, 97% line coverage (measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13), format v2 (RFC 6962 Merkle construction; dual `bundle_hash`/`content_hash`; free-form `meta` provenance block). Bundles written under v1.x remain valid and are verified under the earlier construction. Integration with ValiChord's Holochain DHT — bundles submitted to the protocol and published to the DHT — is still ahead and is **not** what the format version refers to; the library is standalone at every format version.
-
-```bash
-pip install -e "valichord_attestation[dev]"
-pip install "valichord_attestation[inspect-ai]"   # adds inspect_ai dependency
-pytest valichord_attestation/tests/
-
-# GSM8K demo — Mistral-7B-Instruct-v0.3 on GSM8K-100 (no GPU required)
-python valichord_attestation/examples/mistral_7b_gsm8k_demo/challenge_response_demo.py
-
-# inspect_ai demo — GPT-4o-mini on popularity task (no GPU or download required)
-python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_response_demo.py
-```
-
-📄 **[Format spec v2 →](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v2.md)** (changes only the Merkle construction; everything else is in [v1](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md)) &nbsp;•&nbsp; 📦 **[GSM8K example →](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/examples/mistral_7b_gsm8k_demo/README.md)** &nbsp;•&nbsp; 📦 **[inspect_ai example →](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/examples/inspect_ai_popularity_demo/README.md)**
+It is intended to become one way to bring AI evaluation results into ValiChord, and is not yet
+connected to it. The one point where the two meet today: a validator may put the `claim_hash` of
+its own bundle in `reproduction_bundle_hash` (above), which the protocol treats as an opaque value
+it never opens. The rules any such integration must meet are in
+[`docs/PROTOCOL_INTEGRATION_BOUNDARY.md`](docs/PROTOCOL_INTEGRATION_BOUNDARY.md).
 
 ---
 
@@ -390,7 +334,7 @@ python valichord_attestation/examples/inspect_ai_popularity_demo/challenge_respo
 | [Deployment Checklist](https://github.com/ValiChord/ValiChord/blob/main/docs/DEPLOYMENT_CHECKLIST.md) | All DNA properties, dev/test bypass values, production requirements, and misconfiguration failure modes |
 | [Integration Guide](https://github.com/ValiChord/ValiChord/blob/main/docs/INTEGRATION_GUIDE.md) | REST API integration guide — ⚠️ written for the `/validate` + webhooks API, which left with [ValiChord at Home](https://github.com/topeuph-ai/valichord_at_home) in April 2026 |
 | [OpenAPI 3.0 Spec](https://github.com/ValiChord/ValiChord/blob/main/backend/openapi_protocol.yaml) | Machine-readable spec for the protocol API (`backend/app_protocol.py`); served at `GET /openapi.yaml` when that API runs |
-| [Attestation Format Spec](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v1.md) ([v2 changes](https://github.com/ValiChord/ValiChord/blob/main/valichord_attestation/spec/attestation_format_v2.md)) | Canonical attestation bundle format for AI evaluation runs — schema, Merkle construction, encoding rules |
+| [Attestation Format Spec](https://github.com/ValiChord/valichord-attestation/blob/main/spec/attestation_format_v1.md) ([v2 changes](https://github.com/ValiChord/valichord-attestation/blob/main/spec/attestation_format_v2.md)) | Separate project (valichord-attestation): canonical attestation bundle format for AI evaluation runs — schema, Merkle construction, encoding rules |
 | [Nondominium Integration Vision](https://github.com/ValiChord/ValiChord/blob/main/nondominium_integration/INTEGRATION_VISION.md) | Design for ValiChord × Nondominium (Sensorica) open-value accounting |
 | [Nondominium Integration Status](https://github.com/ValiChord/ValiChord/blob/main/nondominium_integration/README.md) | Status and open design decisions |
 
@@ -410,7 +354,7 @@ The four-DNA Holochain infrastructure is built and integration-tested. The codeb
 | Resource | Link |
 | :--- | :--- |
 | Codebase (Rust / Holochain) | [`valichord/`](https://github.com/ValiChord/ValiChord/tree/main/valichord) |
-| AI eval attestation library (Python) | [`valichord_attestation/`](https://github.com/ValiChord/ValiChord/tree/main/valichord_attestation) |
+| AI eval attestation library (Python) — separate project | [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation) |
 | Browser UI (Svelte 5) | [`valichord-ui/`](https://github.com/ValiChord/ValiChord/tree/main/valichord-ui) |
 | Frontend UX guide | [`valichord-ui/FRONTEND.md`](https://github.com/ValiChord/ValiChord/blob/main/valichord-ui/FRONTEND.md) |
 | Testing guide — every layer, build and run commands, coverage inventory | [`TESTING.md`](https://github.com/ValiChord/ValiChord/blob/main/TESTING.md) |
@@ -470,7 +414,7 @@ pkill -x holochain; pkill -x lair-keystore; sleep 2   # -x, never -f: -f matches
 | **Phase 1** | **Full MVP:** UI layer, researcher and validator dashboards, live network deployment. | **Browser UI browser-tested on Holochain 0.7.1 (`valichord-ui/`). Live network deployment pending first real validation engagement.** |
 | **Phase 2** | **Integration at scale:** Always-on hosting, journal and funder API deployments, persistent AI validator nodes. | **Records readable over HTTP from the demo nodes (`/record?hash=…`). Validator REST API (`backend/app_protocol.py`) needs repair before use. Nondominium integration in design.** |
 
-Probabilistic challenge-response is shipped in `valichord_attestation` (format v2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
+Probabilistic challenge-response is shipped in the separate [valichord-attestation](https://github.com/ValiChord/valichord-attestation) project (format v2). Hardware-attested execution via TEE is the next step toward report faithfulness verifiable without log access.
 
 ---
 
