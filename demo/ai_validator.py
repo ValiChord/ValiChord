@@ -23,6 +23,8 @@ Usage
 -----
     python3 demo/ai_validator.py
 """
+from __future__ import annotations  # `dict | None` below must not be evaluated: the Oracle server runs Python < 3.10
+
 import hashlib
 import json
 import os
