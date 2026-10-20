@@ -326,6 +326,11 @@ main{max-width:680px;margin:0 auto;padding:3rem 1.5rem 5rem}
 .btn-muted:hover:not(:disabled){border-color:var(--accent);background:var(--surface2)}
 .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--dim);padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-family:inherit;transition:all .2s;margin-top:.5rem}
 .btn-ghost:hover{border-color:var(--accent);color:var(--text)}
+.examples-box{border:1px solid var(--accent);border-radius:10px;padding:.9rem 1rem;margin:.9rem 0 1rem;background:rgba(74,144,217,.07)}
+.examples-title{font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:.25rem}
+.examples-sub{font-size:.8rem;color:var(--text);opacity:.8;line-height:1.5;margin-bottom:.3rem}
+.btn-example{background:var(--surface2);border:1px solid var(--accent);color:var(--text);padding:.55rem 1.1rem;border-radius:8px;cursor:pointer;font-size:.9rem;font-family:inherit;font-weight:500;margin:.45rem .5rem 0 0;transition:all .2s}
+.btn-example:hover{background:var(--accent);color:#fff}
 .field-label{display:block;font-size:.78rem;color:var(--dim);margin:.9rem 0 .3rem;letter-spacing:.02em}
 textarea,input[type=password]{width:100%;background:#0d0d1a;border:1px solid var(--border);border-radius:6px;padding:.6rem .8rem;color:var(--text);font-size:.85rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .2s}
 textarea:focus,input[type=password]:focus{border-color:var(--accent)}
@@ -392,14 +397,16 @@ details[open]>summary::after{transform:rotate(90deg)}
 
 <div class="card card-primary" id="customInputCard">
   <h2>State a hypothesis. Seal your answer. Let the validators run.</h2>
-  <p id="cardIntro">Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
 
-  <div style="margin:.6rem 0 .2rem">
-    <span style="font-size:.78rem;color:var(--dim)">Or try a ready-made check, where the answer can be re-derived from the evidence given:</span><br>
-    <button type="button" class="btn-ghost" onclick="fillExample('audit')">Election audit recount</button>
-    <button type="button" class="btn-ghost" onclick="fillExample('lab')">Lab result re-check</button>
+  <div class="examples-box">
+    <div class="examples-title">Try a ready-made check</div>
+    <div class="examples-sub">One click fills everything in. The answer can be worked out from the evidence given, so the validators recount rather than give opinions.</div>
+    <button type="button" class="btn-example" onclick="fillExample('audit')">🗳️ Election audit recount</button>
+    <button type="button" class="btn-example" onclick="fillExample('lab')">🧪 Lab result re-check</button>
+    <p class="key-note" id="exampleNote" style="display:none"></p>
   </div>
-  <p class="key-note" id="exampleNote" style="display:none"></p>
+
+  <p id="cardIntro">Or write your own. Enter any evaluable claim — scientific, empirical, philosophical, or evidence-based. Write your verdict in the answer field. That answer is cryptographically hashed and committed to the distributed network <em>before</em> the three AI validators begin their independent research. They cannot see your answer. They cannot see each other's. Only after all three have committed can you trigger the reveal.</p>
 
   <label class="field-label">Hypothesis or claim</label>
   <textarea id="customClaim" rows="3" placeholder="e.g. Regular aerobic exercise reduces resting heart rate in healthy adults" oninput="checkCustomReady()"></textarea>
