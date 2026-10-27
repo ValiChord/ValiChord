@@ -17,7 +17,7 @@
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet. **v0.6.7 approved 2026-10-27**, to be tagged once the repack (item 4 under "What is left") has landed on `main` | 2026-10-27 |
-| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27). **Deletion approved by Ceri 2026-10-27** — not done yet, because the Claude GitHub App has no write access to the org (pushes and deletions return 403). The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
+| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27). **Deletion approved by Ceri 2026-10-27** — not done: a Claude session may push only its own `claude/…` branch, so deleting the others returns HTTP 403 even with org access. The command and the restore list are under "THE NEXT STEP", item 5. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -266,11 +266,45 @@ untested against an integrator whose incentives differ from ours.
    release for Holochain 0.7.
 4. ~~Re-enable the wind-tunnel CI job~~ — ✅ done 2026-08-03. ~~Delete the merged 0.7 branches~~ —
    ✅ done; both are gone from the remote.
-5. **Approved by Ceri 2026-10-27, not yet done.** Each one needs either GitHub write access for
-   Claude (the Claude GitHub App on the ValiChord org) or Ceri's own hands:
+5. **Approved by Ceri 2026-10-27.** Claude got GitHub access later that day (the session branch
+   was pushed). What that could and could not unblock:
    - **Repack bundles** for #60, then check the integrity hashes (item 4 of "What is left" above).
+     Dispatched on `claude/beautiful-bardeen-60urjk` (run `40602164694`).
    - **Tag v0.6.7** once that repack is on `main`.
-   - **Delete the 21 merged remote branches** (the "Live branches" row in the table at the top).
+   - **Delete the 21 merged remote branches** — needs Ceri. A Claude session may push only its
+     own branch, and the delete returned HTTP 403. All 21 were 0 commits ahead of `main` when
+     checked on 2026-10-27. Run this from your own clone:
+     <details><summary>Command, and the tip of each branch (to restore one: <code>git push origin &lt;sha&gt;:refs/heads/&lt;name&gt;</code>)</summary>
+
+     ```
+     git push origin --delete attestation/metric-recompute check/pi-real-sessions chore/attestation-split chore/demo-runner-dead-code ci/skip-matrix-on-docs-only demo/ai-validator-agent-type demo/examples-visible demo/ready-made-checks docs/audit-followups docs/dead-host-sweep feat/claim-hash feat/linked-agents-lookup feat/local-json-schema fix/0.7.1-demo-stack fix/numeric-convergence-note fix/peer-enforced-signatures fix/reveal-phase-rules fix/yoai-070-compat protocol/pre-reinstall-break test/local-wire-integration upgrade/holochain-0.7.1
+     ```
+
+     | Tip | Branch |
+     |---|---|
+     | `0d9c1bc35b55` | attestation/metric-recompute |
+     | `8869b9eac196` | check/pi-real-sessions |
+     | `44c6f7a65593` | chore/attestation-split |
+     | `ae7b74b88e19` | chore/demo-runner-dead-code |
+     | `3a44180d2c17` | ci/skip-matrix-on-docs-only |
+     | `ed3f707da127` | demo/ai-validator-agent-type |
+     | `2c3153bbada0` | demo/examples-visible |
+     | `625e0eb2097a` | demo/ready-made-checks |
+     | `365a80e613d8` | docs/audit-followups |
+     | `04a3c2c2da71` | docs/dead-host-sweep |
+     | `d3840844ecb3` | feat/claim-hash |
+     | `abfbe3b79005` | feat/linked-agents-lookup |
+     | `39ba0424648a` | feat/local-json-schema |
+     | `682f66e530c3` | fix/0.7.1-demo-stack |
+     | `150aa0172874` | fix/numeric-convergence-note |
+     | `fb996ed64c22` | fix/peer-enforced-signatures |
+     | `64dfb172b8e8` | fix/reveal-phase-rules |
+     | `d609ac47f4d6` | fix/yoai-070-compat |
+     | `8724105e1f15` | protocol/pre-reinstall-break |
+     | `c34daabce343` | test/local-wire-integration |
+     | `563a1a0cdfe5` | upgrade/holochain-0.7.1 |
+
+     </details>
    - **Switch off the old host** `152.67.153.149` (Oracle Cloud console).
    - **Move the attestation-library plans** (`docs/PISESSION_ADAPTER_PLAN.md`,
      `docs/EVALS_REPO_PLAN.md`, `docs/ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`) into the
