@@ -2,8 +2,10 @@
 #
 # Builds an image containing:
 #   - Node.js 20 + @holochain/client
-#   - The Holochain conductor binary (auto-downloaded if not present in demo/bin/)
-#   - The kitsune2 bootstrap server binary (from demo/bin/kitsune2-bootstrap-srv)
+#   - The Holochain conductor binary (auto-downloaded unless demo/bin/ already holds
+#     the pinned version — see the version check below)
+#   - The kitsune2 bootstrap server binary (likewise; the committed
+#     demo/bin/kitsune2-bootstrap-srv is 0.4.1, fails that check, and is replaced)
 #   - The compiled researcher.happ / validator.happ
 #   - The demo/ Node.js scripts
 #

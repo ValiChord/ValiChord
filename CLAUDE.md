@@ -86,7 +86,6 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire --test
 # ⚠️ Pack with the same `hc` version workdir/ was packed with (0.7.1 since 2026-10-17), or the
 # test bundles differ from production for a reason unrelated to the code under test.
 # build-test-dnas.sh uses `hc` from PATH; override with HC_BIN=/path/to/hc ./build-test-dnas.sh.
-# (The script's own comment still says HC_BIN is required "on the v0.7.0 branch" — stale.)
 #
 # ⚠️ Run via ./run-sweettest.sh, NOT a hand-rolled `| grep -v sqlcipher_mlock`.
 # ENOMEM spam splices into the MIDDLE of a `test <name> ... ok` line, so an

@@ -43,9 +43,9 @@ cargo build --target wasm32-unknown-unknown --release \
   --target-dir target-test --features "$FEATURES"
 
 # HC_BIN overrides the packing tool, mirroring HOLOCHAIN_BIN in dev.sh and the
-# e2e harness. It is REQUIRED on the v0.7.0 branch: `hc` on PATH in the
-# Codespace is deliberately still 0.6.2, and a DNA packed by 0.6.2 is not what
-# the 0.7 sweettest conductor loads from workdir/. Packing with the wrong
+# e2e harness. Use it whenever the `hc` on PATH is not the version workdir/ was
+# packed with (0.7.1 since 2026-10-17; it was needed throughout the 0.7.0
+# migration, when the Codespace PATH still held 0.6.2). Packing with the wrong
 # version produces bundles that differ from the production ones for a reason
 # that has nothing to do with the code under test.
 HC_BIN="${HC_BIN:-hc}"

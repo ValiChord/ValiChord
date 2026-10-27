@@ -7,7 +7,7 @@ edition = "2021"
 publish = false
 
 # This crate is intentionally NOT a workspace member — it depends on
-# holochain = "0.6.1" (native conductor) which cannot compile to wasm32.
+# holochain = "=0.7.1" (native conductor) which cannot compile to wasm32.
 # Adding it to the workspace would break `cargo build --target wasm32-unknown-unknown`.
 #
 # Usage:

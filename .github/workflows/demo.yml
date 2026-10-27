@@ -5,8 +5,9 @@ name: Demo
 #
 # Added 2026-08-25. Until then demo/ had NO CI at all. Ten test files and
 # roughly 70 KB of assertions sat in the tree and nothing ever ran them: the
-# only pytest invocation in the repo lives in attestation.yml, path-filtered to
-# `valichord_attestation/**`.
+# only pytest invocation in the repo lived in attestation.yml, path-filtered to
+# `valichord_attestation/**` (that workflow moved to the valichord-attestation
+# repository with the library on 2026-10-19).
 #
 # The sharpest consequence was in test_agreement.py. That file is the Python
 # half of a deliberate cross-language guard — demo/agreement.py mirrors
@@ -59,7 +60,7 @@ jobs:
       # The first version of this job curated the list — pytest, scipy, flask —
       # on the reasoning that the tests fake the provider call and never serve
       # traffic, so the heavier deps were wasted minutes. It went red on its
-      # first run: demo/tests/test_demo_runner.py patches `anthropic.Anthropic`,
+      # first run: demo/tests/test_demo_runner.py (since removed) patched `anthropic.Anthropic`,
       # which needs the real module importable, and the author's machine had it
       # installed so it passed there.
       #

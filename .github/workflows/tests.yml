@@ -19,7 +19,8 @@ name: Integration Tests
 # which would have meant it stopped running the moment that branch merged and
 # disappeared — silently removing the only proof that the integrity zomes still
 # reject forbidden updates and deletes. With Tryorama gone it is the sole
-# immutability signal, so it runs everywhere. It costs ~50 min.
+# immutability signal, so it runs everywhere. It now takes ~90 min or more (see
+# the tripwire job's timeout below).
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Why paths-ignore, and why a deny-list ─────────────────────────────────────
@@ -50,7 +51,7 @@ name: Integration Tests
 
 on:
   push:
-    branches: [main, v0.7.0]
+    branches: [main]   # v0.7.0 was listed here until that branch merged and was deleted
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -71,16 +72,18 @@ env:
 jobs:
   # ── Supply-chain guard: no test-only hooks in shipped bundles ────────────────
   # The immutability tripwire tests (sweettest_integration/tests/
-  # immutability_tripwire.rs) need coordinators built with --features test_utils,
-  # which expose `test_force_update_*` externs that can issue an Update against a
-  # committed entry. Those must NEVER reach a production hApp.
+  # immutability_tripwire.rs and the *_forgery.rs tests) need coordinators built
+  # with --features test_utils, which expose `test_force_*` externs that can issue
+  # an Update or Delete against a committed entry, or write a forged one. Those
+  # must NEVER reach a production hApp.
   #
   # build-test-dnas.sh keeps them quarantined in target-test/ + workdir-test/
   # (both gitignored), but nothing stops someone packing workdir/ from a stale
   # test-feature build by hand. This job is that backstop.
   #
-  # Deliberately dependency-free (grep over committed bundles, no Rust, no
-  # Holochain binary) so it fails in seconds rather than after a 90-minute matrix.
+  # Deliberately dependency-free (the runner's python3 decompresses the committed
+  # bundles and scans them; no Rust, no Holochain binary) so it fails in seconds
+  # rather than after a 90-minute matrix.
   no-test-hooks:
     name: Guard — no test-only hooks in production bundles
     runs-on: ubuntu-latest
@@ -133,10 +136,10 @@ jobs:
           cargo test -p governance_coordinator
 
   # ── UI E2E: Playwright against a real conductor ──────────────────────────────
-  # Fast independent signal (~5–10 min): uses the COMMITTED workdir/valichord.happ
-  # (repo convention: always repack + commit after source changes), so no Rust
-  # toolchain is needed. One throwaway conductor per run, managed by Playwright
-  # globalSetup/globalTeardown (valichord-ui/tests/e2e/setup/conductor-manager.ts).
+  # Independent signal. Since 2026-10-17 it builds and packs the hApp from source
+  # (see below), so it needs the Rust toolchain. One throwaway conductor per run,
+  # managed by Playwright globalSetup/globalTeardown
+  # (valichord-ui/tests/e2e/setup/conductor-manager.ts).
   ui-e2e:
     name: UI E2E (Playwright + real conductor)
     runs-on: ubuntu-latest
@@ -233,16 +236,16 @@ jobs:
           retention-days: 7
 
   # ── Sweettest: one parallel job per test binary ──────────────────────────────
-  # Each matrix leg runs a single --test binary so all five run concurrently.
+  # Each matrix leg runs a single --test binary so all six run concurrently.
   # Wall-clock is ~the slowest binary (governance ≈170 min) not their serial sum.
   # fail-fast:false lets all legs report even when one fails.
-  # Governance gets its own timeout_minutes: 200 (gold badge=34 min, silver=30 min).
+  # Governance gets its own timeout_minutes: 240 (gold badge=34 min, silver=30 min).
   sweettest:
     name: Sweettest (${{ matrix.test }})
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout_minutes }}
     # No `needs:` — the Tryorama `test` job it used to fail-fast behind was deleted
-    # with the suite (2026-08-03). These five legs are now the primary signal.
+    # with the suite (2026-08-03). These six legs are now the primary signal.
     strategy:
       fail-fast: false
       matrix:
@@ -264,7 +267,7 @@ jobs:
           # signal at all. They are the only coverage anywhere of DNA 3's
           # credentialed membrane: every other suite runs under the dev bypass
           # (`authorized_joining_certificate_issuer: ""`), which skips it entirely.
-          - test: membrane_proof        #  5 tests
+          - test: membrane_proof        #  6 tests
             timeout_minutes: 150
 
     steps:
@@ -313,7 +316,7 @@ jobs:
           key: ${{ runner.os }}-sweettest-target-${{ hashFiles('valichord/sweettest_integration/Cargo.lock', 'valichord/sweettest_integration/**/*.rs', 'valichord/**/*.rs', 'valichord/**/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-sweettest-target-
 
-      # ── Restore packed DNAs from the parent job's WASM cache ────────────────
+      # ── WASM build cache (valichord/target), shared by the matrix legs ──────
       - name: Restore WASM build artifacts
         uses: actions/cache@v4
         with:
@@ -321,7 +324,7 @@ jobs:
           key: ${{ runner.os }}-wasm-${{ hashFiles('valichord/**/*.rs', 'valichord/**/Cargo.toml', 'valichord/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-wasm-
 
-      # ── Holochain CLI — shared cache with the test job ───────────────────────
+      # ── Holochain CLI — shared cache with the other jobs ─────────────────────
       - name: Cache Holochain binaries
         uses: actions/cache@v4
         id: cache-hc-bin-sweettest
@@ -380,8 +383,9 @@ jobs:
   # ⚠️ Runs on ALL branches since 2026-08-03. It was v0.7.0-only, which would have
   # silently switched it off at merge — and with Tryorama retired it is the ONLY
   # test anywhere proving the integrity zomes reject forbidden updates and deletes.
-  # 15 tests, ~50 min. Proven able to fail: two negative controls, 2026-07-30 and
-  # 2026-08-03, both made a forbidden write SUCCEED and both were caught here.
+  # 19 tests (15 tripwires + 4 forgery), ~90 min or more. Proven able to fail:
+  # two negative controls, 2026-07-30 and 2026-08-03, both made a forbidden write
+  # SUCCEED and both were caught here.
   tripwire:
     name: Immutability tripwires (integrity zomes)
     runs-on: ubuntu-latest
