@@ -174,7 +174,7 @@ No security-sensitive DNA properties. This DNA is single-agent private (no DHT, 
 
 ## Build and Pack Reminder
 
-Always use `hc dna pack` + `hc app pack` — **never** `pack_dna.py` (it embeds the same DNA bytes for all four roles):
+Always use `hc dna pack` + `hc app pack` (the old `pack_dna.py`, which embedded the same DNA bytes for all four roles, was deleted on 2026-10-27):
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release

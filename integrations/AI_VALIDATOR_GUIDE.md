@@ -52,7 +52,7 @@ Write concise replication notes (max 2000 characters): what ran, what didn't, sp
 
 ## Step 3: Submit to ValiChord
 
-> ⚠️ **Status (checked 2026-10-18):** the API behind `POST /attest` (`backend/app_protocol.py`) does not currently start — it imports a `holochain_bridge` module removed on 2026-04-22. See `backend/README.md`. Steps 1, 2 and 4 stand; this step describes the API's design.
+> ⚠️ **Status (checked 2026-10-18):** the API behind `POST /attest` (`app_protocol.py`, archived to `docs/archive/backend/` on 2026-10-27) does not start — it imports a `holochain_bridge` module removed on 2026-04-22. See `docs/archive/backend/README.md`. Steps 1, 2 and 4 stand; this step describes the API's design.
 
 Compute the SHA-256 of the deposit locally — no upload required. Then call `POST /attest`:
 

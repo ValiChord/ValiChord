@@ -653,7 +653,7 @@ All these arrows run on the same agent's conductor. The governance call from DNA
 # Compile all four WASM zomes
 cargo build --target wasm32-unknown-unknown --release
 
-# Pack DNAs and hApp — use hc directly, NOT pack_dna.py
+# Pack DNAs and hApp with hc (the old pack_dna.py packed the wrong DNA bytes; deleted 2026-10-27)
 hc dna pack dnas/attestation            -o workdir/attestation.dna
 hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna

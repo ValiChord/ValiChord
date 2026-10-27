@@ -319,8 +319,8 @@ Do not mix these up when writing test fixtures.
 ### 6. ExternalHash construction in TypeScript (UI, demo, and the retired Tryorama tests)
 Always construct `ExternalHash` using `hashFrom32AndType(core32, HoloHashType.External)`. Never use `new Uint8Array(39).fill(byte)` — the DHT location bytes (last 4 bytes) must be a valid blake2b checksum. Using a flat fill produces hashes that fail DHT validation silently.
 
-### 7. do NOT use pack_dna.py
-There is a `pack_dna.py` script in the repo. It has a bug that embeds the attestation DNA bytes for all four roles, meaning every cell requires the attestation membrane proof. Always use `hc dna pack` and `hc app pack` directly.
+### 7. pack with `hc`, never a home-made packer
+There was a `pack_dna.py` script in the repo until 2026-10-27, when it was deleted. It had a bug that embedded the attestation DNA bytes for all four roles, meaning every cell required the attestation membrane proof. Always use `hc dna pack` and `hc app pack` directly — and for the committed bundles, the **Repack bundles** workflow (see `CLAUDE.md`).
 
 ### 8. Deadlock: DNA 4 calling back into DNA 3
 `check_and_create_harmony_record` (DNA 4) calls `get_attestations_for_request` (DNA 3) to retrieve attestations. This is safe because it is a read-only call. Do not add any write calls from DNA 4 back into DNA 3 — this creates a cycle with the pending write operation and deadlocks.
@@ -855,7 +855,7 @@ Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondomi
 | `valichord/happ.yaml` | Role definitions, DNA property defaults |
 | `valichord/sweettest_integration/tests/` | Integration tests (sweettest), including `membrane_proof.rs` *(replaces the retired `valichord/tests/` Tryorama suite)* |
 | `TESTING.md` | Test layers, counts and how to run each suite |
-| `backend/app_protocol.py` | Protocol API (`/attest`) — see `backend/README.md` *(replaces the removed `backend/app.py`)* |
+| `docs/archive/backend/app_protocol.py` | Protocol API (`/attest`) — archived 2026-10-27 because it cannot start; see that folder's `README.md` *(it replaced the removed `backend/app.py`)* |
 | `demo/app.py`, `demo/researcher-node.mjs`, `demo/validator-node.mjs` | Public demo server and its Node bridges to the conductor *(replace the removed `demo/serve.mjs` and `backend/holochain_bridge.py`)* |
 | `valichord-ui/src/App.svelte` | Frontend shell — port detection, role detection, signal subscription |
 | `valichord-ui/src/lib/holochain.ts` | AppWebsocket singleton — callZome wrapper, role→zome name map |

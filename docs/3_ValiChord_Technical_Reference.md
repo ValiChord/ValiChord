@@ -27,7 +27,7 @@
 The Rust structures and functions in this document describe the *shape* of ValiChord's architecture — data models, system flows, and component interactions. They were illustrative sketches developed during twelve months of architectural design. The system is now built. For the authoritative implementation, see:
 - Source files under `valichord/dnas/`
 - Engineering handover: `docs/13_Valichord_Engineer_Handover.md`
-- REST API spec: `backend/openapi_protocol.yaml` (the protocol API, `backend/app_protocol.py`)
+- REST API spec: `docs/archive/backend/openapi_protocol.yaml` (the protocol API, `app_protocol.py` — archived 2026-10-27 because it cannot start)
 - Integration guide: `docs/INTEGRATION_GUIDE.md`
 
 **What this document is still useful for:** Understanding *why* the architecture was designed the way it was, what problems each DNA membrane solves, and how the data flow is intended to work. It also records all key divergences from the original design.
@@ -2244,7 +2244,7 @@ Set the `VALICHORD_API_KEYS` environment variable to a comma-separated list of v
 
 Supply `callback_url` in the `POST /validate` form. ValiChord fires one POST to that URL when the job completes, with `Content-Type: application/json`, `X-ValiChord-Job-Id: <job_id>` header, and the full result body. One retry after 5 seconds on failure.
 
-For full API documentation and code examples in Python and TypeScript, see `docs/INTEGRATION_GUIDE.md`. The machine-readable spec was `backend/openapi.yaml` (since removed; the current protocol API spec is `backend/openapi_protocol.yaml`).
+For full API documentation and code examples in Python and TypeScript, see `docs/INTEGRATION_GUIDE.md`. The machine-readable spec was `backend/openapi.yaml` (since removed; the protocol API's own spec, `openapi_protocol.yaml`, was archived with that API to `docs/archive/backend/` on 2026-10-27).
 
 ---
 
@@ -2505,7 +2505,7 @@ Requires a running Holochain conductor with the `valichord.happ` installed. See 
 **It does claim:**
 - The architectural approach is sound and confirmed feasible by Holochain Foundation engineers
 - The four-DNA hApp is fully implemented and tested — integration tests are Rust sweettest (`valichord/sweettest_integration/`), run in CI; see CI for the current count (Tryorama was retired on 2026-08-03)
-- A protocol REST API exists (`backend/app_protocol.py`: `/attest`, `/health`, OpenAPI spec and Swagger UI). The fuller API with API keys and webhooks described in the "Implemented Integration API" sections left this repo with ValiChord at Home in April 2026
+- A protocol REST API was written (`app_protocol.py`: `/attest`, `/health`, OpenAPI spec and Swagger UI), but it cannot start — its `holochain_bridge` import was removed in April 2026 — and it was archived to `docs/archive/backend/` on 2026-10-27. The fuller API with API keys and webhooks described in the "Implemented Integration API" sections left this repo with ValiChord at Home in April 2026
 
 **It does not claim:**
 - That these specific struct definitions are final (see Important Note on Status for actual divergences)

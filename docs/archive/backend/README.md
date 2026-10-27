@@ -1,5 +1,9 @@
-# ValiChord backend
+# ValiChord backend (archived)
 
+> 🗄️ **Archived 2026-10-27** — moved here from the top-level `backend/` because it cannot start
+> (see below) and nothing deploys it. It is kept for the API design and the OpenAPI spec. Paths in
+> the files below (e.g. `python backend/app_protocol.py`) are from before the move.
+>
 > **Status (checked 2026-10-18) — read this first.**
 > - Only `app_protocol.py` (+ `openapi_protocol.yaml`, `requirements_protocol.txt`) is in this
 >   directory now. `app.py`, `holochain_bridge.py`, `openapi.yaml` and `requirements.txt` moved to the

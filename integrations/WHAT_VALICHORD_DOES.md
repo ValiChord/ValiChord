@@ -27,7 +27,7 @@ This is the core of ValiChord. Everything else is supporting infrastructure.
 
 ### 2. The protocol API
 
-- ⚠️ **Not working as of 2026-10-18:** `backend/app_protocol.py` fails at import (its `holochain_bridge` module was removed in April 2026 — see `backend/README.md`). The design:
+- ⚠️ **Not working, and archived 2026-10-27:** `app_protocol.py` fails at import (its `holochain_bridge` module was removed in April 2026), so it was moved to `docs/archive/backend/` — see its `README.md`. The design:
 - `POST /attest` — **validator path**: pass `data_hash` + verdict; returns HarmonyRecord synchronously (~60 s, no polling, no upload required)
 - `GET /health` — liveness check + conductor status
 

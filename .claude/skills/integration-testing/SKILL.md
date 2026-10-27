@@ -1,3 +1,8 @@
+---
+name: integration-testing
+description: How to build, pack and run ValiChord's Rust sweettest suites, the immutability tripwires and the forgery tests, and how to read their results without being fooled (run-sweettest.sh, stale-conductor cleanup, slow-start timeouts). Use before running, debugging or reporting any sweettest result in valichord/.
+---
+
 # ValiChord Integration Testing
 
 Integration tests are **sweettest** (Rust, in-process conductors) in `valichord/sweettest_integration/`. The old Tryorama suite (`valichord/tests/`, `npm test`) was retired and deleted on 2026-08-03 — if you see `cd tests && npm test` anywhere, it is stale. See `TESTING.md` for the current counts and the full coverage inventory.
@@ -26,7 +31,7 @@ export PATH="/home/codespace/.cargo/bin:$PATH"
 
 ## Build sequence
 
-Build and pack in this order. Do NOT use `pack_dna.py` — it is broken and embeds the same DNA bytes for all four roles.
+Build and pack in this order, with `hc` only (`pack_dna.py`, which embedded the same DNA bytes for all four roles, was deleted on 2026-10-27). These local packs are for running tests — never commit them as the `workdir/` bundles; those come from the **Repack bundles** workflow (see `CLAUDE.md`).
 
 ```bash
 export PATH="/home/codespace/.cargo/bin:$PATH"

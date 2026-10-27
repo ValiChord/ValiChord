@@ -16,8 +16,8 @@
 | Committed bundles | Last repacked after #57 (`376755e`); these are what Oracle and the Docker demo run. ⚠️ **They do not contain #60** — `get_linked_agents_for` is absent from all three `.happ` files (scanned with `NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh`), so #60 is on `main` only: not repacked, not on Oracle. See "What is left", item 4 | 2026-10-27 |
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet | 2026-10-27 |
-| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27) — safe to delete if Ceri wants. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
+| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet. **v0.6.7 approved 2026-10-27**, to be tagged once the repack (item 4 under "What is left") has landed on `main` | 2026-10-27 |
+| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27). **Deletion approved by Ceri 2026-10-27** — not done yet, because the Claude GitHub App has no write access to the org (pushes and deletions return 403). The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -116,6 +116,25 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    capability tokens", is tracked in `.claude/skills/check-holochain-updates.md`). A hot-swap would
    therefore probably deliver the function without the grant entry. How #60 should reach Oracle is
    Ceri's decision; the first step either way is a run of the **Repack bundles** workflow.
+   **Decided 2026-10-27 (Ceri):** repack now. Add a grant fix (a coordinator-only call that issues
+   the extra grant) only if outside callers need the function. Where that stands:
+   - ⛔ **Repack: not run yet.** Claude's dispatch was refused (HTTP 403, "Resource not accessible
+     by integration": the Claude GitHub App has no access to the ValiChord org). Run it from a
+     browser: **Actions → Repack bundles → Run workflow** on `main`, then commit the artifact into
+     `valichord/workdir/`. ⚠️ **Do not repack anywhere else.** Every integrity WASM in the
+     committed bundles embeds the CI runner's paths (`/home/runner/…`), so a local pack has
+     different integrity bytes and a different DNA hash (see `CLAUDE.md`, Hard constraints).
+   - **Check after the repack:** only the attestation *coordinator* should change. The integrity
+     WASMs inside `valichord.happ` must keep these sha256 prefixes (measured 2026-10-27):
+     attestation `cb3e5d799a4e5a57`, governance `c0381cbb459897f8`, researcher_repository
+     `414ab222d3bd52d4`, validator_workspace `63883296c0809093`. A changed integrity hash means a
+     changed DNA hash: do not commit it.
+   - **Grant fix: not needed today.** Nothing calls the function from outside. The demo bridges and
+     `dev-setup.mjs` call zomes with signing credentials from `authorizeSigningCredentials(cellId)`,
+     which in `@holochain/client` 0.21.1 grants *all* functions. No zome uses `call_remote`.
+     `hc-http-gw` is not deployed. Revisit when one of those changes.
+   - Reaching Oracle still needs Ceri: a coordinator hot-swap (`demo/hotswap-coordinators.mjs`, or
+     the opt-in auto-updater) on the host.
 
 **What 0.7.1 does and does not fix for us:**
 
@@ -169,7 +188,8 @@ What it opened, which is the part that bites:
   successful and writes a record onto a network nothing reads. **An HTTP 200 from the wrong network
   is worse than a connection error**, because only one of the two is legible. The address was still
   in `demo/README.md`, `demo/ai_validator_cma.py` and `demo/CORE_BENCH_DEMO.md` until 2026-08-25.
-  Switching the old instance off would be a real safety improvement.
+  Switching the old instance off would be a real safety improvement. **Approved 2026-10-27 (Ceri);
+  not done yet** — it needs the Oracle Cloud console, which only Ceri has.
 
 ⌛ **THE WINDOW HAS CLOSED** *(for the 0.7.0 rebuild. A second window followed with the 0.7.1 reinstall: it was used — 01 and 02 were built in #57 and rode that break — and it closed on 2026-10-19. The 2026-08-24 text follows.)* The rebuild's DNA-hash change was the one moment when an
 integrity-zome change cost nothing extra, because the break was already being paid for. It happened
@@ -246,6 +266,16 @@ untested against an integrator whose incentives differ from ours.
    release for Holochain 0.7.
 4. ~~Re-enable the wind-tunnel CI job~~ — ✅ done 2026-08-03. ~~Delete the merged 0.7 branches~~ —
    ✅ done; both are gone from the remote.
+5. **Approved by Ceri 2026-10-27, not yet done.** Each one needs either GitHub write access for
+   Claude (the Claude GitHub App on the ValiChord org) or Ceri's own hands:
+   - **Repack bundles** for #60, then check the integrity hashes (item 4 of "What is left" above).
+   - **Tag v0.6.7** once that repack is on `main`.
+   - **Delete the 21 merged remote branches** (the "Live branches" row in the table at the top).
+   - **Switch off the old host** `152.67.153.149` (Oracle Cloud console).
+   - **Move the attestation-library plans** (`docs/PISESSION_ADAPTER_PLAN.md`,
+     `docs/EVALS_REPO_PLAN.md`, `docs/ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`) into the
+     valichord-attestation repository, which this session cannot reach.
+   - **Hot-swap #60 onto Oracle** once the bundles are repacked (needs the host).
 
 ---
 
@@ -965,8 +995,8 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 > service, whose code has lived in its own repository
 > ([topeuph-ai/valichord_at_home](https://github.com/topeuph-ai/valichord_at_home)) since
 > 2026-04-22; their status was not re-checked on 2026-10-27. This repository's own protocol API,
-> `backend/app_protocol.py`, has similar `/openapi.yaml` and `/docs` routes but does not start —
-> see `backend/README.md`.
+> `app_protocol.py`, has similar `/openapi.yaml` and `/docs` routes but does not start; it was
+> archived to `docs/archive/backend/` on 2026-10-27.
 
 | Component | Status | Detail |
 |---|---|---|
@@ -1039,6 +1069,38 @@ Full architecture, retry design, and commit-reveal table: **`demo/DECENTRALISED_
 ---
 
 ## Recently completed
+
+### Repository review and cleanup — 2026-10-27 ✓ (committed on `claude/beautiful-bardeen-60urjk`; not yet pushed)
+
+A review of the whole repo against the code found the current-state docs stale since the
+2026-10-19 reinstall. It also found several claims that were wrong outright. Ceri approved the
+cleanup that followed.
+
+- **Docs.** Oracle's version and the test counts (163: 119 sweettest + 38 unit + 6 Playwright;
+  the website still said 183 with 97 Tryorama) are corrected. The architecture doc and deployment
+  checklist now cover #55/#57. Wrong claims fixed include: who may write reputation, "no delete
+  functions" (`revoke_agent_identity_link` is one), DNA 1/2 updates, the ValidatorReputation delete
+  rule, base58→base64, and `dna-dev.md`'s inverted DNA numbering.
+- **An integrity-zome comment, proved harmless.** `HarmonyRecord.validators_requested` was
+  documented as unenforced, but it has been enforced since #47. Fixed with an equal-line-count edit;
+  `governance_integrity.wasm` built before and after is byte-identical (`aa1dafd9…`), so the DNA
+  hash is unchanged.
+- **Removed:**
+  - `demo/bin/kitsune2-bootstrap-srv`: 16 MB, 0.4.1, always replaced at image build. `demo/bin/`
+    stays as an empty tracked directory, so `COPY demo/bin/` still works.
+  - `valichord/pack_dna.py`.
+  - `.claude/cookbook-pr/`.
+  - Five unreferenced `Images/ux *.jpeg` files.
+  - The stale `valichord_at_home` path in `pyrightconfig.json`.
+- **Archived:** `backend/` → `docs/archive/backend/`. It could not start, and its links are updated.
+- **Skills:** `dna-dev` and `integration-testing` are now `.claude/skills/<name>/SKILL.md`, so
+  Claude Code loads them. `check-holochain-updates.md` is unchanged.
+- **New:** `memory/README.md`, which lists the memory names cited in docs that live only in the
+  maintainer's local Claude memory.
+- **Found on the way:** every integrity WASM in the committed bundles embeds the CI runner's
+  absolute paths. A pack built anywhere else therefore has a different DNA hash, so committed
+  bundles must only ever come from the Repack bundles workflow (now a hard constraint in
+  `CLAUDE.md`).
 
 ### Conformance, an integration boundary, and a day of measuring docs against code — 2026-08-22 ✓
 
@@ -2150,7 +2212,7 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | `demo/researcher-node.mjs` | Node.js HTTP API for researcher conductor |
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
 | `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
-| `backend/app_protocol.py` | Flask REST API integration layer (its `holochain_bridge` import lives in the deployment repo, not here) |
+| `docs/archive/backend/app_protocol.py` | Archived 2026-10-27 (was `backend/`): the protocol REST API, which cannot start — its `holochain_bridge` import left with valichord_at_home |
 | `docs/INTEGRATION_GUIDE.md` | REST API integration guide |
 | `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
 | `valichord-ui/src/lib/` | Svelte components: ResearcherView, ValidatorView, GovernanceView, types.ts, holochain.ts |

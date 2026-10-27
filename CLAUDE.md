@@ -31,7 +31,7 @@ pkill -x holochain; pkill -x lair-keystore; sleep 2
 cd valichord
 cargo build --target wasm32-unknown-unknown --release
 
-# Pack DNAs and hApp (always repack after any source change)
+# Pack DNAs and hApp for local runs (repack after any source change)
 hc dna pack dnas/attestation            -o workdir/attestation.dna
 hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
@@ -42,11 +42,12 @@ hc app pack researcher                  -o workdir/researcher.happ
 hc app pack validator                   -o workdir/validator.happ
 ```
 
-**Never use `pack_dna.py`** — it is broken and embeds the same DNA bytes for all four roles.
+**`pack_dna.py` was deleted on 2026-10-27** — it was broken (it embedded the same DNA bytes for all four roles). Do not restore it from git history; always pack with `hc`.
 
-All three `.happ` files in `workdir/` are committed, and the **Repack bundles** workflow
-(`.github/workflows/repack-bundles.yml`) packs all three. Packing only `valichord.happ` is enough
-for sweettest and the UI, but leaves the two bundles the demo actually runs stale.
+All three `.happ` files in `workdir/` are committed, and **only the Repack bundles workflow**
+(`.github/workflows/repack-bundles.yml`) may refresh them — a local pack has a different DNA hash
+(see Hard constraints). The commands above overwrite them in your working tree, which is fine for
+sweettest, the UI and a local Docker demo; run `git checkout -- workdir/*.happ` before committing.
 
 ### ~~Tryorama integration tests~~ — RETIRED 2026-08-03, do not resurrect
 
@@ -232,7 +233,7 @@ Rules:
 | **valichord-attestation** | separate repo (stubs only in `valichord_attestation/`) | Python library — future client on-ramp to the protocol; currently standalone |
 | **valichord-ui** | `valichord-ui/` | Svelte 5 browser UI for the three protocol roles (Researcher, Validator, Governance) |
 
-`backend/app_protocol.py` is an integration layer — not a definition of either project.
+`app_protocol.py` (archived to `docs/archive/backend/` on 2026-10-27; it could not start) was an integration layer — not a definition of either project.
 
 ⚠️ **Before designing ANY connection between `valichord_attestation` (or any outside system) and
 the protocol, read `docs/PROTOCOL_INTEGRATION_BOUNDARY.md`.** Four normative preconditions; an
@@ -354,8 +355,12 @@ Used by: `ValidationTier`, `AttestationConfidence`, `ValidationPhase`, `Agreemen
   **HTTP 403** from a Codespace — the injected `GITHUB_TOKEN` can read runs but not dispatch them.
 
 
-- Never use `pack_dna.py` — broken (embeds same DNA bytes for all four roles)
+- Never restore `pack_dna.py` (deleted 2026-10-27; it embedded the same DNA bytes for all four roles)
 - Always use `hc dna pack` + `hc app pack`
+- Never commit bundles packed outside the **Repack bundles** workflow. Every integrity WASM in the
+  committed bundles embeds the CI runner's absolute build paths (`/home/runner/…`,
+  `.cargo/registry/src/…`, checked 2026-10-27), so a build on any other machine produces different
+  integrity bytes — **a different DNA hash, so a different network** — with no error anywhere.
 - Before any test run: `pkill -x holochain; pkill -x lair-keystore; sleep 2` (never `-f` — it matches the invoking shell itself)
 - Private entries in single-agent DNAs: use `query()` not `get()` — `get()` in a test conductor can leak across cell boundaries
 - **Read-strategy rule (coordinators):** lookups whose results are entirely self-authored (my links, my entries) use `GetStrategy::Local` / `GetOptions::local()` — the source chain is complete by construction, and a Network walk on a fresh/cold cell can hang past the read budget without finding anything new. Anything that can include *other agents'* writes (quorum counts, phase markers, releases by reclaimers, protocol guards) stays `Network`. When one function mixes both, comment each read. (Pattern source: flowsta-signing-dna v1.4 "self-authored lookups read locally".)
@@ -491,5 +496,5 @@ Tryorama job, deleted 2026-08-03.) Verify the binary names exist on the release 
 - **Unyt joining-service** — REST membrane-proof onboarding; reference impl for institutional validator onboarding on a live network. See `memory/reference_unyt_tools.md`.
 - **Unyt heart** — Go/Pulumi **fleet** deployer (one stack per release; `progenitor` + `notary` node types). Use when setting up production nodes. Note `cloudinit/cloud-config.yaml` hardcodes **`target_arc_factor: 1`** (every node full-arc) — the concrete "kitsune2 #160 in production" artifact.
 - **Unyt migration-service** — working `close_chain`/`open_chain` DNA-migration pipeline. **Read in full 2026-07-27 → `docs/DNA_MIGRATION_PRIOR_ART.md`, which is the answer to "can we carry data across the 0.7 DNA-hash change?"** Verdict: **no — accept the reset and republish.** It carries an agent's own source chain, not the DHT, so it saves no published HarmonyRecord URL; it cannot touch DNA 1/DNA 2 (single-agent, no notaries); and we have no carried state to summarise. **CAL-1.0 — design source, don't copy code.** Read it for `policy.rs` (the algorithm `select_validators()` needs) and the `[MIGERR:<CODE>]` typed-error pattern.
-- **Unyt tauri-plugin-holochain** — lighter Electron alternative (not yet open-source); revisit before building the validator desktop app.
+- **tauri-plugin-holochain** — lighter-than-Electron desktop packaging. **Public**, contrary to the old "not yet open-source" note here: the canonical repo is `darksoil-studio/tauri-plugin-holochain`, and Unyt's copy is a fork (per `memory/reference_unyt_tools.md`, reviewed 2026-06-13). Evaluate it against kangaroo-electron before building the validator desktop app.
 - **kangaroo-electron** (`holochain/kangaroo-electron`, branch **`main-0.7`** — `main-0.6` was current when the plan was written) — cross-platform Electron packaging. Full plan: `docs/KANGAROO_PACKAGING_PLAN.md`. Remaining blockers: dedicated bootstrap/relay servers.

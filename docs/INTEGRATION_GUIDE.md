@@ -12,9 +12,9 @@ Any tool that can make HTTP requests can integrate with ValiChord.
 > **ValiChord at Home**, which moved to its own repository,
 > [`topeuph-ai/valichord_at_home`](https://github.com/topeuph-ai/valichord_at_home), on
 > 2026-04-22. Those endpoints are not in this repo and were not re-checked there. The only REST
-> API in this repo is `backend/app_protocol.py` — `POST /attest`, `GET /health`, `GET /docs`,
-> `GET /openapi.yaml` — documented in [`backend/README.md`](../backend/README.md) and
-> `backend/openapi_protocol.yaml`. The `valichord_attestation` section near the end is still
+> API in this repo was `app_protocol.py` — `POST /attest`, `GET /health`, `GET /docs`,
+> `GET /openapi.yaml` — which cannot start and was archived on 2026-10-27, with its spec, to
+> [`docs/archive/backend/`](archive/backend/README.md). The `valichord_attestation` section near the end is still
 > current.
 
 > **Looking for the protocol, not the API?** This guide covers the REST service — submitting a

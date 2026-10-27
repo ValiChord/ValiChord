@@ -1,3 +1,8 @@
+---
+name: dna-dev
+description: ValiChord's Holochain DNA reference — build and pack commands, serde tag rules for JS/TS callers, the joining-certificate (membrane proof) pattern, the commit-reveal flow across the four DNAs, private-entry queries, which entries the integrity zomes guard, the cross-DNA call helper and DNA properties. Use when writing, changing or reviewing zome code in valichord/dnas/ or valichord/shared_types/, or JS/TS that calls those zomes.
+---
+
 # ValiChord DNA Development Guide
 
 Reference for working on the Holochain DNA layer in `valichord/`.
@@ -17,15 +22,20 @@ hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 hc app pack .                           -o workdir/valichord.happ
+hc app pack researcher                  -o workdir/researcher.happ   # the demo nodes load these two
+hc app pack validator                   -o workdir/validator.happ
 
 # Run tests (kill stale conductors first; -x not -f, -f kills your own shell)
 pkill -x holochain; pkill -x lair-keystore; sleep 2
 ./run-sweettest.sh governance        # sweettest; Tryorama (valichord/tests, npm test) was retired 2026-08-03
 ```
 
-See `integration-testing.md` for the full test workflow.
+See the `integration-testing` skill (`.claude/skills/integration-testing/SKILL.md`) for the full test workflow.
 
-**Never use `pack_dna.py`** — it embeds the same DNA bytes for all four roles.
+Pack only with `hc` (`pack_dna.py`, which embedded the same DNA bytes for all four roles, was
+deleted on 2026-10-27). **Never commit bundles you packed yourself:** the committed `.happ` files
+come from the **Repack bundles** workflow, because the integrity WASM embeds the build machine's
+paths, so a local build has a different DNA hash (see `CLAUDE.md`).
 
 ---
 

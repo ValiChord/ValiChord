@@ -2,11 +2,11 @@
 
 ValiChord exposes a REST API that any AI agent, tool, or service can call to participate in the commit-reveal protocol.
 
-> ⚠️ **Status (checked 2026-10-18): the protocol API does not currently run.** `backend/app_protocol.py`
-> imports `holochain_bridge`, which was removed on 2026-04-22 when `valichord_at_home` moved to its
-> own repo, so it fails at start-up. Everything below describes the API's design. See
-> `backend/README.md`. The working path today is the demo stack (`demo/`), which talks to the
-> Oracle nodes directly.
+> ⚠️ **Status (checked 2026-10-18; archived 2026-10-27): the protocol API does not run.**
+> `app_protocol.py` imports `holochain_bridge`, which was removed on 2026-04-22 when
+> `valichord_at_home` moved to its own repo, so it fails at start-up. It now lives in
+> `docs/archive/backend/` (see its `README.md`). Everything below describes the API's design. The
+> working path today is the demo stack (`demo/`), which talks to the Oracle nodes directly.
 
 ---
 
