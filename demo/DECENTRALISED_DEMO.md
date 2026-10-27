@@ -19,10 +19,11 @@ A fully automated, end-to-end run of the ValiChord commit-reveal protocol across
 > it gives you a run that looks entirely successful and writes a record onto a network
 > nothing reads.
 >
-> **2026-10-18:** the Oracle stack runs Holochain **0.7.0**; `main` is on **0.7.1**. Until the
-> fresh install in `docs/ORACLE_0.7.1_UPGRADE.md` is run, a local build of `main` and the
-> Oracle nodes are separate networks. *(This note was corrected 2026-10-18: it had been
-> garbled and named the current host as the old one.)*
+> **2026-10-27:** the Oracle stack runs Holochain **0.7.1** since the fresh install of
+> 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`), from the same committed bundles a local Docker
+> build uses. Records published on the 0.7.0 network before that date no longer resolve.
+> *(This note was corrected 2026-10-18: it had been garbled and named the current host as the
+> old one.)*
 
 What happens when you run it:
 

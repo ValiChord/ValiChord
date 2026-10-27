@@ -20,7 +20,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and the sweettest integration suite passes in CI on every push (117 tests across nine files when counted from the source on 2026-10-18; the Tryorama suite quoted here in May was retired on 2026-08-03 — see [TESTING.md](../TESTING.md)). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and the sweettest integration suite passes in CI on every push (119 tests across eleven files when counted from the source on 2026-10-27; the Tryorama suite quoted here in May was retired on 2026-08-03 — see [TESTING.md](../TESTING.md)). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -290,7 +290,7 @@ Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `
 - `ValidationAttestation::commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>>` (originally `msgpack_bytes`; renamed when reveal-time fields were added) — shared serialisation method. Replaces the ad-hoc `SerializedBytes::try_from(&attestation)...map_err(|e| wasm_error!(...))` pattern that was duplicated in DNA 2 (`seal_private_attestation`) and DNA 3 (`submit_attestation`). Both now call `attestation.commitment_msgpack_bytes()?` for byte-for-byte consistency between commit and reveal.
 - `derive_majority_outcome(attestations: &[ValidationAttestation]) -> AttestationOutcome` — pure function, moved from `governance_coordinator` to `shared_types` so it can be unit-tested without a conductor.
 - `derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel` — likewise moved.
-- Conductor-free unit tests in `shared_types/src/lib.rs` (11 when added; 33 on 2026-10-18) (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
+- Conductor-free unit tests in `shared_types/src/lib.rs` (11 when added; 35 on 2026-10-27) (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
 
 ---
 
@@ -456,7 +456,7 @@ The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Reb
 
 *(Rewritten 2026-10-18. The May 2026 version described the Tryorama suite, which was retired on 2026-08-03; `valichord/tests/` no longer exists.)*
 
-Integration tests are **sweettest only**: `valichord/sweettest_integration/tests/`, 117 tests across nine files when counted from the source on 2026-10-18. They use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead.
+Integration tests are **sweettest only**: `valichord/sweettest_integration/tests/`, 119 tests across eleven files when counted from the source on 2026-10-27. They use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead.
 
 | File | Tests | Notes |
 |---|---|---|

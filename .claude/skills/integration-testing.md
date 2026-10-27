@@ -64,14 +64,18 @@ cd /workspaces/ValiChord/valichord
 ./run-sweettest.sh governance silver_badge     # optional name filter
 ```
 
-The immutability tripwire and forgery tests (`immutability_tripwire`, `harmony_record_forgery`, `validator_tier_forgery`) need a separate build with the `test_utils` feature, because no production coordinator exposes `update_entry`/`delete_entry`:
+The immutability tripwire and forgery tests (`immutability_tripwire`, `harmony_record_forgery`, `validator_tier_forgery`, `reveal_phase_forgery`, `supersession_forgery`) need a separate build with the `test_utils` feature, because no production coordinator exposes `update_entry`/`delete_entry` or a way to write a forged entry:
 
 ```bash
 cd /workspaces/ValiChord/valichord && ./build-test-dnas.sh
 VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh harmony_record_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh validator_tier_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh reveal_phase_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh supersession_forgery
 ```
 
-CI (`.github/workflows/tests.yml`) runs the six standard suites as parallel matrix legs plus a `tripwire` job.
+CI (`.github/workflows/tests.yml`) runs the six standard suites as parallel matrix legs plus a `tripwire` job that runs all five of these binaries.
 
 ---
 

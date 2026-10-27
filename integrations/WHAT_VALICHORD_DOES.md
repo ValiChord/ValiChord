@@ -69,7 +69,7 @@ A messy deposit can still reproduce. A tidy deposit can still fail. The proxy do
 | What's missing | Why it matters |
 |---|---|
 | Multiple validators in production | The protocol supports multi-validator rounds (validators per study is a per-study setting, 1–255) — the decentralised demo runs 3 validators; production deployment with real researchers and validators is Phase 1 |
-| Always-on production network | A public demo network runs on one Oracle Cloud host (`132.145.23.78`, still Holochain 0.7.0 until the 0.7.1 fresh install); a production deployment with independent nodes is Phase 1, awaiting funding |
+| Always-on production network | A public demo network runs on one Oracle Cloud host (`132.145.23.78`, Holochain 0.7.1 since its fresh install on 2026-10-19); a production deployment with independent nodes is Phase 1, awaiting funding |
 | Human validator onboarding | The original vision includes credentialed human researchers as validators — none are on a live network yet |
 | Validator reputation tracking | Badge tiers (Bronze/Silver/Gold) reflect participant count and agreement level, using placeholder thresholds (3/5/7) still to be calibrated with real data; who writes validator reputation in production is undecided |
 

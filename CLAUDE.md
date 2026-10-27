@@ -37,9 +37,16 @@ hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 hc app pack .                           -o workdir/valichord.happ
+# The demo nodes (Docker stack and Oracle) load these two, not valichord.happ:
+hc app pack researcher                  -o workdir/researcher.happ
+hc app pack validator                   -o workdir/validator.happ
 ```
 
 **Never use `pack_dna.py`** — it is broken and embeds the same DNA bytes for all four roles.
+
+All three `.happ` files in `workdir/` are committed, and the **Repack bundles** workflow
+(`.github/workflows/repack-bundles.yml`) packs all three. Packing only `valichord.happ` is enough
+for sweettest and the UI, but leaves the two bundles the demo actually runs stale.
 
 ### ~~Tryorama integration tests~~ — RETIRED 2026-08-03, do not resurrect
 
@@ -59,16 +66,22 @@ Deliberately NOT ported: the `FailedReproduction` / `Divergent` badge variants. 
 
 The only tests that prove the **integrity zomes** reject forbidden updates. They need a special build, because no production coordinator exposes `update_entry`.
 
-Since #47 (2026-10-18) two **forgery** tests share that build and ride the same CI `tripwire` job:
+Four **forgery** tests share that build and ride the same CI `tripwire` job, 1 test each:
 `harmony_record_forgery.rs` (#11 — peers refuse a HarmonyRecord its signed attestations do not back)
-and `validator_tier_forgery.rs` (#8 — peers refuse a self-assigned `certification_tier`). 1 test each.
+and `validator_tier_forgery.rs` (#8 — peers refuse a self-assigned `certification_tier`), both since
+#47 (2026-10-18); `reveal_phase_forgery.rs` (#51/#53 — peers refuse a RevealOpen marker that does not
+list the whole cohort, and a researcher reveal that does not name its own request and commitment;
+#55) and `supersession_forgery.rs` (backlog 01 — peers refuse a supersession link made in a role its
+author does not hold; #57), both since 2026-10-19.
 
 ```bash
 cd valichord
 ./build-test-dnas.sh                       # builds --features test_utils -> target-test/, packs -> workdir-test/
 cd sweettest_integration
-VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery -- --test-threads=1
-# 15 tripwires (5 update + 10 delete) + 2 forgery, ~50 min (each scenario JIT-compiles ~30 MB WASM)
+VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire --test harmony_record_forgery --test validator_tier_forgery --test reveal_phase_forgery --test supersession_forgery -- --test-threads=1
+# 15 tripwires (5 update + 10 delete) + 4 forgery — the same five binaries the CI job runs.
+# Over an hour: CI took ~90 min on 2026-10-19 even before supersession_forgery was added, and its
+# job timeout is 150 min (each scenario JIT-compiles ~30 MB WASM)
 #
 # ⚠️ Pack with the same `hc` version workdir/ was packed with (0.7.1 since 2026-10-17), or the
 # test bundles differ from production for a reason unrelated to the code under test.
@@ -110,7 +123,7 @@ VALICHORD_DNA_DIR=../workdir-test cargo test --test immutability_tripwire --test
 
 ```bash
 cd valichord
-cargo test -p valichord_shared_types    # 33 — 27 badge/agreement arithmetic, 4 certificate tier grants, 2 commitment encoding
+cargo test -p valichord_shared_types    # 35 — 27 badge/agreement arithmetic, 4 certificate tier grants, 3 commitment encoding, 1 hardware digest
 cargo test -p governance_coordinator    #  3 — validator_attestation_pairs
 ```
 
@@ -144,7 +157,7 @@ cargo test --test membrane_proof     # the only suite NOT on the dev bypass
 cargo test --test governance silver_badge_issued_with_five_validators -- --test-threads=1
 ```
 
-Prefer `../run-sweettest.sh <suite>` for any run whose result you will report (see the `tail`/`grep -v` traps above). Counts (2026-10-18): attestation 30, governance 22, researcher_repository 17, validator_workspace 13, security 12, membrane_proof 6 — plus the 17 tripwire/forgery tests.
+Prefer `../run-sweettest.sh <suite>` for any run whose result you will report (see the `tail`/`grep -v` traps above). Counts (2026-10-27, from source): attestation 30, governance 22, researcher_repository 17, validator_workspace 13, security 12, membrane_proof 6 — plus the 19 tripwire/forgery tests.
 
 `sweettest_integration` is deliberately outside `valichord/Cargo.toml` because it depends on `holochain = "=0.7.1"` (native binary), which cannot compile to `wasm32-unknown-unknown`. Merging it into the workspace would break the WASM build.
 
@@ -245,11 +258,11 @@ rebuild's DNA-hash change, which was already being paid for. **That rebuild happ
 2026-08-24**, so each one now costs a network break of its own — a second one. Anything in the
 backlog that was deferred on the reasoning that the window was still open needs re-deciding on its
 own merits, not on a discount that no longer exists.
-🟠 **Update 2026-10-18 — a second break is now pending anyway.** `main` changed DNA hash with
-Holochain 0.7.1 (#45) and again with #47's integrity changes; the live Oracle network has not, and
-will break once, at the 0.7.1 fresh install. So a 🟠 item landed **before that reinstall** shares the
-same break. That is a fact about cost, not a recommendation: whether any item (01 supersession, 02
-hardware provenance) rides it is **Ceri's decision** (`PROJECT_STATUS.md` → 0.7.1 section, "What is left").
+✅ **Update 2026-10-27 — the second break has been paid, and the discount has expired again.**
+Holochain 0.7.1 (#45) plus the integrity changes in #47, #55 and #57 reached Oracle with the fresh
+install of 2026-10-19. Ceri decided that 01 (supersession) and 02 (hardware provenance) should ride
+it, and they did, in #57, together with #23 (hash-algorithm labels) and #24 (the network name). No
+break is scheduled now, so any further 🟠 item costs a network break of its own.
 
 ### Four-DNA architecture (valichord/)
 
@@ -391,13 +404,18 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   **always** wrong. Still undecided (Ceri): who writes `ValidatorReputation` in production, and
   whether a timed-out short record may earn a badge.
 - ✅ **Oracle runs 0.7.1** — the fresh install was run on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`,
-  which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57. A real
-  round passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's
+  which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57 — but
+  **not #60** (`get_linked_agents_for`, coordinator-only, merged after the last repack; see the next
+  item). A real round passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's
   `python3` is **3.9**: demo scripts run there must not evaluate 3.10+ syntax.
 - ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
-  on the server. They go stale on every Holochain bump. Repack with the **Repack bundles** workflow
+  on the server. They go stale on every Holochain bump **and on every zome change, coordinator-only
+  ones included**. Repack with the **Repack bundles** workflow
   (`.github/workflows/repack-bundles.yml`), not by hand on Windows (no `hc` there). The UI e2e job
   builds from source and so cannot detect a stale committed bundle — only this can.
+  ⚠️ **Stale as of 2026-10-27:** last repacked after #57 (`376755e`), so none of the three bundles
+  contains #60's `get_linked_agents_for`. Check any function with
+  `NEEDLE=<fn_name> ./check-no-test-hooks.sh` (exit 1 = present in a bundle, 0 = absent).
 - ⚠️ **Oracle changed address.** It is **`132.145.23.78`**, not `152.67.153.149`. The old instance
   was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
   accepts commands without ever executing them. A new instance was built with a key that is held.
@@ -432,9 +450,10 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 touches our code.** `reject_if_warranted` reads an empty response as *"no warrants"*, so the gate
 **fails OPEN** — the wrong direction. "Only local peers" describes every sweettest run, the Docker
 demo stack, and any freshly-bootstrapped network. Three call sites share the pattern:
-`attestation_coordinator::reject_if_warranted` (`:688`), `governance_coordinator:188`,
-`governance_coordinator:394` (re-checked 2026-10-18: the attestation one was `:637` until #47 moved
-it, and the last was `:367` until 2026-10-17 — cite by function name, line numbers drift).
+`attestation_coordinator::reject_if_warranted`, and the warrant checks inside
+`governance_coordinator::check_and_create_harmony_record` and
+`governance_coordinator::force_finalize_round` (at `:716`, `:195` and `:401` on 2026-10-27 — line
+numbers drift with every zome change, so cite them by function name).
 ⚠️ **Do not cite the warrant gate as a safety property without checking this first.**
 
 **2. Source-chain restore — SHIPPED in 0.7.1** (`#5800`/PR `#5920` closed 2026-08-10, `#5802`

@@ -24,7 +24,7 @@ flowchart LR
 **Version:** 1.0 — March 2026
 **Author:** Ceri John
 **Status:** Infrastructure built and integration-tested
-**Last checked against the code:** 2026-10-18 — Holochain 0.7.1 (`hdk =0.7.1`, `hdi =0.8.1`), after PR #47. Struct listings below are summaries; the source in `valichord/dnas/**` and `valichord/shared_types/` is authoritative.
+**Last checked against the code:** 2026-10-18 — Holochain 0.7.1 (`hdk =0.7.1`, `hdi =0.8.1`), after PR #47. On 2026-10-27 the entry structs, DNA properties, link types and validation-rule notes were updated for PRs #55 and #57 (both 2026-10-19). Struct listings below are summaries; the source in `valichord/dnas/**` and `valichord/shared_types/` is authoritative.
 
 ---
 
@@ -100,9 +100,10 @@ RequestToLockedResult   // ExternalHash (request_ref) → LockedResult ActionHas
 ```
 
 ### Validation Rules
-- `PreRegisteredProtocol`: all updates and deletes rejected — immutable after registration
+- No entry in this DNA can be updated: every entry type is private, and one blanket `OpUpdate::PrivateEntry` arm rejects every update ("Private entry updates not supported in this DNA")
+- `PreRegisteredProtocol`: deletes rejected too — immutable after registration
 - `LockedResult`: delete allowed in `Gdpr` mode, refused in `OpenAudit` mode (see Data Locality Modes)
-- All other entries: only original author may update or delete
+- All other entries: only the original author may delete
 - No membrane proof check — single-agent DNA, no joining credential required
 
 ### Key Coordinator Functions
@@ -166,9 +167,10 @@ RequestToAbstention
 ```
 
 ### Validation Rules
-- `ValidatorPrivateAttestation` and `DeliberateAbstention`: all updates and deletes rejected — immutable after creation
+- No entry in this DNA can be updated: every entry type is private, and one blanket `OpUpdate::PrivateEntry` arm rejects every update
+- `ValidatorPrivateAttestation` and `DeliberateAbstention`: deletes rejected too — immutable after creation
 - `seal_private_attestation` (coordinator) refuses a second seal for the same task, so a validator cannot re-seal after seeing others' reveals
-- All other entries: only original author may update or delete
+- All other entries: only the original author may delete
 
 ### post_commit — Critical Path
 
@@ -223,6 +225,8 @@ ValidationRequest {
     validation_tier:         ValidationTier,
     discipline:              Discipline,
     researcher_institution:  String,             // for the conflict-of-interest check
+    data_hash_algorithm:     HashAlgorithm,      // #23: algorithm of data_hash (Sha256 today)
+    researcher_hardware:     Option<HardwareDisclosure>, // backlog 02: asserted, not observed
 }
 
 // Public commitment proof — IMMUTABLE
@@ -232,13 +236,16 @@ CommitmentAnchor {
     validator:               AgentPubKey,
     commitment_hash:         Vec<u8>,   // SHA-256(msgpack(ValidationAttestation) || nonce)
     validation_request_hash: ActionHash, // inductive chain: CommitmentAnchor → ValidationRequest
+    hash_algorithm:          HashAlgorithm, // #23: peers check commitment_hash's length against it
 }
 
 // DHT-persistent phase state — IMMUTABLE, append-only
 PhaseMarker {
-    request_ref:            ExternalHash,
-    phase:                  ValidationPhase,  // only RevealOpen is ever written (Complete is reserved)
-    commitment_anchor_hash: ActionHash,       // the writer must have committed
+    request_ref:              ExternalHash,
+    phase:                    ValidationPhase,  // only RevealOpen is ever written (Complete is reserved)
+    commitment_anchor_hash:   ActionHash,       // the writer must have committed
+    commitment_anchor_hashes: Vec<ActionHash>,  // every committed validator's anchor (#51, PR #55):
+                                                // peers require num_validators_required distinct validators
 }
 
 // THE REVEAL — public attestation, IMMUTABLE, required_validations = 7
@@ -257,21 +264,31 @@ ValidationAttestation {
     reproduction_bundle_hash: Option<Vec<u8>>,    // binds the verdict to the validator's own work; None = unbound
     request_num_validators:  Option<u8>,          // copied from the request at reveal; peers check it (#47)
     request_created_at:      Option<Timestamp>,   // likewise; lets governance apply round_timeout_secs
+    hardware:                Option<HardwareDisclosure>, // the validator's own (backlog 02) — sealed into the commitment
+    request_action_hash:     Option<ActionHash>,  // stamped at reveal from the CommitmentAnchor; peers check it (backlog 01)
+    request_researcher_hardware: Option<HardwareDisclosure>, // copied from the request at reveal; peers check it
+    hash_algorithm:          Option<HashAlgorithm>, // stamped at reveal (#23); must equal the anchor's
 }
+// The coordinator-stamped fields (commitment_anchor_hash, the request_* fields and hash_algorithm)
+// are left out of the commitment bytes (`commitment_msgpack_bytes`); every peer checks them against
+// the CommitmentAnchor and the ValidationRequest instead. The validator's own `hardware` stays bound.
 
 // Researcher's cryptographic commitment — published before any validator begins work
 // IMMUTABLE after publication
 ResearcherResultCommitment {
     request_ref:            ExternalHash,
     result_commitment_hash: Vec<u8>,  // SHA-256(msgpack(metrics) || nonce)
+    hash_algorithm:         HashAlgorithm, // #23: peers check the hash length against it
 }
 
 // Researcher's verified reveal — published after all validators have committed
 // Coordinator verifies SHA-256(msgpack(metrics) || nonce) == result_commitment_hash
 // IMMUTABLE after publication
 ResearcherReveal {
-    request_ref: ExternalHash,
-    metrics:     Vec<MetricResult>,  // matches what validators compare against
+    request_ref:                ExternalHash,
+    metrics:                    Vec<MetricResult>,  // matches what validators compare against
+    validation_request_hash:    ActionHash, // the study's ValidationRequest (#53, PR #55); peers check it
+    researcher_commitment_hash: ActionHash, // the researcher's earlier ResearcherResultCommitment; peers check it
 }
 
 // Validator self-assignment — immutable after creation
@@ -343,7 +360,7 @@ DNA 2 post_commit
         → create_link(commit_path, anchor_hash, RequestToCommitment)
         → count CommitmentAnchors via get_links(commit_path)
         → if count >= the study's num_validators_required:
-            → write PhaseMarker(RevealOpen)
+            → write PhaseMarker(RevealOpen), listing every committed validator's CommitmentAnchor
             → create_link(phase_path, marker_hash, RequestToPhaseMarker)
             → emit_signal(Signal::RevealOpen) — UI notification only, NOT a protocol gate
             → send_remote_signal(RevealOpenWire) to all other committed validators
@@ -355,8 +372,10 @@ Validator polls get_current_phase(request_ref)
     → Some(RevealOpen) = reveal window open
 
 Validator calls submit_attestation(attestation)
+    → refuse unless the study's phase is RevealOpen (credentialed networks; #52, PR #55)
     → verify SHA-256(msgpack(attestation) || nonce) == the validator's CommitmentAnchor hash
-    → copy num_validators_required and the request's creation time onto the attestation
+    → copy num_validators_required, the request's creation time and action hash, the researcher's
+      hardware disclosure and the hash algorithm onto the attestation
     → create_entry(ValidationAttestation) — required_validations = 7
     → create_link(agent, hash, ValidatorToAttestation)
     → call_governance_fire_and_forget("check_and_create_harmony_record", request_ref)
@@ -410,8 +429,21 @@ FlatOp::Update(OpUpdate::Entry { action, .. }) => {
 **Delete guards are a separate claim from update guards, and need their own tests.** Sixteen
 "cannot be deleted" guards sat with no coverage that could fail until 2026-08-01; eight tests
 that appeared to cover them were calling zome functions that had never been written and passed
-on *"function not found"*. Five delete tripwires now mirror the five update ones. A guard's
+on *"function not found"*. Ten delete tripwires now sit beside the five update ones. A guard's
 arm being in the right place and the guard actually rejecting the op are different claims.
+
+**Peer checks added on 2026-10-19 (PRs #55 and #57).** A RevealOpen `PhaseMarker` must list
+CommitmentAnchors from at least `num_validators_required` distinct validators of this study, the
+author's own among them (#51). A `ResearcherReveal` must name the study's `ValidationRequest` and an
+earlier `ResearcherResultCommitment` for the same study, and on a credentialed network the revealer
+must have authored both (#53); the hash check itself still runs only in the researcher's app,
+because the nonce is never published. Commitment hashes and an attestation's
+`reproduction_bundle_hash` are checked against the length their `HashAlgorithm` label implies
+(#23). An attestation's stamped `request_action_hash`,
+`request_researcher_hardware` and `hash_algorithm` must equal its CommitmentAnchor's and
+ValidationRequest's values, and a hardware disclosure's digest, if present, must have its
+algorithm's length (backlog 02). The #51 and #53 checks have their own tripwire,
+`reveal_phase_forgery.rs`.
 
 ### Membrane Proof
 
@@ -433,7 +465,7 @@ Read functions only are `Unrestricted` — accessible via HTTP Gateway without a
 
 ## DNA 4 — Governance & Harmony Records
 
-**Membrane:** Public DHT. Open read. No membrane proof required for joining. Writes are checked in `validate()`: `ValidatorReputation` and `GovernanceDecision` by a DNA-property key; `HarmonyRecord` and `ReproducibilityBadge` by the evidence they carry (see below).
+**Membrane:** Public DHT. Open read. No membrane proof required for joining. Writes are checked in `validate()`: `ValidatorReputation` and `GovernanceDecision` by a DNA-property key; `HarmonyRecord` and `ReproducibilityBadge` by the evidence they carry; `Supersession` by the role its author claims (see below).
 
 **Purpose:** The public face of ValiChord. Permanent, tamper-evident validation outcomes. HTTP Gateway target — designed to be queryable by journals, funders, and the public without running a Holochain node. (`hc-http-gw` is not deployed today; the public demo serves records through its Node bridges — see `PROJECT_STATUS.md`.)
 
@@ -445,10 +477,12 @@ pub struct DnaProperties {
     pub system_coordinator_key: String, // may write ValidatorReputation and GovernanceDecision
     pub min_attestations_for_finalization: u32, // 0 is treated as 1
     pub round_timeout_secs: u64,         // default 604800 (7 days)
+    pub network_name:       String,      // #24: every HarmonyRecord must carry exactly this value
+                                         // ("valichord-public" in the shipped happ.yaml; "" = unnamed)
 }
 ```
 
-In test/dev mode, an empty string for `system_coordinator_key` bypasses the key check. In production, a real `AgentPubKey` base58 string is baked in at deployment.
+In test/dev mode, an empty string for `system_coordinator_key` bypasses the key check. In production, a real `AgentPubKey` string (base64, `uhCAk…` — the form `action.author().to_string()` produces) is baked in at deployment.
 
 > **Note:** An earlier design included a second key `harmony_record_creator_key` that restricted `HarmonyRecord` and `ReproducibilityBadge` writes to a single trusted agent. This was removed. `HarmonyRecord` creation is now **participatory** — any validator who appears in `participating_validators` of the round may trigger finalisation by calling `check_and_create_harmony_record`. The integrity zome enforces that `action.author ∈ participating_validators` rather than checking a fixed key — and, since PR #47, that every listed validator's signed attestation is carried in the record and checks out (see Validation Rules). This removes a single-point-of-failure from round finalisation and is more consistent with Holochain's agent-centric model.
 
@@ -468,6 +502,8 @@ HarmonyRecord {
     discipline:               Discipline,
     validators_requested:     u32,          // the cohort asked for — so "5 of 7" is visible
     attestation_evidence:     Vec<AttestationEvidence>, // { action, signature, attestation } per validator
+    network_name:             String,       // must equal the DNA property (#24)
+    researcher_hardware:      Option<HardwareDisclosure>, // must equal what the carried attestations state (backlog 02)
 }
 
 // Updateable — system_coordinator_key gated
@@ -500,7 +536,20 @@ GovernanceDecision {
     votes_for:       u32,
     votes_against:   u32,
 }
+
+// IMMUTABLE and undeletable — links a newer HarmonyRecord to an older one (backlog 01, PR #57).
+// Neither record changes. NOT a retraction: nothing marks the older record as wrong.
+Supersession {
+    superseded:       ActionHash,         // the older HarmonyRecord
+    superseding:      ActionHash,         // the newer HarmonyRecord
+    reason:           SupersessionReason, // NewAttempt | ReportedProcessError — closed list, no free text
+    asserted_as:      SupersessionRole,   // Researcher | Validator — peers check it is true
+    researcher_proof: Option<RequestAuthorship>, // as Researcher: their signed ValidationRequest
+                                                 // ACTION (never the entry) + signature
+}
 ```
+
+Written by `supersede_harmony_record` and read, in both directions, by `get_supersessions`.
 
 ### Badge Thresholds
 
@@ -528,6 +577,8 @@ DisciplinePath           // path anchor (discipline) → HarmonyRecord ActionHas
 BadgePath                // path anchor (badge_type) → ReproducibilityBadge ActionHash
 StudyToBadge             // ExternalHash (study_ref) → ReproducibilityBadge ActionHash
 AllDecisions             // path anchor ("decisions.all") → GovernanceDecision ActionHash
+SupersededBy             // older HarmonyRecord → Supersession ActionHash
+Supersedes               // newer HarmonyRecord → Supersession ActionHash
 ```
 
 ### Validation Rules
@@ -551,13 +602,17 @@ if action.author().to_string() != props.system_coordinator_key {
 - there is one piece of evidence per listed validator, no duplicates, and at least `min_attestations_for_finalization`;
 - each signature verifies against the listed key, over an action whose entry hash is the carried attestation's hash, for this `request_ref`;
 - `outcome`, `agreement_level`, `validation_duration_secs` and `discipline` are exactly what the carried attestations produce;
-- `validators_requested` matches the cohort size every attestation states (checked against the `ValidationRequest` by DNA 3's peers), and a record with fewer attestations than requested is only valid after `round_timeout_secs`.
+- `validators_requested` matches the cohort size every attestation states (checked against the `ValidationRequest` by DNA 3's peers), and a record with fewer attestations than requested is only valid after `round_timeout_secs`;
+- `network_name` equals this network's DNA property (#24, PR #57);
+- every carried attestation names the same `request_action_hash` and the same researcher hardware disclosure, and the record's `researcher_hardware` equals it (backlog 01/02, PR #57).
 
 What this does **not** prove: that the attestations were also published on DNA 3; which subset was chosen after a timeout (though the record shows "k of n"); or anything about validators who collude and each sign a false attestation. The timeout check also reads the record's own timestamp, which its author asserts.
 
 `ReproducibilityBadge`: `harmony_record_ref` must point to a HarmonyRecord for the same study, and `badge_type` must not exceed the ceiling the record's count and agreement level allow.
 
-All entry types block deletes. `ValidatorReputation` allows updates (coordinator key enforced). `HarmonyRecord`, `ReproducibilityBadge`, and `GovernanceDecision` are fully immutable.
+`Supersession` (`check_supersession`, PR #57): both hashes must be HarmonyRecords and not the same one; the superseding record must have been written after the superseded one, and the Supersession after both. Made as `Validator`, its author must be listed in one of the two records and it must carry no researcher proof. Made as `Researcher`, it must carry the signed `Create` action of a ValidationRequest its author made, whose hash the attestations in one of the two records state. Its index links (`SupersededBy`, `Supersedes`) must start from the record it names in that position, and only its author may make them.
+
+`HarmonyRecord`, `ReproducibilityBadge`, `GovernanceDecision` and `Supersession` are fully immutable — no updates, no deletes — and the supersession links cannot be deleted either. `ValidatorReputation` allows updates (coordinator key enforced) and has no delete guard: like any unguarded entry, it may be deleted by its original author. *(Corrected 2026-10-27: this line used to say "All entry types block deletes".)*
 
 ### check_and_create_harmony_record
 
@@ -583,6 +638,9 @@ DNA 3 submit_attestation
 
 DNA 4 check_and_create_harmony_record / force_finalize_round
     → call(OtherRole("attestation"), get_attestations_for_request, …)   // read only
+
+DNA 4 supersede_harmony_record (as the researcher)
+    → call(OtherRole("attestation"), get_validation_request)   // read only: the caller's own signed request action
 ```
 
 All these arrows run on the same agent's conductor. The governance call from DNA 3 and the attestation read from DNA 4 must not form a cycle with any pending write operation on either cell — see deadlock warning above.
@@ -723,8 +781,8 @@ would have been possible.
 
 All cross-DNA types live in `valichord/shared_types/` — a pure `rlib` crate imported by all four DNAs. This avoids the `cdylib` duplicate-symbol error that occurs when types are defined in an integrity zome (compiled as `cdylib`) and re-exported across crates.
 
-Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `DataLocalityMode`, `ValidatorType`, `ValidatorAgentType`, `JoiningCertificate`, `ValidationAttestation`, `BadgeType`, and the pure functions `discipline_tag()`, `derive_majority_outcome()`, `derive_agreement_level()` and `evaluate_badge()`.
+Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `ComputationalResources`, `TimeBreakdown`, `UndeclaredDeviation`, `ValidationPhase`, `OutcomeSummary`, `MetricResult`, `AgreementLevel`, `CertificationTier`, `DataLocalityMode`, `HashAlgorithm`, `HardwareClass`, `HardwareDisclosure`, `ValidatorType`, `ValidatorAgentType`, `JoiningCertificate`, `ValidationAttestation`, `BadgeType`, and the pure functions `discipline_tag()`, `derive_majority_outcome()`, `derive_agreement_level()` and `evaluate_badge()`.
 
 ---
 
-*Technical Reference v16 and Architecture Scaffold v12 provide full field-level detail and engineering narrative.*
+*The engineering narrative is in the Technical Reference (`docs/3_ValiChord_Technical_Reference.md`, v30). For field-level detail, the source in `valichord/` is authoritative.*

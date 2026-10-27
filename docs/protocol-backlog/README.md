@@ -3,8 +3,10 @@
 Candidate changes to the Holochain protocol (`valichord/`). Every item names **who raised it and
 when**, so a claim here can be traced rather than inherited.
 
-This is the protocol-side counterpart of `valichord_attestation/spec/format-backlog/`. That
-directory exists so gaps in the *format* do not have to be remembered by one person; until
+This is the protocol-side counterpart of the format backlog, `spec/format-backlog/` in
+[ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation/tree/main/spec/format-backlog)
+(it lived at `valichord_attestation/spec/format-backlog/` here until the library moved out on
+2026-10-19). That directory exists so gaps in the *format* do not have to be remembered by one person; until
 2026-08-22 the *protocol* had no equivalent, which is why the two items below surfaced in
 conversation rather than from a list — and would have been lost again.
 
@@ -28,21 +30,20 @@ absences get more expensive the longer they are left.** Three categories:
 
 🟢 items do not belong here unless someone asks for them. **This backlog is for 🟠 and 🔴.**
 
-## ⏳ The rebuild window — why 🟠 has a clock right now
+## ⏳ The rebuild window — used, and closed again on 2026-10-19
 
 Changing an integrity zome changes the DNA hash, which produces a **separate network**: published
 HarmonyRecord URLs die and existing records do not carry over. That is the expensive change, and
 it was paid deliberately once already on 2026-08-03 for the Holochain 0.7 migration.
 
-> **Updated 2026-10-18 — the window described below has moved on once.** The 2026-08-24 Oracle
-> rebuild that this section was written around **happened** (new host `132.145.23.78`, 0.7.0
-> network), and no 🟠 item rode it. A **new** DNA-hash break is now merged on `main`: Holochain
-> 0.7.1 (PR #45, 2026-10-17) plus PR #47's integrity changes (2026-10-18). It is **not yet
-> deployed** — Oracle still serves the 0.7.0 network until the fresh install in
-> [`../ORACLE_0.7.1_UPGRADE.md`](../ORACLE_0.7.1_UPGRADE.md) is run. So a 🟠 item that merges
-> **before that reinstall** would ride the same break (the bundles would need repacking and the
-> runbook checksums updating, as that runbook warns). Whether to use this window is Ceri's
-> decision. The 2026-08-22 text follows unchanged.
+> **Updated 2026-10-27 — this window has now closed twice.** The 2026-08-24 Oracle rebuild that
+> this section was written around **happened** (new host `132.145.23.78`, 0.7.0 network), and no
+> 🟠 item rode it. The second break — Holochain 0.7.1 (PR #45) plus the integrity changes in PRs
+> #47, #55 and #57 — was deployed by the Oracle fresh install on **2026-10-19**
+> ([`../ORACLE_0.7.1_UPGRADE.md`](../ORACLE_0.7.1_UPGRADE.md)), and **01 and 02 rode it**, in
+> PR #57, together with #23 (hash-algorithm labels) and #24 (the network name). No break is
+> scheduled now, so any further 🟠 item costs a network break of its own. The 2026-08-22 text
+> below is kept unchanged as the reasoning; its "Oracle still runs 0.6.2" is long out of date.
 
 **It is going to be paid again.** Oracle still runs 0.6.2 and needs a full rebuild with state
 loss — already accepted, and the pre-0.7 published URLs are already gone (`PROJECT_STATUS.md`).
@@ -72,8 +73,8 @@ An item that cannot cite evidence is a conversation, not a backlog item.
 | 05 | Three public fields where typed content can expose a research subject | Found 2026-08-22 | 🟢 fix / 🔴 consequence | No |
 | 06 | `AgreementLevel` measures the reproduction rate, not agreement | Docs audit, 2026-10-18 | 🔴 | To rename/extend, yes — **decided 2026-10-19: document now, don't rename yet** |
 
-**01 and 02 both need an integrity-zome change**, so they should be scoped together and land in
-the same break rather than separately. **04's check is done and the item is parked on purpose** —
+**01 and 02 both needed an integrity-zome change**, so they were scoped together and landed in
+the same break (PR #57, 2026-10-19). **04's check is done and the item is parked on purpose** —
 it joins them only if validator identity is to come off the public record, and that question
 belongs partly to Nondominium, who will run human validators. Deciding it early, in their absence,
 would be worse than paying for it later. 03 is done. 05 is

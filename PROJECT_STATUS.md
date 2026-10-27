@@ -1,22 +1,23 @@
 # ValiChord — Current Project Status
 
-**Last updated:** 2026-10-18
-**Phase:** ✅ **Oracle runs Holochain 0.7.1.** Ceri ran the fresh install on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`); it carries #47, #55 and #57. **Verified end to end:** a CLI round, Reproduced 3/3, ExactMatch. **Live record, readable by anyone: `http://132.145.23.78:3001/record?hash=uhC8kczl-ObcLqHU21FmAnHxOw_qgWEHsq0kBqrOzGenu5bwCXwk-`.** Every record from the 0.7.0 network is now dead, as planned. Before that: **`main` was on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ✅ **Oracle ran 0.7.0 too from 2026-08-24**. Deployed to a **new host, `132.145.23.78`**, because the old one (`152.67.153.149`) became unadministrable: the SSH key from its creation was lost and Compute Instance Run Command accepts commands without ever executing them. The new instance was created with a key that is held. Every HarmonyRecord URL published before this date is dead (accepted, and inherent to the DNA-hash change). Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`. **Verified end to end on 0.7.0:** a CLI round (Reproduced 3/3, ExactMatch, `validator_count: 3`) and a claim run through the public site, which exercises `custom_runner.py`. That network's live record (`uhC8k9kxHSnu…`) died with the 0.7.1 reinstall on 2026-10-19. ⚠️ **Render had not deployed since 2026-07-07** — seven weeks in which every commit to `main` silently failed to reach the live site, most likely the GitHub App installation not following the repo's transfer to the ValiChord org. Fixed by hand for now; **auto-deploy reconnected the same evening** by installing the Render GitHub App on the ValiChord org (github.com/apps/render). The App installation does not follow a repository transfer between accounts, and nothing surfaces that: pushes simply stop producing deploys. Note an install is not retroactive - commits pushed before it fire no webhook, so the first push AFTER installing is the only real test. ⚠️ The 1-OCPU SQLite contention §44.12 flagged is **confirmed and survivable**: 76 `database is locked` errors during a round, zero crashes, every assertion held. The old instance is still running and still returns healthy 200s on 0.6.2 — a different network; doc references to it were purged 2026-08-25, see START HERE. Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest release **v0.6.6** (2026-10-18, `1cd60d8`): Holochain 0.7.1 plus #47 (peer-enforced credentials, HarmonyRecord evidence and validator tiers); it supersedes **v0.6.5** (2026-08-04, the 0.7.0 migration). Earlier GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced in the zome code for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` is at **format v2** (RFC 6962 §2.1 Merkle; package 2.0.0, shipped 2026-08-18) with **six adapters** (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun); **608 tests, 97% line coverage** (1114 statements, 33 missed; measured 2026-08-22, CI run 32598696410, identical on Python 3.10 and 3.13). `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
+**Last updated:** 2026-10-27
+**Phase:** ✅ **Oracle runs Holochain 0.7.1.** Ceri ran the fresh install on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`); it carries #47, #55 and #57. **Verified end to end:** a CLI round, Reproduced 3/3, ExactMatch. **Live record, readable by anyone: `http://132.145.23.78:3001/record?hash=uhC8kczl-ObcLqHU21FmAnHxOw_qgWEHsq0kBqrOzGenu5bwCXwk-`.** Every record from the 0.7.0 network is now dead, as planned. Before that: **`main` was on Holochain 0.7** (merged 2026-08-03, `38ea2123`). ✅ **Oracle ran 0.7.0 too from 2026-08-24**. Deployed to a **new host, `132.145.23.78`**, because the old one (`152.67.153.149`) became unadministrable: the SSH key from its creation was lost and Compute Instance Run Command accepts commands without ever executing them. The new instance was created with a key that is held. Every HarmonyRecord URL published before this date is dead (accepted, and inherent to the DNA-hash change). Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`. **Verified end to end on 0.7.0:** a CLI round (Reproduced 3/3, ExactMatch, `validator_count: 3`) and a claim run through the public site, which exercises `custom_runner.py`. That network's live record (`uhC8k9kxHSnu…`) died with the 0.7.1 reinstall on 2026-10-19. ⚠️ **Render had not deployed since 2026-07-07** — seven weeks in which every commit to `main` silently failed to reach the live site, most likely the GitHub App installation not following the repo's transfer to the ValiChord org. Fixed by hand for now; **auto-deploy reconnected the same evening** by installing the Render GitHub App on the ValiChord org (github.com/apps/render). The App installation does not follow a repository transfer between accounts, and nothing surfaces that: pushes simply stop producing deploys. Note an install is not retroactive - commits pushed before it fire no webhook, so the first push AFTER installing is the only real test. ⚠️ The 1-OCPU SQLite contention §44.12 flagged is **confirmed and survivable**: 76 `database is locked` errors during a round, zero crashes, every assertion held. The old instance is still running and still returns healthy 200s on 0.6.2 — a different network; doc references to it were purged 2026-08-25, see START HERE. Full protocol running end-to-end on Oracle. Public web demo live at valichord-demo.onrender.com/demo. Svelte/TS frontend wired to live conductor, end-to-end tested. Latest release **v0.6.6** (2026-10-18, `1cd60d8`): Holochain 0.7.1 plus #47 (peer-enforced credentials, HarmonyRecord evidence and validator tiers); it supersedes **v0.6.5** (2026-08-04, the 0.7.0 migration). Earlier GitHub release **v0.6.1** (2026-07-23) — coordinator auto-updater (checksum-verified, zero DNA-hash-change hot-swap; opt-in/default-OFF; end-to-end rehearsal PASS) + live-ops hardening (first Oracle hot-swap, local-read perf, Oracle ARM rebuild, UI Playwright e2e); still Holochain 0.6.2, no protocol change. Prior release **v0.6.0** (GitHub release, 2026-07-06) — core hardening: commit-reveal hash verification enforced in the zome code for real nonces (tampered reveals rejected, sweettest-proven), StudyClaim immutability (attestation DNA hash bump), Holochain 0.6.2 toolchain, badge-sweettest flake hardening. **Versioning note:** GitHub tags jump v0.5.4 → v0.6.0; the v0.5.5–v0.5.7 labels below were internal milestones, never git-tagged. Demo stack (from that untagged line): Your Hypothesis demo (CMA validators, user's own key, user-triggered reveal) is the primary hero section; five accordion explainers; Holochain logo in header; discipline classification via Claude. `valichord_attestation` **moved to its own repository on 2026-10-19** ([ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)): format v2 (RFC 6962 §2.1 Merkle), package 2.1.0, six adapters (InspectAI, InspectEvals, PiSession, LmEval, AILuminate, WandbRun), 640 tests per its first CI run there. `ValiChordLogger` lives in the `topeuph-ai/lm-evaluation-harness` fork — per our own notes no upstream PR was ever opened, only a comment on #3752 (2026-05-20) asking whether one would be welcome, still unanswered. **Four outside developers now build against the format**; none has touched the Holochain protocol.
 
 ---
 
-# 🚦 START HERE — next session (updated 2026-10-18)
+# 🚦 START HERE — next session (updated 2026-10-27)
 
 ## Where things stand, on one screen
 
 | | State | Checked |
 |---|---|---|
-| `main` | On **Holochain 0.7.1** — PR #45 merged 2026-10-17 (`1b5e7c8`), demo stack + repacked bundles in the follow-up PR | 2026-10-17 |
-| Holochain | `main` on **0.7.1**; Oracle (`132.145.23.78`) **still on 0.7.0** — fresh install pending, runbook written | 2026-10-17 |
+| `main` | On **Holochain 0.7.1** — PR #45 merged 2026-10-17 (`1b5e7c8`). Since then: protocol PRs #47, #55 and #57 (integrity changes, all on Oracle); #54 (`claim_hash`, attestation library) and #59 (library moved out); #60 (`get_linked_agents_for`, coordinator-only); demo PRs #61 and #62. Head `8fdc1eb` (2026-10-20) | 2026-10-27 |
+| Holochain | `main` and Oracle (`132.145.23.78`) both on **0.7.1**. Oracle fresh install run 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`) from the bundles at `376755e` (#47, #55, #57); all four DNA hashes changed, as expected | 2026-10-27 |
+| Committed bundles | Last repacked after #57 (`376755e`); these are what Oracle and the Docker demo run. ⚠️ **They do not contain #60** — `get_linked_agents_for` is absent from all three `.happ` files (scanned with `NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh`), so #60 is on `main` only: not repacked, not on Oracle. See "What is left", item 4 | 2026-10-27 |
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`) | 2026-10-18 |
-| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (2026-10-18; #35 and #36 are merged). The other 11 remote branches (`upgrade/holochain-0.7.1`, `fix/peer-enforced-signatures`, `fix/0.7.1-demo-stack`, `demo/ai-validator-agent-type`, …) are all **fully merged** into `main` (0 commits ahead) — safe to delete if Ceri wants. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
+| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet | 2026-10-27 |
+| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27) — safe to delete if Ceri wants. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
@@ -42,7 +43,7 @@ it carries **no merge pressure and no rebase risk** — leaving it parked costs 
 
 Nothing is half-finished. The 0.7 migration is merged; its record is below.
 
-## 🟠 Holochain 0.7.1 — merged to `main`; Oracle not yet reinstalled (2026-10-17)
+## ✅ Holochain 0.7.1 — merged to `main` (2026-10-17); Oracle reinstalled (2026-10-19)
 
 Holochain 0.7.1 shipped 2026-10-14. After two months untouched, the port landed as **PR #45**
 (https://github.com/ValiChord/ValiChord/pull/45), **merged 2026-10-17** (`1b5e7c8`) on Ceri's
@@ -63,12 +64,12 @@ UI browser tests (6/6 against a real 0.7.1 conductor), unit, demo, and the wind-
 
 **🔴 Merging is a network break, not a patch bump.** The capability-grant shape is part of the
 integrity types, so the DNA hash is expected to change: a separate network, and **every
-HarmonyRecord published on Oracle since 2026-08-24 stops resolving** — including the live record
-linked in the header. ⚠️ Expected, not yet observed: confirm by comparing DNA hashes before
-announcing anything. **Existing installs cannot upgrade in place either** — 0.7.1 cannot read
+HarmonyRecord published on Oracle since 2026-08-24 stops resolving** — including the 0.7.0 record
+the header linked at the time (it now links the record from the new network). ✅ **Observed 2026-10-19:** all four DNA hashes changed
+(`docs/Holochain_complete.md` §44.5). **Existing installs cannot upgrade in place either** — 0.7.1 cannot read
 grants written by 0.7.0, and `init` does not re-run, so the public-read grant would be missing.
-**Fresh install only**, on Oracle as on every demo node. **Nothing has been deployed** — Oracle
-still serves the 0.7.0 network, and its records still resolve, until the reinstall.
+**Fresh install only**, on Oracle as on every demo node. ✅ **Deployed 2026-10-19** by fresh
+install; the 0.7.0 network's records no longer resolve.
 
 **The follow-up the merge needed (2026-10-17, PR after #45):**
 
@@ -105,13 +106,24 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    has already changed hash, but the live network has not, so landing them before the reinstall
    still costs only one public break. A reason to *consider* them, not to rush them (see the 🛑
    note in that README).
-3. After the reinstall: run a real round, publish a record, replace the header link.
+3. ✅ **Done 2026-10-19:** a real round ran on the new network (Reproduced 3/3, ExactMatch) and
+   the header link was replaced with its record.
+4. 🟠 **Open (found 2026-10-27): #60 is not deployed anywhere.** It merged after the last repack,
+   so none of the committed bundles carries `get_linked_agents_for`. It is coordinator-only, so it
+   can reach Oracle without a network break — but it also adds the function to the `public-read`
+   grant, and that grant is written in `init()`, which does not re-run on an existing cell (see
+   `CLAUDE.md` on the 0.7.1 upgrade; upstream `holochain/holochain#4911`, "Coordinator updates:
+   capability tokens", is tracked in `.claude/skills/check-holochain-updates.md`). A hot-swap would
+   therefore probably deliver the function without the grant entry. How #60 should reach Oracle is
+   Ceri's decision; the first step either way is a run of the **Repack bundles** workflow.
 
 **What 0.7.1 does and does not fix for us:**
 
 - 🔴 **`#5288` is still open** — the warrant gate still **fails open** on networks where the only
-  peers are local. Call sites: `attestation_coordinator::reject_if_warranted` (`:688` since #47; was `:637`), `governance_coordinator:188`,
-  `governance_coordinator:394`. Do not cite the warrant gate as a safety property.
+  peers are local. Call sites: `attestation_coordinator::reject_if_warranted`, and the warrant
+  checks inside `governance_coordinator::check_and_create_harmony_record` and
+  `governance_coordinator::force_finalize_round` (at `:716`, `:195` and `:401` on 2026-10-27; line
+  numbers drift, so cite the function names). Do not cite the warrant gate as a safety property.
 - **Source-chain restore shipped**, and recovers **public state only**: a validator who loses
   their machine mid-round loses their sealed private attestation, and a restored node also loses
   its capability grants. No longer theoretical.
@@ -129,8 +141,10 @@ and any path dependency is a place a version bump lands without anyone touching 
 
 ### ✅ 1. Oracle — resolved 2026-08-24
 
-Oracle runs **0.7.0**, on a **new host: `132.145.23.78`**. `main` and the live public demo now
-describe the **same** stack. Full record and runbook: `docs/ORACLE_0.7.0_UPGRADE.md`.
+Oracle ran **0.7.0** from 2026-08-24, on a **new host: `132.145.23.78`**, and has run **0.7.1**
+since the fresh install of 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`). `main` and the live public
+demo describe the **same** stack, apart from #60 (see "Committed bundles" in the table above).
+Full record and runbook for the 0.7.0 rebuild: `docs/ORACLE_0.7.0_UPGRADE.md`.
 
 What that closes:
 
@@ -157,7 +171,7 @@ What it opened, which is the part that bites:
   in `demo/README.md`, `demo/ai_validator_cma.py` and `demo/CORE_BENCH_DEMO.md` until 2026-08-25.
   Switching the old instance off would be a real safety improvement.
 
-⌛ **THE WINDOW HAS CLOSED** *(for the 0.7.0 rebuild — but see item 2 under "What is left" in the 0.7.1 section above: a second break is now pending with the 0.7.1 reinstall, 2026-10-18)*. The rebuild's DNA-hash change was the one moment when an
+⌛ **THE WINDOW HAS CLOSED** *(for the 0.7.0 rebuild. A second window followed with the 0.7.1 reinstall: it was used — 01 and 02 were built in #57 and rode that break — and it closed on 2026-10-19. The 2026-08-24 text follows.)* The rebuild's DNA-hash change was the one moment when an
 integrity-zome change cost nothing extra, because the break was already being paid for. It happened
 on 2026-08-24 and **neither 🟠 candidate rode along**, so HarmonyRecord supersession and hardware
 provenance now each cost a network break **of their own**. They are still listed in
@@ -222,11 +236,14 @@ untested against an integrator whose incentives differ from ours.
 
 ## 👉 THE NEXT STEP
 
-1. ~~**Oracle rebuild**~~ — ✅ done 2026-08-24 (0.7.0). The next one is the **0.7.1 fresh
-   install** — `docs/ORACLE_0.7.1_UPGRADE.md`, see the 0.7.1 section above.
+1. ~~**Oracle rebuild**~~ — ✅ done 2026-08-24 (0.7.0), and ✅ the **0.7.1 fresh install**
+   followed on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`). Still open: getting #60 there — see
+   item 4 of "What is left" in the 0.7.1 section above.
 2. ~~**Tag a release.**~~ — ✅ done 2026-10-18: **v0.6.6**, covering the format-v2 work, the
    outside contributions, Holochain 0.7.1 and #47.
-3. **Phase C** (`valichord/wind-tunnel/`) whenever upstream publishes the wind-tunnel runner.
+3. **Phase C** (`valichord/wind-tunnel/`): it already builds and is CI-tested on 0.7 through a
+   git-rev pin of the runner (`e4861457`); move to the crates.io runner once upstream publishes a
+   release for Holochain 0.7.
 4. ~~Re-enable the wind-tunnel CI job~~ — ✅ done 2026-08-03. ~~Delete the merged 0.7 branches~~ —
    ✅ done; both are gone from the remote.
 
@@ -386,7 +403,8 @@ ignored. Teaching its extractor the spliced form is worth doing.
 
 ### ⚠️ `workdir/*.dna` IS GITIGNORED — a fresh Codespace has no DNAs
 
-`valichord/.gitignore` ignores `workdir/*.dna`; only `workdir/valichord.happ` is tracked. So after
+`valichord/.gitignore` ignores `workdir/*.dna`; only the three `.happ` bundles (`valichord`,
+`researcher`, `validator`) are tracked. So after
 a rebuild the four `.dna` files are **absent**, and every sweettest fails with "…dna not found".
 Rebuild before running anything:
 
@@ -943,6 +961,13 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 
 ## What is live right now
 
+> The first seven rows (Flask REST API through Swagger UI) describe the live **valichord_at_home**
+> service, whose code has lived in its own repository
+> ([topeuph-ai/valichord_at_home](https://github.com/topeuph-ai/valichord_at_home)) since
+> 2026-04-22; their status was not re-checked on 2026-10-27. This repository's own protocol API,
+> `backend/app_protocol.py`, has similar `/openapi.yaml` and `/docs` routes but does not start —
+> see `backend/README.md`.
+
 | Component | Status | Detail |
 |---|---|---|
 | Flask REST API | **Live** | `POST /validate`, `GET /result/<job_id>`, `GET /download/<job_id>`, `GET /health` |
@@ -952,7 +977,7 @@ ValiChord is a scientific reproducibility verification system built on Holochain
 | Webhook callbacks | **Live** | `callback_url` form field; fires once on completion with one retry |
 | OpenAPI 3.0 spec | **Live** | `GET /openapi.yaml` — machine-readable spec for any HTTP client |
 | Swagger UI | **Live** | `GET /docs` — interactive API explorer |
-| Decentralised demo | **Live on Oracle (rebuilt 2026-08-24 onto a new host)** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server **132.145.23.78** (Ampere A1 ARM, PAYG account, Always Free shape); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. **Previous server 132.145.34.27 was reclaimed by Oracle when the free trial ended 2026-06-11 — its DHT state and every HarmonyRecord URL on that IP are gone.** |
+| Decentralised demo | **Live on Oracle — Holochain 0.7.1 since the fresh install of 2026-10-19 (on this host since the 2026-08-24 rebuild)** | 5 isolated Docker containers (bootstrap + researcher + 3 validators) on Oracle server **132.145.23.78** (Ampere A1 ARM, PAYG account, Always Free shape); `restart: unless-stopped` survives reboots. Run locally: `docker compose up` + `python3 demo/ai_validator.py --mode decentralised`. **Previous server 132.145.34.27 was reclaimed by Oracle when the free trial ended 2026-06-11 — its DHT state and every HarmonyRecord URL on that IP are gone.** |
 | Public web demo | **Live on Render** | Flask app at `valichord-demo.onrender.com/demo`. **One demo: *Your Hypothesis*** — user enters any claim + their own sealed answer + their own Anthropic key; 3 CMA validators research it blind in parallel; user clicks a pulsing green Reveal button once all 3 commit; adjudicator Claude call compares answers; HarmonyRecord written to DHT. (The server-funded *Free Demo* was **removed June 2026** — every visitor run drew on the server's own Anthropic key, causing rate-limit/cost problems; the site now runs **exclusively on the visitor's `sk-ant-` key**, no server key. The `/demo/run` + `/demo/result` routes are gone from `app.py`. Full detail in `demo/DEMO_WEBSITE.md`.) Linear scroll layout with five expandable accordion explainers (how it works, why remarkable, why Holochain not blockchain, why not central server, why disagreement is fine). Holochain logo in header. |
 | Node.js bridges | **Working** | `researcher-node.mjs` (port 3001) + `validator-node.mjs` (ports 3002–3004) — HTTP APIs over each conductor |
 | HarmonyRecord URL | **Working** | `GET /record?hash=<hash>` on researcher node — no auth, returns clean JSON. On Oracle: `http://132.145.23.78:3001/record?hash=<hash>` (port 3001 must be open in Oracle Security List). |
@@ -2022,7 +2047,7 @@ Run this from the terminal — installs everything in one go (~25 min):
 ```bash
 cd /workspaces/ValiChord && bash setup_holochain.sh
 ```
-Installs: Claude Code, Rust, Holochain 0.6.1, hc CLI, kitsune2-bootstrap-srv, holochain-dev skill, compiles all 4 DNA zomes and packs the hApp.
+Installs: Claude Code, Rust, Holochain 0.7.1, hc 0.7.1, kitsune2-bootstrap-srv 0.5.1, the holochain-dev skill; compiles all 4 DNA zomes and packs `valichord.happ` (the script moved to 0.7.1 on 2026-10-17).
 
 Then inside Claude Code chat: `/plugin install superpowers`
 
@@ -2130,7 +2155,7 @@ on DNA 3. Both sides of the commit-reveal are now fully hash-verified.
 | `valichord-ui/FRONTEND.md` | Screen-by-screen UI walkthrough — all three roles |
 | `valichord-ui/src/lib/` | Svelte components: ResearcherView, ValidatorView, GovernanceView, types.ts, holochain.ts |
 | `docs/7_ValiChord_4-DNA_architecture_technical.md` | Four-DNA architecture |
-| `valichord/wind-tunnel/` | Wind-Tunnel load-test workspace — 3 performance scenarios (write throughput, phase latency, reveal throughput) |
+| `valichord/wind-tunnel/` | Wind-Tunnel load-test workspace — 5 scenarios (write throughput, phase latency, reveal throughput, DHT sync lag, raw Kitsune2 propagation) |
 
 ---
 

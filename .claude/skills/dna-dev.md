@@ -89,15 +89,18 @@ Do not describe the check as "init() only" or say `verify_signature` is unavaila
 
 ## Commit-reveal protocol
 
-### Validator side (DNA 3 → DNA 1)
-1. `seal_private_attestation` — generates nonce, serialises attestation to msgpack via `SerializedBytes`, computes `SHA-256(msgpack || nonce)`, stores as private `ValidatorPrivateAttestation`
-2. `post_commit` → `notify_commitment_sealed` on DNA 1 — passes only `request_ref` + `commitment_hash` (no content)
-3. `submit_attestation` — verifies `SHA-256(SerializedBytes(attestation) || nonce) == CommitmentAnchor.commitment_hash` before writing public `ValidationAttestation`
+DNA numbering as everywhere else in the repo: DNA 1 = `researcher_repository`, DNA 2 =
+`validator_workspace`, DNA 3 = `attestation`, DNA 4 = `governance`.
 
-### Researcher side (DNA 2 → DNA 1)
-1. `lock_researcher_result` — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores as private `LockedResult`
-2. Calls `publish_researcher_commitment` on DNA 1 — passes only hash
-3. `reveal_researcher_result` — verifies hash match before writing public `ResearcherReveal`
+### Validator side (DNA 2 → DNA 3)
+1. `seal_private_attestation` (DNA 2) — generates nonce, serialises attestation to msgpack via `SerializedBytes`, computes `SHA-256(msgpack || nonce)`, stores as private `ValidatorPrivateAttestation`
+2. `post_commit` (DNA 2) → `notify_commitment_sealed` on DNA 3 — passes only `request_ref` + `commitment_hash` (no content)
+3. `submit_attestation` (DNA 3) — on credentialed networks refuses until the phase is RevealOpen, then verifies `SHA-256(SerializedBytes(attestation) || nonce) == CommitmentAnchor.commitment_hash` before writing public `ValidationAttestation`
+
+### Researcher side (DNA 1 → DNA 3)
+1. `lock_researcher_result` (DNA 1) — generates nonce, computes `SHA-256(rmp_serde::to_vec_named(metrics) || nonce)`, stores as private `LockedResult`
+2. Calls `publish_researcher_commitment` on DNA 3 — passes only hash
+3. `reveal_researcher_result` (DNA 3) — verifies hash match before writing public `ResearcherReveal`
 
 **Codec consistency**: both commit and reveal use `SerializedBytes::try_from(&attestation).bytes()` (= `rmp_serde::to_vec_named`). Never mix with `rmp_serde::to_vec` — named uses string keys, compact uses integer keys.
 
@@ -127,13 +130,13 @@ get(target, GetOptions::local())
 In `validate()`, immutable entries need guards in **both** the Update and Delete arms:
 
 ```rust
-// Update arm
-FlatOp::RegisterUpdate(OpUpdate::Entry {
+// Update arm (Holochain 0.7 / hdi 0.8 names — 0.6 called these RegisterUpdate / RegisterDelete)
+FlatOp::Update(OpUpdate::Entry {
     app_entry: EntryTypes::SomeImmutableType(_), ..
 }) => Ok(ValidateCallbackResult::Invalid("SomeImmutableType is immutable".into())),
 
 // Delete arm — must use must_get_valid_record + deserialize
-FlatOp::RegisterDelete(OpDelete { action }) => {
+FlatOp::Delete(OpDelete { ref action }) => {
     let original = must_get_valid_record(action.deletes_address.clone())?;
     if let Some(EntryType::App(app_def)) = original.action().entry_type() {
         // deserialize and match on type...
@@ -141,7 +144,18 @@ FlatOp::RegisterDelete(OpDelete { action }) => {
 }
 ```
 
-Immutable entries in ValiChord: `ValidationAttestation`, `CommitmentAnchor`, `PhaseMarker`, `ResearcherResultCommitment`, `ResearcherReveal`, `ValidationRequest`, `HarmonyRecord`, `ReproducibilityBadge`, `GovernanceDecision`, `PreRegisteredProtocol`, `VerifiedDataSnapshot`, `LockedResult`, `ValidatorPrivateAttestation`, `ValidationTask`.
+Private entries never match `OpUpdate::Entry`, only `OpUpdate::PrivateEntry` — so in the two
+all-private DNAs one blanket `OpUpdate::PrivateEntry` arm rejects **every** update, and the
+per-type update arms there are dead code.
+
+What the integrity zomes actually guard (checked 2026-10-27 against the `Invalid` messages):
+
+| DNA | No update and no delete | Other rules |
+|---|---|---|
+| 3 attestation | `ValidationRequest`, `StudyClaim`, `StudyClaimRelease`, `CommitmentAnchor`, `PhaseMarker`, `ValidationAttestation`, `ResearcherResultCommitment`, `ResearcherReveal` | `AgentIdentityAttestation`: no update; either named agent may delete it (revocation) |
+| 4 governance | `HarmonyRecord`, `ReproducibilityBadge`, `GovernanceDecision`, `Supersession` | `ValidatorReputation`: created and updated by `system_coordinator_key` only; it has no delete guard, so its author may delete it |
+| 1 researcher_repository | `PreRegisteredProtocol` | No entry can be updated. `LockedResult`: delete refused in `OpenAudit` mode, allowed in `Gdpr`. Other entries: author-only delete |
+| 2 validator_workspace | `ValidatorPrivateAttestation`, `DeliberateAbstention` | No entry can be updated. Other entries: author-only delete |
 
 ---
 
@@ -194,7 +208,7 @@ const bad = new Uint8Array(39).fill(0xAB);
 
 ## DNA properties pattern
 
-- Store as `String` (base58/base64), NOT `AgentPubKey` — conductor passes YAML modifiers as msgpack strings, not binary
+- Store as `String` (the base64 `uhCAk…` form), NOT `AgentPubKey` — conductor passes YAML modifiers as msgpack strings, not binary
 - Use `#[serde(default)]` on optional properties
 - Empty string = dev/test bypass (consistent pattern across all DNAs)
 

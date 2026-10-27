@@ -2,6 +2,7 @@
 
 These four diagrams show how the ValiChord protocol (`valichord/`) actually works. They were
 drawn from the code on 2026-10-18 (Holochain 0.7.1, after PR #47), not from other documents.
+Diagram 3 was updated for PR #55 (2026-10-19) and, on 2026-10-27, for PR #57.
 GitHub draws them from text, so anyone can correct them in a normal pull request.
 
 If a diagram and the code disagree, the code wins: please fix the diagram. The files each
@@ -141,8 +142,9 @@ flowchart TB
         P5["Chain: attestation to its own CommitmentAnchor to the ValidationRequest.<br/>Same author, same study, discipline, cohort size and request time match"]
         P6["RevealOpen lists commitments from all N validators<br/>(and its author is one of them)"]
         P11["Researcher's reveal names the real request and<br/>an earlier researcher commitment for the same study"]
-        P7["No edits or deletes of requests, claims, anchors, attestations,<br/>phase markers, researcher commitments, reveals, HarmonyRecords, badges"]
-        P8["HarmonyRecord: author took part, no duplicates, one signed attestation<br/>per validator, signatures valid, outcome and agreement recomputed,<br/>cohort size matches, a short record only after round_timeout_secs"]
+        P7["No edits or deletes of requests, claims, anchors, attestations,<br/>phase markers, researcher commitments, reveals, HarmonyRecords, badges,<br/>supersession links"]
+        P8["HarmonyRecord: author took part, no duplicates, one signed attestation<br/>per validator, signatures valid, outcome and agreement recomputed,<br/>cohort size matches, a short record only after round_timeout_secs,<br/>network name and researcher hardware disclosure match"]
+        P12["Supersession link: made by the researcher (with their signed request)<br/>or by a validator from either round, and the claimed role is true"]
         P9["Badge: points to a real HarmonyRecord, author took part,<br/>not above the tier the count and agreement allow"]
         P10["GovernanceDecision and ValidatorReputation:<br/>only the system_coordinator_key may write"]
     end
@@ -187,7 +189,7 @@ forger could post-date it, but cannot hide that the record is short ("k of N").
 
 *Checked against:* `attestation_integrity/src/lib.rs` (`validate`, `check_joining_certificate`,
 `check_profile_certification`), `governance_integrity/src/lib.rs` (`validate`,
-`check_attestation_evidence`, `badge_ceiling`), `attestation_coordinator/src/lib.rs`
+`check_attestation_evidence`, `badge_ceiling`, `check_supersession`), `attestation_coordinator/src/lib.rs`
 (`submit_attestation`, `notify_commitment_sealed`, `claim_study`, `reveal_researcher_result`,
 `reject_if_warranted`), `governance_coordinator/src/lib.rs` (`force_finalize_round`),
 `shared_types/src/lib.rs` (`derive_agreement_level`).

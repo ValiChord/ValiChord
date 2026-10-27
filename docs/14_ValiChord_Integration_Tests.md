@@ -246,9 +246,9 @@ Covers protocol-gap fixes and commit-reveal hash verification.
 
 The only tests that run with a real Ed25519 credential issuer instead of the dev bypass: a valid proof is accepted; a wrong signature, a proof issued to another agent, a missing proof and a too-short proof are each rejected at genesis; an empty issuer bypasses the membrane (dev/test mode).
 
-### Test-only builds — `immutability_tripwire.rs` (15), `harmony_record_forgery.rs` (1), `validator_tier_forgery.rs` (1)
+### Test-only builds — `immutability_tripwire.rs` (15), `harmony_record_forgery.rs` (1), `validator_tier_forgery.rs` (1), `reveal_phase_forgery.rs` (1), `supersession_forgery.rs` (1)
 
-These need the `--features test_utils` build from `build-test-dnas.sh`, because no production coordinator can write a forbidden update, delete or forged entry. The tripwires prove the integrity zomes reject forbidden updates and deletes; the two forgery tests (added with PR #47) prove peers refuse a forged HarmonyRecord and a self-assigned validator tier in `validate()`.
+These need the `--features test_utils` build from `build-test-dnas.sh`, because no production coordinator can write a forbidden update, delete or forged entry. The tripwires prove the integrity zomes reject forbidden updates and deletes. The forgery tests prove peers refuse, in `validate()`: a forged HarmonyRecord and a self-assigned validator tier (both added with PR #47); a RevealOpen marker that does not list the whole cohort and a researcher reveal that does not name its request and commitment (PR #55); and a supersession link made in a role its author does not hold (PR #57).
 
 ---
 

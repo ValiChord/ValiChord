@@ -6,10 +6,10 @@
 
 > **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.5.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting.
 >
-> **Status update (2026-10-18).** "Live on Oracle (v0.5.0)" was the May 2026 state. Today:
+> **Status update (2026-10-27).** "Live on Oracle (v0.5.0)" was the May 2026 state. Today:
 > latest release **v0.6.6**, Holochain **0.7.1** on `main`; the public Oracle host is
-> `132.145.23.78` (still on 0.7.0 until a fresh 0.7.1 install, which starts a new network — so
-> records are durable within a network, not across these upgrades). Since PR #47 (2026-10-18)
+> `132.145.23.78`, reinstalled on 0.7.1 on 2026-10-19 — a fresh install that started a new
+> network, so records are durable within a network, not across these upgrades. Since PR #47 (2026-10-18)
 > every peer checks joining credentials, validator tiers, and each HarmonyRecord's signed
 > per-validator attestations. Validation thresholds (badge 3/5/7, tier 3/10/25) are placeholders
 > still to be calibrated.
