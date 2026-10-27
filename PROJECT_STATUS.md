@@ -13,7 +13,7 @@
 |---|---|---|
 | `main` | On **Holochain 0.7.1** — PR #45 merged 2026-10-17 (`1b5e7c8`). Since then: protocol PRs #47, #55 and #57 (integrity changes, all on Oracle); #54 (`claim_hash`, attestation library) and #59 (library moved out); #60 (`get_linked_agents_for`, coordinator-only); demo PRs #61 and #62. Head `8fdc1eb` (2026-10-20) | 2026-10-27 |
 | Holochain | `main` and Oracle (`132.145.23.78`) both on **0.7.1**. Oracle fresh install run 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`) from the bundles at `376755e` (#47, #55, #57); all four DNA hashes changed, as expected | 2026-10-27 |
-| Committed bundles | Last repacked after #57 (`376755e`); these are what Oracle and the Docker demo run. ⚠️ **They do not contain #60** — `get_linked_agents_for` is absent from all three `.happ` files (scanned with `NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh`), so #60 is on `main` only: in no committed bundle, not on Oracle. A repack has run, but its bundles are not committed yet. See "What is left", item 4 | 2026-10-27 |
+| Committed bundles | Repacked 2026-10-27 after #60 (run `40602164694`, from `d90f98a`); these are what the Docker demo runs. Only the attestation coordinator changed. All four integrity WASMs and every DNA manifest are byte-identical to the bundles Oracle installed on 2026-10-19 (`376755e`), so the DNA hashes are unchanged. `get_linked_agents_for` is now in all three `.happ` files (`NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh` exits 1). ⚠️ Oracle still runs the 2026-10-19 bundles, so it lacks #60 until a coordinator hot-swap. See "What is left", item 4 | 2026-10-27 |
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
 | Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet. **v0.6.7 approved 2026-10-27**, to be tagged once the repack (item 4 under "What is left") has landed on `main` | 2026-10-27 |
@@ -108,8 +108,9 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    note in that README).
 3. ✅ **Done 2026-10-19:** a real round ran on the new network (Reproduced 3/3, ExactMatch) and
    the header link was replaced with its record.
-4. 🟠 **Open (found 2026-10-27): #60 is not deployed anywhere.** It merged after the last repack,
-   so none of the committed bundles carries `get_linked_agents_for`. It is coordinator-only, so it
+4. 🟠 **Open (found 2026-10-27): #60 is not on Oracle.** It merged after the bundles Oracle
+   installed, so Oracle lacks `get_linked_agents_for`. The committed bundles carry it since the
+   repack of 2026-10-27 (below). It is coordinator-only, so it
    can reach Oracle without a network break — but it also adds the function to the `public-read`
    grant, and that grant is written in `init()`, which does not re-run on an existing cell (see
    `CLAUDE.md` on the 0.7.1 upgrade; upstream `holochain/holochain#4911`, "Coordinator updates:
@@ -118,18 +119,20 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    Ceri's decision; the first step either way is a run of the **Repack bundles** workflow.
    **Decided 2026-10-27 (Ceri):** repack now. Add a grant fix (a coordinator-only call that issues
    the extra grant) only if outside callers need the function. Where that stands:
-   - 🟡 **Repack: run, not committed yet.** Run `40602164694` (2026-10-27, on
-     `claude/beautiful-bardeen-60urjk` at `d90f98a`) succeeded and uploaded `happ-bundles`, which
-     GitHub keeps until 2026-11-03. Claude could not download it: the session's network policy
-     refuses the host GitHub serves artifacts from (`productionresultssa11.blob.core.windows.net`).
-     Allow that host and Claude will download, check and commit the bundles. Or download them
-     yourself (`gh run download 40602164694 -n happ-bundles -D valichord/workdir`) and do the check
-     below before committing. If the artifact has expired, run **Actions → Repack bundles → Run
-     workflow** again. ⚠️ **Do not repack anywhere else.** Every integrity WASM in the committed
-     bundles embeds the CI runner's paths (`/home/runner/…`), so a local pack has different
-     integrity bytes and a different DNA hash (see `CLAUDE.md`, Hard constraints).
-   - **Check after the repack:** only the attestation *coordinator* should change. The integrity
-     WASMs inside `valichord.happ` must keep these sha256 prefixes (measured 2026-10-27):
+   - ✅ **Repack: done and committed 2026-10-27.** Run `40602164694`, on
+     `claude/beautiful-bardeen-60urjk` at `d90f98a`. Checked before committing:
+     - The zip matches GitHub's artifact digest, and the files match the checksums in the run's log.
+     - Only `attestation_coordinator.wasm` changed (`a1db8e0468366813` → `ac2e5f334d9fd4dd`).
+     - The four integrity WASMs kept the prefixes below, and every hApp and DNA manifest is
+       identical, so the DNA hashes are unchanged.
+     - `get_linked_agents_for` is in all three bundles, and `./check-no-test-hooks.sh` passes.
+
+     ⚠️ **Do not repack anywhere else.** Every integrity WASM in the committed bundles embeds the
+     CI runner's paths (`/home/runner/…`), so a local pack has different integrity bytes and a
+     different DNA hash (see `CLAUDE.md`, Hard constraints).
+   - **The check, for next time:** only the coordinators whose code changed may differ. The integrity
+     WASMs inside `valichord.happ` must keep these sha256 prefixes (measured 2026-10-27, and
+     unchanged by the #60 repack):
      attestation `cb3e5d799a4e5a57`, governance `c0381cbb459897f8`, researcher_repository
      `414ab222d3bd52d4`, validator_workspace `63883296c0809093`. A changed integrity hash means a
      changed DNA hash: do not commit it.
@@ -272,9 +275,8 @@ untested against an integrator whose incentives differ from ours.
    ✅ done; both are gone from the remote.
 5. **Approved by Ceri 2026-10-27.** Claude got GitHub access later that day (the session branch
    was pushed). What that could and could not unblock:
-   - **Repack bundles** for #60, then check the integrity hashes (item 4 of "What is left" above).
-     Run `40602164694` succeeded on `claude/beautiful-bardeen-60urjk`. Its bundles are not
-     committed yet, because this session cannot download the artifact (item 4 says why).
+   - ~~**Repack bundles** for #60~~ — ✅ done 2026-10-27 (run `40602164694`), checked and
+     committed. The integrity WASMs are unchanged (item 4 of "What is left" above).
    - **Tag v0.6.7** once that repack is on `main`.
    - **Delete the 21 merged remote branches** — needs Ceri. A Claude session may push only its
      own branch, and the delete returned HTTP 403. All 21 were 0 commits ahead of `main` when
@@ -314,7 +316,7 @@ untested against an integrator whose incentives differ from ours.
    - **Move the attestation-library plans** (`docs/PISESSION_ADAPTER_PLAN.md`,
      `docs/EVALS_REPO_PLAN.md`, `docs/ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`) into the
      valichord-attestation repository, which this session cannot reach.
-   - **Hot-swap #60 onto Oracle** once the repacked bundles are committed (needs the host).
+   - **Hot-swap #60 onto Oracle** (needs the host). The repacked bundles are committed.
 
 ---
 

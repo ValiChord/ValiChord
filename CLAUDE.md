@@ -409,17 +409,21 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   whether a timed-out short record may earn a badge.
 - ✅ **Oracle runs 0.7.1** — the fresh install was run on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`,
   which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57 — but
-  **not #60** (`get_linked_agents_for`, coordinator-only, merged after the last repack; see the next
-  item). A real round passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's
-  `python3` is **3.9**: demo scripts run there must not evaluate 3.10+ syntax.
+  **not #60** (`get_linked_agents_for`, coordinator-only). The committed bundles carry it since the
+  2026-10-27 repack. Getting it onto Oracle is a coordinator hot-swap, with a grant caveat
+  (`PROJECT_STATUS.md`, "What is left", item 4). A real round passed (Reproduced 3/3). Every 0.7.0
+  record is dead, as planned. ⚠️ The server's `python3` is **3.9**: demo scripts run there must not
+  evaluate 3.10+ syntax.
 - ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
   on the server. They go stale on every Holochain bump **and on every zome change, coordinator-only
   ones included**. Repack with the **Repack bundles** workflow
   (`.github/workflows/repack-bundles.yml`), not by hand on Windows (no `hc` there). The UI e2e job
   builds from source and so cannot detect a stale committed bundle — only this can.
-  ⚠️ **Stale as of 2026-10-27:** last repacked after #57 (`376755e`), so none of the three bundles
-  contains #60's `get_linked_agents_for`. Check any function with
-  `NEEDLE=<fn_name> ./check-no-test-hooks.sh` (exit 1 = present in a bundle, 0 = absent).
+  ✅ **Current as of 2026-10-27:** repacked after #60 (run `40602164694`, from `d90f98a`). Only the
+  attestation coordinator changed. All four integrity WASMs and every DNA manifest are
+  byte-identical to the bundles Oracle installed on 2026-10-19, so the DNA hashes are unchanged.
+  Oracle still runs the older attestation coordinator until it is hot-swapped. Check any function
+  with `NEEDLE=<fn_name> ./check-no-test-hooks.sh` (exit 1 = present in a bundle, 0 = absent).
 - ⚠️ **Oracle changed address.** It is **`132.145.23.78`**, not `152.67.153.149`. The old instance
   was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
   accepts commands without ever executing them. A new instance was built with a key that is held.
