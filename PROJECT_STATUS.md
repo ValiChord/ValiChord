@@ -16,7 +16,7 @@
 | Committed bundles | Repacked 2026-10-27 after #60 (run `40602164694`, from `d90f98a`); these are what the Docker demo runs. Only the attestation coordinator changed. All four integrity WASMs and every DNA manifest are byte-identical to the bundles Oracle installed on 2026-10-19 (`376755e`), so the DNA hashes are unchanged. `get_linked_agents_for` is now in all three `.happ` files (`NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh` exits 1). ⚠️ Oracle still runs the 2026-10-19 bundles, so it lacks #60 until a coordinator hot-swap (runbook `docs/ORACLE_HOTSWAP_60.md`). See "What is left", item 4 | 2026-10-27 |
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest release | **`v0.6.7`** (2026-10-28) — the first release whose integrity zomes match the live network: #55 and #57 on top of v0.6.6, the bundles repacked after #60 (#63), and the docs follow-up that carries the hot-swap runbook. Tagged on that follow-up's commit. CI on #63's head `df709e5` was 11/11 green (run `40604193955`); only Markdown changed after it. Previous: `v0.6.6` (2026-10-18, `1cd60d8`), Holochain 0.7.1 + #47 | 2026-10-28 |
+| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). **`v0.6.7` is ready to tag on `main` once #64 merges**: the first release whose integrity zomes match the live network (#55 and #57 on top of v0.6.6, plus the bundles repacked after #60 in #63). CI on #63's head `df709e5` was 11/11 green (run `40604193955`); only Markdown changed after it. Release notes are drafted. The tag and the GitHub release need Ceri: a Claude session's tag push returns HTTP 403, and it has no tool that creates releases | 2026-10-28 |
 | Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). ✅ **The 21 fully merged branches were deleted on 2026-10-28** (Ceri; all 21 re-verified as merged into `main` first). Their tips are under "THE NEXT STEP", item 5, for restoring one. ⚠️ `research/feature-selection-stability` was deleted with them by mistake and **restored the same day at its original tip `0d03bbe3`**, so its 7 commits keep their hashes and dates. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-28 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
@@ -283,8 +283,9 @@ untested against an integrator whose incentives differ from ours.
    was pushed). What that could and could not unblock:
    - ~~**Repack bundles** for #60~~ — ✅ done 2026-10-27 (run `40602164694`), checked and
      committed. The integrity WASMs are unchanged (item 4 of "What is left" above).
-   - ~~**Tag v0.6.7**~~ — ✅ tagged 2026-10-28 on the docs follow-up to #63. Publishing its GitHub
-     release needs Ceri: this session has no tool that creates releases.
+   - **Tag v0.6.7** — ready, and needs Ceri. Once #64 has merged: GitHub → Releases → Draft a new
+     release → tag `v0.6.7`, target `main` → paste the drafted notes → Publish. A Claude session's
+     tag push returned HTTP 403, and it has no tool that creates releases.
    - ~~**Delete the 21 merged remote branches**~~ — ✅ done by Ceri 2026-10-28, after all 21 were
      re-verified as merged (a Claude session may push only its own branch, so its delete returned
      HTTP 403). ⚠️ `research/feature-selection-stability` went with them by mistake and was
