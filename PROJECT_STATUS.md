@@ -154,9 +154,12 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    about 85%, over the day and a half before, so it most likely ran out of memory. A console reboot
    on 2026-10-28 brought it back. At that rate the server (`VM.Standard.A1.Flex`, 1 OCPU / 6 GB)
    would freeze again within a few days of each restart. The options are Ceri's:
-   - **Give it more memory.** Oracle's Always Free A1 allowance is 4 OCPU / 24 GB, and the old
-     instance's share was freed when it was terminated. Changing the shape restarts the server, and
-     the containers come back by themselves.
+   - ⚠️ **More memory is not a free fix.** Ceri's free allowance on Oracle is **1 OCPU / 6 GB**,
+     and this instance already uses all of it, so a bigger shape would be paid. (Corrected
+     2026-10-28: Claude sessions have repeatedly, and wrongly, said 4 OCPU / 24 GB, and this item
+     said so too for a few minutes.)
+   - **Restart the containers on a schedule**, for example nightly, so memory never builds up for
+     days. It costs a few minutes of downtime each time.
    - **Add an alarm on memory** (or an outside check of `/health`) so that a freeze is noticed. This
      one went unnoticed for a week.
    - **Find which container grows:** run `docker stats --no-stream` twice, a day apart. More memory

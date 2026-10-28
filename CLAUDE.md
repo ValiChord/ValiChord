@@ -440,6 +440,9 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   fixed it, but at that rate it freezes again within a few days of each restart until the memory
   is dealt with (`PROJECT_STATUS.md`, "What is left", item 5). Check
   `http://132.145.23.78:3001/health` before believing the demo is up.
+  ⚠️ **More memory is not a free fix:** Ceri's Oracle free allowance is **1 OCPU / 6 GB**, and this
+  instance already uses all of it. Several Claude sessions have wrongly said 4 OCPU / 24 GB, so do
+  not repeat that.
 - ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite contention:
   76 of them during a verified round, zero crashes, every assertion held. Do not treat them as the
   cause of an unrelated problem.
