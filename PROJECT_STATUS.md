@@ -13,13 +13,16 @@
 |---|---|---|
 | `main` | On **Holochain 0.7.1** — PR #45 merged 2026-10-17 (`1b5e7c8`). Since then: protocol PRs #47, #55 and #57 (integrity changes, all on Oracle); #54 (`claim_hash`, attestation library) and #59 (library moved out); #60 (`get_linked_agents_for`, coordinator-only); demo PRs #61 and #62. Head `8fdc1eb` (2026-10-20) | 2026-10-27 |
 | Holochain | `main` and Oracle (`132.145.23.78`) both on **0.7.1**. Oracle fresh install run 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`) from the bundles at `376755e` (#47, #55, #57); all four DNA hashes changed, as expected | 2026-10-27 |
-| Committed bundles | Repacked 2026-10-27 after #60 (run `40602164694`, from `d90f98a`); these are what the Docker demo runs. Only the attestation coordinator changed. All four integrity WASMs and every DNA manifest are byte-identical to the bundles Oracle installed on 2026-10-19 (`376755e`), so the DNA hashes are unchanged. `get_linked_agents_for` is now in all three `.happ` files (`NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh` exits 1). ⚠️ Oracle still runs the 2026-10-19 bundles, so it lacks #60 until a coordinator hot-swap. See "What is left", item 4 | 2026-10-27 |
+| Committed bundles | Repacked 2026-10-27 after #60 (run `40602164694`, from `d90f98a`); these are what the Docker demo runs. Only the attestation coordinator changed. All four integrity WASMs and every DNA manifest are byte-identical to the bundles Oracle installed on 2026-10-19 (`376755e`), so the DNA hashes are unchanged. `get_linked_agents_for` is now in all three `.happ` files (`NEEDLE=get_linked_agents_for ./check-no-test-hooks.sh` exits 1). ⚠️ Oracle still runs the 2026-10-19 bundles, so it lacks #60 until a coordinator hot-swap (runbook `docs/ORACLE_HOTSWAP_60.md`). See "What is left", item 4 | 2026-10-27 |
 | `valichord_attestation` | **Moved to its own repo 2026-10-19:** [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation), with full history. Format v2, package 2.1.0 (640 tests, 97% coverage, CI on 2026-10-19). Only redirect stubs remain here | 2026-10-19 |
 | Outside implementers | **4** — all building on the *format*, **none** on the protocol | 2026-08-20 |
-| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). #55, #57 and #60 are on `main` (and #55/#57 on Oracle) but in no tagged release yet. **v0.6.7 approved 2026-10-27**, to be tagged once the repack (item 4 under "What is left") has landed on `main` | 2026-10-27 |
-| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). **No open PRs** (checked 2026-10-27). The other 21 remote branches (`feat/linked-agents-lookup`, `protocol/pre-reinstall-break`, `fix/reveal-phase-rules`, `upgrade/holochain-0.7.1`, `chore/attestation-split`, …) are all **fully merged** into `main` (0 commits ahead, checked 2026-10-27). **Deletion approved by Ceri 2026-10-27** — not done: a Claude session may push only its own `claude/…` branch, so deleting the others returns HTTP 403 even with org access. The command and the restore list are under "THE NEXT STEP", item 5. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-18 |
+| Latest release | **`v0.6.6`** (2026-10-18, `1cd60d8`) — Holochain 0.7.1 + #47. Full CI on that commit 10/10 green (run `39132630316`). **`v0.6.7` is ready to tag on `main` once #64 merges**: the first release whose integrity zomes match the live network (#55 and #57 on top of v0.6.6, plus the bundles repacked after #60 in #63). CI on #63's head `df709e5` was 11/11 green (run `40604193955`); only Markdown changed after it. Release notes are drafted. The tag and the GitHub release need Ceri: a Claude session's tag push returns HTTP 403, and it has no tool that creates releases | 2026-10-28 |
+| Live branches | `main`; `research/feature-selection-stability` ⚠️ (keep — Schmidt). ✅ **The 21 fully merged branches were deleted on 2026-10-28** (Ceri; all 21 re-verified as merged into `main` first). Their tips are under "THE NEXT STEP", item 5, for restoring one. ⚠️ `research/feature-selection-stability` was deleted with them by mistake and **restored the same day at its original tip `0d03bbe3`**, so its 7 commits keep their hashes and dates. The branches listed here before (`fix/cma-*`, `docs/demo-accuracy-chores`, `docs/oracle-0-7-0-runbook`) no longer exist on the remote. ✅ `fix/harmony-record-undercount` **deleted 2026-08-25** — it was only the 0.6.2-deployable backport and Oracle runs 0.7.0 from `main` now; the fix itself is on `main` as `validator_attestation_pairs`. Recoverable: `git fetch origin refs/pull/27/head` | 2026-10-28 |
 
 ⚠️ **`research/feature-selection-stability` — KEEP. Do not delete, prune or fold into `main`.**
+(Deleted by mistake with the merged branches on 2026-10-28 and restored the same day at its
+original tip, `0d03bbe3e51c793203ec2bddda606d40b2729f83`. Check it is still there after any branch
+clean-up.)
 Ceri, 2026-08-22: it exists to support the **Schmidt Sciences** application ("Scaling AI Safety for a
 Multi-Agent World" — Schmidt Sciences / Cooperative AI Foundation / UK ARIA / Google.org, submitted
 8 Aug 2026, **notification expected autumn 2026**; dates from memory `project_schmidt_application`,
@@ -115,8 +118,10 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
    grant, and that grant is written in `init()`, which does not re-run on an existing cell (see
    `CLAUDE.md` on the 0.7.1 upgrade; upstream `holochain/holochain#4911`, "Coordinator updates:
    capability tokens", is tracked in `.claude/skills/check-holochain-updates.md`). A hot-swap would
-   therefore probably deliver the function without the grant entry. How #60 should reach Oracle is
-   Ceri's decision; the first step either way is a run of the **Repack bundles** workflow.
+   therefore deliver the function without the grant entry; the 2026-10-28 rehearsal confirmed it
+   (after the swap the node's own callers can use it, and `public-read` still lacks it). How #60
+   should reach Oracle is Ceri's decision; the first step either way is a run of the **Repack
+   bundles** workflow.
    **Decided 2026-10-27 (Ceri):** repack now. Add a grant fix (a coordinator-only call that issues
    the extra grant) only if outside callers need the function. Where that stands:
    - ✅ **Repack: done and committed 2026-10-27.** Run `40602164694`, on
@@ -140,8 +145,10 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
      `dev-setup.mjs` call zomes with signing credentials from `authorizeSigningCredentials(cellId)`,
      which in `@holochain/client` 0.21.1 grants *all* functions. No zome uses `call_remote`.
      `hc-http-gw` is not deployed. Revisit when one of those changes.
-   - Reaching Oracle still needs Ceri: a coordinator hot-swap (`demo/hotswap-coordinators.mjs`, or
-     the opt-in auto-updater) on the host.
+   - Reaching Oracle needs Ceri on the host: runbook `docs/ORACLE_HOTSWAP_60.md`, which uses
+     `demo/hotswap-coordinators.mjs`. Rehearsed 2026-10-28 on a throwaway 0.7.1 conductor with the
+     researcher and validator bundles Oracle runs: the swap, the DNA-hash check, the new function
+     and the rollback all behaved as the runbook says.
 
 **What 0.7.1 does and does not fix for us:**
 
@@ -189,14 +196,13 @@ What that closes:
 
 What it opened, which is the part that bites:
 
-- 🔴 **The old host is still running, and it still answers.** `152.67.153.149:3001/health`
+- ✅ **The old host was switched off on 2026-10-28** (Ceri). Until then `152.67.153.149:3001/health`
   returned `{"status":"ok","role":"researcher"}` on 2026-08-25 — on **0.6.2**, a different DNA
-  hash, therefore a different network. Anything still pointed at it gets a run that looks entirely
-  successful and writes a record onto a network nothing reads. **An HTTP 200 from the wrong network
+  hash, therefore a different network. Anything still pointed at it got a run that looked entirely
+  successful and wrote a record onto a network nothing reads. **An HTTP 200 from the wrong network
   is worse than a connection error**, because only one of the two is legible. The address was still
   in `demo/README.md`, `demo/ai_validator_cma.py` and `demo/CORE_BENCH_DEMO.md` until 2026-08-25.
-  Switching the old instance off would be a real safety improvement. **Approved 2026-10-27 (Ceri);
-  not done yet** — it needs the Oracle Cloud console, which only Ceri has.
+  Switching the old instance off was the fix: approved 2026-10-27, done 2026-10-28.
 
 ⌛ **THE WINDOW HAS CLOSED** *(for the 0.7.0 rebuild. A second window followed with the 0.7.1 reinstall: it was used — 01 and 02 were built in #57 and rode that break — and it closed on 2026-10-19. The 2026-08-24 text follows.)* The rebuild's DNA-hash change was the one moment when an
 integrity-zome change cost nothing extra, because the break was already being paid for. It happened
@@ -277,10 +283,13 @@ untested against an integrator whose incentives differ from ours.
    was pushed). What that could and could not unblock:
    - ~~**Repack bundles** for #60~~ — ✅ done 2026-10-27 (run `40602164694`), checked and
      committed. The integrity WASMs are unchanged (item 4 of "What is left" above).
-   - **Tag v0.6.7** once that repack is on `main`.
-   - **Delete the 21 merged remote branches** — needs Ceri. A Claude session may push only its
-     own branch, and the delete returned HTTP 403. All 21 were 0 commits ahead of `main` when
-     checked on 2026-10-27. Run this from your own clone:
+   - **Tag v0.6.7** — ready, and needs Ceri. Once #64 has merged: GitHub → Releases → Draft a new
+     release → tag `v0.6.7`, target `main` → paste the drafted notes → Publish. A Claude session's
+     tag push returned HTTP 403, and it has no tool that creates releases.
+   - ~~**Delete the 21 merged remote branches**~~ — ✅ done by Ceri 2026-10-28, after all 21 were
+     re-verified as merged (a Claude session may push only its own branch, so its delete returned
+     HTTP 403). ⚠️ `research/feature-selection-stability` went with them by mistake and was
+     restored the same day at its original tip. The command that was used, and each tip:
      <details><summary>Command, and the tip of each branch (to restore one: <code>git push origin &lt;sha&gt;:refs/heads/&lt;name&gt;</code>)</summary>
 
      ```
@@ -312,11 +321,13 @@ untested against an integrator whose incentives differ from ours.
      | `563a1a0cdfe5` | upgrade/holochain-0.7.1 |
 
      </details>
-   - **Switch off the old host** `152.67.153.149` (Oracle Cloud console).
-   - **Move the attestation-library plans** (`docs/PISESSION_ADAPTER_PLAN.md`,
-     `docs/EVALS_REPO_PLAN.md`, `docs/ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`) into the
-     valichord-attestation repository, which this session cannot reach.
-   - **Hot-swap #60 onto Oracle** (needs the host). The repacked bundles are committed.
+   - ~~**Switch off the old host** `152.67.153.149`~~ — ✅ done by Ceri 2026-10-28 (Oracle Cloud
+     console).
+   - ~~**Move the attestation-library plans**~~ — ✅ done 2026-10-27: they are in
+     valichord-attestation's `docs/` (its PR #2), with their status headers corrected. Link-only
+     stubs remain here.
+   - **Hot-swap #60 onto Oracle** (needs the host): runbook `docs/ORACLE_HOTSWAP_60.md`, rehearsed
+     2026-10-28.
 
 ---
 

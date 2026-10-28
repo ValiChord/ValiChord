@@ -61,9 +61,9 @@ Three independent Claude instances act as validators. **The validators are compl
 A permanent instance of the 5-container stack runs on Oracle Cloud (132.145.23.78). The containers restart automatically after any reboot. You only need an Anthropic API key:
 
 > ⚠️ **Use `132.145.23.78`, not `152.67.153.149`.** Oracle moved host on 2026-08-24. The old
-> instance (152.67.153.149) is a dead network: as of 2026-08-25 it still returned a healthy `200` — but on Holochain 0.6.2, which is a
-> different DNA hash and therefore a **different network**. Pointing at it gives you a run that
-> looks entirely successful and writes a record onto a network nothing reads.
+> instance (152.67.153.149) ran Holochain 0.6.2, a different DNA hash and therefore a **different
+> network**, and until it was switched off on 2026-10-28 it still answered a healthy `200`. A
+> result from that address is a run that wrote its record onto a network nothing reads.
 
 
 ```bash

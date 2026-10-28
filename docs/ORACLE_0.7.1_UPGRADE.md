@@ -97,7 +97,7 @@ c9ddaaf43dd8148073e820a4f993668312223dfc12392dbd089baa9eb2e9c29e  researcher.hap
 Only the attestation coordinator differs. The integrity WASMs and DNA manifests are identical, so
 the DNA hashes in the run record still hold. ⚠️ **Do not re-run this runbook to deliver #60:**
 nothing changed the DNA hash, so step 4's `down -v` would destroy the live network for nothing.
-#60 reaches Oracle by a coordinator hot-swap (`PROJECT_STATUS.md`, "What is left", item 4).
+#60 reaches Oracle by a coordinator hot-swap: [`ORACLE_HOTSWAP_60.md`](ORACLE_HOTSWAP_60.md).
 
 ### 4. Destroy the old network — the irreversible step
 
@@ -133,8 +133,8 @@ Then **run a real round end to end** — the only proof that counts — and:
 
 ## Not covered here
 
-- The old `152.67.153.149` instance on 0.6.2 is still a hazard (it answers healthily on a dead
-  network). Unchanged by this upgrade; switching it off remains the fix.
+- The old `152.67.153.149` instance on 0.6.2 was still a hazard (it answered healthily on a dead
+  network). Unchanged by this upgrade. ✅ Ceri switched it off on 2026-10-28.
 
 ## Run record 2026-10-19
 
