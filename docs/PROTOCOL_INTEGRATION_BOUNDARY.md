@@ -169,7 +169,8 @@ having been built**, and it is worth recording why, because it is the shape to c
 Nothing further is wired, **nobody has asked for a bridge**, and none is proposed here.
 
 > **Update 2026-10-18.** A bridge was started the same day, under these rules:
-> [`ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`](ATTESTATION_PROTOCOL_BRIDGE_PLAN.md). Only its step 1
+> [`ATTESTATION_PROTOCOL_BRIDGE_PLAN.md`](https://github.com/ValiChord/valichord-attestation/blob/main/docs/ATTESTATION_PROTOCOL_BRIDGE_PLAN.md)
+> (in valichord-attestation since 2026-10-27). Only its step 1
 > exists — library-side functions in `protocol.py` in [valichord-attestation](https://github.com/ValiChord/valichord-attestation) that compute the digests
 > the protocol already accepts. No Rust, DNA or entry type changed, and steps 2–4 are not started,
 > so the protocol side is still as described above.

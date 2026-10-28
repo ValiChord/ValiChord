@@ -15,9 +15,9 @@ A fully automated, end-to-end run of the ValiChord commit-reveal protocol across
 
 > ⚠️ **Not `152.67.153.149` — that is the previous host.** Oracle moved on
 > 2026-08-24 and the old instance ran Holochain 0.6.2, which is a different
-> DNA hash and therefore a **different network**. It answered a healthy `200`, so pointing at
-> it gives you a run that looks entirely successful and writes a record onto a network
-> nothing reads.
+> DNA hash and therefore a **different network**. It answered a healthy `200` until it was
+> switched off on 2026-10-28, so a result from that address is a run that wrote its record onto a
+> network nothing reads.
 >
 > **2026-10-27:** the Oracle stack runs Holochain **0.7.1** since the fresh install of
 > 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`), from the same committed bundles a local Docker

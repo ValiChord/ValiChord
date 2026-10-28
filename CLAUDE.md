@@ -410,10 +410,10 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
 - ✅ **Oracle runs 0.7.1** — the fresh install was run on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`,
   which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57 — but
   **not #60** (`get_linked_agents_for`, coordinator-only). The committed bundles carry it since the
-  2026-10-27 repack. Getting it onto Oracle is a coordinator hot-swap, with a grant caveat
-  (`PROJECT_STATUS.md`, "What is left", item 4). A real round passed (Reproduced 3/3). Every 0.7.0
-  record is dead, as planned. ⚠️ The server's `python3` is **3.9**: demo scripts run there must not
-  evaluate 3.10+ syntax.
+  2026-10-27 repack. Getting it onto Oracle is a coordinator hot-swap, with a grant caveat:
+  runbook `docs/ORACLE_HOTSWAP_60.md`, rehearsed 2026-10-28 against these bundles. A real round
+  passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's `python3` is
+  **3.9**: demo scripts run there must not evaluate 3.10+ syntax.
 - ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
   on the server. They go stale on every Holochain bump **and on every zome change, coordinator-only
   ones included**. Repack with the **Repack bundles** workflow
@@ -428,13 +428,12 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
   accepts commands without ever executing them. A new instance was built with a key that is held.
   Runbook and full evidence: `docs/ORACLE_0.7.0_UPGRADE.md`.
-- 🔴 **The old host is still running, and it still answers.** `152.67.153.149:3001/health` returned
-  `{"status":"ok","role":"researcher"}` on 2026-08-25 — but on **0.6.2**, which is a different DNA
-  hash and therefore a different network. Anything still pointed at it gets a run that looks
-  completely successful and writes a record onto a network nothing reads. **A host that was simply
-  switched off would be safer than this one**, because a connection error is legible and an HTTP 200
-  is not. Check the address before believing any demo result. Stale references were still in
-  `demo/README.md` and `demo/ai_validator_cma.py` after the cutover.
+- ✅ **The old host was switched off on 2026-10-28** (Ceri, Oracle Cloud console). Until then
+  `152.67.153.149:3001/health` answered `{"status":"ok","role":"researcher"}`, on **0.6.2**, a
+  different DNA hash and therefore a different network: anything pointed at it got a run that
+  looked completely successful and wrote a record onto a network nothing reads. The lesson stands
+  for any retired host: **an HTTP 200 from the wrong network is worse than a connection error**,
+  because only one of the two is legible. Check the address before believing any demo result.
 - **Every HarmonyRecord URL published before 2026-08-24 is dead.** Accepted at the merge, and
   inherent to the DNA-hash change — not a bug to fix.
 - ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite contention:
