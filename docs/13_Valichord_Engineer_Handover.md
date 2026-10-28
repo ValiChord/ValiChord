@@ -20,7 +20,7 @@ Read this before touching the code.
 
 ValiChord is a four-DNA Holochain hApp — four independent peer-to-peer networks running simultaneously on each participant's conductor, communicating via same-agent `call(OtherRole(...))` calls.
 
-The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and the sweettest integration suite passes in CI on every push (117 tests across nine files when counted from the source on 2026-10-18; the Tryorama suite quoted here in May was retired on 2026-08-03 — see [TESTING.md](../TESTING.md)). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
+The infrastructure is complete in the sense that matters: it compiles, the four DNAs pack into a single `.happ` bundle, and the sweettest integration suite passes in CI on every push (119 tests across eleven files when counted from the source on 2026-10-27; the Tryorama suite quoted here in May was retired on 2026-08-03 — see [TESTING.md](../TESTING.md)). As of 2026-04-23, all four DNAs have been reviewed and optimised (including an efficiency pass eliminating O(N) DHT round-trips and a second security pass adding self-claim prevention, researcher reveal authorisation, and PhaseMarker idempotency), and the cryptographic commit-reveal protocol is fully implemented — see the constraint list below for the key decisions made.
 
 ### DNA 1 — Researcher Repository
 **Status: Complete**
@@ -290,7 +290,7 @@ Key shared types: `Discipline`, `AttestationOutcome`, `AttestationConfidence`, `
 - `ValidationAttestation::commitment_msgpack_bytes(&self) -> ExternResult<Vec<u8>>` (originally `msgpack_bytes`; renamed when reveal-time fields were added) — shared serialisation method. Replaces the ad-hoc `SerializedBytes::try_from(&attestation)...map_err(|e| wasm_error!(...))` pattern that was duplicated in DNA 2 (`seal_private_attestation`) and DNA 3 (`submit_attestation`). Both now call `attestation.commitment_msgpack_bytes()?` for byte-for-byte consistency between commit and reveal.
 - `derive_majority_outcome(attestations: &[ValidationAttestation]) -> AttestationOutcome` — pure function, moved from `governance_coordinator` to `shared_types` so it can be unit-tested without a conductor.
 - `derive_agreement_level(attestations: &[ValidationAttestation]) -> AgreementLevel` — likewise moved.
-- Conductor-free unit tests in `shared_types/src/lib.rs` (11 when added; 33 on 2026-10-18) (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
+- Conductor-free unit tests in `shared_types/src/lib.rs` (11 when added; 35 on 2026-10-27) (`#[cfg(test)] mod tests`) covering both outcome functions. Run with `cargo test -p valichord_shared_types` — completes in < 1 s with no conductor, WASM, or network setup.
 
 ---
 
@@ -319,8 +319,8 @@ Do not mix these up when writing test fixtures.
 ### 6. ExternalHash construction in TypeScript (UI, demo, and the retired Tryorama tests)
 Always construct `ExternalHash` using `hashFrom32AndType(core32, HoloHashType.External)`. Never use `new Uint8Array(39).fill(byte)` — the DHT location bytes (last 4 bytes) must be a valid blake2b checksum. Using a flat fill produces hashes that fail DHT validation silently.
 
-### 7. do NOT use pack_dna.py
-There is a `pack_dna.py` script in the repo. It has a bug that embeds the attestation DNA bytes for all four roles, meaning every cell requires the attestation membrane proof. Always use `hc dna pack` and `hc app pack` directly.
+### 7. pack with `hc`, never a home-made packer
+There was a `pack_dna.py` script in the repo until 2026-10-27, when it was deleted. It had a bug that embedded the attestation DNA bytes for all four roles, meaning every cell required the attestation membrane proof. Always use `hc dna pack` and `hc app pack` directly — and for the committed bundles, the **Repack bundles** workflow (see `CLAUDE.md`).
 
 ### 8. Deadlock: DNA 4 calling back into DNA 3
 `check_and_create_harmony_record` (DNA 4) calls `get_attestations_for_request` (DNA 3) to retrieve attestations. This is safe because it is a read-only call. Do not add any write calls from DNA 4 back into DNA 3 — this creates a cycle with the pending write operation and deadlocks.
@@ -456,7 +456,7 @@ The `.gitignore` tracks all three via explicit `!workdir/*.happ` exceptions. Reb
 
 *(Rewritten 2026-10-18. The May 2026 version described the Tryorama suite, which was retired on 2026-08-03; `valichord/tests/` no longer exists.)*
 
-Integration tests are **sweettest only**: `valichord/sweettest_integration/tests/`, 117 tests across nine files when counted from the source on 2026-10-18. They use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead.
+Integration tests are **sweettest only**: `valichord/sweettest_integration/tests/`, 119 tests across eleven files when counted from the source on 2026-10-27. They use `SweetConductor` / `SweetApp` directly in Rust — no Node.js runtime, no WebSocket overhead.
 
 | File | Tests | Notes |
 |---|---|---|
@@ -855,7 +855,7 @@ Read `nondominium_integration/INTEGRATION_VISION.md` before starting any Nondomi
 | `valichord/happ.yaml` | Role definitions, DNA property defaults |
 | `valichord/sweettest_integration/tests/` | Integration tests (sweettest), including `membrane_proof.rs` *(replaces the retired `valichord/tests/` Tryorama suite)* |
 | `TESTING.md` | Test layers, counts and how to run each suite |
-| `backend/app_protocol.py` | Protocol API (`/attest`) — see `backend/README.md` *(replaces the removed `backend/app.py`)* |
+| `docs/archive/backend/app_protocol.py` | Protocol API (`/attest`) — archived 2026-10-27 because it cannot start; see that folder's `README.md` *(it replaced the removed `backend/app.py`)* |
 | `demo/app.py`, `demo/researcher-node.mjs`, `demo/validator-node.mjs` | Public demo server and its Node bridges to the conductor *(replace the removed `demo/serve.mjs` and `backend/holochain_bridge.py`)* |
 | `valichord-ui/src/App.svelte` | Frontend shell — port detection, role detection, signal subscription |
 | `valichord-ui/src/lib/holochain.ts` | AppWebsocket singleton — callZome wrapper, role→zome name map |

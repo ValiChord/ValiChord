@@ -1,3 +1,8 @@
+---
+name: integration-testing
+description: How to build, pack and run ValiChord's Rust sweettest suites, the immutability tripwires and the forgery tests, and how to read their results without being fooled (run-sweettest.sh, stale-conductor cleanup, slow-start timeouts). Use before running, debugging or reporting any sweettest result in valichord/.
+---
+
 # ValiChord Integration Testing
 
 Integration tests are **sweettest** (Rust, in-process conductors) in `valichord/sweettest_integration/`. The old Tryorama suite (`valichord/tests/`, `npm test`) was retired and deleted on 2026-08-03 — if you see `cd tests && npm test` anywhere, it is stale. See `TESTING.md` for the current counts and the full coverage inventory.
@@ -26,7 +31,7 @@ export PATH="/home/codespace/.cargo/bin:$PATH"
 
 ## Build sequence
 
-Build and pack in this order. Do NOT use `pack_dna.py` — it is broken and embeds the same DNA bytes for all four roles.
+Build and pack in this order, with `hc` only (`pack_dna.py`, which embedded the same DNA bytes for all four roles, was deleted on 2026-10-27). These local packs are for running tests — never commit them as the `workdir/` bundles; those come from the **Repack bundles** workflow (see `CLAUDE.md`).
 
 ```bash
 export PATH="/home/codespace/.cargo/bin:$PATH"
@@ -64,14 +69,18 @@ cd /workspaces/ValiChord/valichord
 ./run-sweettest.sh governance silver_badge     # optional name filter
 ```
 
-The immutability tripwire and forgery tests (`immutability_tripwire`, `harmony_record_forgery`, `validator_tier_forgery`) need a separate build with the `test_utils` feature, because no production coordinator exposes `update_entry`/`delete_entry`:
+The immutability tripwire and forgery tests (`immutability_tripwire`, `harmony_record_forgery`, `validator_tier_forgery`, `reveal_phase_forgery`, `supersession_forgery`) need a separate build with the `test_utils` feature, because no production coordinator exposes `update_entry`/`delete_entry` or a way to write a forged entry:
 
 ```bash
 cd /workspaces/ValiChord/valichord && ./build-test-dnas.sh
 VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh immutability_tripwire
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh harmony_record_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh validator_tier_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh reveal_phase_forgery
+VALICHORD_DNA_DIR=../workdir-test ./run-sweettest.sh supersession_forgery
 ```
 
-CI (`.github/workflows/tests.yml`) runs the six standard suites as parallel matrix legs plus a `tripwire` job.
+CI (`.github/workflows/tests.yml`) runs the six standard suites as parallel matrix legs plus a `tripwire` job that runs all five of these binaries.
 
 ---
 

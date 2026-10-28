@@ -8,7 +8,7 @@ A note on pace and expectations: this is an early, small project, currently main
 - Bug reports and fixes
 - Documentation improvements and clarifications
 - Tests, and reproductions of issues
-- New adapters (ingesting other eval/result formats) and integrations
+- Integrations (adapters that ingest other AI-evaluation formats belong in [valichord-attestation](https://github.com/ValiChord/valichord-attestation), which moved out of this repository on 2026-10-19)
 - Thoughtful design discussion, raised as an issue *before* a large pull request
 
 ## What we ask

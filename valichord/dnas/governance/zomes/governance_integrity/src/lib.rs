@@ -101,12 +101,12 @@ pub struct HarmonyRecord {
     /// the requested count makes an early close visibly incomplete —
     /// "5 of 7" — rather than quietly indistinguishable from a full round.
     ///
-    /// ⚠️ This is a DISCLOSURE field, not an enforcement one. `validate()`
-    /// cannot make cross-DNA calls (see the HarmonyRecord create arm), so the
-    /// author asserts this value and the integrity zome cannot check it
-    /// against the ValidationRequest in DNA 3 — exactly as it already cannot
-    /// check `participating_validators`. The authoritative count stays public
-    /// and immutable in DNA 3 for anyone who verifies. What this buys is that
+    /// ✅ Enforced since PR #47 (2026-10-18). `validate()` cannot make cross-DNA
+    /// calls, and does not need to: every carried attestation states the cohort
+    /// size under its validator's signature, and attestation_integrity checked
+    /// that against the ValidationRequest. `check_attestation_evidence` requires
+    /// this value to equal it. (Until #47 this comment called it a disclosure the
+    /// integrity zome could not check; that was true then.) What it buys is that
     /// incompleteness is visible by DEFAULT rather than only to someone who
     /// goes looking.
     #[serde(default)]

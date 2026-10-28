@@ -85,6 +85,20 @@ Any difference means the pull did not land or the files were changed on the serv
 `git -C "$R" check-attr -a valichord/workdir/researcher.happ` will say; fix that rather than
 proceeding.
 
+ℹ️ **These are the bundles of the 2026-10-19 install.** The committed bundles were repacked on
+2026-10-27 after #60 (run `40602164694`) and now read:
+
+```
+c9ddaaf43dd8148073e820a4f993668312223dfc12392dbd089baa9eb2e9c29e  researcher.happ
+1bab687f66d7e6291eaab55210fbb853dc080f6a6455236e8e812044a9a8968b  valichord.happ
+1e895bb027286790b5a70b57801053b164616abdcea61d134c2cbb5bf4347081  validator.happ
+```
+
+Only the attestation coordinator differs. The integrity WASMs and DNA manifests are identical, so
+the DNA hashes in the run record still hold. ⚠️ **Do not re-run this runbook to deliver #60:**
+nothing changed the DNA hash, so step 4's `down -v` would destroy the live network for nothing.
+#60 reaches Oracle by a coordinator hot-swap (`PROJECT_STATUS.md`, "What is left", item 4).
+
 ### 4. Destroy the old network — the irreversible step
 
 ```bash

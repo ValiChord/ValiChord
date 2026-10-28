@@ -13,14 +13,14 @@
 #                             version (0.7.1) if this is absent or is the wrong
 #                             version. Only supply it to save the download.
 #
-# 2. demo/bin/kitsune2-bootstrap-srv — committed to the repo, but it is 0.4.1,
-#                             which is Holochain 0.6.2's kitsune2 line. On 0.7
-#                             it no longer matches the pin (0.5.1), so
-#                             Dockerfile.node ignores it and downloads the right
-#                             one. Left in place for the 0.6 stack; refresh or
-#                             delete it once nothing needs 0.6.
+# 2. demo/bin/kitsune2-bootstrap-srv — OPTIONAL, like holochain: downloaded at
+#                             the pinned version (0.5.1) unless this is it. (The
+#                             0.4.1 binary once committed here, Holochain 0.6.2's
+#                             kitsune2 line, was removed on 2026-10-27.)
 #
-# 3. valichord/workdir/valichord.happ — built by `hc app pack valichord/workdir/`.
+# 3. valichord/workdir/researcher.happ and validator.happ — committed; the nodes
+#                             load these, not valichord.happ. Refreshed by the
+#                             Repack bundles workflow (see CLAUDE.md).
 #
 # Usage
 # ─────

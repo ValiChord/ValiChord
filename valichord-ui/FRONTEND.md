@@ -12,7 +12,7 @@
 
 - Node.js 20.19+ (or 22.12+) — required by Vite 8
 - Holochain 0.7.1 and the Holochain CLI on your PATH — `cargo install holochain --version 0.7.1 --locked` and `cargo install holochain_cli --locked`
-- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing.md`, or the root README Quickstart)
+- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing/SKILL.md`, or the root README Quickstart)
 
 ### Local dev — two terminals
 

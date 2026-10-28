@@ -33,10 +33,11 @@ because it is easy — including for the people who wrote them — to reach for 
 > Option A. The free server-key tier that once funded the public demo has been **withdrawn**
 > — a user-supplied key is now required.
 >
-> **Update, 2026-10-18.** `main` is now on Holochain **0.7.1** (merged 2026-10-17) and its DNAs
-> changed again with PR #47, so a local Docker build (Option B) is a 0.7.1 network. The Oracle
-> nodes are **still on 0.7.0** until the fresh install in `docs/ORACLE_0.7.1_UPGRADE.md` is run;
-> that install starts a new network, and records written before it stop resolving.
+> **Update, 2026-10-27.** `main` is on Holochain **0.7.1** (merged 2026-10-17), and its DNAs
+> changed again with PRs #47, #55 and #57, so a local Docker build (Option B) is a 0.7.1 network.
+> The Oracle nodes were **reinstalled on 0.7.1 on 2026-10-19** (`docs/ORACLE_0.7.1_UPGRADE.md`):
+> a new network, so records written before that date no longer resolve. Both run the committed
+> bundles in `valichord/workdir/`.
 
 ---
 

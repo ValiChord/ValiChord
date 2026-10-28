@@ -17,6 +17,8 @@ ValiChord is composed of four Holochain DNAs. Each DNA has a set of `DnaProperti
 
 DNA properties are set under the `modifiers` key in each role in `happ.yaml`. They are compiled into the DNA hash — changing any property produces a new DNA hash, which is a network reset.
 
+⚠️ **There are three hApp manifests, and each carries its own `modifiers`:** `valichord/happ.yaml` (all four DNAs) and the role bundles `valichord/researcher/happ.yaml` and `valichord/validator/happ.yaml`, which the demo nodes install. As of 2026-10-27 the three agree. Change a property in all three, or the bundles describe different DNA hashes — different networks.
+
 ---
 
 ## DNA 3 — Attestation (`attestation_integrity`)
@@ -63,7 +65,7 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 | Type | `String` — the discipline slug this network instance covers |
 | Dev/test value | `"computational_biology"` (or any non-empty string) |
 | Production requirement | The canonical discipline identifier for this network (e.g. `"computational_biology"`, `"psychology"`) |
-| What breaks if wrong | Missing: the DNA cannot read its properties (the field has no default). Otherwise, as of 2026-10-18 **no code reads this property's value** — the discipline check at `attestation_integrity/src/lib.rs:887` compares an attestation's `discipline` with its `ValidationRequest`'s, not with this property. Changing it still changes the DNA hash. |
+| What breaks if wrong | Missing: the DNA cannot read its properties (the field has no default). Otherwise, as of 2026-10-18 **no code reads this property's value** — the discipline check in the `ValidationAttestation` arm of `attestation_integrity::validate` compares an attestation's `discipline` with its `ValidationRequest`'s, not with this property. Changing it still changes the DNA hash. |
 
 ---
 
@@ -98,7 +100,7 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 | Property | Value |
 |---|---|
 | Type | `String` (base64url-encoded `AgentPubKey`, `uhCAk...` format) |
-| Dev/test bypass | **Empty string `""`** — the authorship check is off: **any** agent may write `ValidatorReputation` and `GovernanceDecision` entries, and whoever writes a HarmonyRecord also updates each participant's reputation as a side effect (`governance_integrity/src/lib.rs:376,462`; `governance_coordinator/src/lib.rs:634`) |
+| Dev/test bypass | **Empty string `""`** — the authorship check is off: **any** agent may write `ValidatorReputation` and `GovernanceDecision` entries, and whoever writes a HarmonyRecord also updates each participant's reputation as a side effect (the `GovernanceDecision` and `ValidatorReputation` arms of `governance_integrity::validate`; the `_update_reputation_internal` call in `governance_coordinator::write_harmony_record`) |
 | Production requirement | The `AgentPubKey` of your trusted reputation-update agent |
 | What breaks if wrong | Empty string in production: any agent can write any validator's reputation, or a governance decision. Set to a key: only that agent may write them; the automatic update runs only when that agent itself writes the HarmonyRecord, so otherwise something must call `update_validator_reputation` — and **who does that in production is not yet decided**. Until it is, human validators stay `Provisional`; an AI validator's first record takes the tier its joining certificate grants. Wrong key: those writes are rejected by validation, and the automatic update's failure is ignored (fire-and-forget). Badges reflect agreement level and participant count only, whatever this is set to. |
 
@@ -130,6 +132,18 @@ DNA properties are set under the `modifiers` key in each role in `happ.yaml`. Th
 
 ---
 
+### `network_name`
+
+| Property | Value |
+|---|---|
+| Type | `String` |
+| Default | `""` (unnamed) — applied by `#[serde(default)]` if omitted |
+| Shipped value | `"valichord-public"` — in `dnas/governance/dna.yaml`, all three `happ.yaml` files, and `demo/node-setup.mjs` |
+| Production requirement | A name for your network. Every HarmonyRecord carries it, so a record copied off its network still says where it was written (#24, added 2026-10-19) |
+| What breaks if wrong | Every peer rejects a HarmonyRecord whose `network_name` differs from this property, so the coordinator stamps it from here. A wrong value is not a security hole, but it is permanent on every record written. Like every DNA property it is part of the DNA hash: two networks with different names are different networks. |
+
+---
+
 ## DNA 1 — Researcher Repository
 
 No security-sensitive DNA properties. This DNA is single-agent private (no DHT, no membrane proof). No deployment configuration required beyond including it in the happ bundle.
@@ -154,12 +168,13 @@ No security-sensitive DNA properties. This DNA is single-agent private (no DHT, 
 | 4 — Governance | `system_coordinator_key` | `""` (anyone may write reputation) | Reputation oracle `AgentPubKey` (Phase 1) |
 | 4 — Governance | `min_attestations_for_finalization` | `0` | Equal to or just below `minimum_validators` |
 | 4 — Governance | `round_timeout_secs` | `0` (no floor) | `604800` (7 days) |
+| 4 — Governance | `network_name` | `""` (unnamed) | Your network's name — the shipped bundles use `valichord-public` |
 
 ---
 
 ## Build and Pack Reminder
 
-Always use `hc dna pack` + `hc app pack` — **never** `pack_dna.py` (it embeds the same DNA bytes for all four roles):
+Always use `hc dna pack` + `hc app pack` (the old `pack_dna.py`, which embedded the same DNA bytes for all four roles, was deleted on 2026-10-27):
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release
@@ -168,6 +183,8 @@ hc dna pack dnas/researcher_repository  -o workdir/researcher_repository.dna
 hc dna pack dnas/validator_workspace    -o workdir/validator_workspace.dna
 hc dna pack dnas/governance             -o workdir/governance.dna
 hc app pack . -o workdir/valichord.happ
+hc app pack researcher -o workdir/researcher.happ   # role bundles, used by the demo nodes
+hc app pack validator  -o workdir/validator.happ
 ```
 
-After changing any DNA property in `happ.yaml`, rebuild and repack — the DNA hash changes and any existing network is incompatible with the new bundle.
+After changing any DNA property in the `happ.yaml` files, rebuild and repack — the DNA hash changes and any existing network is incompatible with the new bundle.

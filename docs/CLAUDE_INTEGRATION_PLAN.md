@@ -6,7 +6,7 @@
 > (`83c1105`). That repo has `valichord_at_home/detectors/claude_semantic.py` and documents
 > `ANTHROPIC_API_KEY` for semantic analysis, so the "pending" status below is out of date
 > (checked 2026-10-18 via its file list; its behaviour was not tested). The `backend/` folder in
-> this repo now holds only `app_protocol.py`.
+> this repo held only `app_protocol.py` until it was archived to `docs/archive/backend/` on 2026-10-27.
 
 **Author:** Ceri John + Claude Code
 **Date:** March 2026

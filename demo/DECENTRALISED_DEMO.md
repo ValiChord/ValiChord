@@ -19,10 +19,11 @@ A fully automated, end-to-end run of the ValiChord commit-reveal protocol across
 > it gives you a run that looks entirely successful and writes a record onto a network
 > nothing reads.
 >
-> **2026-10-18:** the Oracle stack runs Holochain **0.7.0**; `main` is on **0.7.1**. Until the
-> fresh install in `docs/ORACLE_0.7.1_UPGRADE.md` is run, a local build of `main` and the
-> Oracle nodes are separate networks. *(This note was corrected 2026-10-18: it had been
-> garbled and named the current host as the old one.)*
+> **2026-10-27:** the Oracle stack runs Holochain **0.7.1** since the fresh install of
+> 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`), from the same committed bundles a local Docker
+> build uses. Records published on the 0.7.0 network before that date no longer resolve.
+> *(This note was corrected 2026-10-18: it had been garbled and named the current host as the
+> old one.)*
 
 What happens when you run it:
 
@@ -141,9 +142,11 @@ ai_validator.py --mode decentralised
 
 A permanent instance of the full 5-container stack runs on Oracle Cloud. The containers start automatically on VM boot (`restart: unless-stopped`).
 
-### Recommended: SSH into Oracle and run from there
+### Maintainer only: SSH into Oracle and run from there
 
-This is the simplest approach — the API key and node URLs are already configured on the server.
+This needs the server's SSH key, which is not public; anyone else should run against the Oracle
+nodes from their own machine (below) or locally with Docker. For the maintainer it is the simplest
+approach — the API key and node URLs are already configured on the server.
 
 **From Windows PowerShell (or any SSH client):**
 ```powershell
@@ -437,7 +440,7 @@ Each validator runs `study.py` and checks whether its output matches those three
 | `demo/validator-node.mjs` | Node.js HTTP API for each validator conductor |
 | `demo/node-lib.mjs` | Shared helpers: `withSession`, `retryOnNetworkError`, `loadHcClient`, `externalHashFromB64` |
 | `demo/ai_validator.py` | Python orchestrator — `--mode decentralised` calls the five node APIs |
-| `demo/bin/kitsune2-bootstrap-srv` | Old 0.4.1 bootstrap binary (Holochain 0.6.2 line). `Dockerfile.node` ignores it and downloads 0.5.1 |
+| `demo/bin/` | Empty in git (`.gitkeep`). Optional place for pre-downloaded `holochain` / `kitsune2-bootstrap-srv` binaries; `Dockerfile.node` uses one only if it is the pinned version, otherwise downloads it. The old 0.4.1 bootstrap binary was removed on 2026-10-27 |
 | `valichord/workdir/researcher.happ` | Role-filtered happ for researcher containers (DNAs 1, 3, 4) |
 | `valichord/workdir/validator.happ` | Role-filtered happ for validator containers (DNAs 2, 3, 4) |
 | `demo/synthetic_study/` | Minimal reproducible study (README, data.csv, study.py) |

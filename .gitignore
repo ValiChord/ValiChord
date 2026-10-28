@@ -28,8 +28,10 @@ backend/app.log
 demo/bootstrap.log
 demo/serve.log
 
-# Holochain pre-built binaries
-demo/bin/
+# Holochain pre-built binaries — the directory stays (Dockerfile.node COPYs it),
+# its contents never do
+demo/bin/*
+!demo/bin/.gitkeep
 
 # Runtime artifacts
 .coverage

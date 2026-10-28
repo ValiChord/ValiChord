@@ -6,15 +6,17 @@
 
 ## ⚠️ VERSION SCOPE — READ FIRST (re-scoped to 0.7 on 2026-08-01, end of Phase A)
 
-> 🌿 **This file is now scoped to Holochain 0.7.0 on the `v0.7.0` branch — but only in the
-> places the port actually touched.** The rest is unrewritten 0.6.x prose. The table below is
-> the map of which is which, and it is the most important thing on this page.
+> 🌿 **This file is now scoped to Holochain 0.7 — but only in the places the port actually
+> touched.** (It was re-scoped on the `v0.7.0` branch, which merged into `main` on 2026-08-03.)
+> The rest is unrewritten 0.6.x prose. The table below is the map of which is which, and it is
+> the most important thing on this page.
 >
 > **Update 2026-10-18: `main` is now on Holochain 0.7.1** (`hdk =0.7.1`, `hdi =0.8.1`; PR #45,
 > merged 2026-10-17), not 0.6.2 and not 0.7.0. Tryorama is retired - integration tests are
 > sweettest (`valichord/sweettest_integration/`). Some APIs below changed again in 0.7.1; where
 > this file and the code disagree, the code is right (see the notes at §11 and §13). The Oracle demo
-> host still runs the 0.7.0 network until `docs/ORACLE_0.7.1_UPGRADE.md` is run.
+> host was reinstalled on 0.7.1 on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`; the new DNA hashes
+> are in §44.5).
 >
 
 
@@ -30,9 +32,11 @@ sections nobody touched stay explicitly marked unverified, and that is a feature
 **Where the 0.7 evidence lives:**
 - **§44 (this file)** — the migration log, folded in at the end of Phase A. Everything in it
   was *hit for real during the port*. Nothing inferred. Start here.
-- **`CLAUDE.md` → "Pending upgrade checks"** — the forward-looking checklist, evidence-tagged
-  (✅ verified against shipped artifacts / ❌ corrected / ⚠️ unverified). Still authoritative
-  for Phases B and C, which have not started.
+- **`docs/HOLOCHAIN_UPGRADE_RECORD.md` → "Pending upgrade checks"** (moved out of `CLAUDE.md`
+  on 2026-08-25) — the checklist, evidence-tagged (✅ verified against shipped artifacts /
+  ❌ corrected / ⚠️ unverified). Phases B and C have since finished: the UI runs on 0.7 (§44.11),
+  the Tryorama suite was retired on 2026-08-03 rather than ported, and wind-tunnel builds on 0.7
+  through a git-rev pin of the runner.
 
 ### Verification map — section by section
 
@@ -42,14 +46,14 @@ sections nobody touched stay explicitly marked unverified, and that is a feature
 | Section | 0.7 status |
 |---|---|
 | **§34 `FlatOp` / `OpHelper` pattern** | ✅ **VERIFIED BY THE PORT — but the prose below is still 0.6. Read §44 first.** All 51 arms across four integrity zomes were ported and the result compiles clean with the immutability tripwires green. Variants renamed (`StoreRecord`→`CreateRecord`, `StoreEntry`→`CreateEntry`, `RegisterAgentActivity`→`AgentActivity`, `RegisterUpdate`→`Update`, `RegisterDelete`→`Delete`); both link variants fold into `FlatOp::Link(OpLink)`; every sub-type carries `TypedAction<D>` (`{ header, data }`, `Deref` to `D`). ⚠️ **`action.author` is a compile error in 0.7 — it is `action.author()`** (§44). |
-| **§40 `NetworkConfig`** | ✅ **VERIFIED — the two-line fix was applied and the configs start.** Wrong config **fails to start (exit 42)**, it is not ignored. `signal_url`, `webrtc_config`, `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` (`Full`/`Normal`/`Off`). New fields incl. `target_arc_factor`, `base64_auth_material_bootstrap`/`_relay`, `wasm_backend`, `restore_chain_quorum`. Full allowed-field lists in `CLAUDE.md`. |
-| **§20 Testing with Tryorama** | ⚠️ **UNVERIFIED AND KNOWN-BLOCKED — do not follow for 0.7.** Phase B has not started: there is no `@holochain/tryorama` 0.7 line on npm. The prose below is 0.6-only. |
-| **§24 Connecting a front end** | ⚠️ **UNVERIFIED FOR 0.7.** `@holochain/client` 0.21.0 went stable 2026-08-01 but nothing here has been re-checked against it. Known pending: `SignedActionHashed` is no longer generic and common action fields move under `.header`. |
+| **§40 `NetworkConfig`** | ✅ **VERIFIED — the two-line fix was applied and the configs start.** Wrong config **fails to start (exit 42)**, it is not ignored. `signal_url`, `webrtc_config`, `chc_url` removed; `request_timeout_s` moved into `network`; `db_sync_strategy` → `db_sync_level` (`Full`/`Normal`/`Off`). New fields incl. `target_arc_factor`, `base64_auth_material_bootstrap`/`_relay`, `wasm_backend`, `restore_chain_quorum`. Full allowed-field lists in `docs/HOLOCHAIN_UPGRADE_RECORD.md`. |
+| **§20 Testing with Tryorama** | ⛔ **RETIRED — do not follow.** Upstream Tryorama will not support 0.7; ValiChord's suite was retired on 2026-08-03 after its unique tests were ported to sweettest (`valichord/sweettest_integration/`). The prose below is 0.6-only, kept as a record. |
+| **§24 Connecting a front end** | ⚠️ **PROSE NOT RE-CHECKED FOR 0.7.** The UI itself runs on `@holochain/client` 0.21.x (0.21.1 since Holochain 0.7.1) — see §44.11 — but the text below was not rewritten. Known change: `Action` is now `{ header, data }`, so `author`/`timestamp`/`action_seq`/`prev_action` are read from `.header`. `SignedActionHashed` is still generic (`SignedActionHashed<H extends Action = Action>` in 0.21.0); an earlier note here saying otherwise was wrong. |
 | **§43 Rate limiting types** | 🔴 **REMOVED entirely** in 0.7 — the `rate_limit` module, `RateWeight`, `EntryRateWeight` and the action-weight machinery are gone (PR #5860). Section is dead for 0.7. We never used them. |
 | **§36 `ChainFilter` / `LimitConditions`** | 🟠 Changed (now built via `take(n)` / `until_hash(h)` / `until_timestamp(t)` constructors, not builder chaining), and `must_get_agent_activity` gained response variants. **Zero impact on us** — we call neither, so the port never exercised it. |
 | **§19 Getting an agent's status** | 🟠 `AgentActivity` → **`AgentActivityStatus`**. Signature otherwise identical and `warrants` survives, so our three call sites needed no change — confirmed by the port compiling clean. |
 | **§18 DHT operations** | 🟠 Read alongside §34 and §44. The v2 Action model is canonical; legacy per-variant action structs, `ActionBuilder`, and `EntryCreationAction`/`NewEntryAction` are removed. ⚠️ **`Action` is now a struct, not an enum** — see §44, the one thing the pre-migration audit missed. |
-| **§31 App status model** | 🟢 **Unchanged in 0.7.0.** The `AwaitingRestore`/`Unrecoverable` variants and restore signals were expected, but the source-chain-restore workflow (PR #5920) **did not ship** — only groundwork (#5799). Revisit when it lands in a later 0.7.x. |
+| **§31 App status model** | 🟠 **Source-chain restore shipped in 0.7.1** (upstream `#5800`/PR `#5920` and `#5802`; install with `restore_from_dht: true`). It restores public chain state only — private entries and capability-grant bodies are not recovered (see `CLAUDE.md`, watch item 2). `AppStatus::AwaitingRestore`/`Unrecoverable` already existed at the 0.7.0 tag; only the workflow is new. ValiChord does not use restore yet, and the prose below was not re-checked. |
 | **§25 Conductor config (tx5/WebRTC)** | ⚫ Already marked legacy; now doubly so — tx5/WebRTC is fully gone and iroh/QUIC is the sole transport. |
 | §37 size limits, §38 `GetStrategy`/`GetOptions`, §35 `LinkQuery`, §39 `ChainTopOrdering` | 🟢 Checked against shipped `hdk 0.7.0`, no change; `GetOptions`/`GetStrategy`/`ChainQueryFilter`/`ActivityRequest` all still present. The port used them throughout without incident. |
 | **§§1–17, 21–23, 26–33, 41–42** | ⚠️ **NOT CHECKED against 0.7.** The port did not touch them. They may be right; nobody has verified it. Treat as 0.6.x prose. |
@@ -347,7 +351,7 @@ Receipts only available in the authoring conductor's cells (and other cells with
 - **Blake2b-256** — Holochain's internal hashing algorithm. Used for ActionHash, EntryHash, AgentPubKey. NOT SHA-256.
 - **SHA-256** — for research file fingerprints. Requires external crate (`ring` or `sha2`) compiled to WASM. Store result as `ExternalHash` (32-byte type).
 - **`sign(agent_pubkey, data)`** — sign arbitrary data with agent's key
-- **`verify_signature(pubkey, signature, data)`** — verify a signature - available in integrity zomes too, so `validate()` can check signatures (ValiChord does: `attestation_integrity/src/lib.rs:949`)
+- **`verify_signature(pubkey, signature, data)`** — verify a signature - available in integrity zomes too, so `validate()` can check signatures (ValiChord does, in `attestation_integrity/src/lib.rs`: `check_joining_certificate` and the `AgentIdentityAttestation` arm of `validate`)
 - **`hash_entry(entry)`** — get Blake2b-256 hash of entry content
 - **`x_salsa20_poly1305_encrypt/decrypt`** — authenticated encryption
 - **`create_x25519_keypair`**, **`x_25519_x_salsa20_poly1305_encrypt/decrypt`** — key agreement + encryption
@@ -989,7 +993,7 @@ Undocumented `AdminRequest` variants beyond what the Build Guide covers:
 
 ## 34. `FlatOp` / `OpHelper` PATTERN FOR VALIDATION
 
-> 🔴 **0.6.x ONLY — HEAVILY CHANGED IN 0.7.** All six `FlatOp` variants are renamed, both link variants fold into `FlatOp::Link(OpLink)`, and every sub-type carries `TypedAction<D>` instead of a generic `Action`. ValiChord has 51 affected match arms, 26 of which are immutability guards whose *ordering* is the enforcement mechanism. See `CLAUDE.md` → "Pending upgrade checks" for the verified rename table and the ordering hazard.
+> 🔴 **0.6.x ONLY — HEAVILY CHANGED IN 0.7.** All six `FlatOp` variants are renamed, both link variants fold into `FlatOp::Link(OpLink)`, and every sub-type carries `TypedAction<D>` instead of a generic `Action`. ValiChord has 51 affected match arms, 26 of which are immutability guards whose *ordering* is the enforcement mechanism. See §44.2 for the port, and `docs/HOLOCHAIN_UPGRADE_RECORD.md` → "Pending upgrade checks" for the verified rename table and the ordering hazard.
 
 The raw `Op` enum requires deep matching to access entry/link data. HDI provides a higher-level `FlatOp<ET, LT>` that pre-deserialises your app's entry and link types.
 
@@ -1123,7 +1127,7 @@ create(CreateInput {
 
 iroh/QUIC is the default transport in 0.6.1. The `advanced.tx5Transport` block is dead config and should be removed from conductor-config.yaml files. See §25 for the legacy tx5 config (historical reference only).
 
-> **⚠️ 0.7 WARNING (added 2026-07-27).** `signal_url` is valid on our 0.6.x line but is **REMOVED in 0.7**, and 0.7's `NetworkConfig` **rejects unknown fields — the conductor fails to start** rather than ignoring them. `webrtc_config` likewise. Other 0.7 renames: `request_timeout_s` moves from the top level *into* `network`; `db_sync_strategy` → `db_sync_level` (`Fast`→`Off`, `Resilient`→`Normal`); `chc_url` removed; new optional `wasm_backend` and `restore_chain_quorum`. A **local** iroh relay additionally requires `advanced: { irohTransport: { relayAllowPlainText: true } }`. Our live hits: `demo/conductor-config-node.yaml:19,21`, `valichord-ui/dev-conductor.yaml:17,19`, `demo/rehearse-autoupdate.sh:56`. Full list in `CLAUDE.md` → "Pending upgrade checks" → "Official upgrade guide". Do not apply any of this until 0.7.0 is stable.
+> **⚠️ 0.7 WARNING (added 2026-07-27).** `signal_url` is valid on our 0.6.x line but is **REMOVED in 0.7**, and 0.7's `NetworkConfig` **rejects unknown fields — the conductor fails to start** rather than ignoring them. `webrtc_config` likewise. Other 0.7 renames: `request_timeout_s` moves from the top level *into* `network`; `db_sync_strategy` → `db_sync_level` (`Fast`→`Off`, `Resilient`→`Normal`); `chc_url` removed; new optional `wasm_backend` and `restore_chain_quorum`. A **local** iroh relay additionally requires `advanced: { irohTransport: { relayAllowPlainText: true } }`. Our live hits: `demo/conductor-config-node.yaml:19,21`, `valichord-ui/dev-conductor.yaml:17,19`, `demo/rehearse-autoupdate.sh:56`. Full list in `docs/HOLOCHAIN_UPGRADE_RECORD.md` → "Pending upgrade checks" → "Official upgrade guide". *(Applied during the 0.7 port — see §44.4. The line numbers above are from before it.)*
 
 ```yaml
 network:
@@ -1883,6 +1887,11 @@ it may not have before.
 ---
 
 ## HANDOVER NOTES FOR NEW CHAT
+
+> ⚠️ **Historical (February 2026).** These notes come from the claude.ai chat sessions that first
+> compiled this file. The paths below (`/mnt/transcripts/`, `/mnt/user-data/uploads`,
+> `valichord_scaffold_4.rs`) do not exist in this repository, and the pending actions are not a
+> current to-do list. For current state read `PROJECT_STATUS.md`.
 
 1. Read this file first — it is the complete knowledge base.
 2. Read the session summary at top of transcript to understand project context.

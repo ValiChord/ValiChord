@@ -2,8 +2,9 @@
 #
 # Builds an image containing:
 #   - Node.js 20 + @holochain/client
-#   - The Holochain conductor binary (auto-downloaded if not present in demo/bin/)
-#   - The kitsune2 bootstrap server binary (from demo/bin/kitsune2-bootstrap-srv)
+#   - The Holochain conductor binary (auto-downloaded unless demo/bin/ already holds
+#     the pinned version — see the version check below)
+#   - The kitsune2 bootstrap server binary (likewise)
 #   - The compiled researcher.happ / validator.happ
 #   - The demo/ Node.js scripts
 #
@@ -35,19 +36,21 @@ WORKDIR /app
 COPY demo/package.json demo/package-lock.json* /app/demo/
 RUN cd /app/demo && npm install --omit=dev
 
-# Copy pre-built binaries.
+# Copy any pre-supplied binaries. demo/bin/ is tracked only as an empty
+# directory (.gitkeep), so a fresh clone copies nothing and both binaries are
+# downloaded below; a correct-version binary placed there locally saves a download.
 COPY demo/bin/ /app/demo/bin/
-RUN chmod +x /app/demo/bin/kitsune2-bootstrap-srv
 
 # Use a bundled binary only when it is the RIGHT VERSION for this build;
 # otherwise download the arch-matched build from the Holochain release (which
 # also ships kitsune2-bootstrap-srv).
 #
 # ⚠️ This check used to be `--version >/dev/null` — i.e. "does it execute?" — and
-# that is a check that cannot fail for the case that matters. The committed
-# demo/bin/kitsune2-bootstrap-srv is 0.4.1 (Holochain 0.6.2's kitsune2 line) and
-# executes perfectly well on x86_64, so on the 0.7 bump it would have been
-# silently preferred over the 0.5.0 the release ships — and 0.7 bumped the p2p
+# that is a check that cannot fail for the case that matters. The bootstrap binary
+# once committed at demo/bin/kitsune2-bootstrap-srv was 0.4.1 (Holochain 0.6.2's
+# kitsune2 line; removed 2026-10-27) and executed perfectly well on x86_64, so on
+# the 0.7 bump it would have been silently preferred over the 0.5.0 the release
+# ships — and 0.7 bumped the p2p
 # wire protocol 2 -> 3, so the nodes would have failed to talk to each other with
 # no hint that the bootstrap server was the wrong build. Matching the version
 # string subsumes the old arch check too: a wrong-arch binary cannot exec, so it

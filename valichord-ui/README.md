@@ -15,7 +15,7 @@ For the full UX walkthrough, type mapping, and architecture notes see [FRONTEND.
 - Node.js 20.19+ (or 22.12+) — required by Vite 8; CI uses Node 22
 - Holochain 0.7.1 on your PATH (the version `main` is built against) — install via `cargo install holochain --version 0.7.1 --locked`. `dev-conductor.yaml` uses 0.7-only config, so an older conductor cannot start it; set `HOLOCHAIN_BIN=/path/to/holochain` if PATH holds a different version
 - Holochain CLI (`hc`) on your PATH — install via `cargo install holochain_cli --locked`
-- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing.md`, or the root README Quickstart; `dev.sh` prints the commands if the file is missing)
+- `valichord/workdir/valichord.happ` built (build and pack steps: `.claude/skills/integration-testing/SKILL.md`, or the root README Quickstart; `dev.sh` prints the commands if the file is missing)
 
 ### Terminal 1 — conductor
 
