@@ -97,7 +97,8 @@ c9ddaaf43dd8148073e820a4f993668312223dfc12392dbd089baa9eb2e9c29e  researcher.hap
 Only the attestation coordinator differs. The integrity WASMs and DNA manifests are identical, so
 the DNA hashes in the run record still hold. ⚠️ **Do not re-run this runbook to deliver #60:**
 nothing changed the DNA hash, so step 4's `down -v` would destroy the live network for nothing.
-#60 reaches Oracle by a coordinator hot-swap: [`ORACLE_HOTSWAP_60.md`](ORACLE_HOTSWAP_60.md).
+#60 reaches Oracle by a coordinator hot-swap: [`ORACLE_HOTSWAP_60.md`](ORACLE_HOTSWAP_60.md)
+(run 2026-10-28).
 
 ### 4. Destroy the old network — the irreversible step
 

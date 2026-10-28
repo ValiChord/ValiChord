@@ -1,7 +1,8 @@
 # Oracle: hot-swap #60 onto the live nodes — runbook
 
-**Status: not run yet.** Written and rehearsed 2026-10-28 (see [Rehearsal](#rehearsal-2026-10-28)).
-Run it from a machine that holds the Oracle SSH key, after PR #63 has merged.
+✅ **Run 2026-10-28 by Ceri, from a Windows PC over SSH, step by step with Claude.** All four nodes
+swapped; see the [Run record](#run-record). Rehearsed the same day (see
+[Rehearsal](#rehearsal-2026-10-28)). Run it from a machine that holds the Oracle SSH key.
 
 ## What this does, and what it does not
 
@@ -48,8 +49,8 @@ docker ps --format '{{.Names}}'       # prefix sudo if docker needs it
 ```
 
 Expect the bootstrap container and the four nodes. With the stack started from `demo/`, the node
-names are probably `demo-researcher-1` and `demo-validator-1-1` to `demo-validator-3-1`; use what
-`docker ps` prints.
+names are `demo-researcher-1` and `demo-validator-1-1` to `demo-validator-3-1` (confirmed on the
+2026-10-28 run); use what `docker ps` prints.
 
 ## 3. Write the two helper scripts on the host
 
@@ -192,4 +193,37 @@ Two differences from Oracle:
 
 ## Run record
 
-*(empty: not run yet)*
+### 2026-10-28: done
+
+**First, the server had been frozen for about a week.** From outside, SSH and the node APIs timed
+out, although the console showed the instance *Running*. The console's monitoring had stopped at
+about the evening of 2026-10-21, for every metric at once. In the day and a half before that, memory
+use had climbed steadily from about 48% to about 85%. So the server most likely ran out of memory
+and stopped responding. The public demo was down from then until this run, and nothing noticed. A
+reboot from the console brought it back (it sat in *Stopping* for several minutes first), and all
+five containers restarted by themselves. The journal is not persistent, so no log from before the
+reboot survived to confirm the cause.
+
+**Then the runbook, unchanged:**
+
+- **Take the code:** the pull reached `d6b140e`, and the three bundle checksums matched the gate.
+- **Helper scripts:** pasted, then checked by sha256 (`6b359f21…` and `76e20b75…`).
+- **Extract:** printed the gated checksum on all four nodes. That also confirmed the image has
+  `@msgpack/msgpack`.
+- **Swap:** researcher first, then validator-1, -2 and -3. Each printed `HOTSWAP COMPLETE`.
+  `get_my_claimed_studies` returned the same count before and after: 0 on the researcher, 1 on each
+  validator.
+- **Check:** `check-60.mjs` succeeded on all four, each reporting attestation DNA `uhC0kg1-EFqx…`,
+  the hash in the 0.7.1 run record. The network did not change.
+- **Afterwards:** the live record resolved from outside, in a browser: Reproduced, ExactMatch, 3 of
+  3 validators.
+
+**Found while doing it:**
+
+1. 🔴 **The memory growth will come back.** At the rate seen, this 6 GB server would freeze again
+   within a few days of each restart. The options are in `PROJECT_STATUS.md`, "What is left",
+   item 5.
+2. **Nobody noticed a week-long outage.** A monitoring alarm on memory, or an outside check of
+   `/health`, would have.
+3. `docker` works without `sudo` for `opc`.
+4. In Windows PowerShell, the last line of a multi-line paste waits for Enter.

@@ -408,10 +408,9 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   **always** wrong. Still undecided (Ceri): who writes `ValidatorReputation` in production, and
   whether a timed-out short record may earn a badge.
 - ✅ **Oracle runs 0.7.1** — the fresh install was run on 2026-10-19 (`docs/ORACLE_0.7.1_UPGRADE.md`,
-  which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57 — but
-  **not #60** (`get_linked_agents_for`, coordinator-only). The committed bundles carry it since the
-  2026-10-27 repack. Getting it onto Oracle is a coordinator hot-swap, with a grant caveat:
-  runbook `docs/ORACLE_HOTSWAP_60.md`, rehearsed 2026-10-28 against these bundles. A real round
+  which records the new DNA hashes and what the run turned up). It carries #47, #55 and #57, and
+  #60's coordinator since the hot-swap of 2026-10-28 (`docs/ORACLE_HOTSWAP_60.md`). On those nodes
+  `get_linked_agents_for` is outside `public-read`, because `init()` does not re-run. A real round
   passed (Reproduced 3/3). Every 0.7.0 record is dead, as planned. ⚠️ The server's `python3` is
   **3.9**: demo scripts run there must not evaluate 3.10+ syntax.
 - ⚠️ **The committed `.happ` bundles are what Oracle and the Docker demo run** — nothing compiles
@@ -422,7 +421,7 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   ✅ **Current as of 2026-10-27:** repacked after #60 (run `40602164694`, from `d90f98a`). Only the
   attestation coordinator changed. All four integrity WASMs and every DNA manifest are
   byte-identical to the bundles Oracle installed on 2026-10-19, so the DNA hashes are unchanged.
-  Oracle still runs the older attestation coordinator until it is hot-swapped. Check any function
+  Oracle runs the same attestation coordinator since the 2026-10-28 hot-swap. Check any function
   with `NEEDLE=<fn_name> ./check-no-test-hooks.sh` (exit 1 = present in a bundle, 0 = absent).
 - ⚠️ **Oracle changed address.** It is **`132.145.23.78`**, not `152.67.153.149`. The old instance
   was never reached: its SSH key was lost at creation, and Oracle's Compute Instance Run Command
@@ -436,6 +435,11 @@ Use for: bug fixes, new read functions, `schedule()` additions, warrant-gate cha
   because only one of the two is legible. Check the address before believing any demo result.
 - **Every HarmonyRecord URL published before 2026-08-24 is dead.** Accepted at the merge, and
   inherent to the DNA-hash change — not a bug to fix.
+- 🔴 **Oracle froze from about 2026-10-21 to 2026-10-28, and nothing noticed.** Memory climbed
+  until the server stopped answering, while the console still showed it *Running*. A console reboot
+  fixed it, but at that rate it freezes again within a few days of each restart until the memory
+  is dealt with (`PROJECT_STATUS.md`, "What is left", item 5). Check
+  `http://132.145.23.78:3001/health` before believing the demo is up.
 - ⚠️ **`database is locked` on Oracle is expected, not a failure.** 1 OCPU means SQLite contention:
   76 of them during a verified round, zero crashes, every assertion held. Do not treat them as the
   cause of an unrelated problem.
