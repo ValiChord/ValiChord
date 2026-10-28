@@ -160,8 +160,12 @@ and whether a timed-out HarmonyRecord carrying fewer attestations than requested
      said so too for a few minutes.)
    - **Restart the containers on a schedule**, for example nightly, so memory never builds up for
      days. It costs a few minutes of downtime each time.
-   - **Add an alarm on memory** (or an outside check of `/health`) so that a freeze is noticed. This
-     one went unnoticed for a week.
+   - ✅ **Alarm added 2026-10-28 (Ceri).** An OCI Monitoring alarm, *ValiChord server memory high*,
+     emails Ceri through the `valichord-alerts` topic when the instance's MemoryUtilization stays
+     above 85% for 5 minutes. A sudden freeze that stops the metrics before they cross 85% would
+     not trigger it.
+   - Ceri's decision, 2026-10-28: the email alarm is enough for now. The scheduled restart and
+     finding the growing container are deferred.
    - **Find which container grows:** run `docker stats --no-stream` twice, a day apart. More memory
      only buys time if a process leaks.
 
