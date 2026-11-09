@@ -57,6 +57,8 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 > 10. **Toolchain:** `hdi ^0.7.0`, `hdk ^0.6.0`, `holochain =0.6.0`. A `chore/holochain-0.7` branch
 >    exists (last commit 2026-08-11) but has not merged. **ValiChord's `main` is already on 0.7** — we
 >    are ahead of them here, which is a no-ask conversation opener.
+>    **Update 2026-11-09:** superseded. `dev` moved to Holochain 0.7.1 on 2026-11-04 (#130), with
+>    the same pins as ValiChord: `hdk =0.7.1`, `hdi =0.8.1`, client `^0.21.1`.
 > 11. **Documentation gap worth naming.** `documentation/requirements/post-mvp/` is where an accepted
 >    external integration lives — `flowsta-integration.md` (2026-03-24) and `unyt-integration.md`
 >    (2026-03-11), both "Post-MVP Design Document", both `Relates to: ndo_prima_materia.md`. **There is
@@ -196,7 +198,8 @@ https://github.com/Sensorica/nondominium. Updated April 2026 after re-reading th
 
 ## Overview
 
-**Five roles as of August 2026** (was three in May). `hdi ^0.7.0` / `hdk ^0.6.0` / `holochain =0.6.0`.
+**Five roles as of August 2026** (was three in May). `hdi ^0.7.0` / `hdk ^0.6.0` / `holochain =0.6.0`
+at the time. Since 2026-11-04 it is Holochain 0.7.1 (`hdk =0.7.1`, `hdi =0.8.1`).
 Tests: Sweettest (Rust, primary) + Playwright browser e2e — Tryorama/Vitest tests deprecated in the fork.
 
 ```

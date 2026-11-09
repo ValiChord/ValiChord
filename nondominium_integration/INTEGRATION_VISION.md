@@ -60,7 +60,7 @@ The integrated system is a **trusted, ungameable pipeline from resource contribu
 - The `ReproducibilityBadge` — a cryptographically traceable Gold/Silver/Bronze/Failed credential, linked to the HarmonyRecord that produced it, linked to every ValidationAttestation that fed it
 - `ValidatorReputation` — per-discipline agreement rate, average time invested, certification tier (Provisional/Standard/Advanced/Certified)
 - `AgentIdentityAttestation` — mutual Ed25519 proof that two device keys belong to the same person
-- `valichord_attestation` Python library — standalone evidence layer for AI evaluation runs; builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol
+- `valichord_attestation` Python library (a separate project since 2026-10-19: [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)) — standalone evidence layer for AI evaluation runs; builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol
 
 **What neither needs to rebuild:** Nondominium does not need a blind validation protocol. ValiChord does not need contribution tracking or resource lifecycle management. The cross-DNA call pattern is already proven in Nondominium's hREA bridge.
 
