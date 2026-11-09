@@ -2,7 +2,28 @@
 
 **Status:** Pre-implementation. Design decisions open. No integration code written yet.
 **Authors:** Ceri John (ValiChord), in dialogue with Tiberius Brastaviceanu and Sacha (Sensorica)
-**Last updated:** May 2026
+**Last updated:** 2026-11-09 (status banner below). The body dates from May 2026, with dated corrections.
+
+> **Status update (2026-11-09) — read this first.**
+> - **Toolchains match again.** Nondominium `dev` moved to Holochain 0.7.1 on 2026-11-04
+>   (sensorica/nondominium #130): `hdk =0.7.1`, `hdi =0.8.1`, `@holochain/client ^0.21.1`, the
+>   same pins as ValiChord. hREA is now vendored into their hApp, and they are integrating with Moss.
+> - **ValiChord:** latest release **0.6.7**; Oracle runs 0.7.1, including #55, #57 and #60.
+> - **Nothing is built on either side yet.** Their capability slot (G15) is still "Not started",
+>   `CapabilitySlot` is not yet a link type, and `validate_new_resource` is still commented out.
+> - **Discussion #109.** In it, Sacha asked whether a HarmonyRecord can be verified without calling
+>   ValiChord's code. On 2026-11-09 we posted a follow-up. It corrected two errors in our May
+>   reply: AgreementLevel variants that never existed, and a "Path 1" that trusted a
+>   researcher-written tag. It gave the current answer:
+>   - **How NDO can verify a record.** The slot carries a copy of the HarmonyRecord. Each record
+>     holds its validators' signed attestations (`attestation_evidence`, since #47) and its
+>     `network_name` (since #57). NDO's own validation checks them with `verify_signature` +
+>     `hash_entry`, with no ValiChord crate, no coordinator call and no cross-network fetch.
+>   - **The limit.** This proves the listed validators signed. It does not prove they were
+>     credentialed ValiChord validators; only ValiChord's network knows that.
+> - **Stance (Ceri):** the integration is shaped around NDO's needs: a lighter record, fewer
+>   fields, or none of the newer pieces. Only sealed-before-reveal answers and an unchangeable
+>   record are fixed. A three-way call (Sacha, Tibi, Ceri), proposed 2026-06-16, is still pending.
 
 > **Context:** ValiChord is production-grade and running end-to-end. The full 3-validator blind commit-reveal protocol is live on Oracle (v0.5.0) — researcher and validators all commit-reveal simultaneously, producing a permanent HarmonyRecord with a shareable public URL. The Nondominium integration builds on this foundation — ValiChord's outcomes feed into Nondominium's resource validation and contribution accounting.
 >
@@ -130,7 +151,7 @@ ValiChord's blind commit-reveal produces a `HarmonyRecord` — a cryptographical
 | `ValidatorPrivateAttestation` | Private DNA entry — raw findings never reach the shared DHT |
 | Membrane proof system | Ed25519 institutional credentials — validators are verified before joining a round |
 | 4-DNA sovereignty model | Researcher's raw data stays in a private DNA. Only hashes move into the shared DHT. Compatible with Nondominium's private data philosophy |
-| `valichord_attestation` Python library | Standalone evidence layer for AI evaluation runs — builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol |
+| `valichord_attestation` Python library (a separate project since 2026-10-19: [ValiChord/valichord-attestation](https://github.com/ValiChord/valichord-attestation)) | Standalone evidence layer for AI evaluation runs — builds a deterministic SHA-256 bundle + Merkle tree over per-sample outputs. Expands the class of validatable NDO resources to include AI benchmark claims; the bundle hash becomes the `data_hash` when entering the full commit-reveal protocol |
 
 ### What neither project needs to rebuild
 
@@ -157,6 +178,9 @@ Compatible — same minor version. No upgrades required to begin integration wor
 > `NONDOMINIUM_ARCHITECTURE.md`), so the two are **no longer on the same minor version**. Code
 > that only reads a HarmonyRecord as data is unaffected; anything running both in one conductor
 > is not.
+>
+> **Update 2026-11-09:** Nondominium `dev` moved to Holochain 0.7.1 on 2026-11-04, so the two
+> are on the **same versions again** (`hdk =0.7.1`, `hdi =0.8.1`, client `0.21.1`).
 
 **Note (April 2026):** Nondominium has no `DnaProperties` struct and `dna.yaml` has `properties: ~`.
 Any integration configuration (e.g. ValiChord callback URL or contract address) cannot live in
